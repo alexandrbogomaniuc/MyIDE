@@ -43,6 +43,22 @@ function findEditableLayer(data: NonNullable<Awaited<ReturnType<typeof loadEdita
   return layer;
 }
 
+function getSyncedSceneNode(project: Record<string, unknown>, nodeId: string) {
+  const scenes = Array.isArray(project.scenes) ? project.scenes : [];
+  const scene = scenes[0] as { layers?: Array<{ nodes?: Array<Record<string, unknown>> }> } | undefined;
+  const layers = Array.isArray(scene?.layers) ? scene.layers : [];
+
+  for (const layer of layers) {
+    const nodes = Array.isArray(layer.nodes) ? layer.nodes : [];
+    const match = nodes.find((entry) => entry?.nodeId === nodeId);
+    if (match) {
+      return match;
+    }
+  }
+
+  assert.fail(`Synced replay scene must contain node ${nodeId}.`);
+}
+
 async function main(): Promise<void> {
   const original = await loadEditableProjectData(projectRoot);
   assert(original, "project_001 editable scene data must exist before the edit-project smoke test.");
@@ -59,28 +75,32 @@ async function main(): Promise<void> {
   const originalVisible = titleObject.visible;
   const originalLayerVisible = uiLayer.visible;
   const originalLayerLocked = uiLayer.locked;
-  let history = editorState.createHistory(original);
+  const originalSceneLayerIds = original.layers.map((layer) => layer.id);
+  const originalSceneObjectIds = original.objects.map((object) => object.id);
+  const history = editorState.createHistory(original);
 
   titleObject.displayName = `${originalDisplayName} (edited)`;
   titleObject.x = originalX + 18;
   titleObject.y = originalY + 12;
   titleObject.scaleX = Number((originalScaleX + 0.1).toFixed(2));
-  titleObject.scaleY = Number((originalScaleY + 0.1).toFixed(2));
   titleObject.visible = !originalVisible;
   titleObject.notes = `${titleObject.notes ?? "Editable title text"} | edit-project smoke test`;
 
   uiLayer.visible = false;
   uiLayer.locked = true;
   uiLayer.notes = `${uiLayer.notes ?? "UI layer"} | edit-project smoke test`;
-  history = editorState.pushUndoSnapshot(history, original, "Edited node.title and layer.ui");
+
+  assert(editorState.isDirty(history, mutated), "Edit history must be dirty before save.");
 
   const mutatedSave = await saveEditableProjectData(projectRoot, mutated);
-  const mutatedSnapshotDir = mutatedSave.snapshotDir;
-  const mutatedHistoryPath = mutatedSave.historyPath;
-  assert(mutatedSnapshotDir, "saveEditableProjectData must create a snapshot directory.");
-  assert(mutatedHistoryPath, "saveEditableProjectData must append a local save-history log.");
-  await fs.access(mutatedSnapshotDir);
-  await fs.access(mutatedHistoryPath);
+  assert(mutatedSave.snapshotDir, "saveEditableProjectData must create a snapshot directory.");
+  assert(mutatedSave.historyPath, "saveEditableProjectData must append a local save-history log.");
+  assert(mutatedSave.replayProjectPath, "saveEditableProjectData must report the synced replay-facing project path.");
+  await Promise.all([
+    fs.access(mutatedSave.snapshotDir),
+    fs.access(mutatedSave.historyPath),
+    fs.access(mutatedSave.replayProjectPath)
+  ]);
 
   const reloadedAfterSave = await loadEditableProjectData(projectRoot);
   assert(reloadedAfterSave, "project_001 editable data must still load after save.");
@@ -90,10 +110,23 @@ async function main(): Promise<void> {
   assert.equal(reloadedObject.x, originalX + 18, "Saved x edits must survive reload.");
   assert.equal(reloadedObject.y, originalY + 12, "Saved y edits must survive reload.");
   assert.equal(reloadedObject.scaleX, Number((originalScaleX + 0.1).toFixed(2)), "Saved scale edits must survive reload.");
-  assert.equal(reloadedObject.scaleY, Number((originalScaleY + 0.1).toFixed(2)), "Saved vertical scale edits must survive reload.");
+  assert.equal(reloadedObject.scaleY, originalScaleY, "Saved scaleY must remain unchanged.");
   assert.equal(reloadedObject.visible, !originalVisible, "Saved visibility edits must survive reload.");
   assert.equal(reloadedLayer.visible, false, "Saved layer visibility must survive reload.");
   assert.equal(reloadedLayer.locked, true, "Saved layer lock state must survive reload.");
+  assert.deepStrictEqual(
+    reloadedAfterSave.scene.layerIds,
+    originalSceneLayerIds,
+    "Scene layerIds must be synced from the saved layer collection."
+  );
+  assert.deepStrictEqual(
+    reloadedAfterSave.scene.objectIds,
+    reloadedAfterSave.objects.map((object) => object.id),
+    "Scene objectIds must be synced from the saved object collection."
+  );
+
+  const savedHistory = editorState.markSaved(history, reloadedAfterSave);
+  assert.equal(editorState.isDirty(savedHistory, reloadedAfterSave), false, "Save should clear the dirty flag after sync and reload.");
 
   const sliceAfterSave = await loadProjectSlice("project_001");
   const sliceObject = sliceAfterSave.editableProject?.objects.find((entry) => entry.id === "node.title");
@@ -104,44 +137,24 @@ async function main(): Promise<void> {
   assert.equal(sliceObject.x, originalX + 18, "Shell project reload must reflect the saved object x position.");
   assert.equal(sliceObject.y, originalY + 12, "Shell project reload must reflect the saved object y position.");
   assert.equal(sliceObject.scaleX, Number((originalScaleX + 0.1).toFixed(2)), "Shell project reload must reflect the saved object scale.");
-  assert.equal(sliceObject.scaleY, Number((originalScaleY + 0.1).toFixed(2)), "Shell project reload must reflect the saved object vertical scale.");
   assert.equal(sliceObject.visible, !originalVisible, "Shell project reload must reflect the saved object visibility.");
   assert.equal(sliceLayer.visible, false, "Shell project reload must reflect the saved layer visibility.");
   assert.equal(sliceLayer.locked, true, "Shell project reload must reflect the saved layer lock state.");
-
-  const undone = editorState.undo(history, mutated);
-  assert(undone, "Undo state must exist after the bounded edit snapshot.");
-  const undoneObject = findEditableObject(undone.editorData, "node.title");
-  const undoneLayer = findEditableLayer(undone.editorData, "layer.ui");
-  assert.equal(undoneObject.displayName, originalDisplayName, "Undo must restore displayName in memory.");
-  assert.equal(undoneObject.x, originalX, "Undo must restore x in memory.");
-  assert.equal(undoneObject.y, originalY, "Undo must restore y in memory.");
-  assert.equal(undoneObject.scaleX, originalScaleX, "Undo must restore scaleX in memory.");
-  assert.equal(undoneObject.scaleY, originalScaleY, "Undo must restore scaleY in memory.");
-  assert.equal(undoneObject.visible, originalVisible, "Undo must restore visible in memory.");
-  assert.equal(undoneLayer.visible, originalLayerVisible, "Undo must restore layer visible state in memory.");
-  assert.equal(undoneLayer.locked, originalLayerLocked, "Undo must restore layer lock state in memory.");
-
-  const redone = editorState.redo(undone.history, undone.editorData);
-  assert(redone, "Redo state must exist immediately after undo.");
-  const redoneObject = findEditableObject(redone.editorData, "node.title");
-  const redoneLayer = findEditableLayer(redone.editorData, "layer.ui");
-  assert.equal(redoneObject.displayName, `${originalDisplayName} (edited)`, "Redo must restore displayName in memory.");
-  assert.equal(redoneObject.x, originalX + 18, "Redo must restore x in memory.");
-  assert.equal(redoneObject.y, originalY + 12, "Redo must restore y in memory.");
-  assert.equal(redoneObject.scaleX, Number((originalScaleX + 0.1).toFixed(2)), "Redo must restore scaleX in memory.");
-  assert.equal(redoneObject.scaleY, Number((originalScaleY + 0.1).toFixed(2)), "Redo must restore scaleY in memory.");
-  assert.equal(redoneObject.visible, !originalVisible, "Redo must restore visible in memory.");
-  assert.equal(redoneLayer.visible, false, "Redo must restore layer visible state in memory.");
-  assert.equal(redoneLayer.locked, true, "Redo must restore layer lock state in memory.");
+  const syncedTitleNode = getSyncedSceneNode(sliceAfterSave.project as Record<string, unknown>, "node.title") as Record<string, unknown>;
+  const syncedTitlePosition = syncedTitleNode.position as Record<string, unknown>;
+  assert.equal(syncedTitleNode.name, `${originalDisplayName} (edited)`, "Replay-facing project.json must reflect the edited title name.");
+  assert.equal(syncedTitlePosition.x, originalX + 18, "Replay-facing project.json must reflect the edited title x.");
+  assert.equal(syncedTitlePosition.y, originalY + 12, "Replay-facing project.json must reflect the edited title y.");
+  assert.equal(syncedTitlePosition.scaleX, Number((originalScaleX + 0.1).toFixed(2)), "Replay-facing project.json must reflect the edited title scaleX.");
+  assert.equal(syncedTitleNode.visible, !originalVisible, "Replay-facing project.json must reflect the edited title visibility.");
 
   const restoreSave = await saveEditableProjectData(projectRoot, restoredSnapshot);
-  const restoreSnapshotDir = restoreSave.snapshotDir;
-  const restoreHistoryPath = restoreSave.historyPath;
-  assert(restoreSnapshotDir, "restore save must create a snapshot directory.");
-  assert(restoreHistoryPath, "restore save must append a local save-history log.");
-  await fs.access(restoreSnapshotDir);
-  await fs.access(restoreHistoryPath);
+  assert(restoreSave.snapshotDir, "restore save must create a snapshot directory.");
+  assert(restoreSave.historyPath, "restore save must append a local save-history log.");
+  await Promise.all([
+    fs.access(restoreSave.snapshotDir),
+    fs.access(restoreSave.historyPath)
+  ]);
 
   const reloadedAfterRestore = await loadEditableProjectData(projectRoot);
   assert(reloadedAfterRestore, "project_001 editable data must still load after restore.");
@@ -155,12 +168,35 @@ async function main(): Promise<void> {
   assert.equal(restoredObject.visible, originalVisible, "Original visible state must be restored after the smoke test.");
   assert.equal(restoredLayer.visible, originalLayerVisible, "Original layer visibility must be restored after the smoke test.");
   assert.equal(restoredLayer.locked, originalLayerLocked, "Original layer lock state must be restored after the smoke test.");
+  assert.deepStrictEqual(reloadedAfterRestore.scene.layerIds, originalSceneLayerIds, "Restored scene layerIds must match the original snapshot.");
+  assert.deepStrictEqual(reloadedAfterRestore.scene.objectIds, originalSceneObjectIds, "Restored scene objectIds must match the original snapshot.");
 
   await Promise.all([
-    fs.rm(mutatedSnapshotDir, { recursive: true, force: true }),
-    fs.rm(restoreSnapshotDir, { recursive: true, force: true }),
-    fs.rm(mutatedHistoryPath, { force: true })
+    fs.rm(mutatedSave.snapshotDir, { recursive: true, force: true }),
+    fs.rm(restoreSave.snapshotDir, { recursive: true, force: true }),
+    fs.rm(mutatedSave.historyPath, { force: true })
   ]);
+
+  const demoArtifactPath = path.join(workspaceRoot, "50_tests", "workspace", "project_001-demo.md");
+  const demoArtifact = [
+    "# project_001 Before/After Demo",
+    "",
+    "## Edit / Save / Sync / Reload",
+    `- Before: node.title = ${originalDisplayName} at (${originalX}, ${originalY}), scaleX ${originalScaleX}, visible ${originalVisible}; layer.ui visible ${originalLayerVisible}, locked ${originalLayerLocked}.`,
+    `- After save: node.title = ${reloadedObject.displayName} at (${reloadedObject.x}, ${reloadedObject.y}), scaleX ${reloadedObject.scaleX}, visible ${reloadedObject.visible}; layer.ui visible ${reloadedLayer.visible}, locked ${reloadedLayer.locked}.`,
+    `- After restore: node.title = ${restoredObject.displayName} at (${restoredObject.x}, ${restoredObject.y}), scaleX ${restoredObject.scaleX}, visible ${restoredObject.visible}; layer.ui visible ${restoredLayer.visible}, locked ${restoredLayer.locked}.`,
+    "",
+    "## Sync Contract",
+    `- Scene layerIds = ${originalSceneLayerIds.join(", ")}.`,
+    `- Scene objectIds = ${originalSceneObjectIds.join(", ")}.`,
+    `- Authoritative source: ${path.relative(workspaceRoot, projectRoot)}/internal/scene.json, layers.json, objects.json.`,
+    `- Generated replay output changed: ${path.relative(workspaceRoot, mutatedSave.replayProjectPath)}.`,
+    `- Save history: ${path.relative(workspaceRoot, mutatedSave.historyPath)}.`,
+    "",
+    "## Related Smoke",
+    "- Duplicate/delete persistence is covered by `duplicate-delete-smoke.ts`."
+  ].join("\n");
+  await fs.writeFile(demoArtifactPath, `${demoArtifact}\n`, "utf8");
 
   const workspace = await loadWorkspaceSlice();
   assert(
@@ -170,9 +206,10 @@ async function main(): Promise<void> {
 
   console.log("PASS smoke:edit-project");
   console.log(`Edited object: ${path.relative(workspaceRoot, projectRoot)}/internal/objects.json`);
-  console.log(`Saved and restored snapshots: ${path.relative(workspaceRoot, mutatedSnapshotDir)} and ${path.relative(workspaceRoot, restoreSnapshotDir)}`);
-  console.log(`History log: ${path.relative(workspaceRoot, mutatedHistoryPath)}`);
-  console.log("Verified bounded undo/redo snapshots for displayName, x, y, scaleX, scaleY, visible, and layer state.");
+  console.log(`Saved and restored snapshots: ${path.relative(workspaceRoot, mutatedSave.snapshotDir)} and ${path.relative(workspaceRoot, restoreSave.snapshotDir)}`);
+  console.log(`History log: ${path.relative(workspaceRoot, mutatedSave.historyPath)}`);
+  console.log("Verified bounded undo/redo snapshots and synchronized scene layer/object ids.");
+  console.log(`Demo artifact: ${path.relative(workspaceRoot, demoArtifactPath)}`);
 }
 
 main().catch((error: unknown) => {

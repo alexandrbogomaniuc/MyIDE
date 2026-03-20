@@ -9,10 +9,12 @@
 
 ## Command
 - `npm run typecheck`
+- `npm run sync:project_001`
 - `npm run build && node dist/50_tests/schema/validate-workspace.js`
 - `npm run build && node dist/50_tests/workspace/create-project-smoke.js`
 - `npm run build && node dist/50_tests/workspace/edit-project-smoke.js`
 - `npm run build && node dist/50_tests/workspace/drag-edit-smoke.js`
+- `npm run build && node dist/50_tests/workspace/duplicate-delete-smoke.js`
 - `npm run verify:workspace`
 
 ## Known Gaps

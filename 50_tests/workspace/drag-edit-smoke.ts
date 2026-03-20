@@ -36,6 +36,22 @@ function findEditableObject(data: NonNullable<Awaited<ReturnType<typeof loadEdit
   return object;
 }
 
+function getSyncedSceneNode(project: Record<string, unknown>, nodeId: string) {
+  const scenes = Array.isArray(project.scenes) ? project.scenes : [];
+  const scene = scenes[0] as { layers?: Array<{ nodes?: Array<Record<string, unknown>> }> } | undefined;
+  const layers = Array.isArray(scene?.layers) ? scene.layers : [];
+
+  for (const layer of layers) {
+    const nodes = Array.isArray(layer.nodes) ? layer.nodes : [];
+    const match = nodes.find((entry) => entry?.nodeId === nodeId);
+    if (match) {
+      return match;
+    }
+  }
+
+  assert.fail(`Synced replay scene must contain node ${nodeId}.`);
+}
+
 async function main(): Promise<void> {
   const original = await loadEditableProjectData(projectRoot);
   assert(original, "project_001 editable scene data must exist before the drag-edit smoke test.");
@@ -55,8 +71,10 @@ async function main(): Promise<void> {
   const dragSave = await saveEditableProjectData(projectRoot, mutated);
   assert(dragSave.snapshotDir, "drag save must create a snapshot directory.");
   assert(dragSave.historyPath, "drag save must append a local save-history log.");
+  assert(dragSave.replayProjectPath, "drag save must report the synced replay-facing project path.");
   await fs.access(dragSave.snapshotDir);
   await fs.access(dragSave.historyPath);
+  await fs.access(dragSave.replayProjectPath);
 
   const reloadedAfterSave = await loadEditableProjectData(projectRoot);
   assert(reloadedAfterSave, "project_001 editable data must still load after drag save.");
@@ -69,6 +87,10 @@ async function main(): Promise<void> {
   assert(sliceObject, "Shell project slice must include the dragged object after save.");
   assert.equal(sliceObject.x, originalX + 36, "Project slice must reflect dragged x after reload.");
   assert.equal(sliceObject.y, originalY + 24, "Project slice must reflect dragged y after reload.");
+  const syncedModalNode = getSyncedSceneNode(sliceAfterSave.project as Record<string, unknown>, "node.free-spins-modal") as Record<string, unknown>;
+  const syncedModalPosition = syncedModalNode.position as Record<string, unknown>;
+  assert.equal(syncedModalPosition.x, originalX + 36, "Replay-facing project.json must reflect dragged x after sync.");
+  assert.equal(syncedModalPosition.y, originalY + 24, "Replay-facing project.json must reflect dragged y after sync.");
 
   const undone = editorState.undo(history, mutated);
   assert(undone, "Undo state must exist for the drag snapshot.");
