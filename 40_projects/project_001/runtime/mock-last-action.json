@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "0.1.0",
+  "projectId": "project_001",
+  "actionId": "action.restart.restore",
+  "type": "restart.restore",
+  "restoredStateId": "state.free-spins-active",
+  "restoredFrom": "mocked-gameState",
+  "capturedAt": "2026-03-20T08:20:00Z",
+  "evidenceRefs": [
+    "MG-EV-20260320-WEB-A-005",
+    "MG-EV-20260320-WEB-A-007"
+  ],
+  "notes": "Local replay recovery note only; not a production adapter payload."
+}

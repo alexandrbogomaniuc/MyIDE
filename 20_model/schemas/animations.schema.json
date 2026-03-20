@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://myide.local/schemas/animations.schema.json",
+  "title": "MyIDE Animation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["animationId", "name", "tracks"],
+  "properties": {
+    "animationId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "scope": {
+      "type": "string",
+      "enum": ["scene", "node", "project", "server-response", "ui"]
+    },
+    "loop": {
+      "type": "boolean",
+      "default": false
+    },
+    "trigger": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["auto", "event", "state-enter", "state-exit", "manual", "timer"]
+        },
+        "eventName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "stateId": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "tracks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["trackId", "target", "keyframes"],
+        "properties": {
+          "trackId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "target": {
+            "type": "string",
+            "minLength": 1
+          },
+          "property": {
+            "type": "string",
+            "minLength": 1
+          },
+          "keyframes": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["at", "value"],
+              "properties": {
+                "at": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "value": {},
+                "easing": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "extensions": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  }
+}

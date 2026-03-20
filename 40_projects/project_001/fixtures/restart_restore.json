@@ -1,0 +1,21 @@
+{
+  "fixtureId": "fixture.restart-restore",
+  "displayName": "Restore mocked free spins state",
+  "entryStateId": "state.restore.free-spins-active",
+  "resultStateId": "state.free-spins-active",
+  "evidenceRefs": [
+    "MG-EV-20260320-WEB-A-005",
+    "MG-EV-20260320-WEB-A-007"
+  ],
+  "gameStateFile": "40_projects/project_001/runtime/mock-game-state.json",
+  "lastActionFile": "40_projects/project_001/runtime/mock-last-action.json",
+  "expectedUi": {
+    "counterText": "Free spins: 9/10",
+    "restoreChip": "Recovered from mocked gameState",
+    "stickyFrameCount": 3
+  },
+  "validationNotes": [
+    "This scenario proves replay restoration only.",
+    "No production adapter behavior is implied."
+  ]
+}

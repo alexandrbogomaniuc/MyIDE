@@ -1,0 +1,26 @@
+{
+  "fixtureId": "fixture.normal-spin",
+  "displayName": "Normal spin with base win",
+  "entryStateId": "state.idle",
+  "resultStateId": "state.base-win",
+  "evidenceRefs": [
+    "MG-EV-20260320-WEB-A-004",
+    "MG-EV-20260320-WEB-A-006"
+  ],
+  "grid": [
+    ["ROSE", "A", "K"],
+    ["BOOK", "ROSE", "A"],
+    ["KEY", "BOOK", "ROSE"],
+    ["A", "ROSE", "BOOK"],
+    ["K", "A", "ROSE"]
+  ],
+  "win": {
+    "amount": 3,
+    "currency": "EUR",
+    "bannerText": "3.00 EUR"
+  },
+  "validationNotes": [
+    "Uses placeholder text tokens instead of donor art.",
+    "Win-strip styling is inferred from the observed screenshot."
+  ]
+}

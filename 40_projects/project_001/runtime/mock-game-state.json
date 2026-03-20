@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "0.1.0",
+  "projectId": "project_001",
+  "stateId": "state.free-spins-active",
+  "balance": 1203,
+  "bet": 1,
+  "lastWin": 3,
+  "reelWindow": [
+    ["BOOK", "ROSE", "KEY"],
+    ["A", "BOOK", "ROSE"],
+    ["K", "ROSE", "BOOK"],
+    ["KEY", "BOOK", "A"],
+    ["ROSE", "K", "BOOK"]
+  ],
+  "freeSpins": {
+    "awarded": 10,
+    "remaining": 9,
+    "stickyFrames": [
+      "r1c1",
+      "r3c2",
+      "r4c1"
+    ]
+  },
+  "evidenceRefs": [
+    "MG-EV-20260320-WEB-A-005",
+    "MG-EV-20260320-WEB-A-007"
+  ],
+  "notes": "Mocked internal restart state for PHASE 2 only."
+}

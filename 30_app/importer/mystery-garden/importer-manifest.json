@@ -1,0 +1,66 @@
+{
+  "importerId": "importer.mystery-garden.v1",
+  "modelVersion": "0.2.0",
+  "sourceDonorId": "donor_001_mystery_garden",
+  "sourceEvidenceRefs": [
+    "MG-EV-20260320-WEB-A-001",
+    "MG-EV-20260320-WEB-A-002",
+    "MG-EV-20260320-WEB-A-003",
+    "MG-EV-20260320-WEB-A-004",
+    "MG-EV-20260320-WEB-A-005",
+    "MG-EV-20260320-WEB-A-006",
+    "MG-EV-20260320-WEB-A-007",
+    "MG-EV-20260320-WEB-A-008",
+    "MG-EV-20260320-LIVE-A-001",
+    "MG-EV-20260320-LIVE-A-002",
+    "MG-EV-20260320-LIVE-A-003",
+    "MG-EV-20260320-LIVE-A-004",
+    "MG-EV-20260320-LIVE-A-005",
+    "MG-EV-20260320-LIVE-A-006"
+  ],
+  "inputDocs": [
+    "10_donors/donor_001_mystery_garden/evidence/EVIDENCE_INDEX.md",
+    "10_donors/donor_001_mystery_garden/reports/DONOR_REPORT_V1.md",
+    "10_donors/donor_001_mystery_garden/reports/STATE_MAP.md",
+    "10_donors/donor_001_mystery_garden/reports/ASSET_MAP.md",
+    "10_donors/donor_001_mystery_garden/reports/ANIMATION_MAP.md",
+    "10_donors/donor_001_mystery_garden/reports/UI_FLOW.md",
+    "10_donors/donor_001_mystery_garden/reports/CLAIMS_LEDGER.md"
+  ],
+  "outputPath": "40_projects/project_001/imports/mystery-garden-import.json",
+  "sourceBoundary": {
+    "noRawRuntimeReads": true,
+    "readOnlyEvidenceOnly": true,
+    "internalProjectOnlyOutput": true
+  },
+  "publicRepoBoundary": {
+    "trackedInputsMustNotPointToRawOrLocalOnly": true,
+    "sessionSpecificRuntimePathsMustBeRedactedInTrackedMetadata": true
+  },
+  "mappingTargets": [
+    "project metadata",
+    "main scene metadata",
+    "basic layer stack",
+    "visible board placeholders",
+    "key UI placeholders",
+    "idle/spin/win/free-spins-trigger state skeleton",
+    "mocked restart/state history linkage"
+  ],
+  "unknownPolicy": {
+    "labelUnknownsExplicitly": true,
+    "doNotInferTimingWithoutEvidence": true,
+    "doNotInventPaytable": true,
+    "doNotInventRawAssets": true
+  },
+  "evidenceRefPolicy": {
+    "attachRefsToImportedFields": true,
+    "allowMultipleRefsPerField": true,
+    "preferDirectRefsFromReports": true
+  },
+  "currentKnownGaps": [
+    "Live spin request and restart recovery evidence are still uncaptured.",
+    "Live free-spins entry is still uncaptured.",
+    "Exact symbol inventory and paytable are still unresolved.",
+    "Animation duration and easing are still unresolved."
+  ]
+}

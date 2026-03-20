@@ -1,0 +1,129 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://myide.local/schemas/states.schema.json",
+  "title": "MyIDE State",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["stateId", "name", "kind", "transitions"],
+  "properties": {
+    "stateId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "kind": {
+      "type": "string",
+      "enum": ["boot", "load", "idle", "spin", "reveal", "bonus", "result", "error", "paused", "shutdown"]
+    },
+    "entryActions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/action"
+      }
+    },
+    "exitActions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/action"
+      }
+    },
+    "transitions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/transition"
+      }
+    },
+    "timeouts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/timeout"
+      }
+    },
+    "flags": {
+      "type": "object",
+      "additionalProperties": {
+        "type": ["string", "number", "boolean", "null"]
+      }
+    },
+    "extensions": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "action": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["show", "hide", "set", "playAnimation", "emit", "callServer", "log"]
+        },
+        "target": {
+          "type": "string",
+          "minLength": 1
+        },
+        "value": {},
+        "args": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "transition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["event", "targetStateId"],
+      "properties": {
+        "event": {
+          "type": "string",
+          "minLength": 1
+        },
+        "targetStateId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "when": {
+          "type": "string",
+          "minLength": 1
+        },
+        "priority": {
+          "type": "integer",
+          "default": 0
+        },
+        "actions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/action"
+          }
+        }
+      }
+    },
+    "timeout": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["afterMs", "targetStateId"],
+      "properties": {
+        "afterMs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "targetStateId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "actions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/action"
+          }
+        }
+      }
+    }
+  }
+}

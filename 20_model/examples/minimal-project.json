@@ -1,0 +1,203 @@
+{
+  "schemaVersion": "0.2.0",
+  "projectId": "demo-slot-project",
+  "name": "Demo Slot Project",
+  "mode": {
+    "product": "slot-only",
+    "userScope": "single-user",
+    "ui": "desktop-web-ui"
+  },
+  "sources": {
+    "editableRoot": "40_projects/demo-slot-project",
+    "donorEvidenceRoot": "10_donors/donor_001_mystery_garden",
+    "rawDonorRoots": [
+      "10_donors/donor_001_mystery_garden/raw"
+    ]
+  },
+  "assets": [],
+  "scenes": [],
+  "states": [],
+  "animations": [],
+  "bindings": [],
+  "serverMap": {
+    "serverMapId": "demo-server-map",
+    "runtime": {
+      "name": "new-games-server",
+      "kind": "reference-upstream"
+    },
+    "endpoints": {
+      "start": {
+        "method": "start",
+        "requestMode": "single-flight"
+      },
+      "enter": {
+        "method": "enter",
+        "requestMode": "single-flight"
+      },
+      "processTransactions": {
+        "method": "processTransactions",
+        "requestMode": "queued"
+      },
+      "getBalance": {
+        "method": "getBalance",
+        "requestMode": "single-flight"
+      },
+      "restart": {
+        "method": "restart",
+        "requestMode": "queued"
+      },
+      "close": {
+        "method": "close",
+        "requestMode": "single-flight"
+      }
+    },
+    "requestQueue": {
+      "mode": "serial",
+      "maxPending": 1,
+      "retryPolicy": "explicit"
+    },
+    "restartRecovery": {
+      "strategy": "rebuild-session",
+      "reconcileState": true
+    },
+    "stateOwnership": {
+      "authoritativeSide": "server",
+      "mirroredFields": []
+    },
+    "security": {
+      "hmacRequired": true
+    }
+  },
+  "messages": {
+    "modelVersion": "0.2.0",
+    "messagePackId": "messages.demo",
+    "ids": [
+      "msg.demo.ready"
+    ],
+    "references": [
+      {
+        "refId": "demo-project",
+        "kind": "project"
+      }
+    ],
+    "validationNotes": [
+      "Minimal example keeps one status message."
+    ],
+    "messages": [
+      {
+        "messageId": "msg.demo.ready",
+        "category": "status",
+        "defaultText": "Demo project ready."
+      }
+    ]
+  },
+  "localization": {
+    "modelVersion": "0.2.0",
+    "localizationId": "localization.demo",
+    "ids": [
+      "en-GB"
+    ],
+    "references": [
+      {
+        "refId": "messages.demo",
+        "kind": "project"
+      }
+    ],
+    "validationNotes": [
+      "Minimal example uses one locale."
+    ],
+    "defaultLocale": "en-GB",
+    "locales": [
+      {
+        "locale": "en-GB",
+        "direction": "ltr",
+        "messageRefs": [
+          "msg.demo.ready"
+        ],
+        "strings": {
+          "msg.demo.ready": "Demo project ready."
+        }
+      }
+    ]
+  },
+  "clientConfig": {
+    "modelVersion": "0.2.0",
+    "clientConfigId": "client-config.demo",
+    "ids": [
+      "overlay.demo"
+    ],
+    "references": [
+      {
+        "refId": "demo-shell",
+        "kind": "project"
+      }
+    ],
+    "validationNotes": [
+      "Minimal example stays file-backed."
+    ],
+    "overlays": [
+      {
+        "overlayId": "overlay.demo",
+        "target": "preview-shell",
+        "settings": {
+          "showEvidenceRefs": true
+        }
+      }
+    ]
+  },
+  "rngSource": {
+    "modelVersion": "0.2.0",
+    "rngSourceId": "rng.demo",
+    "ids": [
+      "rng.demo.seq"
+    ],
+    "references": [
+      {
+        "refId": "demo-fixtures",
+        "kind": "runtime"
+      }
+    ],
+    "validationNotes": [
+      "Minimal example uses a mock sequence."
+    ],
+    "mode": "mock-sequence",
+    "seed": "demo-seed",
+    "sequence": [
+      0.25,
+      0.75
+    ],
+    "resumeCursor": 0,
+    "mappingNotes": "Placeholder only."
+  },
+  "stateHistory": {
+    "modelVersion": "0.2.0",
+    "stateHistoryId": "state-history.demo",
+    "ids": [
+      "checkpoint.demo"
+    ],
+    "references": [
+      {
+        "refId": "runtime.demo",
+        "kind": "runtime"
+      }
+    ],
+    "validationNotes": [
+      "Minimal example includes a single idle checkpoint."
+    ],
+    "checkpoints": [
+      {
+        "checkpointId": "checkpoint.demo",
+        "stateId": "state.idle",
+        "createdFrom": "manual",
+        "snapshot": {
+          "example": true
+        }
+      }
+    ],
+    "resumePolicy": {
+      "mode": "resume-latest",
+      "fallbackStateId": "state.idle",
+      "reconcileLastAction": false
+    }
+  }
+}

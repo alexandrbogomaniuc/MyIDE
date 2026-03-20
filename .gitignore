@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.DS_Store
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+progress.md
+10_donors/**/evidence/capture_sessions/*/downloads/**
+10_donors/**/evidence/local_only/**
+!10_donors/**/evidence/local_only/
+!10_donors/**/evidence/local_only/README.md

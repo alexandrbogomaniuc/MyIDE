@@ -1,0 +1,96 @@
+import { promises as fs } from "node:fs";
+import path from "node:path";
+
+type JsonValue = null | boolean | number | string | JsonObject | JsonValue[];
+type JsonObject = { [key: string]: JsonValue };
+
+export interface ProjectSliceBundle {
+  project: JsonObject;
+  fixtures: {
+    normalSpin: JsonObject;
+    freeSpinsTrigger: JsonObject;
+    restartRestore: JsonObject;
+  };
+  runtime: {
+    mockedGameState: JsonObject;
+    mockedLastAction: JsonObject;
+  };
+}
+
+const workspaceRoot = path.resolve(__dirname, "../../..");
+const projectRoot = path.join(workspaceRoot, "40_projects", "project_001");
+
+export function getProjectSlicePaths(): readonly string[] {
+  return [
+    path.join(projectRoot, "project.json"),
+    path.join(projectRoot, "fixtures", "normal_spin.json"),
+    path.join(projectRoot, "fixtures", "free_spins_trigger.json"),
+    path.join(projectRoot, "fixtures", "restart_restore.json"),
+    path.join(projectRoot, "runtime", "mock-game-state.json"),
+    path.join(projectRoot, "runtime", "mock-last-action.json")
+  ];
+}
+
+function assertJsonObject(value: unknown, label: string): asserts value is JsonObject {
+  if (!value || Array.isArray(value) || typeof value !== "object") {
+    throw new Error(`${label} must be a JSON object.`);
+  }
+}
+
+async function readJsonFile(filePath: string): Promise<JsonObject> {
+  const raw = await fs.readFile(filePath, "utf8");
+  const parsed: unknown = JSON.parse(raw);
+  assertJsonObject(parsed, filePath);
+  return parsed;
+}
+
+function getObjectArray(value: JsonValue | undefined): JsonObject[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.filter((item): item is JsonObject => Boolean(item) && typeof item === "object" && !Array.isArray(item));
+}
+
+function assertPreviewAssetsStayInternal(project: JsonObject): void {
+  const assets = getObjectArray(project.assets);
+
+  for (const asset of assets) {
+    const source = asset.source;
+    if (!source || Array.isArray(source) || typeof source !== "object") {
+      continue;
+    }
+
+    const sourcePath = source.path;
+    if (typeof sourcePath === "string" && sourcePath.startsWith("10_donors/")) {
+      throw new Error(`Preview asset path must stay internal to project_001: ${sourcePath}`);
+    }
+  }
+}
+
+export async function loadProjectSlice(): Promise<ProjectSliceBundle> {
+  const [projectPath, normalSpinPath, freeSpinsTriggerPath, restartRestorePath, mockedGameStatePath, mockedLastActionPath] = getProjectSlicePaths();
+  const [project, normalSpin, freeSpinsTrigger, restartRestore, mockedGameState, mockedLastAction] = await Promise.all([
+    readJsonFile(projectPath),
+    readJsonFile(normalSpinPath),
+    readJsonFile(freeSpinsTriggerPath),
+    readJsonFile(restartRestorePath),
+    readJsonFile(mockedGameStatePath),
+    readJsonFile(mockedLastActionPath)
+  ]);
+
+  assertPreviewAssetsStayInternal(project);
+
+  return {
+    project,
+    fixtures: {
+      normalSpin,
+      freeSpinsTrigger,
+      restartRestore
+    },
+    runtime: {
+      mockedGameState,
+      mockedLastAction
+    }
+  };
+}

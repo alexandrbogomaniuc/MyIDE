@@ -1,0 +1,195 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://myide.local/schemas/server-map.schema.json",
+  "title": "MyIDE Server Map",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["serverMapId", "runtime", "endpoints", "requestQueue", "restartRecovery", "stateOwnership", "security"],
+  "properties": {
+    "serverMapId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "kind"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "type": "string",
+          "enum": ["reference-upstream", "local-adapter", "embedded-runtime", "mock"]
+        },
+        "notes": {
+          "type": "string"
+        }
+      }
+    },
+    "endpoints": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start", "enter", "processTransactions", "getBalance", "restart", "close"],
+      "properties": {
+        "start": {
+          "$ref": "#/$defs/endpoint"
+        },
+        "enter": {
+          "$ref": "#/$defs/endpoint"
+        },
+        "processTransactions": {
+          "$ref": "#/$defs/endpoint"
+        },
+        "getBalance": {
+          "$ref": "#/$defs/endpoint"
+        },
+        "restart": {
+          "$ref": "#/$defs/endpoint"
+        },
+        "close": {
+          "$ref": "#/$defs/endpoint"
+        }
+      }
+    },
+    "requestQueue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "maxPending", "retryPolicy"],
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["serial", "single-flight", "bounded-queue"]
+        },
+        "maxPending": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "retryPolicy": {
+          "type": "string",
+          "enum": ["none", "explicit", "idempotent", "exponential-backoff"]
+        },
+        "timeoutMs": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "restartRecovery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["strategy", "reconcileState"],
+      "properties": {
+        "strategy": {
+          "type": "string",
+          "enum": ["rebuild-session", "replay-queue", "refresh-balance", "restore-checkpoint", "manual"]
+        },
+        "reconcileState": {
+          "type": "boolean"
+        },
+        "lastActionKey": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "stateOwnership": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["authoritativeSide", "mirroredFields"],
+      "properties": {
+        "authoritativeSide": {
+          "type": "string",
+          "enum": ["server", "client", "shared"]
+        },
+        "mirroredFields": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "stickyFields": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "security": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["hmacRequired"],
+      "properties": {
+        "hmacRequired": {
+          "type": "boolean"
+        },
+        "hmacKeyRef": {
+          "type": "string",
+          "minLength": 1
+        },
+        "signedFields": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "errorHandling": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "retryableCodes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "fatalCodes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "closeOnFatal": {
+          "type": "boolean"
+        }
+      }
+    },
+    "extensions": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "endpoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["method", "requestMode"],
+      "properties": {
+        "method": {
+          "type": "string",
+          "minLength": 1
+        },
+        "requestMode": {
+          "type": "string",
+          "enum": ["single-flight", "queued", "fire-and-forget", "idempotent"]
+        },
+        "timeoutMs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "notes": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

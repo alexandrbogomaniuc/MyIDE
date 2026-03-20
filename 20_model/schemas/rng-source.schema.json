@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://myide.local/schemas/rng-source.schema.json",
+  "title": "MyIDE RNG Source",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["modelVersion", "rngSourceId", "ids", "references", "validationNotes", "mode"],
+  "properties": {
+    "modelVersion": {
+      "type": "string",
+      "const": "0.2.0"
+    },
+    "rngSourceId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "references": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/reference"
+      }
+    },
+    "validationNotes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "mode": {
+      "type": "string",
+      "enum": ["mock-sequence", "seeded-local", "captured-sequence", "reference-upstream", "server-authoritative"]
+    },
+    "seed": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sequence": {
+      "type": "array",
+      "items": {
+        "type": "number"
+      }
+    },
+    "resumeCursor": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "mappingNotes": {
+      "type": "string"
+    }
+  },
+  "$defs": {
+    "reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["refId", "kind"],
+      "properties": {
+        "refId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "type": "string",
+          "enum": ["evidence", "project", "schema", "runtime", "todo"]
+        },
+        "notes": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

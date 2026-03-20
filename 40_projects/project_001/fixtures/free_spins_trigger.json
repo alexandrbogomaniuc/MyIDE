@@ -1,0 +1,43 @@
+{
+  "fixtureId": "fixture.free-spins-trigger",
+  "displayName": "Scatter trigger into free spins",
+  "entryStateId": "state.spin",
+  "resultStateId": "state.free-spins-trigger",
+  "followUpStateId": "state.free-spins-active",
+  "evidenceRefs": [
+    "MG-EV-20260320-WEB-A-001",
+    "MG-EV-20260320-WEB-A-006",
+    "MG-EV-20260320-WEB-A-007",
+    "MG-EV-20260320-WEB-A-005"
+  ],
+  "grid": [
+    ["KEY", "ROSE", "A"],
+    ["BOOK", "KEY", "ROSE"],
+    ["A", "ROSE", "KEY"],
+    ["BOOK", "A", "ROSE"],
+    ["ROSE", "BOOK", "A"]
+  ],
+  "award": {
+    "freeSpins": 10,
+    "modalText": "YOU HAVE WON 10 FREE SPINS"
+  },
+  "followUp": {
+    "grid": [
+      ["BOOK", "ROSE", "KEY"],
+      ["A", "BOOK", "ROSE"],
+      ["K", "ROSE", "BOOK"],
+      ["KEY", "BOOK", "A"],
+      ["ROSE", "K", "BOOK"]
+    ],
+    "counterText": "Free spins: 9/10",
+    "stickyFrames": [
+      "r1c1",
+      "r3c2",
+      "r4c1"
+    ]
+  },
+  "validationNotes": [
+    "Trigger flow is evidence-backed for visible states only.",
+    "Exact transition timing remains unresolved."
+  ]
+}

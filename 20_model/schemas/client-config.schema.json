@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://myide.local/schemas/client-config.schema.json",
+  "title": "MyIDE Client Config",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["modelVersion", "clientConfigId", "ids", "references", "validationNotes", "overlays"],
+  "properties": {
+    "modelVersion": {
+      "type": "string",
+      "const": "0.2.0"
+    },
+    "clientConfigId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "references": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/reference"
+      }
+    },
+    "validationNotes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "overlays": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["overlayId", "target", "settings"],
+        "properties": {
+          "overlayId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "target": {
+            "type": "string",
+            "minLength": 1
+          },
+          "settings": {
+            "type": "object",
+            "additionalProperties": {
+              "type": ["string", "number", "boolean", "null"]
+            }
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["refId", "kind"],
+      "properties": {
+        "refId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "type": "string",
+          "enum": ["evidence", "project", "schema", "runtime", "todo"]
+        },
+        "notes": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}
