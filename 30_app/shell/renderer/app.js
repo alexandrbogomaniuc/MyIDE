@@ -6,7 +6,8 @@ const state = {
   history: null,
   canvasDrag: null,
   dirty: false,
-  activityLog: []
+  activityLog: [],
+  syncStatus: null
 };
 
 const lifecycleStageOrder = [
@@ -44,11 +45,13 @@ const elements = {
   actionRescan: document.getElementById("action-rescan"),
   actionUndo: document.getElementById("action-undo"),
   actionRedo: document.getElementById("action-redo"),
+  actionNewObject: document.getElementById("action-new-object"),
   actionDuplicate: document.getElementById("action-duplicate"),
   actionDelete: document.getElementById("action-delete"),
   actionSave: document.getElementById("action-save"),
   actionReloadEditor: document.getElementById("action-reload-editor"),
   dirtyIndicator: document.getElementById("dirty-indicator"),
+  syncStatus: document.getElementById("sync-status"),
   newProjectForm: document.getElementById("new-project-form"),
   createProjectStatus: document.getElementById("create-project-status"),
   fieldDisplayName: document.getElementById("field-display-name"),
@@ -82,6 +85,9 @@ function bindActions() {
   });
   elements.actionRedo?.addEventListener("click", () => {
     handleRedo();
+  });
+  elements.actionNewObject?.addEventListener("click", () => {
+    handleCreateNewObject();
   });
   elements.actionDuplicate?.addEventListener("click", () => {
     handleDuplicateSelectedObject();
@@ -460,6 +466,65 @@ function setCreateProjectStatus(text, isError = false) {
   elements.createProjectStatus.dataset.tone = isError ? "error" : "default";
 }
 
+function formatSyncTimestamp(value) {
+  if (typeof value !== "string" || value.length === 0) {
+    return "No sync yet this session";
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+
+  return parsed.toISOString().replace("T", " ").replace(".000Z", "Z");
+}
+
+function getReplayTargetPath(project = getSelectedProject()) {
+  return project?.keyPaths?.projectJsonPath ?? null;
+}
+
+function setSyncStatus(patch) {
+  const selectedProject = getSelectedProject();
+  const defaultReplayPath = getReplayTargetPath(selectedProject);
+  state.syncStatus = {
+    projectId: selectedProject?.projectId ?? state.selectedProjectId ?? null,
+    status: "idle",
+    replayPath: defaultReplayPath,
+    lastSyncedAt: null,
+    syncBridge: null,
+    message: "No save/sync has run in this session yet.",
+    ...state.syncStatus,
+    ...patch
+  };
+}
+
+function ensureSyncStatusForSelectedProject() {
+  const selectedProject = getSelectedProject();
+
+  if (!selectedProject) {
+    state.syncStatus = null;
+    return;
+  }
+
+  const replayPath = getReplayTargetPath(selectedProject);
+  if (state.syncStatus?.projectId === selectedProject.projectId) {
+    state.syncStatus = {
+      ...state.syncStatus,
+      replayPath: state.syncStatus.replayPath ?? replayPath
+    };
+    return;
+  }
+
+  state.syncStatus = {
+    projectId: selectedProject.projectId,
+    status: "idle",
+    replayPath,
+    lastSyncedAt: null,
+    syncBridge: null,
+    message: "No save/sync has run in this session yet."
+  };
+}
+
 function pushLog(text) {
   const stamp = new Date().toISOString().slice(11, 19);
   state.activityLog = [{ stamp, text }, ...state.activityLog].slice(0, 10);
@@ -812,6 +877,7 @@ async function reloadWorkspace(isInitialLoad, requestedProjectId = null) {
   state.canvasDrag = null;
   resetEditorHistory();
   reconcileSelectedObject();
+  ensureSyncStatusForSelectedProject();
 
   if (isInitialLoad) {
     pushLog(`Opened ${state.selectedProjectId}.`);
@@ -1011,20 +1077,78 @@ async function handleSaveEditor() {
   }
 
   const selectedObjectId = state.selectedObjectId;
-  const saveResult = await window.myideApi.saveProjectEditor(selectedProject.projectId, state.editorData);
-  const replayPath = saveResult.replayProjectPath
-    ? toRepoRelativePath(saveResult.replayProjectPath)
-    : "40_projects/project_001/project.json";
-  pushLog(`Saved ${selectedProject.projectId} and synced replay output to ${replayPath}.`);
 
-  await reloadWorkspace(false, selectedProject.projectId);
-  reconcileSelectedObject(selectedObjectId);
-  renderAll();
-  state.dirty = false;
+  try {
+    const saveResult = await window.myideApi.saveProjectEditor(selectedProject.projectId, state.editorData);
+    const replayPath = saveResult.replayProjectPath
+      ? toRepoRelativePath(saveResult.replayProjectPath)
+      : "40_projects/project_001/project.json";
+    pushLog(`Saved ${selectedProject.projectId} and synced replay output to ${replayPath}.`);
 
-  const snapshotMessage = saveResult.snapshotDir ? ` Snapshot: ${toRepoRelativePath(saveResult.snapshotDir)}.` : "";
-  const syncMessage = saveResult.replayProjectPath ? ` Replay sync: ${replayPath}.` : "";
-  setPreviewStatus(`Saved ${selectedProject.displayName} at ${saveResult.savedAt}.${snapshotMessage}${syncMessage}`);
+    await reloadWorkspace(false, selectedProject.projectId);
+    reconcileSelectedObject(selectedObjectId);
+    setSyncStatus({
+      projectId: selectedProject.projectId,
+      status: "synced",
+      replayPath,
+      lastSyncedAt: saveResult.savedAt,
+      syncBridge: saveResult.syncBridge ?? null,
+      message: `Replay output synced to ${replayPath}.`
+    });
+    renderAll();
+    state.dirty = false;
+
+    const snapshotMessage = saveResult.snapshotDir ? ` Snapshot: ${toRepoRelativePath(saveResult.snapshotDir)}.` : "";
+    const syncMessage = saveResult.replayProjectPath ? ` Replay sync: ${replayPath}.` : "";
+    setPreviewStatus(`Saved ${selectedProject.displayName} at ${saveResult.savedAt}.${snapshotMessage}${syncMessage}`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Project save failed.";
+    setSyncStatus({
+      projectId: selectedProject.projectId,
+      status: "error",
+      replayPath: toRepoRelativePath(getReplayTargetPath(selectedProject) ?? ""),
+      message
+    });
+    renderAll();
+    setPreviewStatus(message);
+  }
+}
+
+function renderSyncStatus() {
+  if (!elements.syncStatus) {
+    return;
+  }
+
+  const selectedProject = getSelectedProject();
+  if (!selectedProject || !state.editorData) {
+    elements.syncStatus.innerHTML = `
+      <div>
+        <strong>Sync Status</strong>
+        <p>No editable scene is loaded for the selected project.</p>
+      </div>
+    `;
+    elements.syncStatus.dataset.tone = "idle";
+    return;
+  }
+
+  const syncStatus = state.syncStatus ?? {};
+  const replayPath = toRepoRelativePath(syncStatus.replayPath ?? getReplayTargetPath(selectedProject) ?? "");
+  const lastSyncedAt = formatSyncTimestamp(syncStatus.lastSyncedAt);
+  const message = syncStatus.message ?? "No save/sync has run in this session yet.";
+  const bridge = syncStatus.syncBridge ? `Bridge ${syncStatus.syncBridge}` : "Waiting for next save";
+
+  elements.syncStatus.dataset.tone = syncStatus.status ?? "idle";
+  elements.syncStatus.innerHTML = `
+    <div>
+      <strong>Sync Status</strong>
+      <p>${message}</p>
+    </div>
+    <div class="sync-status-meta">
+      <span>Replay target <code>${replayPath || "not available"}</code></span>
+      <span>Last sync ${lastSyncedAt}</span>
+      <span>${bridge}</span>
+    </div>
+  `;
 }
 
 function renderProjectBrowser() {
@@ -1288,6 +1412,77 @@ function selectNeighborAfterDelete(editorData, removedObjectId, removedLayerId) 
 
   const firstEditable = remainingObjects.find((entry) => isObjectEditable(entry));
   return firstEditable?.id ?? remainingObjects[0].id;
+}
+
+function getPreferredCreationLayerId() {
+  if (!state.editorData || !Array.isArray(state.editorData.layers)) {
+    return null;
+  }
+
+  const selectedObject = getSelectedObject();
+  if (selectedObject) {
+    const selectedLayer = getLayerById(selectedObject.layerId);
+    if (selectedLayer && !selectedLayer.locked) {
+      return selectedLayer.id;
+    }
+  }
+
+  const firstEditableVisibleLayer = sortLayers(state.editorData.layers).find((entry) => entry.visible && !entry.locked);
+  if (firstEditableVisibleLayer) {
+    return firstEditableVisibleLayer.id;
+  }
+
+  const firstEditableLayer = sortLayers(state.editorData.layers).find((entry) => !entry.locked);
+  return firstEditableLayer?.id ?? null;
+}
+
+function canCreateObject() {
+  return Boolean(state.editorData && getPreferredCreationLayerId());
+}
+
+function handleCreateNewObject() {
+  if (!state.editorData) {
+    setPreviewStatus("No editable scene data is available for the selected project.");
+    return;
+  }
+
+  const preferredLayerId = getPreferredCreationLayerId();
+  if (!preferredLayerId) {
+    setPreviewStatus("Every layer is locked, so a new object cannot be created yet.");
+    return;
+  }
+
+  let createdObjectId = null;
+  let createdDisplayName = null;
+  let createdLayerName = preferredLayerId;
+  const didChange = applyEditorMutation("Created a new placeholder object.", (editorData) => {
+    const tools = getEditorStateTools();
+    const nextObject = typeof tools.createPlaceholderObject === "function"
+      ? tools.createPlaceholderObject(editorData, {
+        selectedLayerId: preferredLayerId,
+        viewport: getSceneViewport()
+      })
+      : null;
+
+    if (!nextObject) {
+      return;
+    }
+
+    const layer = editorData.layers.find((entry) => entry.id === nextObject.layerId);
+    createdObjectId = nextObject.id;
+    createdDisplayName = nextObject.displayName;
+    createdLayerName = layer?.displayName ?? nextObject.layerId;
+    editorData.objects.push(nextObject);
+  });
+
+  if (!didChange || !createdObjectId) {
+    return;
+  }
+
+  state.selectedObjectId = createdObjectId;
+  ensureSelectedObject();
+  renderAll();
+  setPreviewStatus(`Created ${createdDisplayName}. It is selected on ${createdLayerName} and ready to edit.`);
 }
 
 function handleDuplicateSelectedObject() {
@@ -1708,6 +1903,7 @@ function renderActivityLog() {
 function renderAll() {
   renderProjectBrowser();
   renderSceneExplorer();
+  renderSyncStatus();
   renderProjectSummary();
   renderEditorCanvas();
   renderInspector();
@@ -1718,6 +1914,9 @@ function renderAll() {
   }
   if (elements.actionRedo) {
     elements.actionRedo.disabled = !state.editorData || !canRedo();
+  }
+  if (elements.actionNewObject) {
+    elements.actionNewObject.disabled = !canCreateObject() || Boolean(state.canvasDrag);
   }
   const selectedObject = getSelectedObject();
   const canMutateSelectedObject = Boolean(selectedObject && isObjectEditable(selectedObject) && !state.canvasDrag);
@@ -1774,6 +1973,11 @@ window.render_game_to_text = () => JSON.stringify({
   dirty: state.dirty,
   undoCount: state.history?.undoStack?.length ?? 0,
   redoCount: state.history?.redoStack?.length ?? 0,
+  syncStatus: state.syncStatus ? {
+    status: state.syncStatus.status,
+    replayPath: state.syncStatus.replayPath,
+    lastSyncedAt: state.syncStatus.lastSyncedAt
+  } : null,
   layers: Array.isArray(state.editorData?.layers)
     ? state.editorData.layers.map((entry) => ({
       id: entry.id,

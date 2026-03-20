@@ -514,6 +514,57 @@ button:disabled {
   font-size: 0.78rem;
 }
 
+.sync-status-card {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(179, 209, 186, 0.14);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.sync-status-card strong,
+.sync-status-card p {
+  margin: 0;
+}
+
+.sync-status-card p {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.sync-status-card[data-tone="synced"] {
+  border-color: rgba(147, 201, 133, 0.32);
+  background: rgba(147, 201, 133, 0.08);
+}
+
+.sync-status-card[data-tone="error"] {
+  border-color: rgba(232, 138, 93, 0.44);
+  background: rgba(232, 138, 93, 0.1);
+}
+
+.sync-status-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.sync-status-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0.4rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid rgba(179, 209, 186, 0.14);
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.03);
+  font-size: 0.78rem;
+}
+
+.sync-status-meta code {
+  color: var(--accent);
+}
+
 .editor-canvas-shell {
   overflow: auto;
   border-radius: 18px;

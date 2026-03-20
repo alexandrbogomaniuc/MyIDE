@@ -76,7 +76,26 @@
 - [x] Add local-only save snapshots / save-history safety outputs.
 - [x] Add an edit-project smoke test for edit -> save -> reload -> restore.
 - [ ] Verify the editor workflow interactively in a GUI-capable Electron session.
-- [ ] Decide whether the next editor target is preview hit-manipulation, richer inspector fields, or undo/redo.
+
+## PHASE 5B
+- [x] Make the internal editable scene the practical authority for the editor-facing preview path.
+- [x] Add direct canvas move and keyboard nudge for editable objects.
+- [x] Add bounded undo/redo and layer visible/locked persistence.
+- [x] Keep deterministic replay sync tied to editor save so preview/replay output does not drift silently.
+
+## PHASE 5C
+- [x] Add duplicate/delete for editable objects.
+- [x] Add deterministic replay export from internal editable files to `project.json`.
+- [x] Add smoke coverage for sync and duplicate/delete persistence.
+- [ ] Verify the duplicate/delete/save/reload loop interactively in a GUI-capable Electron session.
+
+## PHASE 5D
+- [x] Align public phase/status wording with the actual current editor behavior.
+- [x] Add a New Object action for a bounded placeholder scene object inside the shell.
+- [x] Surface replay sync target/status visibly in the shell after save.
+- [x] Add create-object smoke coverage for create -> edit -> save -> sync -> reload plus duplicate/delete after creation.
+- [ ] Verify the create/move/save/reload loop interactively in a GUI-capable Electron session.
+- [ ] Decide whether the next bounded editor upgrade is new-object shortcuts, simple snapping, or a richer inspector field set.
 
 ## Deferred
 - [ ] Donor decoding automation.

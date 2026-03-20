@@ -11,6 +11,7 @@
 - `npm run build && node dist/50_tests/workspace/edit-project-smoke.js`
 - `npm run build && node dist/50_tests/workspace/drag-edit-smoke.js`
 - `npm run build && node dist/50_tests/workspace/duplicate-delete-smoke.js`
+- `npm run build && node dist/50_tests/workspace/create-object-smoke.js`
 - `npm run verify:persistence`
 - `npm run verify:workspace`
 
@@ -20,5 +21,6 @@
 - The edit-project smoke test mutates a real editable object in `project_001`, saves it through the internal project files, asserts that generated replay-facing `project.json` changed with it, reloads the project slice, verifies bounded undo/redo behavior, and then restores the original data.
 - The drag-edit smoke test simulates a bounded drag-equivalent move by changing object placement, then verifies that the new position persists through both the editable files and generated replay-facing `project.json` before restore.
 - The duplicate-delete smoke test proves a duplicated object persists through save/reload and replay sync, then proves delete persistence plus undo/redo before restoring the original project.
-- The edit smoke writes a concise before/after demo artifact to `50_tests/workspace/project_001-demo.md`.
+- The create-object smoke test proves a new placeholder object can be created, edited, synced into replay-facing output, then duplicated and deleted cleanly before restore.
+- The latest demo smoke writes a concise before/after artifact to `50_tests/workspace/project_001-demo.md`.
 - `project_001` remains the validated replay slice.

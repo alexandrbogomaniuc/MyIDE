@@ -1,8 +1,8 @@
 # MyIDE Status
 
 ## Current Phase
-- Active scope: PHASE 5A visual editor vertical slice on top of the existing slot-first implementation slice.
-- Current milestone: make `project_001` editable inside the shell through a real select -> edit -> save -> reload loop driven only by internal project files.
+- Active scope: PHASE 5D public alignment and object creation slice on top of the existing slot-first implementation slice.
+- Current milestone: keep `project_001` as the validated bounded internal scene editor slice with create -> move/edit -> duplicate/delete -> undo/redo -> save/reload -> deterministic replay sync.
 
 ## Progress Log
 
@@ -49,6 +49,10 @@
 - Added local save snapshots and save-history logging under `40_projects/project_001/logs/` as ignored local-only safety outputs.
 - Added an `edit-project` smoke test that proves edit -> save -> reload -> restore for the validated `project_001` editor slice.
 - Kept folder-based discovery authoritative while the shell editor continues to use internal project data only.
+- Hardened the editor loop so drag/nudge, bounded undo/redo, layer visible/locked toggles, duplicate/delete, and deterministic replay sync all stay on the same internal scene authority.
+- Added a visible shell sync-status surface that shows the replay-facing target path and the last successful save/sync time for the current session.
+- Added an in-shell New Object action for a bounded placeholder scene object that is immediately selectable, editable, movable, saveable, reloadable, and syncable.
+- Added a `create-object` smoke that proves create -> edit -> save -> sync -> reload and duplicate/delete after creation before restoring the original project state.
 
 ## Proven Facts
 - Local reference repos are available in the developer workspace outside this repository.
@@ -64,16 +68,18 @@
 - Project folders under `40_projects/` are now the authoritative source of project existence.
 - `registry.json` is now a generated/derived cache rather than the sole workspace truth.
 - The shell can now create a new project scaffold and have it appear in the browser after the workspace refreshes from disk.
-- The shell now exposes the first real editor-style workflow for `project_001`, including object selection, bounded property edits, save, and reload.
+- The shell now exposes the first real editor-style workflow for `project_001`, including new object creation, object selection, drag/nudge, bounded property edits, duplicate/delete, save, reload, and visible sync status.
 - `project_001/internal/*.json` now forms the persistence target for the first editor slice while `project.json` remains the validated replay source.
 - Workspace verification now validates the internal editor scene files in addition to project metadata and replay contracts.
+- The shell now deterministically syncs the replay-facing generated output on save and surfaces that target path in the editor UI.
 
 ## Active Assumptions
 - Electron remains an acceptable desktop container for the bounded local replay workflow.
-- File-backed JSON artifacts remain sufficient through the current PHASE 4B workspace-alignment milestone.
+- File-backed JSON artifacts remain sufficient through the current bounded editor hardening milestone.
 - Lifecycle metadata remains file-backed JSON and intentionally small enough for hand-authored and shell-created projects.
 - The visible `5x3` board is proven by live runtime observation, but the API layout fields remain non-authoritative for display layout.
 - The observed `Space` key behavior is treated as an environment-observed shortcut until a dedicated input capture proves the exact command path.
+- A bounded placeholder-object creation flow is sufficient for the next visible editor step without needing an asset picker yet.
 
 ## Blockers
 - A live `spin` request/response pair, live free-spins entry, and live restart recovery sequence are still uncaptured.
@@ -81,3 +87,4 @@
 - Folder-based discovery is in place, but GUI-level shell validation is still pending in a display-capable environment.
 - The New Project flow is implemented in the shell, but an interactive Electron GUI check is still pending in a display-capable environment.
 - Preview hit-selection works in the shell canvas, but this remains a minimal property-edit slice rather than a full drag/drop scene editor.
+- The shell can now create a new placeholder object, but there is still no asset picker or richer object-type creation flow yet.

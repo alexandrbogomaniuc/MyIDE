@@ -132,6 +132,86 @@
     return candidate;
   }
 
+  function createNumberedObjectId(objects, prefix = "node.placeholder") {
+    const existingIds = new Set((Array.isArray(objects) ? objects : []).map((entry) => entry.id));
+    let index = 1;
+
+    while (true) {
+      const candidate = `${prefix}-${String(index).padStart(2, "0")}`;
+      if (!existingIds.has(candidate)) {
+        return candidate;
+      }
+      index += 1;
+    }
+  }
+
+  function sortLayers(layers) {
+    return [...(Array.isArray(layers) ? layers : [])].sort((left, right) => {
+      const orderDiff = (left?.order ?? 0) - (right?.order ?? 0);
+      if (orderDiff !== 0) {
+        return orderDiff;
+      }
+
+      return String(left?.displayName ?? "").localeCompare(String(right?.displayName ?? ""));
+    });
+  }
+
+  function resolveCreationLayer(layers, selectedLayerId) {
+    const sortedLayers = sortLayers(layers);
+    const preferredSelectedLayer = sortedLayers.find((entry) => entry.id === selectedLayerId && !entry.locked);
+    if (preferredSelectedLayer) {
+      return preferredSelectedLayer;
+    }
+
+    const firstVisibleEditableLayer = sortedLayers.find((entry) => entry.visible !== false && !entry.locked);
+    if (firstVisibleEditableLayer) {
+      return firstVisibleEditableLayer;
+    }
+
+    return sortedLayers.find((entry) => !entry.locked) ?? null;
+  }
+
+  function createPlaceholderObject(editorData, options = {}) {
+    if (!editorData || !Array.isArray(editorData.objects)) {
+      return null;
+    }
+
+    const layer = resolveCreationLayer(editorData.layers, options.selectedLayerId);
+    if (!layer) {
+      return null;
+    }
+
+    const objectId = createNumberedObjectId(editorData.objects, "node.placeholder");
+    const ordinal = Number.parseInt(objectId.split("-").pop() ?? "1", 10) || 1;
+    const width = 180;
+    const height = 110;
+    const viewportWidth = Number.isFinite(options.viewport?.width) ? options.viewport.width : 1280;
+    const viewportHeight = Number.isFinite(options.viewport?.height) ? options.viewport.height : 720;
+    const offset = ((ordinal - 1) % 6) * 26;
+    const maxX = Math.max(0, viewportWidth - width);
+    const maxY = Math.max(0, viewportHeight - height);
+    const x = Math.min(maxX, Math.max(0, Math.round(viewportWidth * 0.5 - width * 0.5 + offset)));
+    const y = Math.min(maxY, Math.max(0, Math.round(viewportHeight * 0.32 - height * 0.5 + offset)));
+    const displayName = `Placeholder Object ${String(ordinal).padStart(2, "0")}`;
+
+    return {
+      id: objectId,
+      displayName,
+      type: "shape",
+      layerId: layer.id,
+      x,
+      y,
+      width,
+      height,
+      scaleX: 1,
+      scaleY: 1,
+      visible: true,
+      locked: false,
+      placeholderRef: "placeholder.shape.generic-box",
+      notes: "Created inside MyIDE as a local placeholder object."
+    };
+  }
+
   function duplicateObject(editorData, selectedObjectId) {
     if (!editorData || !Array.isArray(editorData.objects)) {
       return null;
@@ -209,6 +289,8 @@
     undo,
     redo,
     createUniqueObjectId,
+    createNumberedObjectId,
+    createPlaceholderObject,
     duplicateObject,
     deleteObject,
     resolveSelectedObjectId

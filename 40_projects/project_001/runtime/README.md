@@ -13,3 +13,4 @@
 - These files are internal replay fixtures only.
 - They must not be mistaken for GS production contract payloads.
 - The editable authority for scene content lives under `../internal/`; `project.json` is the replay-facing generated output for the current editor slice.
+- The shell now surfaces `project.json` as the replay sync target after save so the generated output is visible instead of implicit.

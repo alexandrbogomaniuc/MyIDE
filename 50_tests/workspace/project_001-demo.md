@@ -1,16 +1,15 @@
 # project_001 Before/After Demo
 
-## Edit / Save / Sync / Reload
-- Before: node.title = Title Plate at (640, 68), scaleX 1, visible true; layer.ui visible true, locked false.
-- After save: node.title = Title Plate (edited) at (658, 80), scaleX 1.1, visible false; layer.ui visible false, locked true.
-- After restore: node.title = Title Plate at (640, 68), scaleX 1, visible true; layer.ui visible true, locked false.
+## Create / Edit / Save / Sync / Reload
+- Created object id: node.placeholder-01.
+- Default values: displayName = Placeholder Object 01, layerId = layer.gameplay, x = 550, y = 175, scaleX = 1, visible = true.
+- After save + sync + reload: displayName = Placeholder Object 01 (edited), x = 582, y = 193, scaleX = 1.15, visible = false.
+
+## Duplicate / Delete After Creation
+- Duplicate id: node.placeholder-01-copy.
+- The duplicate was saved, reloaded, then deleted cleanly while the original created object remained until restore.
 
 ## Sync Contract
-- Scene layerIds = layer.background, layer.gameplay, layer.ui, layer.overlay.
-- Scene objectIds = node.backdrop, node.title, node.left-panel, node.reel-board, node.win-banner, node.bottom-bar, node.free-spins-pill, node.free-spins-modal, node.restore-chip.
 - Authoritative source: 40_projects/project_001/internal/scene.json, layers.json, objects.json.
 - Generated replay output changed: 40_projects/project_001/project.json.
 - Save history: 40_projects/project_001/logs/editor-save-history.jsonl.
-
-## Related Smoke
-- Duplicate/delete persistence is covered by `duplicate-delete-smoke.ts`.

@@ -96,13 +96,15 @@
           <div class="editor-toolbar">
             <button id="action-undo" type="button">Undo</button>
             <button id="action-redo" type="button">Redo</button>
+            <button id="action-new-object" type="button">New Object</button>
             <button id="action-duplicate" type="button">Duplicate Object</button>
             <button id="action-delete" type="button" class="is-danger">Delete Object</button>
             <button id="action-save" type="button">Save Scene Changes</button>
             <button id="action-reload-editor" type="button">Reload From Disk</button>
             <span id="dirty-indicator" class="toolbar-indicator">Saved</span>
-            <span class="toolbar-hint">Ctrl/Cmd+S save · Ctrl/Cmd+D duplicate · Delete remove</span>
+            <span class="toolbar-hint">Ctrl/Cmd+S save · Ctrl/Cmd+D duplicate · Delete remove · arrows nudge</span>
           </div>
+          <div id="sync-status" class="sync-status-card" aria-live="polite"></div>
           <div id="project-summary" class="project-summary" aria-live="polite"></div>
           <div class="editor-canvas-shell">
             <div id="editor-canvas" class="editor-canvas" aria-label="Project editor canvas"></div>
