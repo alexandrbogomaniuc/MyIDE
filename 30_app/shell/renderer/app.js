@@ -44,6 +44,8 @@ const elements = {
   actionRescan: document.getElementById("action-rescan"),
   actionUndo: document.getElementById("action-undo"),
   actionRedo: document.getElementById("action-redo"),
+  actionDuplicate: document.getElementById("action-duplicate"),
+  actionDelete: document.getElementById("action-delete"),
   actionSave: document.getElementById("action-save"),
   actionReloadEditor: document.getElementById("action-reload-editor"),
   dirtyIndicator: document.getElementById("dirty-indicator"),
@@ -80,6 +82,12 @@ function bindActions() {
   });
   elements.actionRedo?.addEventListener("click", () => {
     handleRedo();
+  });
+  elements.actionDuplicate?.addEventListener("click", () => {
+    handleDuplicateSelectedObject();
+  });
+  elements.actionDelete?.addEventListener("click", () => {
+    handleDeleteSelectedObject();
   });
   elements.actionSave?.addEventListener("click", () => {
     void handleSaveEditor();
@@ -190,22 +198,41 @@ function clone(value) {
 }
 
 function getEditorStateTools() {
+  function createUniqueObjectId(objects, baseId) {
+    const existingIds = new Set((Array.isArray(objects) ? objects : []).map((entry) => entry.id));
+    const normalizedBaseId = String(baseId ?? "object").trim() || "object";
+
+    if (!existingIds.has(normalizedBaseId)) {
+      return normalizedBaseId;
+    }
+
+    let suffix = 2;
+    let candidate = `${normalizedBaseId}-copy`;
+
+    while (existingIds.has(candidate)) {
+      candidate = `${normalizedBaseId}-copy-${suffix}`;
+      suffix += 1;
+    }
+
+    return candidate;
+  }
+
   return window.MyIDEEditorState ?? {
     clone,
     fingerprint: (editorData) => JSON.stringify(editorData ?? null),
-    createHistory: (editorData, limit = 48) => ({
-      limit,
+    createHistory: (editorData, limit = 50) => ({
+      limit: Math.max(1, Math.floor(limit ?? 50)),
       savedFingerprint: JSON.stringify(editorData ?? null),
       undoStack: [],
       redoStack: []
     }),
     isDirty: (history, editorData) => JSON.stringify(editorData ?? null) !== history?.savedFingerprint,
     markSaved: (history, editorData) => ({
-      ...(history ?? { limit: 48, undoStack: [], redoStack: [] }),
+      ...(history ?? { limit: 50, undoStack: [], redoStack: [] }),
       savedFingerprint: JSON.stringify(editorData ?? null)
     }),
     pushUndoSnapshot: (history, snapshot, label) => ({
-      ...(history ?? { limit: 48, savedFingerprint: JSON.stringify(snapshot ?? null), undoStack: [], redoStack: [] }),
+      ...(history ?? { limit: 50, savedFingerprint: JSON.stringify(snapshot ?? null), undoStack: [], redoStack: [] }),
       undoStack: [...(history?.undoStack ?? []), { label: label ?? "Edit", snapshot: clone(snapshot) }],
       redoStack: []
     }),
@@ -240,6 +267,50 @@ function getEditorStateTools() {
         editorData: clone(next.snapshot),
         label: next.label
       };
+    },
+    duplicateObject: (editorData, selectedObjectId) => {
+      if (!editorData || !Array.isArray(editorData.objects)) {
+        return null;
+      }
+
+      const source = editorData.objects.find((entry) => entry.id === selectedObjectId);
+      if (!source) {
+        return null;
+      }
+
+      const duplicate = clone(source);
+      duplicate.id = createUniqueObjectId(editorData.objects, source.id);
+      duplicate.displayName = source.displayName ? `${source.displayName} Copy` : duplicate.id;
+      duplicate.x = Number.isFinite(source.x) ? source.x + 24 : 24;
+      duplicate.y = Number.isFinite(source.y) ? source.y + 24 : 24;
+      duplicate.locked = false;
+      editorData.objects.push(duplicate);
+
+      return {
+        objectId: duplicate.id,
+        label: duplicate.displayName
+      };
+    },
+    deleteObject: (editorData, selectedObjectId) => {
+      if (!editorData || !Array.isArray(editorData.objects)) {
+        return null;
+      }
+
+      const index = editorData.objects.findIndex((entry) => entry.id === selectedObjectId);
+      if (index < 0) {
+        return null;
+      }
+
+      const [removed] = editorData.objects.splice(index, 1);
+      const nextSelectedObjectId = editorData.objects[index]?.id
+        ?? editorData.objects[index - 1]?.id
+        ?? null;
+
+      return {
+        objectId: removed.id,
+        label: removed.displayName,
+        nextSelectedObjectId
+      };
     }
   };
 }
@@ -252,6 +323,49 @@ function resetEditorHistory() {
 
 function syncDirtyState() {
   state.dirty = Boolean(state.editorData) && getEditorStateTools().isDirty(state.history, state.editorData);
+}
+
+function syncEditorSceneReferences(editorData) {
+  if (!editorData?.scene) {
+    return;
+  }
+
+  if (Array.isArray(editorData.layers)) {
+    editorData.scene.layerIds = sortLayers(editorData.layers).map((layer) => layer.id);
+  }
+
+  if (Array.isArray(editorData.objects)) {
+    editorData.scene.objectIds = editorData.objects.map((object) => object.id);
+  }
+}
+
+function reconcileSelectedObject(preferredObjectId = state.selectedObjectId, fallbackObjectId = null) {
+  if (!state.editorData || !Array.isArray(state.editorData.objects)) {
+    state.selectedObjectId = null;
+    return;
+  }
+
+  const tools = getEditorStateTools();
+  if (typeof tools.resolveSelectedObjectId === "function") {
+    state.selectedObjectId = tools.resolveSelectedObjectId(state.editorData.objects, preferredObjectId, fallbackObjectId);
+    return;
+  }
+
+  const objects = state.editorData.objects;
+  const preferred = objects.find((entry) => entry.id === preferredObjectId);
+  if (preferred) {
+    state.selectedObjectId = preferred.id;
+    return;
+  }
+
+  const fallback = objects.find((entry) => entry.id === fallbackObjectId);
+  if (fallback) {
+    state.selectedObjectId = fallback.id;
+    return;
+  }
+
+  const editable = objects.find((entry) => isObjectEditable(entry));
+  state.selectedObjectId = editable?.id ?? objects[0]?.id ?? null;
 }
 
 function recordUndoSnapshot(beforeSnapshot, label) {
@@ -272,6 +386,7 @@ function applyEditorMutation(label, mutate) {
   const beforeSnapshot = clone(state.editorData);
   const beforeFingerprint = tools.fingerprint(beforeSnapshot);
   mutate(state.editorData);
+  syncEditorSceneReferences(state.editorData);
 
   if (tools.fingerprint(state.editorData) === beforeFingerprint) {
     return false;
@@ -309,6 +424,25 @@ function labelizeStage(stageId) {
   return String(stageId ?? "")
     .replace(/([a-z])([A-Z])/g, "$1 $2")
     .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function toRepoRelativePath(filePath) {
+  if (typeof filePath !== "string" || filePath.length === 0) {
+    return "";
+  }
+
+  const normalized = filePath.replace(/\\/g, "/");
+  const repoIndex = normalized.indexOf("40_projects/");
+  if (repoIndex >= 0) {
+    return normalized.slice(repoIndex);
+  }
+
+  const logsIndex = normalized.indexOf("logs/");
+  if (logsIndex >= 0) {
+    return normalized.slice(logsIndex);
+  }
+
+  return normalized.replace(/^\/+/, "");
 }
 
 function setPreviewStatus(text) {
@@ -383,16 +517,7 @@ function sortLayers(layers) {
 }
 
 function ensureSelectedObject() {
-  const objects = Array.isArray(state.editorData?.objects) ? state.editorData.objects : [];
-  if (objects.length === 0) {
-    state.selectedObjectId = null;
-    return;
-  }
-
-  const selected = objects.find((entry) => entry.id === state.selectedObjectId);
-  if (!selected) {
-    state.selectedObjectId = objects.find((entry) => isObjectEditable(entry))?.id ?? objects[0].id;
-  }
+  reconcileSelectedObject();
 }
 
 function getSceneViewport() {
@@ -609,11 +734,22 @@ function handleCanvasPointerUp(event) {
 }
 
 function handleCanvasKeyboard(event) {
-  if (!state.editorData || isTypingTarget(event.target)) {
+  if (!state.editorData) {
     return;
   }
 
   const modifierPressed = event.metaKey || event.ctrlKey;
+
+  if (modifierPressed && event.key.toLowerCase() === "s") {
+    event.preventDefault();
+    void handleSaveEditor();
+    return;
+  }
+
+  if (isTypingTarget(event.target)) {
+    return;
+  }
+
   if (modifierPressed && event.key.toLowerCase() === "z") {
     event.preventDefault();
     if (event.shiftKey) {
@@ -627,6 +763,18 @@ function handleCanvasKeyboard(event) {
   if (modifierPressed && event.key.toLowerCase() === "y") {
     event.preventDefault();
     handleRedo();
+    return;
+  }
+
+  if (modifierPressed && event.key.toLowerCase() === "d") {
+    event.preventDefault();
+    handleDuplicateSelectedObject();
+    return;
+  }
+
+  if (event.key === "Delete" || event.key === "Backspace") {
+    event.preventDefault();
+    handleDeleteSelectedObject();
     return;
   }
 
@@ -663,7 +811,7 @@ async function reloadWorkspace(isInitialLoad, requestedProjectId = null) {
   state.editorData = state.bundle.editableProject ? clone(state.bundle.editableProject) : null;
   state.canvasDrag = null;
   resetEditorHistory();
-  ensureSelectedObject();
+  reconcileSelectedObject();
 
   if (isInitialLoad) {
     pushLog(`Opened ${state.selectedProjectId}.`);
@@ -816,7 +964,7 @@ function handleUndo() {
   state.history = result.history;
   state.editorData = result.editorData;
   state.canvasDrag = null;
-  ensureSelectedObject();
+  reconcileSelectedObject();
   syncDirtyState();
   pushLog(`Undo: ${result.label}`);
   renderAll();
@@ -837,7 +985,7 @@ function handleRedo() {
   state.history = result.history;
   state.editorData = result.editorData;
   state.canvasDrag = null;
-  ensureSelectedObject();
+  reconcileSelectedObject();
   syncDirtyState();
   pushLog(`Redo: ${result.label}`);
   renderAll();
@@ -864,16 +1012,19 @@ async function handleSaveEditor() {
 
   const selectedObjectId = state.selectedObjectId;
   const saveResult = await window.myideApi.saveProjectEditor(selectedProject.projectId, state.editorData);
-  pushLog(`Saved ${selectedProject.projectId} to internal scene files.`);
+  const replayPath = saveResult.replayProjectPath
+    ? toRepoRelativePath(saveResult.replayProjectPath)
+    : "40_projects/project_001/project.json";
+  pushLog(`Saved ${selectedProject.projectId} and synced replay output to ${replayPath}.`);
 
   await reloadWorkspace(false, selectedProject.projectId);
-  state.selectedObjectId = selectedObjectId;
-  ensureSelectedObject();
+  reconcileSelectedObject(selectedObjectId);
   renderAll();
   state.dirty = false;
 
-  const snapshotMessage = saveResult.snapshotDir ? ` Snapshot: ${saveResult.snapshotDir}.` : "";
-  setPreviewStatus(`Saved ${selectedProject.displayName} at ${saveResult.savedAt}.${snapshotMessage}`);
+  const snapshotMessage = saveResult.snapshotDir ? ` Snapshot: ${toRepoRelativePath(saveResult.snapshotDir)}.` : "";
+  const syncMessage = saveResult.replayProjectPath ? ` Replay sync: ${replayPath}.` : "";
+  setPreviewStatus(`Saved ${selectedProject.displayName} at ${saveResult.savedAt}.${snapshotMessage}${syncMessage}`);
 }
 
 function renderProjectBrowser() {
@@ -975,7 +1126,7 @@ function renderSceneExplorer() {
         <button class="object-row ${object.id === state.selectedObjectId ? "is-selected" : ""}" type="button" data-object-id="${object.id}">
           <strong>${object.displayName}</strong>
           <span>${object.type}</span>
-          <small>${object.visible ? "visible" : "hidden"} · ${object.locked ? "locked" : "editable"}</small>
+          <small>${object.visible ? "visible" : "hidden"} · ${object.locked ? "locked" : "editable"} · ${object.id}</small>
         </button>
       `).join("")
       : `<p class="muted-copy">No objects on this layer.</p>`;
@@ -1065,7 +1216,7 @@ function renderProjectSummary() {
       <div class="detail-card">
         <span>Preview Source</span>
         <strong>Editable Internal Scene</strong>
-        <small>The shell preview is driven directly from <code>internal/scene.json</code>, <code>layers.json</code>, and <code>objects.json</code>.</small>
+        <small>The shell preview is driven from <code>internal/scene.json</code>, <code>layers.json</code>, and <code>objects.json</code>, and save deterministically syncs replay-facing <code>project.json</code>.</small>
       </div>
     </div>
     <div class="tree-row">
@@ -1088,6 +1239,132 @@ function getObjectDimensions(object) {
 
 function getObjectLabel(object) {
   return object.placeholderRef ?? object.assetRef ?? object.type;
+}
+
+function createStableDuplicateId(sourceObject, objects) {
+  const baseId = `${sourceObject.id}-copy`;
+  const existingIds = new Set(objects.map((entry) => entry.id));
+  let suffix = 1;
+
+  while (existingIds.has(`${baseId}-${String(suffix).padStart(2, "0")}`)) {
+    suffix += 1;
+  }
+
+  return `${baseId}-${String(suffix).padStart(2, "0")}`;
+}
+
+function cloneEditableObjectForDuplicate(sourceObject, objects) {
+  const duplicate = clone(sourceObject);
+  duplicate.id = createStableDuplicateId(sourceObject, objects);
+  duplicate.x = sourceObject.x + 24;
+  duplicate.y = sourceObject.y + 24;
+  return duplicate;
+}
+
+function selectNeighborAfterDelete(editorData, removedObjectId, removedLayerId) {
+  if (!editorData || !Array.isArray(editorData.objects)) {
+    return null;
+  }
+
+  const originalObjects = editorData.objects;
+  const removedIndex = originalObjects.findIndex((entry) => entry.id === removedObjectId);
+  const remainingObjects = originalObjects.filter((entry) => entry.id !== removedObjectId);
+
+  if (remainingObjects.length === 0) {
+    return null;
+  }
+
+  const sameLayerRemaining = remainingObjects.filter((entry) => entry.layerId === removedLayerId);
+  const nextSameLayer = sameLayerRemaining.find((entry) => isObjectEditable(entry) && originalObjects.findIndex((candidate) => candidate.id === entry.id) > removedIndex)
+    ?? sameLayerRemaining.find((entry) => isObjectEditable(entry) && originalObjects.findIndex((candidate) => candidate.id === entry.id) < removedIndex);
+  if (nextSameLayer) {
+    return nextSameLayer.id;
+  }
+
+  const previousSameLayer = [...sameLayerRemaining].reverse().find((entry) => isObjectEditable(entry) && originalObjects.findIndex((candidate) => candidate.id === entry.id) < removedIndex);
+  if (previousSameLayer) {
+    return previousSameLayer.id;
+  }
+
+  const firstEditable = remainingObjects.find((entry) => isObjectEditable(entry));
+  return firstEditable?.id ?? remainingObjects[0].id;
+}
+
+function handleDuplicateSelectedObject() {
+  const selectedObject = getSelectedObject();
+  if (!selectedObject) {
+    setPreviewStatus("Select an editable object before duplicating it.");
+    return;
+  }
+
+  if (!isObjectEditable(selectedObject)) {
+    setPreviewStatus("Locked objects cannot be duplicated.");
+    return;
+  }
+
+  let duplicateId = null;
+  const didChange = applyEditorMutation(`Duplicated ${selectedObject.displayName}.`, (editorData) => {
+    if (!Array.isArray(editorData.objects)) {
+      editorData.objects = [];
+    }
+
+    const sourceObject = editorData.objects.find((entry) => entry.id === selectedObject.id);
+    if (!sourceObject) {
+      return;
+    }
+
+    const duplicate = cloneEditableObjectForDuplicate(sourceObject, editorData.objects);
+    const boundedPosition = clampObjectPosition(duplicate, duplicate.x, duplicate.y);
+    duplicate.x = boundedPosition.x;
+    duplicate.y = boundedPosition.y;
+    duplicateId = duplicate.id;
+    editorData.objects.push(duplicate);
+  });
+
+  if (!didChange || !duplicateId) {
+    return;
+  }
+
+  state.selectedObjectId = duplicateId;
+  ensureSelectedObject();
+  renderAll();
+  setPreviewStatus(`Duplicated ${selectedObject.displayName}. The new copy is selected and ready to move.`);
+}
+
+function handleDeleteSelectedObject() {
+  const selectedObject = getSelectedObject();
+  if (!selectedObject) {
+    setPreviewStatus("Select an editable object before deleting it.");
+    return;
+  }
+
+  if (!isObjectEditable(selectedObject)) {
+    setPreviewStatus("Locked objects cannot be deleted.");
+    return;
+  }
+
+  const nextSelectionId = selectNeighborAfterDelete(state.editorData, selectedObject.id, selectedObject.layerId);
+  const didChange = applyEditorMutation(`Deleted ${selectedObject.displayName}.`, (editorData) => {
+    if (!Array.isArray(editorData.objects)) {
+      return;
+    }
+
+    const index = editorData.objects.findIndex((entry) => entry.id === selectedObject.id);
+    if (index < 0) {
+      return;
+    }
+
+    editorData.objects.splice(index, 1);
+  });
+
+  if (!didChange) {
+    return;
+  }
+
+  state.selectedObjectId = nextSelectionId;
+  ensureSelectedObject();
+  renderAll();
+  setPreviewStatus(`Deleted ${selectedObject.displayName}. Selection moved to the next available object.`);
 }
 
 function renderEditorCanvas() {
@@ -1441,6 +1718,14 @@ function renderAll() {
   }
   if (elements.actionRedo) {
     elements.actionRedo.disabled = !state.editorData || !canRedo();
+  }
+  const selectedObject = getSelectedObject();
+  const canMutateSelectedObject = Boolean(selectedObject && isObjectEditable(selectedObject) && !state.canvasDrag);
+  if (elements.actionDuplicate) {
+    elements.actionDuplicate.disabled = !canMutateSelectedObject;
+  }
+  if (elements.actionDelete) {
+    elements.actionDelete.disabled = !canMutateSelectedObject;
   }
   if (elements.actionSave) {
     elements.actionSave.disabled = !state.editorData || !state.dirty;

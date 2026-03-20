@@ -22,9 +22,9 @@
     });
   }
 
-  function createHistory(editorData, limit = 48) {
+  function createHistory(editorData, limit = 50) {
     return {
-      limit,
+      limit: Math.max(1, Math.floor(limit ?? 48)),
       savedFingerprint: fingerprint(editorData),
       undoStack: [],
       redoStack: []
@@ -113,6 +113,92 @@
     };
   }
 
+  function createUniqueObjectId(objects, baseId) {
+    const existingIds = new Set((Array.isArray(objects) ? objects : []).map((entry) => entry.id));
+    const normalizedBaseId = String(baseId ?? "object").trim() || "object";
+
+    if (!existingIds.has(normalizedBaseId)) {
+      return normalizedBaseId;
+    }
+
+    let suffix = 2;
+    let candidate = `${normalizedBaseId}-copy`;
+
+    while (existingIds.has(candidate)) {
+      candidate = `${normalizedBaseId}-copy-${suffix}`;
+      suffix += 1;
+    }
+
+    return candidate;
+  }
+
+  function duplicateObject(editorData, selectedObjectId) {
+    if (!editorData || !Array.isArray(editorData.objects)) {
+      return null;
+    }
+
+    const source = editorData.objects.find((entry) => entry.id === selectedObjectId);
+    if (!source) {
+      return null;
+    }
+
+    const duplicate = clone(source);
+    duplicate.id = createUniqueObjectId(editorData.objects, source.id);
+    duplicate.displayName = source.displayName ? `${source.displayName} Copy` : duplicate.id;
+    duplicate.x = Number.isFinite(source.x) ? source.x + 24 : 24;
+    duplicate.y = Number.isFinite(source.y) ? source.y + 24 : 24;
+    duplicate.locked = false;
+    editorData.objects.push(duplicate);
+
+    return {
+      objectId: duplicate.id,
+      label: duplicate.displayName
+    };
+  }
+
+  function deleteObject(editorData, selectedObjectId) {
+    if (!editorData || !Array.isArray(editorData.objects)) {
+      return null;
+    }
+
+    const index = editorData.objects.findIndex((entry) => entry.id === selectedObjectId);
+    if (index < 0) {
+      return null;
+    }
+
+    const [removed] = editorData.objects.splice(index, 1);
+    const nextSelectedObjectId = editorData.objects[index]?.id
+      ?? editorData.objects[index - 1]?.id
+      ?? null;
+
+    return {
+      objectId: removed.id,
+      label: removed.displayName,
+      nextSelectedObjectId
+    };
+  }
+
+  function resolveSelectedObjectId(objects, preferredObjectId, fallbackObjectId = null) {
+    const objectList = Array.isArray(objects) ? objects : [];
+
+    const preferred = objectList.find((entry) => entry.id === preferredObjectId);
+    if (preferred) {
+      return preferred.id;
+    }
+
+    const fallback = objectList.find((entry) => entry.id === fallbackObjectId);
+    if (fallback) {
+      return fallback.id;
+    }
+
+    const editable = objectList.find((entry) => !entry.locked);
+    if (editable) {
+      return editable.id;
+    }
+
+    return objectList[0]?.id ?? null;
+  }
+
   return {
     clone,
     fingerprint,
@@ -121,6 +207,10 @@
     markSaved,
     pushUndoSnapshot,
     undo,
-    redo
+    redo,
+    createUniqueObjectId,
+    duplicateObject,
+    deleteObject,
+    resolveSelectedObjectId
   };
 });

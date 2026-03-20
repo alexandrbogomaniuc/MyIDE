@@ -2,8 +2,8 @@ import { strict as assert } from "node:assert";
 import path from "node:path";
 import { getProjectSlicePaths, loadProjectSlice } from "../../30_app/shell/projectSlice";
 
-type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
-type JsonObject = { [key: string]: JsonValue };
+type JsonValue = unknown;
+type JsonObject = Record<string, JsonValue>;
 
 const workspaceRoot = path.resolve(__dirname, "../../..");
 const projectRoot = path.join(workspaceRoot, "40_projects", "project_001");

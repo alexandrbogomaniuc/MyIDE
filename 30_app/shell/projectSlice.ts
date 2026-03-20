@@ -3,13 +3,14 @@ import path from "node:path";
 import { loadWorkspaceSlice, type WorkspaceSliceBundle } from "./workspaceSlice";
 import {
   buildPreviewSceneFromEditableProject,
+  buildReplayProjectFromEditableProject,
   loadEditableProjectData,
   type EditablePreviewScene,
   type EditableProjectData
 } from "../workspace/editableProject";
 
 type JsonValue = null | boolean | number | string | JsonObject | JsonValue[];
-type JsonObject = { [key: string]: JsonValue };
+type JsonObject = { [key: string]: JsonValue | undefined };
 
 export interface ProjectSliceBundle {
   workspace: WorkspaceSliceBundle;
@@ -113,11 +114,14 @@ export async function loadProjectSlice(requestedProjectId?: string): Promise<Pro
   const selectedProjectId = resolveSelectedProjectId(workspace, requestedProjectId);
   const editableProject = await loadSelectedEditableProject(workspace, selectedProjectId);
   const previewScene = editableProject ? buildPreviewSceneFromEditableProject(editableProject) : null;
+  const replayProject = editableProject
+    ? buildReplayProjectFromEditableProject(project as Parameters<typeof buildReplayProjectFromEditableProject>[0], editableProject)
+    : project;
 
   return {
     workspace,
     selectedProjectId,
-    project,
+    project: replayProject as unknown as JsonObject,
     previewScene,
     editableProject,
     fixtures: {
