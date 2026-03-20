@@ -13,8 +13,8 @@ MyIDE is a local-first desktop application with a web UI for reconstructing one 
 - The second donor is BGaming Sugar Merge Up, but research-only for now.
 - Raw donor material must remain separate and read-only.
 - The editable source of truth must be a clean internal project format, not donor atlases or donor JSON files.
-- Work for this initiative is restricted to `/Users/alexb/Documents/Dev/MyIDE`.
-- The PHASE 1 shell is implemented as Electron + TypeScript with a local HTML/CSS renderer placeholder. Evidence: `/Users/alexb/Documents/Dev/MyIDE/package.json:1-15`, `/Users/alexb/Documents/Dev/MyIDE/30_app/shell/main.ts:1-34`, `/Users/alexb/Documents/Dev/MyIDE/30_app/shell/renderer/index.html:1-171`.
+- Work for this initiative is restricted to the `MyIDE/` repository root.
+- The PHASE 1 shell is implemented as Electron + TypeScript with a local HTML/CSS renderer placeholder. Evidence: `package.json`, `30_app/shell/main.ts`, `30_app/shell/renderer/index.html`.
 
 ## Goals
 - Preserve donor evidence in a traceable evidence pack.

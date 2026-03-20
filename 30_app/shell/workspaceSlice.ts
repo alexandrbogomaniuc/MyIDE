@@ -60,6 +60,7 @@ export interface WorkspaceSliceBundle {
   schemaVersion: string;
   workspaceId: string;
   displayName: string;
+  description: string;
   implementationScope: string;
   activeProjectId: string;
   registryPath: string;
@@ -282,6 +283,7 @@ async function loadRegistryFromDisk(): Promise<WorkspaceSliceBundle | null> {
     schemaVersion: asString(registry.schemaVersion, "0.1.0"),
     workspaceId: asString(registry.workspaceId, "workspace.myide"),
     displayName: asString(registry.displayName, "MyIDE Workspace"),
+    description: asString(registry.description, "Universal multi-project workspace with slot-first implementation slices."),
     implementationScope: asString(registry.implementationScope, "universal-local-first"),
     activeProjectId: asString(registry.activeProjectId, projects[0].projectId),
     registryPath: "40_projects/registry.json",
@@ -305,6 +307,7 @@ async function buildFallbackWorkspace(): Promise<WorkspaceSliceBundle> {
     schemaVersion: "0.1.0",
     workspaceId: "workspace.myide",
     displayName: "MyIDE Workspace",
+    description: "Universal multi-project workspace with one validated slot-first slice so far.",
     implementationScope: "universal-local-first",
     activeProjectId: fallbackProject.projectId,
     registryPath: "40_projects/registry.json",

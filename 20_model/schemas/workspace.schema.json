@@ -4,7 +4,18 @@
   "title": "MyIDE Workspace",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schemaVersion", "workspaceId", "displayName", "implementationScope", "projectRegistryPath", "activeProjectId", "projectSummaries"],
+  "required": [
+    "schemaVersion",
+    "workspaceId",
+    "displayName",
+    "description",
+    "implementationScope",
+    "activeProjectId",
+    "registryPath",
+    "source",
+    "selectedProjectId",
+    "projects"
+  ],
   "properties": {
     "schemaVersion": {
       "type": "string",
@@ -18,27 +29,68 @@
       "type": "string",
       "minLength": 1
     },
+    "description": {
+      "type": "string",
+      "minLength": 1
+    },
     "implementationScope": {
       "type": "string",
       "enum": ["universal-local-first", "slot-first", "reference-only"]
-    },
-    "projectRegistryPath": {
-      "type": "string",
-      "minLength": 1
     },
     "activeProjectId": {
       "type": "string",
       "minLength": 1
     },
-    "projectSummaries": {
+    "registryPath": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["registryFound", "note"],
+      "properties": {
+        "registryFound": {
+          "type": "boolean"
+        },
+        "note": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "selectedProjectId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "projects": {
       "type": "array",
       "minItems": 1,
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["projectId", "displayName", "phase", "status", "verificationStatus"],
+        "required": [
+          "projectId",
+          "slug",
+          "displayName",
+          "gameFamily",
+          "implementationScope",
+          "status",
+          "donor",
+          "targetGame",
+          "phase",
+          "verificationStatus",
+          "verificationChecks",
+          "keyPaths",
+          "timestamps",
+          "notes"
+        ],
         "properties": {
           "projectId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "slug": {
             "type": "string",
             "minLength": 1
           },
@@ -46,20 +98,172 @@
             "type": "string",
             "minLength": 1
           },
-          "phase": {
+          "gameFamily": {
             "type": "string",
-            "minLength": 1
+            "enum": ["slot", "card", "dice", "crash", "other"]
+          },
+          "implementationScope": {
+            "type": "string",
+            "enum": ["slot-first", "universal-architecture", "reference-only"]
           },
           "status": {
             "type": "string",
             "enum": ["planned", "in-progress", "validated", "blocked", "archived"]
           },
+          "donor": {
+            "$ref": "https://myide.local/schemas/donor-link.schema.json"
+          },
+          "targetGame": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "displayName", "family", "relationship", "status"],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "displayName": {
+                "type": "string",
+                "minLength": 1
+              },
+              "family": {
+                "type": "string",
+                "enum": ["slot", "card", "dice", "crash", "other"]
+              },
+              "relationship": {
+                "type": "string",
+                "enum": ["donor-source", "reconstruction-target", "resulting-game", "future-target", "reference-only"]
+              },
+              "status": {
+                "type": "string",
+                "enum": ["proven", "validated", "planned", "in-progress", "blocked", "reference-only"]
+              },
+              "notes": {
+                "type": "string"
+              },
+              "provenNotes": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "plannedNotes": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          },
+          "phase": {
+            "type": "string",
+            "minLength": 1
+          },
           "verificationStatus": {
             "type": "string",
-            "enum": ["unknown", "in-progress", "verified-replay-slice", "verified-workspace", "blocked"]
+            "enum": ["unknown", "in-progress", "verified-replay-slice", "verified-workspace", "blocked", "planned"]
+          },
+          "verificationChecks": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "keyPaths": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["workspaceRegistryPath", "projectRoot", "projectJsonPath", "projectMetaPath"],
+            "properties": {
+              "workspaceRegistryPath": {
+                "type": "string",
+                "minLength": 1
+              },
+              "projectRoot": {
+                "type": "string",
+                "minLength": 1
+              },
+              "projectJsonPath": {
+                "type": "string",
+                "minLength": 1
+              },
+              "projectMetaPath": {
+                "type": "string",
+                "minLength": 1
+              },
+              "importArtifactPath": {
+                "type": "string",
+                "minLength": 1
+              },
+              "runtimeRoot": {
+                "type": "string",
+                "minLength": 1
+              },
+              "fixturesRoot": {
+                "type": "string",
+                "minLength": 1
+              },
+              "logsRoot": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "timestamps": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["createdAt", "updatedAt", "firstValidatedAt"],
+            "properties": {
+              "createdAt": {
+                "type": "string",
+                "minLength": 1
+              },
+              "updatedAt": {
+                "type": "string",
+                "minLength": 1
+              },
+              "firstValidatedAt": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
           },
           "notes": {
-            "type": "string"
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["proven", "planned"],
+            "properties": {
+              "proven": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "planned": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "assumptions": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "unresolvedQuestions": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
           }
         }
       }

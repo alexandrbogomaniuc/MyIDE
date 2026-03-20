@@ -22,5 +22,5 @@ Use subagents only when a run splits cleanly into parallel streams.
 - Report assumptions separately from proven facts.
 
 ## Current Use
-- This run is a docs-and-scope alignment pass only.
-- No subagents were required because the task was limited to five documentation files.
+- Use subagents whenever the run splits into clean parallel streams and the environment supports them.
+- Final integration, verification, and publication still remain the main agent's responsibility.

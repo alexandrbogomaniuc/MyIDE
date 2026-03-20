@@ -18,6 +18,10 @@
       "type": "string",
       "minLength": 1
     },
+    "description": {
+      "type": "string",
+      "minLength": 1
+    },
     "implementationScope": {
       "type": "string",
       "enum": ["universal-local-first", "slot-first", "reference-only"]

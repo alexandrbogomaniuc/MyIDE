@@ -1,7 +1,7 @@
 # Repo Publish Checklist
 
 ## Preflight
-- [x] Work stays inside `/Users/alexb/Documents/Dev/MyIDE`.
+- [x] Work stays inside the `MyIDE/` repository root.
 - [x] MyIDE is its own git repository.
 - [x] `origin` points to `https://github.com/alexandrbogomaniuc/MyIDE.git`.
 - [x] Active branch is `main`.

@@ -7,10 +7,10 @@
 ## Progress Log
 
 ### 2026-03-19
-- Initialized the required folder tree under `/Users/alexb/Documents/Dev/MyIDE`.
+- Initialized the required folder tree under the `MyIDE/` repository root.
 - Wrote the control docs, reference docs, donor capture plan, and draft model schemas.
 - Built the minimal desktop shell as an Electron + TypeScript scaffold with a local HTML/CSS renderer placeholder.
-- Ran `npm run build` and `npm run typecheck` successfully in `/Users/alexb/Documents/Dev/MyIDE`.
+- Ran `npm run build` and `npm run typecheck` successfully in the repository root.
 
 ### 2026-03-20
 - Captured the first official public Mystery Garden evidence session under `10_donors/donor_001_mystery_garden/evidence/capture_sessions/MG-CS-20260320-WEB-A`.
@@ -31,18 +31,23 @@
 - Hardened validation so the import artifact must match deterministic importer output and current fixture shape expectations.
 - Reframed MyIDE as a universal multi-project IDE while keeping the validated implementation slice slot-first and single-user.
 - Introduced workspace/project terminology for donor -> internal model -> target/resulting game relationships.
+- Added the workspace/project registry layer with `40_projects/registry.json`, `40_projects/project_001/project.meta.json`, and new workspace/project schemas.
+- Updated the shell so the project browser is driven from the workspace bundle while `project_001` replay remains the only validated runtime slice.
+- Added `validate:workspace` and `verify:workspace`, then passed the full workspace verification stack.
 
 ## Proven Facts
-- Local reference repos are available at `/Users/alexb/Documents/Dev/new-games-client` and `/Users/alexb/Documents/Dev/new-games-server`.
+- Local reference repos are available in the developer workspace outside this repository.
 - The first Mystery Garden donor evidence pack now contains both official web evidence and one live public runtime session, all hashed.
 - Replay/runtime data still lives only under `40_projects/project_001`.
 - The importer command, validation command, and replay assertion command now exist in `package.json`.
+- The workspace validation command and consolidated workspace verification command now exist in `package.json`.
 - The public repo no longer tracks raw donor downloads or live runtime payload bodies for the current donor pack.
 - MyIDE now has a public-facing architecture scope doc and subagent workflow doc that keep universal architecture separate from the current slot-first implementation slice.
+- The shell now exposes a real project list and selected-project summary sourced from the workspace registry.
 
 ## Active Assumptions
 - Electron remains an acceptable desktop container for the bounded local replay workflow.
-- File-backed JSON artifacts remain sufficient through the current PHASE 3 verification milestone.
+- File-backed JSON artifacts remain sufficient through the current PHASE 4A workspace-alignment milestone.
 - The visible `5x3` board is proven by live runtime observation, but the API layout fields remain non-authoritative for display layout.
 - The observed `Space` key behavior is treated as an environment-observed shortcut until a dedicated input capture proves the exact command path.
 
@@ -50,4 +55,3 @@
 - A live `spin` request/response pair, live free-spins entry, and live restart recovery sequence are still uncaptured.
 - Animation timings and the full symbol/paytable inventory remain unresolved.
 - Interactive Electron launch still needs GUI validation in a display-capable environment.
-- The workspace browser and registry layer are not yet implemented in this file set; this run only resets the public positioning and scope language.

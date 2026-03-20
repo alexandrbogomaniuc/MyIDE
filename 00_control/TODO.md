@@ -41,11 +41,11 @@
 - [ ] Verify the Electron shell interactively in a GUI-capable environment.
 
 ## PHASE 4A
-- [ ] Add workspace/project registry model and metadata.
-- [ ] Make the shell show the workspace/project list from the registry.
-- [ ] Extend validation to cover the workspace layer.
-- [ ] Keep the slot-first Mystery Garden slice healthy while the universal architecture is introduced.
-- [ ] Confirm public docs continue to separate universal architecture from validated implementation scope.
+- [x] Add workspace/project registry model and metadata.
+- [x] Make the shell show the workspace/project list from the registry.
+- [x] Extend validation to cover the workspace layer.
+- [x] Keep the slot-first Mystery Garden slice healthy while the universal architecture is introduced.
+- [x] Confirm public docs continue to separate universal architecture from validated implementation scope.
 
 ## Deferred
 - [ ] Donor decoding automation.

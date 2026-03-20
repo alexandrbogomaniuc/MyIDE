@@ -26,7 +26,7 @@ MyIDE is a universal local-first IDE for multiple game projects over time, with 
 - Session-specific runtime identifiers, tokens, cookies, and private local notes.
 - Local-only capture artifacts that are unnecessary for architecture validation.
 
-Public publication rules are defined in [PUBLIC_REPO_POLICY.md](/Users/alexb/Documents/Dev/MyIDE/00_control/PUBLIC_REPO_POLICY.md).
+Public publication rules are defined in [`00_control/PUBLIC_REPO_POLICY.md`](./00_control/PUBLIC_REPO_POLICY.md).
 
 ## Local Verification
 - `npm run build`
