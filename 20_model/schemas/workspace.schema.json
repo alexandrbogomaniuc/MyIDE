@@ -193,7 +193,23 @@
                 "type": "string",
                 "minLength": 1
               },
+              "donorRoot": {
+                "type": "string",
+                "minLength": 1
+              },
+              "reportsRoot": {
+                "type": "string",
+                "minLength": 1
+              },
+              "importsRoot": {
+                "type": "string",
+                "minLength": 1
+              },
               "importArtifactPath": {
+                "type": "string",
+                "minLength": 1
+              },
+              "internalRoot": {
                 "type": "string",
                 "minLength": 1
               },
@@ -202,6 +218,14 @@
                 "minLength": 1
               },
               "fixturesRoot": {
+                "type": "string",
+                "minLength": 1
+              },
+              "targetRoot": {
+                "type": "string",
+                "minLength": 1
+              },
+              "releaseRoot": {
                 "type": "string",
                 "minLength": 1
               },
@@ -214,7 +238,7 @@
           "timestamps": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["createdAt", "updatedAt", "firstValidatedAt"],
+            "required": ["createdAt", "updatedAt"],
             "properties": {
               "createdAt": {
                 "type": "string",

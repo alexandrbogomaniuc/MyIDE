@@ -1,26 +1,12 @@
 # Project Template
 
-This is a template example for a future MyIDE project.
+This folder contains the reusable scaffold for a new MyIDE project.
 
-## Intended Use
-- Show the minimum registry and metadata shape for a new project.
-- Keep donor evidence, internal model data, and resulting game metadata explicit.
+## Rules
+- This is a template, not a validated project.
+- Donor evidence is not stored here.
+- Any new project should replace the placeholder metadata with project-specific evidence links and notes.
 
-## Template Status
-- Not a validated project.
-- Not donor-backed.
-- Not linked to a real donor.
-
-## Fields To Fill Later
-- `projectId`
-- `slug`
-- `displayName`
-- `gameFamily`
-- `donor`
-- `targetGame`
-- `phase`
-- `status`
-- `verification`
-- `paths`
-- `timestamps`
-- `notes`
+## Contents
+- `project.meta.json.example` shows the expected metadata shape.
+- The subfolders mirror the standard project lifecycle: donor, reports, imports, internal, runtime, fixtures, target, release, and logs.

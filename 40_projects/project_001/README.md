@@ -9,6 +9,7 @@
 - One layer stack.
 - Placeholder UI and symbol blocks only.
 - Internal JSON only at preview runtime.
+- Transitional compatibility is kept while the standard donor/reports/internal/target/release folders are introduced.
 
 ## Rules
 - Do not consume donor raw files at preview runtime.

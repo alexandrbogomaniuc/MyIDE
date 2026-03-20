@@ -4,7 +4,18 @@
   "title": "MyIDE Project Registry",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schemaVersion", "workspaceId", "displayName", "implementationScope", "activeProjectId", "projects"],
+  "required": [
+    "schemaVersion",
+    "workspaceId",
+    "displayName",
+    "description",
+    "implementationScope",
+    "discoveryMode",
+    "sourceOfTruth",
+    "activeProjectId",
+    "projectCount",
+    "projects"
+  ],
   "properties": {
     "schemaVersion": {
       "type": "string",
@@ -26,9 +37,21 @@
       "type": "string",
       "enum": ["universal-local-first", "slot-first", "reference-only"]
     },
+    "discoveryMode": {
+      "type": "string",
+      "const": "folder-scan"
+    },
+    "sourceOfTruth": {
+      "type": "string",
+      "const": "project-folders"
+    },
     "activeProjectId": {
       "type": "string",
       "minLength": 1
+    },
+    "projectCount": {
+      "type": "integer",
+      "minimum": 1
     },
     "projects": {
       "type": "array",

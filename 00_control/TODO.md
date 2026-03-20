@@ -47,6 +47,14 @@
 - [x] Keep the slot-first Mystery Garden slice healthy while the universal architecture is introduced.
 - [x] Confirm public docs continue to separate universal architecture from validated implementation scope.
 
+## PHASE 4B
+- [x] Document the project lifecycle as a donor-to-release cycle.
+- [x] Define the standard per-project folder layout.
+- [x] Make project folder discovery authoritative.
+- [x] Add a practical project scaffold or create-project flow.
+- [x] Add a second project folder that is clearly scaffold-only and unvalidated.
+- [x] Update the shell to treat discovered folders as the primary workspace source.
+
 ## Deferred
 - [ ] Donor decoding automation.
 - [ ] Full editor interactions.

@@ -153,6 +153,26 @@ select {
   gap: 10px;
 }
 
+.browser-toolbar {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.browser-toolbar button {
+  justify-self: start;
+  border: 1px solid rgba(179, 209, 186, 0.24);
+  border-radius: 999px;
+  padding: 0.7rem 1rem;
+  color: var(--text);
+  background: linear-gradient(180deg, rgba(32, 53, 43, 0.94), rgba(20, 33, 28, 0.96));
+  cursor: pointer;
+}
+
+.browser-toolbar button:hover {
+  border-color: rgba(230, 191, 100, 0.42);
+}
+
 .project-list {
   display: grid;
   gap: 10px;
@@ -176,6 +196,10 @@ select {
 .tree-row span {
   color: var(--muted);
   font-size: 0.86rem;
+}
+
+.tree-row p {
+  margin: 0;
 }
 
 .tree-row code {
@@ -229,6 +253,34 @@ select {
   margin: 8px 0 0;
   color: var(--muted);
   font-size: 0.85rem;
+}
+
+.project-path {
+  word-break: break-word;
+}
+
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.3rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid rgba(179, 209, 186, 0.18);
+  font-size: 0.74rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.status-validated {
+  color: #f5e3a4;
+  border-color: rgba(230, 191, 100, 0.4);
+  background: rgba(230, 191, 100, 0.08);
+}
+
+.status-planned,
+.status-unvalidated {
+  color: #b8d0c1;
+  border-color: rgba(147, 201, 133, 0.28);
+  background: rgba(147, 201, 133, 0.06);
 }
 
 .detail-grid {

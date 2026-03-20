@@ -19,5 +19,5 @@ Test whether [PCUI](https://github.com/playcanvas/pcui) is a good fit for MyIDE 
 - It stays browser-only and is not imported into replay/runtime code.
 
 ## Manual Open
-- Serve `/Users/alexb/Documents/Dev/MyIDE` over HTTP, then open `http://127.0.0.1:8123/30_app/ui/spikes/pcui/index.html`.
+- Serve the MyIDE repo root over HTTP, then open `http://127.0.0.1:8123/30_app/ui/spikes/pcui/index.html`.
 - Example local command: `python3 -m http.server 8123`

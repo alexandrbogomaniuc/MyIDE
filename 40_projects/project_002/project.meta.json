@@ -1,0 +1,73 @@
+{
+  "schemaVersion": "0.1.0",
+  "projectId": "project_002",
+  "slug": "sugar-merge-up-research",
+  "displayName": "Sugar Merge Up Research Scaffold",
+  "gameFamily": "slot",
+  "implementationScope": "slot-first",
+  "phase": "PHASE 4B",
+  "status": "planned",
+  "verification": {
+    "status": "unknown",
+    "checks": [],
+    "notes": "Scaffold only. No validation has been run for this project yet."
+  },
+  "paths": {
+    "projectRoot": "40_projects/project_002",
+    "projectJson": "40_projects/project_002/project.json",
+    "metaPath": "40_projects/project_002/project.meta.json",
+    "registryPath": "40_projects/registry.json",
+    "evidenceRoot": "10_donors/donor_002_sugar_merge_up/research_only",
+    "donorRoot": "40_projects/project_002/donor",
+    "reportsRoot": "40_projects/project_002/reports",
+    "importsRoot": "40_projects/project_002/imports",
+    "internalRoot": "40_projects/project_002/internal",
+    "importPath": "40_projects/project_002/imports/import-manifest.json",
+    "runtimeRoot": "40_projects/project_002/runtime",
+    "fixturesRoot": "40_projects/project_002/fixtures",
+    "targetRoot": "40_projects/project_002/target",
+    "releaseRoot": "40_projects/project_002/release",
+    "logsRoot": "40_projects/project_002/logs"
+  },
+  "donor": {
+    "donorId": "donor_002_sugar_merge_up",
+    "donorName": "Sugar Merge Up (research only)",
+    "evidenceRoot": "10_donors/donor_002_sugar_merge_up/research_only",
+    "captureSessions": [],
+    "evidenceRefs": [],
+    "status": "planned",
+    "notes": "Research-only donor link for workspace scaffolding. No validated evidence pack or runtime slice exists in this project yet."
+  },
+  "targetGame": {
+    "targetGameId": "target.sugar-merge-up.future-result",
+    "displayName": "Future Sugar Merge Up Resulting Game",
+    "gameFamily": "slot",
+    "relationship": "future-target",
+    "status": "planned",
+    "provenNotes": [],
+    "plannedNotes": [
+      "Use the standard project lifecycle folders.",
+      "Replace the research-only donor linkage with an evidence-backed implementation plan if this project moves forward."
+    ],
+    "notes": "No resulting game implementation is proven yet."
+  },
+  "timestamps": {
+    "createdAt": "2026-03-20T00:00:00Z",
+    "updatedAt": "2026-03-20T00:00:00Z"
+  },
+  "notes": {
+    "provenFacts": [
+      "The folder exists as a discoverable workspace project scaffold."
+    ],
+    "plannedWork": [
+      "Decide whether donor_002_sugar_merge_up should advance beyond research-only status.",
+      "Replace scaffold metadata with evidence-backed project details before any replay/runtime work begins."
+    ],
+    "assumptions": [
+      "This project stays slot-family and scaffold-only unless a future run promotes it with real donor evidence."
+    ],
+    "unresolvedQuestions": [
+      "Whether this research-only donor should become a validated implementation slice later."
+    ]
+  }
+}

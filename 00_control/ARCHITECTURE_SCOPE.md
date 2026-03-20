@@ -10,6 +10,15 @@ Each project in the workspace can represent:
 - its own runtime or integration path
 - its own status and verification history
 
+One project equals one donor-to-release cycle:
+- donor investigation
+- evidence
+- internal clean model
+- adjustments and improvements
+- target/resulting game
+- verification
+- release preparation
+
 ## Current Implementation Slice
 The current implementation remains controlled and slot-first.
 
@@ -23,6 +32,11 @@ Not implemented yet:
 - multi-user collaboration
 - production server adapter behavior
 - full editor platform behavior
+
+## Workspace Standard
+- Projects are expected to live under `40_projects/<project_slug>/`.
+- A valid project folder should contain `project.meta.json` plus the project-local lifecycle folders documented in `00_control/PROJECT_LIFECYCLE.md`.
+- Workspace indexes may be generated from discovered folders, but the folders themselves are the canonical source of project existence.
 
 ## Relationship Terms
 - `donor` means the source game, public evidence, and any read-only capture material.

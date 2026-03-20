@@ -1,17 +1,16 @@
 # Schema Validation
 
 ## Purpose
-- Validate the workspace registry plus `project_001` against the current MyIDE schemas.
-- Parse the project fixtures, runtime mocks, and importer artifact.
-- Confirm the importer artifact still matches the deterministic importer output.
-- Fail loudly if the replay slice drifts away from the current model contracts.
+- Discover projects from `40_projects/*/project.meta.json`.
+- Validate discovered project metadata against the model schemas.
+- Derive the registry projection from discovered folders and compare it to `40_projects/registry.json`.
+- Keep `project_001` replay-slice verification passing.
 
 ## Command
+- `npm run typecheck`
 - `npm run validate:workspace`
-- `npm run validate:project_001`
-- `npm run verify:workspace`
-- `npm run verify:project_001`
 
 ## Known Gaps
 - Fixture JSON still uses local shape checks documented in `fixture-schemas.md` rather than dedicated JSON Schema files.
-- Validation proves structure and replay boundaries, not donor math correctness.
+- The validator proves folder discovery, metadata/schema conformance, and derived registry consistency, not donor math correctness.
+- Live donor runtime capture is still incomplete, so the discovery pass is limited to the currently captured evidence-backed projects.

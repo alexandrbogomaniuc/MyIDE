@@ -38,7 +38,8 @@ const elements = {
   actionSpin: document.getElementById("action-spin"),
   actionFreeSpins: document.getElementById("action-free-spins"),
   actionRestore: document.getElementById("action-restore"),
-  actionDemo: document.getElementById("action-demo")
+  actionDemo: document.getElementById("action-demo"),
+  actionRescan: document.getElementById("action-rescan")
 };
 
 const idleGrid = [
@@ -57,13 +58,7 @@ async function init() {
   bindActions();
 
   try {
-    if (!window.myideApi || typeof window.myideApi.loadProjectSlice !== "function") {
-      throw new Error("MyIDE desktop bridge is unavailable.");
-    }
-
-    state.bundle = await window.myideApi.loadProjectSlice();
-    state.selectedProjectId = state.bundle.workspace?.selectedProjectId ?? state.bundle.workspace?.projects?.[0]?.projectId ?? null;
-    resetToIdle(true);
+    await reloadWorkspace(true);
   } catch (error) {
     renderFatal(error instanceof Error ? error.message : "Unknown preview error.");
   }
@@ -83,6 +78,9 @@ function bindActions() {
   elements.actionDemo?.addEventListener("click", () => {
     void playFullDemo();
   });
+  elements.actionRescan?.addEventListener("click", () => {
+    void reloadWorkspace(false);
+  });
   elements.projectBrowser?.addEventListener("click", (event) => {
     const target = event.target;
     if (!(target instanceof HTMLElement)) {
@@ -100,6 +98,35 @@ function bindActions() {
       renderAll();
     }
   });
+}
+
+async function reloadWorkspace(isInitialLoad) {
+  if (!window.myideApi || typeof window.myideApi.loadProjectSlice !== "function") {
+    throw new Error("MyIDE desktop bridge is unavailable.");
+  }
+
+  const previousSelectedProjectId = state.selectedProjectId;
+  state.bundle = await window.myideApi.loadProjectSlice();
+
+  const workspaceProjects = getWorkspaceProjects();
+  const selectedProjectId =
+    workspaceProjects.find((project) => project.projectId === previousSelectedProjectId)?.projectId
+    ?? state.bundle.workspace?.selectedProjectId
+    ?? workspaceProjects[0]?.projectId
+    ?? null;
+
+  state.selectedProjectId = selectedProjectId;
+
+  if (isInitialLoad) {
+    resetToIdle(true);
+    return;
+  }
+
+  renderAll();
+  setPreviewStatus(state.bundle.workspace?.source?.registryFound
+    ? "Workspace rescanned from disk. Any valid project folders can now appear in the browser."
+    : "Workspace reloaded from the validated Mystery Garden slice.");
+  pushLog("Workspace rescan completed.");
 }
 
 function getProject() {
@@ -362,17 +389,26 @@ function renderProjectBrowser() {
   const workspace = getWorkspace();
   const projects = getWorkspaceProjects();
   const selectedProject = getSelectedWorkspaceProject();
+  const registryLabel = workspace.source.registryFound
+    ? "Derived from discovered project folders"
+    : "Synthesized from validated project_001";
   const projectCards = projects.map((project) => {
     const isSelected = project.projectId === selectedProject?.projectId;
+    const statusLabel = project.status === "validated"
+      ? "Validated"
+      : project.status === "planned"
+        ? "Planned"
+        : "Unvalidated";
 
     return `
       <button class="project-card ${isSelected ? "is-selected" : ""}" type="button" data-project-id="${project.projectId}">
         <div class="project-card-head">
           <strong>${project.displayName}</strong>
-          <span>${project.verificationStatus}</span>
+          <span class="status-chip status-${project.status}">${statusLabel}</span>
         </div>
         <p>${project.donor.donorName} <code>${project.donor.donorId}</code></p>
         <p>${project.targetGame.displayName}</p>
+        <p class="project-path"><code>${project.keyPaths.projectRoot}</code></p>
         <div class="chip-row">
           <span>${project.phase}</span>
           <span>${project.gameFamily}</span>
@@ -402,7 +438,7 @@ function renderProjectBrowser() {
       <div class="detail-card">
         <span>Verification</span>
         <strong>${selectedProject.verificationStatus}</strong>
-        <small>${workspace.source.registryFound ? "Registry-backed workspace view." : "Synthesized from validated project_001."}</small>
+        <small>${workspace.source.registryFound ? "Folder-discovery workspace view backed by the derived registry cache." : "Synthesized from validated project_001."}</small>
       </div>
     </div>
   ` : `<p class="muted-copy">No projects available.</p>`;
@@ -415,7 +451,8 @@ function renderProjectBrowser() {
     </div>
     <div class="tree-row">
       <strong>Registry Source</strong>
-      <span>${workspace.source.registryFound ? "Loaded from registry.json" : workspace.source.note}</span>
+      <span>${registryLabel}</span>
+      <p class="muted-copy">${workspace.source.registryFound ? "Rescan reloads the workspace bundle from disk so newly added valid project folders can appear after discovery refreshes the derived registry cache." : workspace.source.note}</p>
     </div>
     <div class="project-list">
       ${projectCards}
@@ -569,6 +606,7 @@ function renderInspector() {
       <h4>Project Metadata</h4>
       <ul>
         <li>Project ID: <code>${selectedProject?.projectId ?? "unknown"}</code></li>
+        <li>Project folder: <code>${selectedProject?.keyPaths.projectRoot ?? "unknown"}</code></li>
         <li>Status: <code>${selectedProject?.status ?? "unknown"}</code></li>
         <li>Target / Resulting game: <code>${selectedProject?.targetGame.displayName ?? "unknown"}</code></li>
         <li>Phase: <code>${selectedProject?.phase ?? "unknown"}</code></li>

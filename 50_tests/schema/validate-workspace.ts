@@ -4,26 +4,17 @@ import path from "node:path";
 import Ajv2020 from "ajv/dist/2020";
 import type { ErrorObject, ValidateFunction } from "ajv";
 import { loadWorkspaceSlice } from "../../30_app/shell/workspaceSlice";
+import { buildDerivedRegistry, discoverProjectMetas, isJsonObject, readJsonObject } from "../../30_app/workspace/discoverProjects";
 
-type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
+type JsonValue = null | boolean | number | string | JsonObject | JsonValue[];
 type JsonObject = { [key: string]: JsonValue };
 
 const workspaceRoot = path.resolve(__dirname, "../../..");
 const schemaDir = path.join(workspaceRoot, "20_model", "schemas");
 const projectsRoot = path.join(workspaceRoot, "40_projects");
 const workspaceRegistryPath = path.join(projectsRoot, "registry.json");
-const projectMetaPath = path.join(projectsRoot, "project_001", "project.meta.json");
-
-function isJsonObject(value: unknown): value is JsonObject {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-async function readJsonObject(filePath: string): Promise<JsonObject> {
-  const raw = await fs.readFile(filePath, "utf8");
-  const parsed: unknown = JSON.parse(raw);
-  assert(isJsonObject(parsed), `${filePath} must contain a JSON object`);
-  return parsed;
-}
+const project001JsonPath = path.join(projectsRoot, "project_001", "project.json");
+const project002MetaPath = path.join(projectsRoot, "project_002", "project.meta.json");
 
 async function createAjv(): Promise<Ajv2020> {
   const ajv = new Ajv2020({ allErrors: true, strict: false });
@@ -61,51 +52,73 @@ function getString(value: JsonValue | undefined, label: string): string {
   return value;
 }
 
+function getProjectIds(projects: JsonValue | undefined, label: string): string[] {
+  assert(Array.isArray(projects) && projects.length > 0, `${label} must contain at least one project`);
+  return projects.map((project, index) => getString(getObject(project as JsonValue, `${label}[${index}]`).projectId, `${label}[${index}].projectId`));
+}
+
+function assertProjectPaths(meta: JsonObject, expectedProjectRoot: string, expectedMetaPath: string): void {
+  const paths = getObject(meta.paths, `${expectedMetaPath}.paths`);
+
+  assert(getString(paths.projectRoot, `${expectedMetaPath}.paths.projectRoot`) === expectedProjectRoot, `${expectedMetaPath} projectRoot must match its folder`);
+  assert(getString(paths.metaPath, `${expectedMetaPath}.paths.metaPath`) === expectedMetaPath, `${expectedMetaPath} metaPath must match its file path`);
+  assert(getString(paths.registryPath, `${expectedMetaPath}.paths.registryPath`) === "40_projects/registry.json", `${expectedMetaPath} registryPath must point to the derived registry`);
+}
+
 async function main(): Promise<void> {
   const ajv = await createAjv();
-  const validateRegistry = requireSchema(ajv, "https://myide.local/schemas/project-registry.schema.json");
-  const validateProjectMeta = requireSchema(ajv, "https://myide.local/schemas/project-metadata.schema.json");
-  const validateWorkspace = requireSchema(ajv, "https://myide.local/schemas/workspace.schema.json");
+  const validateProjectSchema = requireSchema(ajv, "https://myide.local/schemas/project.schema.json");
+  const validateProjectMetaSchema = requireSchema(ajv, "https://myide.local/schemas/project-metadata.schema.json");
+  const validateRegistrySchema = requireSchema(ajv, "https://myide.local/schemas/project-registry.schema.json");
+  const validateWorkspaceSchema = requireSchema(ajv, "https://myide.local/schemas/workspace.schema.json");
 
   const registry = await readJsonObject(workspaceRegistryPath);
-  const projectMeta = await readJsonObject(projectMetaPath);
+  const discoveredProjects = await discoverProjectMetas();
+  const derivedRegistry = JSON.parse(JSON.stringify(buildDerivedRegistry(discoveredProjects))) as JsonObject;
   const workspaceBundle = JSON.parse(JSON.stringify(await loadWorkspaceSlice())) as JsonObject;
+  const project001Json = await readJsonObject(project001JsonPath);
+  const project002Meta = await readJsonObject(project002MetaPath);
 
-  const registryIsValid = validateRegistry(registry);
-  assert(registryIsValid, `registry.json failed schema validation: ${formatErrors(validateRegistry.errors)}`);
+  const registryIsValid = validateRegistrySchema(registry);
+  assert(registryIsValid, `registry.json failed schema validation: ${formatErrors(validateRegistrySchema.errors)}`);
 
-  const projectMetaIsValid = validateProjectMeta(projectMeta);
-  assert(projectMetaIsValid, `project.meta.json failed schema validation: ${formatErrors(validateProjectMeta.errors)}`);
+  const derivedRegistryIsValid = validateRegistrySchema(derivedRegistry);
+  assert(derivedRegistryIsValid, `derived folder registry failed schema validation: ${formatErrors(validateRegistrySchema.errors)}`);
 
-  const workspaceIsValid = validateWorkspace(workspaceBundle);
-  assert(workspaceIsValid, `workspace slice failed schema validation: ${formatErrors(validateWorkspace.errors)}`);
+  for (const project of discoveredProjects) {
+    const metaIsValid = validateProjectMetaSchema(project);
+    const metaPath = getString(getObject(project.paths, "project.paths").metaPath, "project.paths.metaPath");
+    assert(metaIsValid, `${metaPath} failed schema validation: ${formatErrors(validateProjectMetaSchema.errors)}`);
+    assertProjectPaths(project, metaPath.replace(/\/project\.meta\.json$/, ""), metaPath);
+  }
 
-  const registryProjects = registry.projects;
-  assert(Array.isArray(registryProjects) && registryProjects.length > 0, "registry.projects must contain at least one project");
-  const registryProject001 = registryProjects.find((entry): entry is JsonObject => isJsonObject(entry) && entry.projectId === "project_001");
-  assert(registryProject001, "registry must include project_001");
+  const project001JsonIsValid = validateProjectSchema(project001Json);
+  assert(project001JsonIsValid, `project_001/project.json failed schema validation: ${formatErrors(validateProjectSchema.errors)}`);
 
-  const metaPaths = getObject(projectMeta.paths, "project.meta.paths");
-  assert(getString(metaPaths.metaPath, "project.meta.paths.metaPath") === "40_projects/project_001/project.meta.json", "project.meta.paths.metaPath must point to project_001 metadata");
-  assert(getString(metaPaths.projectRoot, "project.meta.paths.projectRoot") === "40_projects/project_001", "project.meta.paths.projectRoot must point to project_001");
+  const workspaceIsValid = validateWorkspaceSchema(workspaceBundle);
+  assert(workspaceIsValid, `workspace slice failed schema validation: ${formatErrors(validateWorkspaceSchema.errors)}`);
 
-  assert(getString(registry.activeProjectId, "registry.activeProjectId") === "project_001", "registry.activeProjectId must stay on project_001");
-  assert(getString(workspaceBundle.selectedProjectId, "workspace.selectedProjectId") === "project_001", "workspace.selectedProjectId must stay on project_001");
+  assert.deepStrictEqual(registry, derivedRegistry, "registry.json must exactly match the deterministic folder-derived registry");
 
-  const workspaceProjects = workspaceBundle.projects;
-  assert(Array.isArray(workspaceProjects) && workspaceProjects.length > 0, "workspace bundle must expose at least one project");
-  const workspaceProject001 = workspaceProjects.find((entry): entry is JsonObject => isJsonObject(entry) && entry.projectId === "project_001");
-  assert(workspaceProject001, "workspace bundle must include project_001");
+  const discoveredProjectIds = discoveredProjects.map((project) => getString(project.projectId, "project.projectId"));
+  assert(discoveredProjectIds.includes("project_001"), "folder discovery must include project_001");
+  assert(discoveredProjectIds.includes("project_002"), "folder discovery must include project_002");
 
-  assert(getString(registryProject001.slug, "registry.project_001.slug") === getString(projectMeta.slug, "project.meta.slug"), "registry and project.meta slugs must match");
-  assert(getString(registryProject001.displayName, "registry.project_001.displayName") === getString(projectMeta.displayName, "project.meta.displayName"), "registry and project.meta display names must match");
-  assert(getString(workspaceProject001.slug, "workspace.project_001.slug") === getString(projectMeta.slug, "project.meta.slug"), "workspace bundle and project.meta slugs must match");
-  assert(getString(workspaceProject001.displayName, "workspace.project_001.displayName") === getString(projectMeta.displayName, "project.meta.displayName"), "workspace bundle and project.meta display names must match");
+  const registryProjectIds = getProjectIds(registry.projects, "registry.projects");
+  const workspaceProjectIds = getProjectIds(workspaceBundle.projects, "workspace.projects");
+  assert.deepStrictEqual(registryProjectIds, discoveredProjectIds, "registry project IDs must match discovered project IDs");
+  assert.deepStrictEqual(workspaceProjectIds, discoveredProjectIds, "workspace project IDs must match discovered project IDs");
+
+  assert(getString(registry.activeProjectId, "registry.activeProjectId") === "project_001", "registry.activeProjectId must remain project_001");
+  assert(getString(workspaceBundle.selectedProjectId, "workspace.selectedProjectId") === "project_001", "workspace.selectedProjectId must remain project_001");
+
+  assertProjectPaths(project002Meta, "40_projects/project_002", "40_projects/project_002/project.meta.json");
 
   console.log("PASS validate:workspace");
+  console.log(`Discovered project folders: ${discoveredProjectIds.join(", ")}`);
   console.log(`Validated workspace registry: ${path.relative(workspaceRoot, workspaceRegistryPath)}`);
-  console.log(`Validated project metadata: ${path.relative(workspaceRoot, projectMetaPath)}`);
-  console.log("Validated runtime workspace slice against workspace.schema.json.");
+  console.log(`Validated project metadata: 40_projects/project_001/project.meta.json, 40_projects/project_002/project.meta.json`);
+  console.log("Validated folder-based discovery, derived registry consistency, project metadata, and workspace shell bundle.");
 }
 
 main().catch((error: unknown) => {

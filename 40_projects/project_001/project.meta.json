@@ -23,9 +23,15 @@
     "metaPath": "40_projects/project_001/project.meta.json",
     "registryPath": "40_projects/registry.json",
     "evidenceRoot": "10_donors/donor_001_mystery_garden/evidence",
+    "donorRoot": "40_projects/project_001/donor",
+    "reportsRoot": "40_projects/project_001/reports",
+    "importsRoot": "40_projects/project_001/imports",
+    "internalRoot": "40_projects/project_001/internal",
     "importPath": "40_projects/project_001/imports/mystery-garden-import.json",
     "runtimeRoot": "40_projects/project_001/runtime",
     "fixturesRoot": "40_projects/project_001/fixtures",
+    "targetRoot": "40_projects/project_001/target",
+    "releaseRoot": "40_projects/project_001/release",
     "logsRoot": "40_projects/project_001/logs"
   },
   "donor": {
@@ -82,8 +88,8 @@
       "Project_001 is the only validated donor-backed project so far."
     ],
     "plannedWork": [
-      "Add future projects through the workspace registry.",
-      "Keep donor links and target game metadata explicit for every project."
+      "Keep donor links and target game metadata explicit for every project.",
+      "Maintain the standard folder-based project lifecycle alongside the validated replay slice."
     ],
     "assumptions": [
       "This metadata file is the shell-facing project summary until a richer workspace state file exists."

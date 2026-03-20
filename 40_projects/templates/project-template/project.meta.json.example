@@ -1,0 +1,72 @@
+{
+  "schemaVersion": "0.1.0",
+  "projectId": "project_003",
+  "slug": "example-project",
+  "displayName": "Example Project Scaffold",
+  "gameFamily": "slot",
+  "implementationScope": "slot-first",
+  "phase": "PHASE TEMPLATE",
+  "status": "planned",
+  "verification": {
+    "status": "unknown",
+    "checks": [],
+    "notes": "Template metadata only; no validation has been performed yet."
+  },
+  "paths": {
+    "projectRoot": "40_projects/project_003",
+    "projectJson": "40_projects/project_003/project.json",
+    "metaPath": "40_projects/project_003/project.meta.json",
+    "registryPath": "40_projects/registry.json",
+    "evidenceRoot": "40_projects/project_003/donor",
+    "donorRoot": "40_projects/project_003/donor",
+    "reportsRoot": "40_projects/project_003/reports",
+    "importsRoot": "40_projects/project_003/imports",
+    "internalRoot": "40_projects/project_003/internal",
+    "importPath": "40_projects/project_003/imports/import-manifest.json",
+    "runtimeRoot": "40_projects/project_003/runtime",
+    "fixturesRoot": "40_projects/project_003/fixtures",
+    "targetRoot": "40_projects/project_003/target",
+    "releaseRoot": "40_projects/project_003/release",
+    "logsRoot": "40_projects/project_003/logs"
+  },
+  "donor": {
+    "donorId": "donor_planned_example",
+    "donorName": "Planned donor reference",
+    "evidenceRoot": "40_projects/project_003/donor",
+    "captureSessions": [],
+    "evidenceRefs": ["TBD-DONOR-EVIDENCE"],
+    "status": "planned",
+    "notes": "Template only. Replace with evidence-backed donor references before validation."
+  },
+  "targetGame": {
+    "targetGameId": "target.example-project.future-target",
+    "displayName": "Example Project Target",
+    "gameFamily": "slot",
+    "relationship": "future-target",
+    "status": "planned",
+    "provenNotes": [],
+    "plannedNotes": [
+      "Use this template to define the future resulting game for a new project."
+    ],
+    "notes": "Template only; no resulting game implementation is proven yet."
+  },
+  "timestamps": {
+    "createdAt": "2026-03-20T00:00:00Z",
+    "updatedAt": "2026-03-20T00:00:00Z"
+  },
+  "notes": {
+    "provenFacts": [
+      "This file demonstrates the project metadata contract."
+    ],
+    "plannedWork": [
+      "Replace the placeholder donor link with evidence-backed references.",
+      "Update the target game once the project is actually underway."
+    ],
+    "assumptions": [
+      "The project will be created under 40_projects/ with the standard lifecycle folders."
+    ],
+    "unresolvedQuestions": [
+      "What donor, target game, and runtime path this project will eventually use."
+    ]
+  }
+}

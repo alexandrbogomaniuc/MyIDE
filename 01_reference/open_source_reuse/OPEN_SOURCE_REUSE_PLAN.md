@@ -4,9 +4,9 @@
 Reuse MIT-friendly tools, patterns, and small modules where they accelerate MyIDE, while avoiding unverified license copying and avoiding donor-specific contamination.
 
 ## Proven Facts
-- The current reference client depends on `pixi.js`, `typescript`, and `vite`. Evidence: `/Users/alexb/Documents/Dev/new-games-client/package.json:1-14`.
-- The current reference server depends on `fastify`, `@fastify/cors`, `tsx`, and `typescript`. Evidence: `/Users/alexb/Documents/Dev/new-games-server/package.json:1-19`.
-- The reference repos already use small TypeScript-first toolchains rather than large framework-heavy stacks. Evidence: `/Users/alexb/Documents/Dev/new-games-client/package.json:1-14`, `/Users/alexb/Documents/Dev/new-games-server/package.json:1-19`.
+- The current reference client depends on `pixi.js`, `typescript`, and `vite`. Evidence: local PHASE 0/1 reference audit summarized in `01_reference/gsrefactor_audit/GSREFACTOR_AUDIT.md`.
+- The current reference server depends on `fastify`, `@fastify/cors`, `tsx`, and `typescript`. Evidence: local PHASE 0/1 reference audit summarized in `01_reference/gsrefactor_audit/GSREFACTOR_AUDIT.md`.
+- The reference repos already use small TypeScript-first toolchains rather than large framework-heavy stacks. Evidence: local PHASE 0/1 reference audit summarized in `01_reference/gsrefactor_audit/GSREFACTOR_AUDIT.md`.
 
 ## Reuse Policy
 - Prefer reuse of architecture patterns before reuse of source files.

@@ -2,8 +2,12 @@
   "schemaVersion": "0.1.0",
   "workspaceId": "workspace.myide",
   "displayName": "MyIDE Workspace",
+  "description": "Derived workspace registry generated from discoverable project folders.",
   "implementationScope": "universal-local-first",
+  "discoveryMode": "folder-scan",
+  "sourceOfTruth": "project-folders",
   "activeProjectId": "project_001",
+  "projectCount": 2,
   "projects": [
     {
       "schemaVersion": "0.1.0",
@@ -22,7 +26,7 @@
           "assert:replay"
         ],
         "lastVerifiedAt": "2026-03-20T10:32:56Z",
-        "notes": "Validated internal replay slice; live restart and free-spins gaps remain for later evidence capture."
+        "notes": "Internal replay slice is verified; live restart and free-spins capture gaps remain."
       },
       "paths": {
         "projectRoot": "40_projects/project_001",
@@ -30,9 +34,15 @@
         "metaPath": "40_projects/project_001/project.meta.json",
         "registryPath": "40_projects/registry.json",
         "evidenceRoot": "10_donors/donor_001_mystery_garden/evidence",
+        "donorRoot": "40_projects/project_001/donor",
+        "reportsRoot": "40_projects/project_001/reports",
+        "importsRoot": "40_projects/project_001/imports",
+        "internalRoot": "40_projects/project_001/internal",
         "importPath": "40_projects/project_001/imports/mystery-garden-import.json",
         "runtimeRoot": "40_projects/project_001/runtime",
         "fixturesRoot": "40_projects/project_001/fixtures",
+        "targetRoot": "40_projects/project_001/target",
+        "releaseRoot": "40_projects/project_001/release",
         "logsRoot": "40_projects/project_001/logs"
       },
       "donor": {
@@ -60,7 +70,7 @@
           "MG-EV-20260320-LIVE-A-006"
         ],
         "status": "proven",
-        "notes": "Only validated donor slice currently present in the workspace."
+        "notes": "Only validated donor slice in the current workspace."
       },
       "targetGame": {
         "targetGameId": "target.mystery-garden.replay-slice",
@@ -70,13 +80,13 @@
         "status": "validated",
         "provenNotes": [
           "Internal replay runs from clean project data only.",
-          "Current implementation proves the donor-to-replay path without production integration."
+          "The donor-to-replay path is verified without production integration."
         ],
         "plannedNotes": [
-          "A future resulting game may be reskinned and improved after donor evidence closes the current gaps.",
-          "Non-slot family support is not implemented yet."
+          "Future reskinning is deferred.",
+          "Additional donor slices may be added later."
         ],
-        "notes": "This is the validated internal slice, not the final original game."
+        "notes": "Validated internal slice only; not the final resulting game."
       },
       "timestamps": {
         "createdAt": "2026-03-20T00:00:00Z",
@@ -85,24 +95,97 @@
       },
       "notes": {
         "provenFacts": [
-          "MyIDE has one validated donor-backed slot slice.",
-          "The replay slice uses internal project data only."
+          "Replay loader uses internal project data only.",
+          "Project_001 is the only validated donor-backed project so far."
         ],
         "plannedWork": [
-          "Add more donor-backed projects over time.",
-          "Keep future result games explicit and evidence-linked."
+          "Keep donor links and target game metadata explicit for every project.",
+          "Maintain the standard folder-based project lifecycle alongside the validated replay slice."
         ],
         "assumptions": [
-          "Workspace listing can stay file-backed until more projects exist."
+          "This metadata file is the shell-facing project summary until a richer workspace state file exists."
         ],
         "unresolvedQuestions": [
-          "How many project entries the shell should show before pagination becomes necessary."
+          "How quickly the project registry will grow beyond a single validated entry."
+        ]
+      }
+    },
+    {
+      "schemaVersion": "0.1.0",
+      "projectId": "project_002",
+      "slug": "sugar-merge-up-research",
+      "displayName": "Sugar Merge Up Research Scaffold",
+      "gameFamily": "slot",
+      "implementationScope": "slot-first",
+      "phase": "PHASE 4B",
+      "status": "planned",
+      "verification": {
+        "status": "unknown",
+        "checks": [],
+        "notes": "Scaffold only. No validation has been run for this project yet."
+      },
+      "paths": {
+        "projectRoot": "40_projects/project_002",
+        "projectJson": "40_projects/project_002/project.json",
+        "metaPath": "40_projects/project_002/project.meta.json",
+        "registryPath": "40_projects/registry.json",
+        "evidenceRoot": "10_donors/donor_002_sugar_merge_up/research_only",
+        "donorRoot": "40_projects/project_002/donor",
+        "reportsRoot": "40_projects/project_002/reports",
+        "importsRoot": "40_projects/project_002/imports",
+        "internalRoot": "40_projects/project_002/internal",
+        "importPath": "40_projects/project_002/imports/import-manifest.json",
+        "runtimeRoot": "40_projects/project_002/runtime",
+        "fixturesRoot": "40_projects/project_002/fixtures",
+        "targetRoot": "40_projects/project_002/target",
+        "releaseRoot": "40_projects/project_002/release",
+        "logsRoot": "40_projects/project_002/logs"
+      },
+      "donor": {
+        "donorId": "donor_002_sugar_merge_up",
+        "donorName": "Sugar Merge Up (research only)",
+        "evidenceRoot": "10_donors/donor_002_sugar_merge_up/research_only",
+        "captureSessions": [],
+        "evidenceRefs": [],
+        "status": "planned",
+        "notes": "Research-only donor link for workspace scaffolding. No validated evidence pack or runtime slice exists in this project yet."
+      },
+      "targetGame": {
+        "targetGameId": "target.sugar-merge-up.future-result",
+        "displayName": "Future Sugar Merge Up Resulting Game",
+        "gameFamily": "slot",
+        "relationship": "future-target",
+        "status": "planned",
+        "provenNotes": [],
+        "plannedNotes": [
+          "Use the standard project lifecycle folders.",
+          "Replace the research-only donor linkage with an evidence-backed implementation plan if this project moves forward."
+        ],
+        "notes": "No resulting game implementation is proven yet."
+      },
+      "timestamps": {
+        "createdAt": "2026-03-20T00:00:00Z",
+        "updatedAt": "2026-03-20T00:00:00Z"
+      },
+      "notes": {
+        "provenFacts": [
+          "The folder exists as a discoverable workspace project scaffold."
+        ],
+        "plannedWork": [
+          "Decide whether donor_002_sugar_merge_up should advance beyond research-only status.",
+          "Replace scaffold metadata with evidence-backed project details before any replay/runtime work begins."
+        ],
+        "assumptions": [
+          "This project stays slot-family and scaffold-only unless a future run promotes it with real donor evidence."
+        ],
+        "unresolvedQuestions": [
+          "Whether this research-only donor should become a validated implementation slice later."
         ]
       }
     }
   ],
   "notes": [
-    "MyIDE is a universal local-first IDE with a slot-first implementation slice.",
-    "Only Mystery Garden is validated so far."
+    "Project folders under 40_projects/ are the authoritative source of project existence.",
+    "registry.json is a deterministic cache generated from discovered project folders."
   ]
 }
