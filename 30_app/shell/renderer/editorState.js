@@ -7,6 +7,8 @@
   }
 })(typeof globalThis !== "undefined" ? globalThis : this, function createMyIDEEditorState() {
   const DEFAULT_SNAP_SIZE = 10;
+  const MIN_OBJECT_SIZE = 8;
+  const MAX_OBJECT_SIZE = 4096;
 
   function clone(value) {
     return value ? JSON.parse(JSON.stringify(value)) : value;
@@ -178,6 +180,19 @@
     };
   }
 
+  function isObjectSizeEditable(object) {
+    return Boolean(object && typeof object.placeholderRef === "string" && object.placeholderRef.length > 0);
+  }
+
+  function sanitizeObjectDimension(value, fallback = MIN_OBJECT_SIZE) {
+    const normalizedFallback = Number.isFinite(fallback) ? Math.round(fallback) : MIN_OBJECT_SIZE;
+    if (!Number.isFinite(value)) {
+      return Math.min(MAX_OBJECT_SIZE, Math.max(MIN_OBJECT_SIZE, normalizedFallback));
+    }
+
+    return Math.min(MAX_OBJECT_SIZE, Math.max(MIN_OBJECT_SIZE, Math.round(value)));
+  }
+
   function resolveCreationLayer(layers, selectedLayerId) {
     const sortedLayers = sortLayers(layers);
     const preferredSelectedLayer = sortedLayers.find((entry) => entry.id === selectedLayerId && !entry.locked);
@@ -347,8 +362,12 @@
     undo,
     redo,
     DEFAULT_SNAP_SIZE,
+    MIN_OBJECT_SIZE,
+    MAX_OBJECT_SIZE,
     snapValue,
     snapPoint,
+    isObjectSizeEditable,
+    sanitizeObjectDimension,
     createUniqueObjectId,
     createNumberedObjectId,
     getEditableLayers,

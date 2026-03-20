@@ -598,6 +598,16 @@ function isObjectEditable(object) {
   return !object.locked && !layer?.locked;
 }
 
+function isObjectSizeEditable(object) {
+  const tools = getEditorStateTools();
+  return Boolean(
+    object
+    && isObjectEditable(object)
+    && typeof tools.isObjectSizeEditable === "function"
+    && tools.isObjectSizeEditable(object)
+  );
+}
+
 function isTypingTarget(target) {
   return target instanceof HTMLInputElement
     || target instanceof HTMLTextAreaElement
@@ -1013,12 +1023,24 @@ function handleInspectorEvent(event) {
     nextValue = target instanceof HTMLInputElement ? target.checked : false;
   } else if (field === "layerId") {
     nextValue = target.value;
-  } else if (["x", "y", "scaleX", "scaleY"].includes(field)) {
+  } else if (["x", "y", "scaleX", "scaleY", "width", "height"].includes(field)) {
     const numeric = Number(target.value);
     if (!Number.isFinite(numeric)) {
       return;
     }
-    nextValue = numeric;
+    if ((field === "width" || field === "height")) {
+      if (!isObjectSizeEditable(selectedObject)) {
+        return;
+      }
+
+      const tools = getEditorStateTools();
+      const currentValue = Number(selectedObject[field]);
+      nextValue = typeof tools.sanitizeObjectDimension === "function"
+        ? tools.sanitizeObjectDimension(numeric, Number.isFinite(currentValue) ? currentValue : undefined)
+        : Math.max(8, Math.round(numeric));
+    } else {
+      nextValue = numeric;
+    }
   } else {
     nextValue = target.value;
   }
@@ -1774,6 +1796,7 @@ function renderInspector() {
 
   const layer = getLayerById(selectedObject.layerId);
   const locked = selectedObject.locked || layer?.locked;
+  const sizeEditable = isObjectSizeEditable(selectedObject);
   const assignableLayers = getAssignableLayers().map((entry) => ({
     value: entry.id,
     label: `${entry.displayName}${entry.visible === false ? " (hidden)" : ""}`
@@ -1853,6 +1876,30 @@ function renderInspector() {
             fieldKind: "number",
             fieldState: locked ? "locked" : "editable",
             path: ["objects", selectedObject.id, "y"]
+          },
+          {
+            key: "width",
+            label: "Width",
+            value: Number.isFinite(selectedObject.width) ? selectedObject.width : getObjectDimensions(selectedObject).width,
+            status: "proven",
+            fieldKind: "number",
+            fieldState: sizeEditable ? "editable" : "locked",
+            path: ["objects", selectedObject.id, "width"],
+            notes: sizeEditable
+              ? "Placeholder-backed objects only. Values are clamped to safe positive bounds."
+              : "Width editing is currently limited to editable placeholder-backed objects."
+          },
+          {
+            key: "height",
+            label: "Height",
+            value: Number.isFinite(selectedObject.height) ? selectedObject.height : getObjectDimensions(selectedObject).height,
+            status: "proven",
+            fieldKind: "number",
+            fieldState: sizeEditable ? "editable" : "locked",
+            path: ["objects", selectedObject.id, "height"],
+            notes: sizeEditable
+              ? "Placeholder-backed objects only. Values are clamped to safe positive bounds."
+              : "Height editing is currently limited to editable placeholder-backed objects."
           },
           {
             key: "scaleX",

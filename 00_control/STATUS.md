@@ -1,8 +1,8 @@
 # MyIDE Status
 
 ## Current Phase
-- Active scope: PHASE 5D public alignment and object creation slice on top of the existing slot-first implementation slice.
-- Current milestone: keep `project_001` as the validated bounded internal scene editor slice with create -> move/edit -> duplicate/delete -> undo/redo -> save/reload -> deterministic replay sync.
+- Active scope: PHASE 5F public alignment and placeholder sizing slice on top of the existing slot-first implementation slice.
+- Current milestone: keep `project_001` as the validated bounded internal scene editor slice with create -> resize/move/edit -> snap-assisted layout -> layer reassignment -> duplicate/delete -> undo/redo -> save/reload -> deterministic replay sync.
 
 ## Progress Log
 
@@ -53,6 +53,9 @@
 - Added a visible shell sync-status surface that shows the replay-facing target path and the last successful save/sync time for the current session.
 - Added an in-shell New Object action for a bounded placeholder scene object that is immediately selectable, editable, movable, saveable, reloadable, and syncable.
 - Added a `create-object` smoke that proves create -> edit -> save -> sync -> reload and duplicate/delete after creation before restoring the original project state.
+- Added a bounded snap-assisted layout workflow with a 10px snap toggle for drag and keyboard nudge.
+- Added selected-object reassignment between unlocked layers and verified that save/reload plus deterministic sync keep the reassigned layer honest.
+- Added bounded width/height editing for placeholder-backed objects so placeholder layout blocks can be resized inside the shell editor and synced into replay-facing output.
 
 ## Proven Facts
 - Local reference repos are available in the developer workspace outside this repository.
@@ -69,6 +72,7 @@
 - `registry.json` is now a generated/derived cache rather than the sole workspace truth.
 - The shell can now create a new project scaffold and have it appear in the browser after the workspace refreshes from disk.
 - The shell now exposes the first real editor-style workflow for `project_001`, including new object creation, object selection, drag/nudge, bounded property edits, duplicate/delete, save, reload, and visible sync status.
+- The shell now exposes snap-assisted layout movement, selected-object layer reassignment, and bounded placeholder width/height editing inside the validated `project_001` editor slice.
 - `project_001/internal/*.json` now forms the persistence target for the first editor slice while `project.json` remains the validated replay source.
 - Workspace verification now validates the internal editor scene files in addition to project metadata and replay contracts.
 - The shell now deterministically syncs the replay-facing generated output on save and surfaces that target path in the editor UI.
@@ -88,3 +92,4 @@
 - The New Project flow is implemented in the shell, but an interactive Electron GUI check is still pending in a display-capable environment.
 - Preview hit-selection works in the shell canvas, but this remains a minimal property-edit slice rather than a full drag/drop scene editor.
 - The shell can now create a new placeholder object, but there is still no asset picker or richer object-type creation flow yet.
+- Placeholder sizing is now bounded to placeholder-backed objects only; asset-backed objects still do not expose a broader resizing workflow.

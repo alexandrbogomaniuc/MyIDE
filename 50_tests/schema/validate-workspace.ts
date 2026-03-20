@@ -142,6 +142,12 @@ function assertObjectCollectionShape(value: JsonObject, label: string, knownLaye
     assert(typeof objectRecord.scaleY === "number", `${label}.objects[${index}].scaleY must be a number`);
     assert(typeof objectRecord.visible === "boolean", `${label}.objects[${index}].visible must be an explicit boolean`);
     assert(typeof objectRecord.locked === "boolean", `${label}.objects[${index}].locked must be an explicit boolean`);
+    if (objectRecord.width !== undefined) {
+      assert(typeof objectRecord.width === "number" && objectRecord.width >= 8, `${label}.objects[${index}].width must be a bounded positive number when present`);
+    }
+    if (objectRecord.height !== undefined) {
+      assert(typeof objectRecord.height === "number" && objectRecord.height >= 8, `${label}.objects[${index}].height must be a bounded positive number when present`);
+    }
   }
 }
 
@@ -214,6 +220,11 @@ async function main(): Promise<void> {
   assert(titleObject, "project_001 editable project data must include the title object.");
   assert.equal(titleObject.visible, true, "project_001 title object must remain visible in the validated slice.");
   assert.equal(titleObject.locked, false, "project_001 title object must remain unlocked in the validated slice.");
+
+  const bottomHudObject = editableProject.objects.find((entry) => entry.id === "node.bottom-bar");
+  assert(bottomHudObject, "project_001 editable project data must include the bottom HUD object.");
+  assert.equal(bottomHudObject.width, 1152, "project_001 bottom HUD width must remain explicit in the validated slice.");
+  assert.equal(bottomHudObject.height, 76, "project_001 bottom HUD height must remain explicit in the validated slice.");
 
   const workspaceIsValid = validateWorkspaceSchema(workspaceBundle);
   assert(workspaceIsValid, `workspace slice failed schema validation: ${formatErrors(validateWorkspaceSchema.errors)}`);

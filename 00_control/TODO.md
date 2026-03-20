@@ -95,7 +95,20 @@
 - [x] Surface replay sync target/status visibly in the shell after save.
 - [x] Add create-object smoke coverage for create -> edit -> save -> sync -> reload plus duplicate/delete after creation.
 - [ ] Verify the create/move/save/reload loop interactively in a GUI-capable Electron session.
-- [ ] Decide whether the next bounded editor upgrade is new-object shortcuts, simple snapping, or a richer inspector field set.
+
+## PHASE 5E
+- [x] Add a 10px snap toggle for drag and keyboard nudge.
+- [x] Add selected-object reassignment between unlocked layers.
+- [x] Prove snapped movement and layer reassignment persist through save -> sync -> reload.
+- [ ] Verify the snap/reassign workflow interactively in a GUI-capable Electron session.
+
+## PHASE 5F
+- [x] Align public phase/status wording with the actual current editor behavior.
+- [x] Add bounded width/height editing for placeholder-backed objects.
+- [x] Keep width/height changes visible in the canvas and deterministic replay sync.
+- [x] Add smoke coverage for create -> resize -> move -> save -> sync -> reload plus duplicate/delete after resizing.
+- [ ] Verify the resize/move/save/reload loop interactively in a GUI-capable Electron session.
+- [ ] Decide whether the next bounded editor upgrade is placeholder presets, simple alignment aids, or another small inspector productivity field.
 
 ## Deferred
 - [ ] Donor decoding automation.

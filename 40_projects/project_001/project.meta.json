@@ -5,7 +5,7 @@
   "displayName": "Mystery Garden Replay Slice",
   "gameFamily": "slot",
   "implementationScope": "slot-first",
-  "phase": "PHASE 5D",
+  "phase": "PHASE 5F",
   "status": "validated",
   "verification": {
     "status": "verified-replay-slice",
@@ -19,8 +19,8 @@
       "validate:project_001",
       "assert:replay"
     ],
-    "lastVerifiedAt": "2026-03-20T19:10:45Z",
-    "notes": "Internal replay slice plus the bounded editor loop are verified, including create placeholder object, drag/nudge, duplicate/delete, undo/redo, save/reload, and deterministic replay sync; live restart and free-spins capture gaps remain."
+    "lastVerifiedAt": "2026-03-20T22:08:20Z",
+    "notes": "Internal replay slice plus the bounded editor loop are verified, including create placeholder object, snap-assisted drag/nudge, layer reassignment, bounded placeholder width/height edits, duplicate/delete, undo/redo, save/reload, and deterministic replay sync; live restart and free-spins capture gaps remain."
   },
   "lifecycle": {
     "currentStage": "internalReplay",
@@ -39,7 +39,7 @@
       },
       "internalReplay": {
         "status": "verified",
-        "notes": "Validated internal replay slice exists in project_001, now with a bounded editable shell workflow that can create, move, edit, duplicate, delete, save, reload, and sync."
+        "notes": "Validated internal replay slice exists in project_001, now with a bounded editable shell workflow that can create, resize, move, edit, duplicate, delete, save, reload, and sync."
       },
       "targetConcept": {
         "status": "planned",
@@ -125,15 +125,15 @@
   },
   "timestamps": {
     "createdAt": "2026-03-20T00:00:00Z",
-    "updatedAt": "2026-03-20T19:10:45Z",
+    "updatedAt": "2026-03-20T22:08:20Z",
     "firstValidatedAt": "2026-03-20T10:32:56Z"
   },
   "notes": {
     "provenFacts": [
       "Replay loader uses internal project data only.",
       "Project_001 is the only validated donor-backed project so far.",
-      "The shell can now create, edit, move, duplicate, delete, and persist bounded scene objects from project_001 internal scene files.",
-      "Save deterministically syncs the replay-facing generated project.json output from the editable internal scene files."
+      "The shell can now create, resize, edit, move, duplicate, delete, and persist bounded scene objects from project_001 internal scene files.",
+      "Save deterministically syncs the replay-facing generated project.json output from the editable internal scene files, including placeholder size changes."
     ],
     "plannedWork": [
       "Keep donor links and target game metadata explicit for every project.",
@@ -142,7 +142,7 @@
     ],
     "assumptions": [
       "This metadata file is the shell-facing project summary until a richer workspace state file exists.",
-      "The current bounded editor slice remains intentionally small enough to stay reliable without advanced gizmos or a full asset-creation workflow yet."
+      "The current bounded editor slice remains intentionally small enough to stay reliable without advanced gizmos, resize handles, or a full asset-creation workflow yet."
     ],
     "unresolvedQuestions": [
       "How quickly the project registry will grow beyond a single validated entry.",

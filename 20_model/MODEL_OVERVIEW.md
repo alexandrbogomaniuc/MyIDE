@@ -63,6 +63,7 @@ The internal model is the editable source of truth for reconstructed games insid
 - Replay fixtures, mock `gameState`, and mock `lastAction` live under `40_projects/` and are internal data only.
 - The first editable scene slice for `project_001` lives under `40_projects/project_001/internal/scene.json`, `layers.json`, and `objects.json`, while the legacy `project.json` replay slice remains the runtime source of truth for now.
 - The preview-facing shell bundle derives its replay-facing project and scene view from the editable internal scene files when they exist, so the editor path no longer silently trusts the stale `project.json` copy.
+- Placeholder-backed objects can carry explicit `width` and `height` in the internal object document; the current editor exposes those fields only for bounded placeholder sizing, and deterministic replay sync exports the same dimensions into replay-facing node positions.
 
 ## Assumptions
 - File-backed JSON artifacts are sufficient for PHASE 2.

@@ -21,6 +21,6 @@
 - The edit-project smoke test mutates a real editable object in `project_001`, saves it through the internal project files, asserts that generated replay-facing `project.json` changed with it, reloads the project slice, verifies bounded undo/redo behavior, and then restores the original data.
 - The drag-edit smoke test simulates a snap-assisted drag-equivalent move, verifies bounded undo/redo around that snapped position, then proves the snapped coordinates persist through both the editable files and generated replay-facing `project.json` before restore.
 - The duplicate-delete smoke test proves a duplicated object persists through save/reload and replay sync, then proves delete persistence plus undo/redo before restoring the original project.
-- The create-object smoke test proves a new placeholder object can be created, snapped into position, reassigned to another editable layer, synced into replay-facing output, then duplicated and deleted cleanly before restore.
+- The create-object smoke test proves a new placeholder object can be created, resized, snapped into position, reassigned to another editable layer, synced into replay-facing output, then duplicated and deleted cleanly before restore.
 - The latest demo smoke writes a concise before/after artifact to `50_tests/workspace/project_001-demo.md`.
 - `project_001` remains the validated replay slice.

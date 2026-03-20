@@ -125,10 +125,12 @@
                           "type": "number"
                         },
                         "width": {
-                          "type": "number"
+                          "type": "number",
+                          "minimum": 8
                         },
                         "height": {
-                          "type": "number"
+                          "type": "number",
+                          "minimum": 8
                         },
                         "anchorX": {
                           "type": "number"
@@ -358,11 +360,11 @@
         },
         "width": {
           "type": "number",
-          "minimum": 0
+          "minimum": 8
         },
         "height": {
           "type": "number",
-          "minimum": 0
+          "minimum": 8
         },
         "scaleX": {
           "type": "number"

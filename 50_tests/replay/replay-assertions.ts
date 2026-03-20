@@ -46,6 +46,26 @@ function assertTransition(states: Map<string, JsonObject>, fromStateId: string, 
   assert(hasTransition, `Missing transition ${fromStateId} --${eventName}--> ${targetStateId}`);
 }
 
+function getSceneNode(project: JsonObject, nodeId: string): { node: JsonObject; layerId: string } {
+  const scenes = asArray(project.scenes, "project.scenes");
+  const scene = asObject(scenes[0], "project.scenes[0]");
+  const layers = asArray(scene.layers, "project.scenes[0].layers");
+
+  for (const layerEntry of layers) {
+    const layer = asObject(layerEntry, "project.scenes[0].layers[]");
+    const layerId = String(layer.layerId ?? "");
+    const nodes = asArray(layer.nodes, `project.scenes[0].layers[${layerId}].nodes`);
+    for (const nodeEntry of nodes) {
+      const node = asObject(nodeEntry, `project.scenes[0].layers[${layerId}].nodes[]`);
+      if (node.nodeId === nodeId) {
+        return { node, layerId };
+      }
+    }
+  }
+
+  assert.fail(`Missing replay scene node ${nodeId}`);
+}
+
 async function main(): Promise<void> {
   const slicePaths = getProjectSlicePaths();
   assert(slicePaths.length === 6, "Replay slice should enumerate six internal file paths");
@@ -78,6 +98,12 @@ async function main(): Promise<void> {
   assert(restartRestore.resultStateId === "state.free-spins-active", "restart fixture must settle at free-spins-active");
   assert(mockGameState.stateId === "state.free-spins-active", "mock game state must target free-spins-active");
   assert(mockLastAction.type === "restart.restore", "mock last action must be restart.restore");
+
+  const bottomHudNode = getSceneNode(project, "node.bottom-bar");
+  const bottomHudPosition = asObject(bottomHudNode.node.position, "node.bottom-bar.position");
+  assert(bottomHudNode.layerId === "layer.ui", "node.bottom-bar must remain on layer.ui in replay output");
+  assert(bottomHudPosition.width === 1152, "node.bottom-bar replay width must stay in sync with the internal editable model");
+  assert(bottomHudPosition.height === 76, "node.bottom-bar replay height must stay in sync with the internal editable model");
 
   const assets = asArray(project.assets, "project.assets");
   assets.forEach((entry) => {
