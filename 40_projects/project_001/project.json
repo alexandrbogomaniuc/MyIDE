@@ -187,10 +187,6 @@
       "sceneId": "scene.main",
       "name": "Mystery Garden Main Replay",
       "kind": "preview",
-      "viewport": {
-        "width": 1280,
-        "height": 720
-      },
       "layers": [
         {
           "layerId": "layer.background",
@@ -201,31 +197,30 @@
               "nodeId": "node.backdrop",
               "name": "Garden Backdrop",
               "type": "shape",
-              "assetRef": "asset.bg.garden-dawn",
               "position": {
                 "x": 0,
                 "y": 0,
                 "width": 1280,
-                "height": 720
+                "height": 720,
+                "scaleX": 1,
+                "scaleY": 1
               },
-              "tags": [
-                "backdrop"
-              ],
+              "visible": true,
               "extensions": {
-                "shape": "rect",
-                "fill": "garden-gradient",
-                "evidenceRefs": [
-                  "MG-EV-20260320-WEB-A-003",
-                  "MG-EV-20260320-WEB-A-004"
-                ]
-              }
+                "editorBridgeVersion": "editable-scene-direct-v1",
+                "editorObjectId": "node.backdrop",
+                "editorLayerId": "layer.background",
+                "editorObjectType": "shape",
+                "notes": "Evidence-backed placeholder backdrop for the local preview."
+              },
+              "assetRef": "asset.bg.garden-dawn"
             }
           ]
         },
         {
           "layerId": "layer.gameplay",
           "name": "Gameplay",
-          "role": "midground",
+          "role": "foreground",
           "nodes": [
             {
               "nodeId": "node.title",
@@ -234,73 +229,70 @@
               "position": {
                 "x": 640,
                 "y": 68,
-                "anchorX": 0.5,
-                "anchorY": 0.5
+                "scaleX": 1,
+                "scaleY": 1
               },
-              "tags": [
-                "title"
-              ],
+              "visible": true,
               "extensions": {
-                "text": "MYSTERY GARDEN",
-                "style": "title",
-                "evidenceRefs": [
-                  "MG-EV-20260320-WEB-A-004"
-                ]
-              }
+                "editorBridgeVersion": "editable-scene-direct-v1",
+                "editorObjectId": "node.title",
+                "editorLayerId": "layer.gameplay",
+                "editorObjectType": "text",
+                "notes": "Editable title text captured from the validated Mystery Garden slice."
+              },
+              "assetRef": "placeholder.text.title-plate"
             },
             {
               "nodeId": "node.left-panel",
               "name": "Left Summary Panel",
               "type": "shape",
-              "assetRef": "asset.ui.left-summary",
               "position": {
                 "x": 88,
                 "y": 160,
                 "width": 216,
-                "height": 348
+                "height": 348,
+                "scaleX": 1,
+                "scaleY": 1
               },
-              "tags": [
-                "ui",
-                "left-panel"
-              ],
+              "visible": true,
               "extensions": {
-                "shape": "rect",
-                "fill": "panel-green",
-                "evidenceRefs": [
-                  "MG-EV-20260320-WEB-A-004",
-                  "MG-EV-20260320-WEB-A-005",
-                  "MG-EV-20260320-WEB-A-008"
-                ]
-              }
+                "editorBridgeVersion": "editable-scene-direct-v1",
+                "editorObjectId": "node.left-panel",
+                "editorLayerId": "layer.gameplay",
+                "editorObjectType": "shape",
+                "notes": "Project-local side summary panel."
+              },
+              "assetRef": "asset.ui.left-summary"
             },
             {
               "nodeId": "node.reel-board",
               "name": "Reel Board",
               "type": "shape",
-              "assetRef": "asset.board.book-frame",
               "position": {
                 "x": 328,
                 "y": 136,
                 "width": 728,
-                "height": 432
+                "height": 432,
+                "scaleX": 1,
+                "scaleY": 1
               },
-              "tags": [
-                "board"
-              ],
+              "visible": true,
               "extensions": {
-                "shape": "rect",
-                "fill": "board-green",
-                "grid": {
-                  "columns": 5,
-                  "rows": 3
-                },
-                "evidenceRefs": [
-                  "MG-EV-20260320-WEB-A-004",
-                  "MG-EV-20260320-WEB-A-005",
-                  "MG-EV-20260320-WEB-A-006"
-                ]
-              }
-            },
+                "editorBridgeVersion": "editable-scene-direct-v1",
+                "editorObjectId": "node.reel-board",
+                "editorLayerId": "layer.gameplay",
+                "editorObjectType": "shape",
+                "notes": "Board frame used by the replay slice."
+              },
+              "assetRef": "asset.board.book-frame"
+            }
+          ]
+        },
+        {
+          "layerId": "layer.ui",
+          "name": "UI",
+          "role": "ui",
+          "nodes": [
             {
               "nodeId": "node.win-banner",
               "name": "Win Banner",
@@ -308,28 +300,19 @@
               "position": {
                 "x": 640,
                 "y": 598,
-                "anchorX": 0.5,
-                "anchorY": 0.5
+                "scaleX": 1,
+                "scaleY": 1
               },
               "visible": false,
-              "tags": [
-                "banner"
-              ],
               "extensions": {
-                "text": "3.00 EUR",
-                "style": "win-banner",
-                "evidenceRefs": [
-                  "MG-EV-20260320-WEB-A-006"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "layerId": "layer.ui",
-          "name": "HUD",
-          "role": "ui",
-          "nodes": [
+                "editorBridgeVersion": "editable-scene-direct-v1",
+                "editorObjectId": "node.win-banner",
+                "editorLayerId": "layer.ui",
+                "editorObjectType": "text",
+                "notes": "Overlay banner shown during wins and editable in the first shell inspector slice."
+              },
+              "assetRef": "placeholder.text.win-banner"
+            },
             {
               "nodeId": "node.bottom-bar",
               "name": "Bottom HUD",
@@ -338,19 +321,19 @@
                 "x": 64,
                 "y": 620,
                 "width": 1152,
-                "height": 76
+                "height": 76,
+                "scaleX": 1,
+                "scaleY": 1
               },
-              "tags": [
-                "hud"
-              ],
+              "visible": true,
               "extensions": {
-                "shape": "rect",
-                "fill": "hud-dark",
-                "evidenceRefs": [
-                  "MG-EV-20260320-WEB-A-004",
-                  "MG-EV-20260320-WEB-A-008"
-                ]
-              }
+                "editorBridgeVersion": "editable-scene-direct-v1",
+                "editorObjectId": "node.bottom-bar",
+                "editorLayerId": "layer.ui",
+                "editorObjectType": "shape",
+                "notes": "Bottom HUD strip kept editable for position and visibility checks."
+              },
+              "assetRef": "placeholder.ui.bottom-hud"
             },
             {
               "nodeId": "node.free-spins-pill",
@@ -358,49 +341,48 @@
               "type": "text",
               "position": {
                 "x": 1004,
-                "y": 166
+                "y": 166,
+                "scaleX": 1,
+                "scaleY": 1
               },
               "visible": false,
-              "tags": [
-                "counter"
-              ],
               "extensions": {
-                "text": "Free spins: 9/10",
-                "style": "counter",
-                "evidenceRefs": [
-                  "MG-EV-20260320-WEB-A-005"
-                ]
-              }
+                "editorBridgeVersion": "editable-scene-direct-v1",
+                "editorObjectId": "node.free-spins-pill",
+                "editorLayerId": "layer.ui",
+                "editorObjectType": "text",
+                "notes": "Free spins counter shown when triggered and available for editor-slice transforms."
+              },
+              "assetRef": "placeholder.text.free-spins-pill"
             }
           ]
         },
         {
           "layerId": "layer.overlay",
           "name": "Overlay",
-          "role": "foreground",
+          "role": "fx",
           "nodes": [
             {
               "nodeId": "node.free-spins-modal",
               "name": "Free Spins Modal",
               "type": "container",
-              "assetRef": "asset.modal.free-spins-award",
               "position": {
                 "x": 420,
                 "y": 176,
                 "width": 440,
-                "height": 252
+                "height": 252,
+                "scaleX": 1,
+                "scaleY": 1
               },
               "visible": false,
-              "tags": [
-                "modal"
-              ],
               "extensions": {
-                "modalTitle": "YOU HAVE WON",
-                "modalValue": "10 FREE SPINS",
-                "evidenceRefs": [
-                  "MG-EV-20260320-WEB-A-007"
-                ]
-              }
+                "editorBridgeVersion": "editable-scene-direct-v1",
+                "editorObjectId": "node.free-spins-modal",
+                "editorLayerId": "layer.overlay",
+                "editorObjectType": "container",
+                "notes": "Modal used for the free spins trigger sequence."
+              },
+              "assetRef": "asset.modal.free-spins-award"
             },
             {
               "nodeId": "node.restore-chip",
@@ -408,20 +390,31 @@
               "type": "text",
               "position": {
                 "x": 1008,
-                "y": 118
+                "y": 118,
+                "scaleX": 1,
+                "scaleY": 1
               },
               "visible": false,
-              "tags": [
-                "restore"
-              ],
               "extensions": {
-                "text": "Recovered from mocked gameState",
-                "style": "restore-chip"
-              }
+                "editorBridgeVersion": "editable-scene-direct-v1",
+                "editorObjectId": "node.restore-chip",
+                "editorLayerId": "layer.overlay",
+                "editorObjectType": "text",
+                "notes": "Restart recovery badge for mocked restore flow."
+              },
+              "assetRef": "placeholder.text.restart-recovery"
             }
           ]
         }
-      ]
+      ],
+      "extensions": {
+        "editorBridgeVersion": "editable-scene-direct-v1",
+        "source": "editable-internal"
+      },
+      "viewport": {
+        "width": 1280,
+        "height": 720
+      }
     }
   ],
   "states": [
@@ -840,13 +833,13 @@
     ],
     "references": [
       {
-      "refId": "MG-EV-20260320-WEB-A-004",
-      "kind": "evidence"
-    },
-    {
-      "refId": "MG-EV-20260320-LIVE-A-002",
-      "kind": "evidence"
-    },
+        "refId": "MG-EV-20260320-WEB-A-004",
+        "kind": "evidence"
+      },
+      {
+        "refId": "MG-EV-20260320-LIVE-A-002",
+        "kind": "evidence"
+      },
       {
         "refId": "MG-EV-20260320-WEB-A-007",
         "kind": "evidence"

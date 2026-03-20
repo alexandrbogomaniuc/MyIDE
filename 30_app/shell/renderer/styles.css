@@ -202,11 +202,20 @@ select {
   background: linear-gradient(180deg, rgba(82, 64, 24, 0.96), rgba(42, 32, 12, 0.98));
 }
 
+.editor-toolbar .is-danger {
+  border-color: rgba(232, 138, 93, 0.38);
+  background: linear-gradient(180deg, rgba(88, 42, 28, 0.96), rgba(52, 25, 16, 0.98));
+}
+
 .browser-toolbar button:hover,
 .editor-toolbar button:hover,
 .form-actions button:hover,
 .layer-toggle:hover {
   border-color: rgba(230, 191, 100, 0.54);
+}
+
+.editor-toolbar .is-danger:hover {
+  border-color: rgba(232, 138, 93, 0.66);
 }
 
 button:disabled {
@@ -497,6 +506,12 @@ button:disabled {
   color: #d5f0cb;
   border-color: rgba(147, 201, 133, 0.32);
   background: rgba(147, 201, 133, 0.08);
+}
+
+.toolbar-hint {
+  align-self: center;
+  color: var(--muted);
+  font-size: 0.78rem;
 }
 
 .editor-canvas-shell {
