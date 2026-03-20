@@ -10,3 +10,5 @@ progress.md
 10_donors/**/evidence/local_only/**
 !10_donors/**/evidence/local_only/
 !10_donors/**/evidence/local_only/README.md
+40_projects/**/logs/editor-snapshots/**
+40_projects/**/logs/editor-save-history.jsonl

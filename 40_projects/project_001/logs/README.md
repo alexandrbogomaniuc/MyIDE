@@ -1,8 +1,9 @@
 # Project 001 Logs
 
 ## Purpose
-- Reserved for local replay logs, checkpoints, and later scenario traces.
+- Reserved for local replay logs, checkpoints, save history, and later scenario traces.
 
 ## Current State
-- No persistent replay logs are committed in PHASE 2.
-- The preview currently uses in-memory event logging only.
+- Save snapshots are written under `editor-snapshots/` and treated as local-only safety copies.
+- Save history is appended to `editor-save-history.jsonl` and is also local-only.
+- The preview still uses in-memory event logging for runtime actions; the on-disk history is for persistence safety.

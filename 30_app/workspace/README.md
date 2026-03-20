@@ -5,7 +5,8 @@ This folder contains workspace-level utilities for adding and shaping projects.
 ## Current Scope
 - `createProject.ts` generates a new project folder scaffold from template metadata.
 - `createProject.ts` also supports a shell-safe form input path for creating a project directly from the IDE.
-- The helper keeps donor evidence, internal model, runtime, fixtures, and release folders separate.
+- `editableProject.ts` loads and saves the internal scene/layer/object files for `project_001` and creates local-only snapshots plus save history when data is written back.
+- The helpers keep donor evidence, internal model, runtime, fixtures, and release folders separate.
 - The helper does not invent donor evidence or runtime support.
 
 ## Usage
@@ -22,6 +23,8 @@ Inside the shell, use the **New Project** panel to create the same scaffold with
 - donor reference or ID
 - target/resulting game display name
 - notes
+
+Editable internal project data is written through the shell save bridge into `40_projects/<project>/internal/` and is backed by local-only safety snapshots under `40_projects/<project>/logs/`.
 
 ## Rules
 - Do not overwrite existing project folders without an explicit `--overwrite` flag.

@@ -1,0 +1,38 @@
+{
+  "schemaVersion": "0.1.0",
+  "sceneId": "scene.main",
+  "layers": [
+    {
+      "id": "layer.background",
+      "displayName": "Background",
+      "visible": true,
+      "locked": true,
+      "order": 0,
+      "notes": "Backdrop art and ambient scene layer."
+    },
+    {
+      "id": "layer.gameplay",
+      "displayName": "Gameplay",
+      "visible": true,
+      "locked": true,
+      "order": 1,
+      "notes": "Board frame, title, and side-panel objects."
+    },
+    {
+      "id": "layer.ui",
+      "displayName": "UI",
+      "visible": true,
+      "locked": true,
+      "order": 2,
+      "notes": "HUD, banner, and counter objects."
+    },
+    {
+      "id": "layer.overlay",
+      "displayName": "Overlay",
+      "visible": true,
+      "locked": false,
+      "order": 3,
+      "notes": "Modal and restore overlay objects."
+    }
+  ]
+}

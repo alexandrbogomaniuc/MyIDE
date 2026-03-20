@@ -1,0 +1,28 @@
+{
+  "schemaVersion": "0.1.0",
+  "sceneId": "scene.main",
+  "displayName": "Mystery Garden Main Replay",
+  "kind": "preview",
+  "layerIds": [
+    "layer.background",
+    "layer.gameplay",
+    "layer.ui",
+    "layer.overlay"
+  ],
+  "objectIds": [
+    "node.backdrop",
+    "node.title",
+    "node.left-panel",
+    "node.reel-board",
+    "node.win-banner",
+    "node.bottom-bar",
+    "node.free-spins-pill",
+    "node.free-spins-modal",
+    "node.restore-chip"
+  ],
+  "viewport": {
+    "width": 1280,
+    "height": 720
+  },
+  "notes": "Editable internal scene slice for the validated Mystery Garden replay. Save updates write back here and keep snapshots in project-local logs."
+}
