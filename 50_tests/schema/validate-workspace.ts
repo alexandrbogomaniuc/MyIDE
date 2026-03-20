@@ -1,5 +1,5 @@
 import { strict as assert } from "node:assert";
-import { promises as fs } from "node:fs";
+import { existsSync, promises as fs } from "node:fs";
 import path from "node:path";
 import Ajv2020 from "ajv/dist/2020";
 import type { ErrorObject, ValidateFunction } from "ajv";
@@ -10,7 +10,29 @@ import { buildDerivedRegistry, discoverProjectMetas, isJsonObject, readJsonObjec
 type JsonValue = null | boolean | number | string | JsonObject | JsonValue[];
 type JsonObject = { [key: string]: JsonValue };
 
-const workspaceRoot = path.resolve(__dirname, "../../..");
+function resolveWorkspaceRoot(): string {
+  const candidates = [process.cwd(), __dirname, path.resolve(__dirname, ".."), path.resolve(__dirname, "../..")];
+
+  for (const start of candidates) {
+    let current = start;
+    while (true) {
+      if (existsSync(path.join(current, "package.json")) && existsSync(path.join(current, "40_projects"))) {
+        return current;
+      }
+
+      const parent = path.dirname(current);
+      if (parent === current) {
+        break;
+      }
+
+      current = parent;
+    }
+  }
+
+  throw new Error(`Unable to locate the MyIDE workspace root from ${__dirname}`);
+}
+
+const workspaceRoot = resolveWorkspaceRoot();
 const schemaDir = path.join(workspaceRoot, "20_model", "schemas");
 const projectsRoot = path.join(workspaceRoot, "40_projects");
 const workspaceRegistryPath = path.join(projectsRoot, "registry.json");
@@ -178,6 +200,20 @@ async function main(): Promise<void> {
     JSON.parse(JSON.stringify(Array.isArray(project001InternalObjects.objects) ? project001InternalObjects.objects : [])),
     "loadEditableProjectData must preserve internal object placement data"
   );
+  const layerBackground = editableProject.layers.find((entry) => entry.id === "layer.background");
+  assert(layerBackground, "project_001 editable project data must include the background layer.");
+  assert.equal(layerBackground.visible, true, "project_001 background layer must remain visible in the validated slice.");
+  assert.equal(layerBackground.locked, true, "project_001 background layer must remain locked in the validated slice.");
+
+  const layerUi = editableProject.layers.find((entry) => entry.id === "layer.ui");
+  assert(layerUi, "project_001 editable project data must include the UI layer.");
+  assert.equal(layerUi.visible, true, "project_001 UI layer must remain visible in the validated slice.");
+  assert.equal(layerUi.locked, false, "project_001 UI layer must remain unlocked in the validated slice.");
+
+  const titleObject = editableProject.objects.find((entry) => entry.id === "node.title");
+  assert(titleObject, "project_001 editable project data must include the title object.");
+  assert.equal(titleObject.visible, true, "project_001 title object must remain visible in the validated slice.");
+  assert.equal(titleObject.locked, false, "project_001 title object must remain unlocked in the validated slice.");
 
   const workspaceIsValid = validateWorkspaceSchema(workspaceBundle);
   assert(workspaceIsValid, `workspace slice failed schema validation: ${formatErrors(validateWorkspaceSchema.errors)}`);
