@@ -2,6 +2,27 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { discoverAndWriteRegistry, isJsonObject, type JsonObject, type JsonValue } from "../workspace/discoverProjects";
 
+type LifecycleStageId =
+  | "donorEvidence"
+  | "donorReport"
+  | "importMapping"
+  | "internalReplay"
+  | "targetConcept"
+  | "targetBuild"
+  | "integration"
+  | "qa"
+  | "releasePrep";
+
+interface WorkspaceLifecycleStage {
+  status: string;
+  notes?: string;
+}
+
+interface WorkspaceLifecycleSummary {
+  currentStage: LifecycleStageId;
+  stages: Record<LifecycleStageId, WorkspaceLifecycleStage>;
+}
+
 export interface WorkspaceProjectSummary {
   projectId: string;
   slug: string;
@@ -31,6 +52,7 @@ export interface WorkspaceProjectSummary {
   phase: string;
   verificationStatus: string;
   verificationChecks: readonly string[];
+  lifecycle: WorkspaceLifecycleSummary;
   keyPaths: {
     workspaceRegistryPath: string;
     projectRoot: string;
@@ -112,6 +134,53 @@ function getObject(value: JsonValue | undefined): JsonObject {
   return isJsonObject(value) ? value : {};
 }
 
+function normalizeLifecycle(entry: JsonObject): WorkspaceLifecycleSummary {
+  const lifecycle = getObject(entry.lifecycle);
+  const stages = getObject(lifecycle.stages);
+
+  return {
+    currentStage: asString(lifecycle.currentStage, "donorEvidence") as LifecycleStageId,
+    stages: {
+      donorEvidence: {
+        status: asString(getObject(stages.donorEvidence).status, "planned"),
+        notes: asOptionalString(getObject(stages.donorEvidence).notes)
+      },
+      donorReport: {
+        status: asString(getObject(stages.donorReport).status, "planned"),
+        notes: asOptionalString(getObject(stages.donorReport).notes)
+      },
+      importMapping: {
+        status: asString(getObject(stages.importMapping).status, "planned"),
+        notes: asOptionalString(getObject(stages.importMapping).notes)
+      },
+      internalReplay: {
+        status: asString(getObject(stages.internalReplay).status, "planned"),
+        notes: asOptionalString(getObject(stages.internalReplay).notes)
+      },
+      targetConcept: {
+        status: asString(getObject(stages.targetConcept).status, "planned"),
+        notes: asOptionalString(getObject(stages.targetConcept).notes)
+      },
+      targetBuild: {
+        status: asString(getObject(stages.targetBuild).status, "deferred"),
+        notes: asOptionalString(getObject(stages.targetBuild).notes)
+      },
+      integration: {
+        status: asString(getObject(stages.integration).status, "deferred"),
+        notes: asOptionalString(getObject(stages.integration).notes)
+      },
+      qa: {
+        status: asString(getObject(stages.qa).status, "deferred"),
+        notes: asOptionalString(getObject(stages.qa).notes)
+      },
+      releasePrep: {
+        status: asString(getObject(stages.releasePrep).status, "deferred"),
+        notes: asOptionalString(getObject(stages.releasePrep).notes)
+      }
+    }
+  };
+}
+
 function buildFallbackProject(project: JsonObject): WorkspaceProjectSummary {
   const provenance = getObject(project.provenance);
   const assumptions = toStringArray(provenance.assumptions);
@@ -167,6 +236,47 @@ function buildFallbackProject(project: JsonObject): WorkspaceProjectSummary {
     phase: "PHASE 3",
     verificationStatus: "verified-replay-slice",
     verificationChecks: ["import:mystery-garden", "validate:project_001", "assert:replay"],
+    lifecycle: {
+      currentStage: "internalReplay",
+      stages: {
+        donorEvidence: {
+          status: "verified",
+          notes: "Mystery Garden evidence pack exists and is indexed."
+        },
+        donorReport: {
+          status: "verified",
+          notes: "Evidence-backed donor report exists."
+        },
+        importMapping: {
+          status: "verified",
+          notes: "Importer manifest and mapping exist."
+        },
+        internalReplay: {
+          status: "verified",
+          notes: "Validated internal replay slice exists."
+        },
+        targetConcept: {
+          status: "planned",
+          notes: "Future resulting game direction is not validated yet."
+        },
+        targetBuild: {
+          status: "deferred",
+          notes: "Resulting game build work is deferred."
+        },
+        integration: {
+          status: "deferred",
+          notes: "Production integration remains deferred."
+        },
+        qa: {
+          status: "planned",
+          notes: "Broader QA remains a later phase."
+        },
+        releasePrep: {
+          status: "deferred",
+          notes: "Release preparation is not started."
+        }
+      }
+    },
     keyPaths: {
       workspaceRegistryPath: "40_projects/registry.json",
       projectRoot: "40_projects/project_001",
@@ -241,6 +351,7 @@ function normalizeProjectMeta(entry: JsonObject, index: number): WorkspaceProjec
     phase: asString(entry.phase, "PHASE 4"),
     verificationStatus: asString(verification.status, "planned"),
     verificationChecks: toStringArray(verification.checks),
+    lifecycle: normalizeLifecycle(entry),
     keyPaths: {
       workspaceRegistryPath: asString(paths.registryPath, "40_projects/registry.json"),
       projectRoot: asString(paths.projectRoot, fallbackProjectRoot),

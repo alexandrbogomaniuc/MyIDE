@@ -12,6 +12,47 @@
     "checks": [],
     "notes": "Scaffold only. No validation has been run for this project yet."
   },
+  "lifecycle": {
+    "currentStage": "donorEvidence",
+    "stages": {
+      "donorEvidence": {
+        "status": "planned",
+        "notes": "No evidence capture has started for this scaffold."
+      },
+      "donorReport": {
+        "status": "planned",
+        "notes": "No donor report exists yet."
+      },
+      "importMapping": {
+        "status": "planned",
+        "notes": "No import mapping exists yet."
+      },
+      "internalReplay": {
+        "status": "planned",
+        "notes": "No internal replay slice exists yet."
+      },
+      "targetConcept": {
+        "status": "planned",
+        "notes": "No resulting game concept has been assigned yet."
+      },
+      "targetBuild": {
+        "status": "deferred",
+        "notes": "Build work is not started for this scaffold."
+      },
+      "integration": {
+        "status": "deferred",
+        "notes": "Production integration is not started for this scaffold."
+      },
+      "qa": {
+        "status": "deferred",
+        "notes": "QA is not started until the scaffold becomes evidence-backed."
+      },
+      "releasePrep": {
+        "status": "deferred",
+        "notes": "Release preparation is not started for this scaffold."
+      }
+    }
+  },
   "paths": {
     "projectRoot": "40_projects/project_002",
     "projectJson": "40_projects/project_002/project.json",
@@ -53,7 +94,7 @@
   },
   "timestamps": {
     "createdAt": "2026-03-20T00:00:00Z",
-    "updatedAt": "2026-03-20T00:00:00Z"
+    "updatedAt": "2026-03-20T11:55:17Z"
   },
   "notes": {
     "provenFacts": [

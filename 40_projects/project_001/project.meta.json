@@ -17,6 +17,47 @@
     "lastVerifiedAt": "2026-03-20T10:32:56Z",
     "notes": "Internal replay slice is verified; live restart and free-spins capture gaps remain."
   },
+  "lifecycle": {
+    "currentStage": "internalReplay",
+    "stages": {
+      "donorEvidence": {
+        "status": "verified",
+        "notes": "Official Mystery Garden evidence pack exists and is indexed."
+      },
+      "donorReport": {
+        "status": "verified",
+        "notes": "Evidence-backed donor report and maps exist."
+      },
+      "importMapping": {
+        "status": "verified",
+        "notes": "Mystery Garden importer manifest and mapping path exist."
+      },
+      "internalReplay": {
+        "status": "verified",
+        "notes": "Validated internal replay slice exists in project_001."
+      },
+      "targetConcept": {
+        "status": "planned",
+        "notes": "A resulting game concept exists only as a future path."
+      },
+      "targetBuild": {
+        "status": "deferred",
+        "notes": "No resulting game build is started yet."
+      },
+      "integration": {
+        "status": "deferred",
+        "notes": "Production adapter work is not started yet."
+      },
+      "qa": {
+        "status": "planned",
+        "notes": "Workspace and replay verification exist; broader QA remains future work."
+      },
+      "releasePrep": {
+        "status": "deferred",
+        "notes": "Release preparation is not started yet."
+      }
+    }
+  },
   "paths": {
     "projectRoot": "40_projects/project_001",
     "projectJson": "40_projects/project_001/project.json",
@@ -79,7 +120,7 @@
   },
   "timestamps": {
     "createdAt": "2026-03-20T00:00:00Z",
-    "updatedAt": "2026-03-20T10:32:56Z",
+    "updatedAt": "2026-03-20T11:55:17Z",
     "firstValidatedAt": "2026-03-20T10:32:56Z"
   },
   "notes": {

@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain } from "electron";
 import path from "node:path";
 import { loadProjectSlice } from "./projectSlice";
+import { createProjectFromInput, type ShellCreateProjectInput } from "../workspace/createProject";
 
 function createWindow(): void {
   const window = new BrowserWindow({
@@ -26,6 +27,7 @@ app.disableHardwareAcceleration();
 app.setAppUserModelId("dev.myide");
 
 ipcMain.handle("myide:load-project-slice", async () => loadProjectSlice());
+ipcMain.handle("myide:create-project", async (_event, input: ShellCreateProjectInput) => createProjectFromInput(input));
 
 app.whenReady().then(() => {
   createWindow();

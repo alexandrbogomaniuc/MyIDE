@@ -55,6 +55,16 @@
 - [x] Add a second project folder that is clearly scaffold-only and unvalidated.
 - [x] Update the shell to treat discovered folders as the primary workspace source.
 
+## PHASE 4C
+- [x] Add an explicit lifecycle stage model for projects.
+- [x] Use controlled lifecycle statuses instead of a single opaque phase value.
+- [x] Keep `project_001` honest as the only verified replay slice.
+- [x] Add a shell-backed New Project workflow with a bounded local scaffold path.
+- [x] Refresh folder discovery and the derived registry automatically after shell project creation.
+- [x] Show lifecycle stage summaries in the shell project browser and inspector.
+- [x] Add a create-project smoke test for create -> discover -> registry -> shell visibility.
+- [ ] Verify the shell New Project flow interactively in a GUI-capable Electron session.
+
 ## Deferred
 - [ ] Donor decoding automation.
 - [ ] Full editor interactions.

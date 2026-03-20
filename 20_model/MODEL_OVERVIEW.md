@@ -12,6 +12,8 @@ The internal model is the editable source of truth for reconstructed games insid
 - Each project is expected to carry donor linkage, internal model data, target/resulting game metadata, verification history, and phase/status context.
 - Project folders under `40_projects/` are the authoritative source of project existence.
 - `registry.json` is a derived cache generated from discovered project folders, not the sole source of truth.
+- Each project now carries an explicit lifecycle stage model across donorEvidence, donorReport, importMapping, internalReplay, targetConcept, targetBuild, integration, qa, and releasePrep.
+- Shell-created project scaffolds and manually added valid project folders use the same `project.meta.json` contract and the same discovery path.
 
 ## Draft Model Shape
 - `workspace.schema.json`
@@ -19,7 +21,7 @@ The internal model is the editable source of truth for reconstructed games insid
 - `project-registry.schema.json`
   - a deterministic cache derived from discovered project folders.
 - `project-metadata.schema.json`
-  - project-level linkage between donor evidence, internal clean model, target/resulting game, and standard project roots.
+  - project-level linkage between donor evidence, internal clean model, target/resulting game, standard project roots, and lifecycle stage statuses.
 - `donor-link.schema.json`
   - explicit donor provenance and evidence references for a project.
 - `target-game.schema.json`
@@ -64,6 +66,7 @@ The internal model is the editable source of truth for reconstructed games insid
 - The first imported projects will benefit from one root document referencing modular sub-documents.
 - PHASE 2 restart recovery can be modeled with clean internal checkpoints before any production adapter exists.
 - The shell can consume discovered project summaries while the replay engine continues to consume only `project_001` internal data.
+- The lifecycle model remains intentionally file-backed and small enough for shell-created projects and manual folder additions.
 
 ## TODO Investigation
 - Decide whether the derived registry cache should stay single-file or split by product line when the list grows.

@@ -14,6 +14,7 @@
     "phase",
     "status",
     "verification",
+    "lifecycle",
     "paths",
     "donor",
     "targetGame",
@@ -75,6 +76,53 @@
         },
         "notes": {
           "type": "string"
+        }
+      }
+    },
+    "lifecycle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["currentStage", "stages"],
+      "properties": {
+        "currentStage": {
+          "type": "string",
+          "enum": [
+            "donorEvidence",
+            "donorReport",
+            "importMapping",
+            "internalReplay",
+            "targetConcept",
+            "targetBuild",
+            "integration",
+            "qa",
+            "releasePrep"
+          ]
+        },
+        "stages": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "donorEvidence",
+            "donorReport",
+            "importMapping",
+            "internalReplay",
+            "targetConcept",
+            "targetBuild",
+            "integration",
+            "qa",
+            "releasePrep"
+          ],
+          "properties": {
+            "donorEvidence": { "$ref": "#/$defs/lifecycleStage" },
+            "donorReport": { "$ref": "#/$defs/lifecycleStage" },
+            "importMapping": { "$ref": "#/$defs/lifecycleStage" },
+            "internalReplay": { "$ref": "#/$defs/lifecycleStage" },
+            "targetConcept": { "$ref": "#/$defs/lifecycleStage" },
+            "targetBuild": { "$ref": "#/$defs/lifecycleStage" },
+            "integration": { "$ref": "#/$defs/lifecycleStage" },
+            "qa": { "$ref": "#/$defs/lifecycleStage" },
+            "releasePrep": { "$ref": "#/$defs/lifecycleStage" }
+          }
         }
       }
     },
@@ -218,6 +266,23 @@
             "type": "string",
             "minLength": 1
           }
+        }
+      }
+    }
+  }
+  ,
+  "$defs": {
+    "lifecycleStage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["planned", "in-progress", "blocked", "ready-for-review", "verified", "deferred"]
+        },
+        "notes": {
+          "type": "string"
         }
       }
     }

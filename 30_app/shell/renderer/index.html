@@ -39,6 +39,49 @@
 
           <article class="panel">
             <div class="panel-head">
+              <h2>New Project</h2>
+              <span>Create a scaffold from the shell</span>
+            </div>
+            <form id="new-project-form" class="project-form">
+              <label class="form-field">
+                <span>Display Name</span>
+                <input id="field-display-name" name="displayName" type="text" placeholder="Example Project" required />
+              </label>
+              <label class="form-field">
+                <span>Slug</span>
+                <input id="field-slug" name="slug" type="text" placeholder="example-project" required />
+              </label>
+              <label class="form-field">
+                <span>Game Family</span>
+                <select id="field-game-family" name="gameFamily">
+                  <option value="slot" selected>slot</option>
+                  <option value="card">card</option>
+                  <option value="dice">dice</option>
+                  <option value="crash">crash</option>
+                  <option value="other">other</option>
+                </select>
+              </label>
+              <label class="form-field">
+                <span>Donor Reference / ID</span>
+                <input id="field-donor-reference" name="donorReference" type="text" placeholder="donor_003_example" required />
+              </label>
+              <label class="form-field">
+                <span>Target / Resulting Game</span>
+                <input id="field-target-display-name" name="targetDisplayName" type="text" placeholder="Example Resulting Game" required />
+              </label>
+              <label class="form-field">
+                <span>Notes</span>
+                <textarea id="field-notes" name="notes" rows="4" placeholder="What is proven, what is planned, and what remains unknown?"></textarea>
+              </label>
+              <div class="form-actions">
+                <button type="submit">Create Project</button>
+                <p id="create-project-status" class="muted-copy">Creates a standard scaffold under <code>40_projects/&lt;slug&gt;</code> and refreshes the project browser.</p>
+              </div>
+            </form>
+          </article>
+
+          <article class="panel">
+            <div class="panel-head">
               <h2>Donor Evidence Browser</h2>
               <span>Referenced, not loaded at runtime</span>
             </div>

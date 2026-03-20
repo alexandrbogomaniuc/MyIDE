@@ -9,6 +9,8 @@
 ## Command
 - `npm run typecheck`
 - `npm run validate:workspace`
+- `npm run smoke:create-project`
+- `npm run verify:workspace`
 
 ## Known Gaps
 - Fixture JSON still uses local shape checks documented in `fixture-schemas.md` rather than dedicated JSON Schema files.

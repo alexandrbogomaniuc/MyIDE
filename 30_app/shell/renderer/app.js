@@ -39,7 +39,15 @@ const elements = {
   actionFreeSpins: document.getElementById("action-free-spins"),
   actionRestore: document.getElementById("action-restore"),
   actionDemo: document.getElementById("action-demo"),
-  actionRescan: document.getElementById("action-rescan")
+  actionRescan: document.getElementById("action-rescan"),
+  newProjectForm: document.getElementById("new-project-form"),
+  createProjectStatus: document.getElementById("create-project-status"),
+  fieldDisplayName: document.getElementById("field-display-name"),
+  fieldSlug: document.getElementById("field-slug"),
+  fieldGameFamily: document.getElementById("field-game-family"),
+  fieldDonorReference: document.getElementById("field-donor-reference"),
+  fieldTargetDisplayName: document.getElementById("field-target-display-name"),
+  fieldNotes: document.getElementById("field-notes")
 };
 
 const idleGrid = [
@@ -48,6 +56,18 @@ const idleGrid = [
   ["KEY", "BOOK", "ROSE"],
   ["A", "ROSE", "BOOK"],
   ["K", "A", "ROSE"]
+];
+
+const lifecycleStageOrder = [
+  "donorEvidence",
+  "donorReport",
+  "importMapping",
+  "internalReplay",
+  "targetConcept",
+  "targetBuild",
+  "integration",
+  "qa",
+  "releasePrep"
 ];
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -81,6 +101,21 @@ function bindActions() {
   elements.actionRescan?.addEventListener("click", () => {
     void reloadWorkspace(false);
   });
+  elements.newProjectForm?.addEventListener("submit", (event) => {
+    void handleCreateProject(event);
+  });
+  elements.fieldDisplayName?.addEventListener("input", () => {
+    if (!(elements.fieldSlug instanceof HTMLInputElement) || elements.fieldSlug.dataset.userEdited === "true") {
+      return;
+    }
+
+    elements.fieldSlug.value = slugifyValue(elements.fieldDisplayName?.value ?? "");
+  });
+  elements.fieldSlug?.addEventListener("input", () => {
+    if (elements.fieldSlug instanceof HTMLInputElement) {
+      elements.fieldSlug.dataset.userEdited = elements.fieldSlug.value.trim().length > 0 ? "true" : "false";
+    }
+  });
   elements.projectBrowser?.addEventListener("click", (event) => {
     const target = event.target;
     if (!(target instanceof HTMLElement)) {
@@ -100,12 +135,90 @@ function bindActions() {
   });
 }
 
-async function reloadWorkspace(isInitialLoad) {
+function slugifyValue(value) {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "project";
+}
+
+function labelizeStatus(value) {
+  return String(value ?? "")
+    .replace(/[-_]+/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function labelizeStage(stageId) {
+  return String(stageId ?? "")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function setCreateProjectStatus(text, isError = false) {
+  if (!elements.createProjectStatus) {
+    return;
+  }
+
+  elements.createProjectStatus.textContent = text;
+  elements.createProjectStatus.dataset.tone = isError ? "error" : "default";
+}
+
+async function handleCreateProject(event) {
+  event?.preventDefault?.();
+
+  if (!window.myideApi || typeof window.myideApi.createProject !== "function") {
+    setCreateProjectStatus("Shell bridge could not create the project scaffold in this environment.", true);
+    return;
+  }
+
+  const displayName = elements.fieldDisplayName?.value?.trim() ?? "";
+  const slug = slugifyValue(elements.fieldSlug?.value || displayName);
+  const gameFamily = elements.fieldGameFamily?.value ?? "slot";
+  const donorReference = elements.fieldDonorReference?.value?.trim() ?? "";
+  const targetDisplayName = elements.fieldTargetDisplayName?.value?.trim() ?? "";
+  const notes = elements.fieldNotes?.value?.trim() ?? "";
+
+  if (!displayName || !slug || !donorReference || !targetDisplayName) {
+    setCreateProjectStatus("Display name, slug, donor reference, and target display name are required.", true);
+    return;
+  }
+
+  setCreateProjectStatus(`Creating ${displayName} under 40_projects/${slug} ...`);
+
+  try {
+    const created = await window.myideApi.createProject({
+      displayName,
+      slug,
+      gameFamily,
+      donorReference,
+      targetDisplayName,
+      notes
+    });
+
+    if (elements.newProjectForm instanceof HTMLFormElement) {
+      elements.newProjectForm.reset();
+    }
+    if (elements.fieldSlug instanceof HTMLInputElement) {
+      elements.fieldSlug.dataset.userEdited = "false";
+    }
+
+    await reloadWorkspace(false, created.projectId);
+    pushLog(`Created project scaffold ${created.projectId} at ${created.projectRoot}.`);
+    renderAll();
+    setCreateProjectStatus(`Created ${created.displayName}. The new folder is now discoverable in the workspace browser.`);
+    setPreviewStatus(`Created ${created.displayName}. Replay remains bound to project_001 until the new project has an internal slice.`);
+  } catch (error) {
+    setCreateProjectStatus(error instanceof Error ? error.message : "Project creation failed.", true);
+  }
+}
+
+async function reloadWorkspace(isInitialLoad, preferredSelectedProjectId = null) {
   if (!window.myideApi || typeof window.myideApi.loadProjectSlice !== "function") {
     throw new Error("MyIDE desktop bridge is unavailable.");
   }
 
-  const previousSelectedProjectId = state.selectedProjectId;
+  const previousSelectedProjectId = preferredSelectedProjectId ?? state.selectedProjectId;
   state.bundle = await window.myideApi.loadProjectSlice();
 
   const workspaceProjects = getWorkspaceProjects();
@@ -392,13 +505,19 @@ function renderProjectBrowser() {
   const registryLabel = workspace.source.registryFound
     ? "Derived from discovered project folders"
     : "Synthesized from validated project_001";
+  const renderLifecycleChips = (project, compact = false) => lifecycleStageOrder.map((stageId) => {
+    const stage = project?.lifecycle?.stages?.[stageId];
+    const status = stage?.status ?? "planned";
+    const current = project?.lifecycle?.currentStage === stageId;
+
+    return `<span class="stage-chip stage-${status} ${current ? "is-current" : ""}" title="${stage?.notes ?? labelizeStage(stageId)}">${compact ? labelizeStage(stageId).replace(" ", " ") : `${labelizeStage(stageId)}: ${labelizeStatus(status)}`}</span>`;
+  }).join("");
   const projectCards = projects.map((project) => {
     const isSelected = project.projectId === selectedProject?.projectId;
-    const statusLabel = project.status === "validated"
-      ? "Validated"
-      : project.status === "planned"
-        ? "Planned"
-        : "Unvalidated";
+    const statusLabel = labelizeStatus(project.status);
+    const verificationLabel = project.verificationStatus === "verified-replay-slice" || project.verificationStatus === "verified-workspace"
+      ? "Verified"
+      : labelizeStatus(project.verificationStatus);
 
     return `
       <button class="project-card ${isSelected ? "is-selected" : ""}" type="button" data-project-id="${project.projectId}">
@@ -408,6 +527,7 @@ function renderProjectBrowser() {
         </div>
         <p>${project.donor.donorName} <code>${project.donor.donorId}</code></p>
         <p>${project.targetGame.displayName}</p>
+        <p>${labelizeStage(project.lifecycle.currentStage)} · ${verificationLabel}</p>
         <p class="project-path"><code>${project.keyPaths.projectRoot}</code></p>
         <div class="chip-row">
           <span>${project.phase}</span>
@@ -437,9 +557,24 @@ function renderProjectBrowser() {
       </div>
       <div class="detail-card">
         <span>Verification</span>
-        <strong>${selectedProject.verificationStatus}</strong>
+        <strong>${labelizeStatus(selectedProject.verificationStatus)}</strong>
         <small>${workspace.source.registryFound ? "Folder-discovery workspace view backed by the derived registry cache." : "Synthesized from validated project_001."}</small>
       </div>
+      <div class="detail-card">
+        <span>Lifecycle Stage</span>
+        <strong>${labelizeStage(selectedProject.lifecycle.currentStage)}</strong>
+        <small>${selectedProject.lifecycle.stages[selectedProject.lifecycle.currentStage]?.notes ?? "Stage notes pending."}</small>
+      </div>
+      <div class="detail-card">
+        <span>Project Folder</span>
+        <strong>${selectedProject.keyPaths.projectRoot}</strong>
+        <small>${selectedProject.status === "validated" ? "Validated replay metadata exists for this project." : "Scaffold/planned metadata only until verification exists."}</small>
+      </div>
+    </div>
+    <div class="tree-row">
+      <strong>Lifecycle Summary</strong>
+      <span>One project = one donor-to-release cycle.</span>
+      <div class="lifecycle-grid">${renderLifecycleChips(selectedProject)}</div>
     </div>
   ` : `<p class="muted-copy">No projects available.</p>`;
 
@@ -595,6 +730,10 @@ function renderInspector() {
   ]));
   const assumptions = Array.isArray(project.provenance?.assumptions) ? project.provenance.assumptions : [];
   const unresolved = Array.isArray(project.provenance?.todo) ? project.provenance.todo : [];
+  const lifecycleRows = lifecycleStageOrder.map((stageId) => {
+    const stage = selectedProject?.lifecycle?.stages?.[stageId];
+    return `<li><code>${labelizeStage(stageId)}</code>: ${labelizeStatus(stage?.status ?? "planned")}${stage?.notes ? ` — ${stage.notes}` : ""}</li>`;
+  }).join("");
 
   elements.inspector.innerHTML = `
     <div class="inspector-title">
@@ -612,8 +751,13 @@ function renderInspector() {
         <li>Phase: <code>${selectedProject?.phase ?? "unknown"}</code></li>
         <li>Implementation scope: <code>${selectedProject?.implementationScope ?? "unknown"}</code></li>
         <li>Verification: <code>${selectedProject?.verificationStatus ?? "unknown"}</code></li>
+        <li>Lifecycle current stage: <code>${selectedProject?.lifecycle?.currentStage ?? "unknown"}</code></li>
         <li>Workspace active project: <code>${state.bundle.workspace.activeProjectId ?? "unknown"}</code></li>
       </ul>
+    </section>
+    <section>
+      <h4>Lifecycle Stages</h4>
+      <ul>${lifecycleRows}</ul>
     </section>
     <section>
       <h4>Proven Facts</h4>

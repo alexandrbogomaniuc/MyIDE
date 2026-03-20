@@ -12,6 +12,47 @@
     "checks": [],
     "notes": "Template metadata only; no validation has been performed yet."
   },
+  "lifecycle": {
+    "currentStage": "donorEvidence",
+    "stages": {
+      "donorEvidence": {
+        "status": "planned",
+        "notes": "Capture donor evidence before validation."
+      },
+      "donorReport": {
+        "status": "planned",
+        "notes": "Write the donor report after evidence capture."
+      },
+      "importMapping": {
+        "status": "planned",
+        "notes": "Map donor findings into internal project data."
+      },
+      "internalReplay": {
+        "status": "planned",
+        "notes": "Build an internal replay slice when import mapping exists."
+      },
+      "targetConcept": {
+        "status": "planned",
+        "notes": "Define the resulting game direction."
+      },
+      "targetBuild": {
+        "status": "deferred",
+        "notes": "Implementation is deferred for a fresh template."
+      },
+      "integration": {
+        "status": "deferred",
+        "notes": "Production integration is deferred."
+      },
+      "qa": {
+        "status": "deferred",
+        "notes": "QA is deferred until replay or build work exists."
+      },
+      "releasePrep": {
+        "status": "deferred",
+        "notes": "Release preparation is deferred."
+      }
+    }
+  },
   "paths": {
     "projectRoot": "40_projects/project_003",
     "projectJson": "40_projects/project_003/project.json",

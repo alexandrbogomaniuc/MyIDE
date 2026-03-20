@@ -173,6 +173,69 @@ select {
   border-color: rgba(230, 191, 100, 0.42);
 }
 
+.project-form {
+  display: grid;
+  gap: 12px;
+}
+
+.form-field {
+  display: grid;
+  gap: 6px;
+}
+
+.form-field span {
+  color: var(--muted);
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.form-field input,
+.form-field textarea,
+.form-field select {
+  width: 100%;
+  border: 1px solid rgba(179, 209, 186, 0.16);
+  border-radius: 14px;
+  padding: 0.8rem 0.9rem;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.form-field textarea {
+  resize: vertical;
+  min-height: 100px;
+}
+
+.form-field input:focus,
+.form-field textarea:focus,
+.form-field select:focus {
+  outline: 2px solid rgba(230, 191, 100, 0.28);
+  border-color: rgba(230, 191, 100, 0.42);
+}
+
+.form-actions {
+  display: grid;
+  gap: 10px;
+}
+
+.form-actions button {
+  justify-self: start;
+  border: 1px solid rgba(230, 191, 100, 0.36);
+  border-radius: 999px;
+  padding: 0.75rem 1rem;
+  color: var(--text);
+  background: linear-gradient(180deg, rgba(78, 63, 24, 0.95), rgba(42, 32, 12, 0.98));
+  cursor: pointer;
+}
+
+.form-actions button:hover {
+  border-color: rgba(230, 191, 100, 0.62);
+}
+
+#create-project-status[data-tone="error"] {
+  color: #ffb29a;
+}
+
 .project-list {
   display: grid;
   gap: 10px;
@@ -281,6 +344,19 @@ select {
   color: #b8d0c1;
   border-color: rgba(147, 201, 133, 0.28);
   background: rgba(147, 201, 133, 0.06);
+}
+
+.status-in-progress {
+  color: #b9d7f2;
+  border-color: rgba(110, 169, 216, 0.36);
+  background: rgba(110, 169, 216, 0.1);
+}
+
+.status-blocked,
+.status-archived {
+  color: #f2b39a;
+  border-color: rgba(232, 138, 93, 0.4);
+  background: rgba(232, 138, 93, 0.1);
 }
 
 .detail-grid {
@@ -634,6 +710,50 @@ select {
   border: 1px solid rgba(179, 209, 186, 0.18);
   background: rgba(255, 255, 255, 0.04);
   font-size: 0.78rem;
+}
+
+.lifecycle-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.stage-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.45rem 0.72rem;
+  border-radius: 999px;
+  border: 1px solid rgba(179, 209, 186, 0.16);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.2;
+}
+
+.stage-chip.is-current {
+  border-color: rgba(230, 191, 100, 0.52);
+  color: #f7e7b4;
+}
+
+.stage-verified {
+  background: rgba(147, 201, 133, 0.12);
+  color: #d5f0cb;
+}
+
+.stage-in-progress,
+.stage-ready-for-review {
+  background: rgba(110, 169, 216, 0.12);
+  color: #d0e5f7;
+}
+
+.stage-blocked {
+  background: rgba(232, 138, 93, 0.12);
+  color: #f5c1ad;
+}
+
+.stage-deferred {
+  background: rgba(255, 255, 255, 0.03);
+  color: #a9b7af;
 }
 
 .is-hidden {

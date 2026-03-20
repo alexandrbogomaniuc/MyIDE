@@ -19,6 +19,25 @@ export interface DerivedProjectRegistry {
 }
 
 const ignoredProjectFolders = new Set(["templates"]);
+const lifecycleStageIds = [
+  "donorEvidence",
+  "donorReport",
+  "importMapping",
+  "internalReplay",
+  "targetConcept",
+  "targetBuild",
+  "integration",
+  "qa",
+  "releasePrep"
+] as const;
+const allowedGameFamilies = new Set(["slot", "card", "dice", "crash", "other"]);
+const allowedImplementationScopes = new Set(["slot-first", "universal-architecture", "reference-only"]);
+const allowedProjectStatuses = new Set(["planned", "in-progress", "validated", "blocked", "archived"]);
+const allowedVerificationStatuses = new Set(["unknown", "in-progress", "verified-replay-slice", "verified-workspace", "blocked"]);
+const allowedDonorStatuses = new Set(["proven", "planned", "blocked", "reference-only"]);
+const allowedTargetStatuses = new Set(["proven", "validated", "planned", "in-progress", "blocked", "reference-only"]);
+const allowedTargetRelationships = new Set(["donor-source", "reconstruction-target", "resulting-game", "future-target", "reference-only"]);
+const allowedLifecycleStatuses = new Set(["planned", "in-progress", "blocked", "ready-for-review", "verified", "deferred"]);
 
 export const workspaceRoot = path.resolve(__dirname, "../../..");
 export const projectsRoot = path.join(workspaceRoot, "40_projects");
@@ -42,6 +61,86 @@ function getString(value: JsonValue | undefined, fallback = ""): string {
   return typeof value === "string" ? value : fallback;
 }
 
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0;
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((entry) => typeof entry === "string" && entry.length > 0);
+}
+
+function hasLifecycleStage(value: unknown): boolean {
+  if (!isJsonObject(value)) {
+    return false;
+  }
+
+  return allowedLifecycleStatuses.has(getString(value.status))
+    && (value.notes === undefined || isNonEmptyString(value.notes));
+}
+
+function isDiscoverableProjectMeta(meta: JsonObject): boolean {
+  const verification = isJsonObject(meta.verification) ? meta.verification : null;
+  const lifecycle = isJsonObject(meta.lifecycle) ? meta.lifecycle : null;
+  const lifecycleStages = lifecycle && isJsonObject(lifecycle.stages) ? lifecycle.stages : null;
+  const paths = isJsonObject(meta.paths) ? meta.paths : null;
+  const donor = isJsonObject(meta.donor) ? meta.donor : null;
+  const targetGame = isJsonObject(meta.targetGame) ? meta.targetGame : null;
+  const timestamps = isJsonObject(meta.timestamps) ? meta.timestamps : null;
+  const notes = isJsonObject(meta.notes) ? meta.notes : null;
+
+  return meta.schemaVersion === "0.1.0"
+    && isNonEmptyString(meta.projectId)
+    && isNonEmptyString(meta.slug)
+    && isNonEmptyString(meta.displayName)
+    && allowedGameFamilies.has(getString(meta.gameFamily))
+    && allowedImplementationScopes.has(getString(meta.implementationScope))
+    && isNonEmptyString(meta.phase)
+    && allowedProjectStatuses.has(getString(meta.status))
+    && Boolean(verification)
+    && allowedVerificationStatuses.has(getString(verification?.status))
+    && isStringArray(verification?.checks)
+    && Boolean(lifecycle)
+    && lifecycleStageIds.includes(getString(lifecycle?.currentStage) as typeof lifecycleStageIds[number])
+    && Boolean(lifecycleStages)
+    && lifecycleStageIds.every((stageId) => hasLifecycleStage(lifecycleStages?.[stageId]))
+    && Boolean(paths)
+    && isNonEmptyString(paths?.projectRoot)
+    && isNonEmptyString(paths?.metaPath)
+    && isNonEmptyString(paths?.registryPath)
+    && isNonEmptyString(paths?.donorRoot)
+    && isNonEmptyString(paths?.reportsRoot)
+    && isNonEmptyString(paths?.importsRoot)
+    && isNonEmptyString(paths?.internalRoot)
+    && isNonEmptyString(paths?.runtimeRoot)
+    && isNonEmptyString(paths?.fixturesRoot)
+    && isNonEmptyString(paths?.targetRoot)
+    && isNonEmptyString(paths?.releaseRoot)
+    && isNonEmptyString(paths?.logsRoot)
+    && Boolean(donor)
+    && isNonEmptyString(donor?.donorId)
+    && isNonEmptyString(donor?.donorName)
+    && isNonEmptyString(donor?.evidenceRoot)
+    && isStringArray(donor?.captureSessions ?? [])
+    && isStringArray(donor?.evidenceRefs ?? [])
+    && allowedDonorStatuses.has(getString(donor?.status))
+    && Boolean(targetGame)
+    && isNonEmptyString(targetGame?.targetGameId)
+    && isNonEmptyString(targetGame?.displayName)
+    && allowedGameFamilies.has(getString(targetGame?.gameFamily))
+    && allowedTargetRelationships.has(getString(targetGame?.relationship))
+    && allowedTargetStatuses.has(getString(targetGame?.status))
+    && isStringArray(targetGame?.provenNotes ?? [])
+    && isStringArray(targetGame?.plannedNotes ?? [])
+    && Boolean(timestamps)
+    && isNonEmptyString(timestamps?.createdAt)
+    && isNonEmptyString(timestamps?.updatedAt)
+    && Boolean(notes)
+    && isStringArray(notes?.provenFacts ?? [])
+    && isStringArray(notes?.plannedWork ?? [])
+    && (notes?.assumptions === undefined || isStringArray(notes.assumptions))
+    && (notes?.unresolvedQuestions === undefined || isStringArray(notes.unresolvedQuestions));
+}
+
 function compareProjects(left: JsonObject, right: JsonObject): number {
   const leftId = getString(left.projectId, getString(left.slug, "zzz"));
   const rightId = getString(right.projectId, getString(right.slug, "zzz"));
@@ -62,6 +161,10 @@ function chooseActiveProjectId(projects: readonly JsonObject[]): string {
   return getString(projects[0]?.projectId, "project_001");
 }
 
+function cloneJsonObject(value: JsonObject): JsonObject {
+  return JSON.parse(JSON.stringify(value)) as JsonObject;
+}
+
 export async function discoverProjectMetas(): Promise<JsonObject[]> {
   const dirents = await fs.readdir(projectsRoot, { withFileTypes: true });
   const projects: JsonObject[] = [];
@@ -78,8 +181,14 @@ export async function discoverProjectMetas(): Promise<JsonObject[]> {
       continue;
     }
 
-    const meta = await readJsonObject(metaPath);
-    projects.push(meta);
+    try {
+      const meta = await readJsonObject(metaPath);
+      if (isDiscoverableProjectMeta(meta)) {
+        projects.push(meta);
+      }
+    } catch {
+      continue;
+    }
   }
 
   return projects.sort(compareProjects);
@@ -100,9 +209,9 @@ export function buildDerivedRegistry(projects: readonly JsonObject[]): DerivedPr
     sourceOfTruth: "project-folders",
     activeProjectId: chooseActiveProjectId(projects),
     projectCount: projects.length,
-    projects: projects.map((project) => JSON.parse(JSON.stringify(project)) as JsonObject),
+    projects: projects.map((project) => cloneJsonObject(project)),
     notes: [
-      "Project folders under 40_projects/ are the authoritative source of project existence.",
+      "Valid project folders under 40_projects/ are the authoritative source of project existence.",
       "registry.json is a deterministic cache generated from discovered project folders."
     ]
   };

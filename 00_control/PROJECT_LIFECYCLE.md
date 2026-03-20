@@ -4,13 +4,28 @@
 One MyIDE project represents one full donor-to-release cycle.
 
 The cycle is:
-- donor investigation
-- evidence capture
-- internal clean model
-- adjustments and improvements
-- target or resulting game
-- verification
-- release preparation
+- donor evidence
+- donor report
+- import mapping
+- internal replay
+- target concept
+- target build
+- integration
+- qa
+- release prep
+
+Each stage must carry one of these statuses:
+- planned
+- in-progress
+- blocked
+- ready-for-review
+- verified
+- deferred
+
+## Lifecycle Rule
+- `project_001` is currently the only project with a verified replay slice.
+- Other projects may exist as planned or scaffolded projects, but they must not be marked verified unless evidence supports that claim.
+- Non-slot support and production adapter work remain unimplemented until a future validated slice proves them.
 
 ## Standard Project Folder
 Each project should live under `40_projects/<project_slug>/` and use this structure:
@@ -33,5 +48,5 @@ Each project should live under `40_projects/<project_slug>/` and use this struct
 
 ## Source Of Truth
 - Project existence should be discoverable from valid project folders.
-- `project.meta.json` should describe the donor link, target/resulting game, phase/status, verification status, and key paths.
+- `project.meta.json` should describe the donor link, target/resulting game, lifecycle stage statuses, phase/status, verification status, and key paths.
 - Any derived workspace index should be treated as a cache or summary, not the sole source of truth.

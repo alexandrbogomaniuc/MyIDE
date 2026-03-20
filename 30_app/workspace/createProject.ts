@@ -1,8 +1,53 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { discoverAndWriteRegistry } from "./discoverProjects";
 
 type JsonValue = null | boolean | number | string | JsonObject | JsonValue[];
 type JsonObject = { [key: string]: JsonValue };
+
+const lifecycleStageIds = [
+  "donorEvidence",
+  "donorReport",
+  "importMapping",
+  "internalReplay",
+  "targetConcept",
+  "targetBuild",
+  "integration",
+  "qa",
+  "releasePrep"
+] as const;
+const lifecycleStageStatusValues = ["planned", "in-progress", "blocked", "ready-for-review", "verified", "deferred"] as const;
+const gameFamilyValues = ["slot", "card", "dice", "crash", "other"] as const;
+
+type LifecycleStageId = typeof lifecycleStageIds[number];
+type LifecycleStageStatus = "planned" | "in-progress" | "blocked" | "ready-for-review" | "verified" | "deferred";
+
+export interface ProjectLifecycleStage {
+  status: LifecycleStageStatus;
+  notes?: string;
+}
+
+export interface ProjectLifecycle {
+  currentStage: LifecycleStageId;
+  stages: Record<LifecycleStageId, ProjectLifecycleStage>;
+}
+
+export interface ShellCreateProjectInput {
+  displayName: string;
+  slug: string;
+  gameFamily: ProjectMetaLike["gameFamily"];
+  donorReference: string;
+  targetDisplayName: string;
+  notes?: string;
+}
+
+export interface ShellCreateProjectResult {
+  projectId: string;
+  slug: string;
+  displayName: string;
+  projectRoot: string;
+  projectMetaPath: string;
+}
 
 export interface ProjectScaffoldOptions {
   projectRoot: string;
@@ -25,6 +70,7 @@ export interface ProjectMetaLike {
     lastVerifiedAt?: string;
     notes?: string;
   };
+  lifecycle: ProjectLifecycle;
   paths: {
     projectRoot: string;
     projectJson: string;
@@ -110,7 +156,28 @@ function requireString(value: unknown, label: string): string {
   return value;
 }
 
+function requireTrimmedString(value: unknown, label: string): string {
+  const trimmed = requireString(value, label).trim();
+  if (trimmed.length === 0) {
+    throw new Error(`${label} must be a non-empty string.`);
+  }
+
+  return trimmed;
+}
+
+function optionalString(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function getObject(value: unknown): JsonObject {
+  return isJsonObject(value) ? value : {};
+}
+
 function toStringArray(value: unknown, label: string): string[] {
+  if (typeof value === "string") {
+    return value.length > 0 ? [value] : [];
+  }
+
   if (!Array.isArray(value)) {
     return [];
   }
@@ -124,81 +191,12 @@ function toStringArray(value: unknown, label: string): string[] {
   });
 }
 
-function resolveProjectMeta(meta: JsonObject): ProjectMetaLike {
-  const verification = isJsonObject(meta.verification) ? meta.verification : {};
-  const paths = isJsonObject(meta.paths) ? meta.paths : {};
-  const donor = isJsonObject(meta.donor) ? meta.donor : {};
-  const targetGame = isJsonObject(meta.targetGame) ? meta.targetGame : {};
-  const timestamps = isJsonObject(meta.timestamps) ? meta.timestamps : {};
-  const notes = isJsonObject(meta.notes) ? meta.notes : {};
-
-  return {
-    schemaVersion: requireString(meta.schemaVersion, "schemaVersion"),
-    projectId: requireString(meta.projectId, "projectId"),
-    slug: requireString(meta.slug, "slug"),
-    displayName: requireString(meta.displayName, "displayName"),
-    gameFamily: requireString(meta.gameFamily, "gameFamily") as ProjectMetaLike["gameFamily"],
-    implementationScope: requireString(meta.implementationScope, "implementationScope") as ProjectMetaLike["implementationScope"],
-    phase: requireString(meta.phase, "phase"),
-    status: requireString(meta.status, "status") as ProjectMetaLike["status"],
-    verification: {
-      status: requireString(verification.status, "verification.status") as ProjectMetaLike["verification"]["status"],
-      checks: toStringArray(verification.checks, "verification.checks"),
-      lastVerifiedAt: typeof verification.lastVerifiedAt === "string" ? verification.lastVerifiedAt : undefined,
-      notes: typeof verification.notes === "string" ? verification.notes : undefined
-    },
-    paths: {
-      projectRoot: requireString(paths.projectRoot, "paths.projectRoot"),
-      projectJson: requireString(paths.projectJson, "paths.projectJson"),
-      metaPath: requireString(paths.metaPath, "paths.metaPath"),
-      registryPath: requireString(paths.registryPath, "paths.registryPath"),
-      evidenceRoot: requireString(paths.evidenceRoot, "paths.evidenceRoot"),
-      importPath: typeof paths.importPath === "string" ? paths.importPath : undefined,
-      runtimeRoot: typeof paths.runtimeRoot === "string" ? paths.runtimeRoot : undefined,
-      fixturesRoot: typeof paths.fixturesRoot === "string" ? paths.fixturesRoot : undefined,
-      logsRoot: typeof paths.logsRoot === "string" ? paths.logsRoot : undefined
-    },
-    donor: {
-      donorId: requireString(donor.donorId, "donor.donorId"),
-      donorName: requireString(donor.donorName, "donor.donorName"),
-      evidenceRoot: requireString(donor.evidenceRoot, "donor.evidenceRoot"),
-      captureSessions: toStringArray(donor.captureSessions, "donor.captureSessions"),
-      evidenceRefs: toStringArray(donor.evidenceRefs, "donor.evidenceRefs"),
-      status: requireString(donor.status, "donor.status") as ProjectMetaLike["donor"]["status"],
-      notes: typeof donor.notes === "string" ? donor.notes : undefined
-    },
-    targetGame: {
-      targetGameId: requireString(targetGame.targetGameId, "targetGame.targetGameId"),
-      displayName: requireString(targetGame.displayName, "targetGame.displayName"),
-      gameFamily: requireString(targetGame.gameFamily, "targetGame.gameFamily") as ProjectMetaLike["targetGame"]["gameFamily"],
-      relationship: requireString(targetGame.relationship, "targetGame.relationship") as ProjectMetaLike["targetGame"]["relationship"],
-      status: requireString(targetGame.status, "targetGame.status") as ProjectMetaLike["targetGame"]["status"],
-      provenNotes: toStringArray(targetGame.provenNotes, "targetGame.provenNotes"),
-      plannedNotes: toStringArray(targetGame.plannedNotes, "targetGame.plannedNotes"),
-      notes: typeof targetGame.notes === "string" ? targetGame.notes : undefined
-    },
-    timestamps: {
-      createdAt: requireString(timestamps.createdAt, "timestamps.createdAt"),
-      updatedAt: requireString(timestamps.updatedAt, "timestamps.updatedAt"),
-      firstValidatedAt: typeof timestamps.firstValidatedAt === "string" ? timestamps.firstValidatedAt : undefined
-    },
-    notes: {
-      provenFacts: toStringArray(notes.provenFacts, "notes.provenFacts"),
-      plannedWork: toStringArray(notes.plannedWork, "notes.plannedWork"),
-      assumptions: Array.isArray(notes.assumptions) ? toStringArray(notes.assumptions, "notes.assumptions") : undefined,
-      unresolvedQuestions: Array.isArray(notes.unresolvedQuestions) ? toStringArray(notes.unresolvedQuestions, "notes.unresolvedQuestions") : undefined
-    }
-  };
-}
-
-function formatList(items: readonly string[]): string {
-  return items.map((item) => `- ${item}`).join("\n");
-}
-
-function toWorkspaceRelative(targetPath: string): string {
-  const resolved = path.resolve(targetPath);
-  const relative = path.relative(workspaceRoot, resolved);
-  return relative.startsWith("..") ? targetPath.replace(/\\/g, "/") : relative.replace(/\\/g, "/");
+function slugify(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "project";
 }
 
 function humanizeProjectName(slug: string): string {
@@ -208,65 +206,233 @@ function humanizeProjectName(slug: string): string {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
-function rebaseProjectMeta(meta: ProjectMetaLike, projectRoot: string): ProjectMetaLike {
-  const relativeProjectRoot = toWorkspaceRelative(projectRoot);
-  const projectFolderName = path.basename(relativeProjectRoot);
-  const donorRoot = `${relativeProjectRoot}/donor`;
-  const reportsRoot = `${relativeProjectRoot}/reports`;
-  const importsRoot = `${relativeProjectRoot}/imports`;
-  const internalRoot = `${relativeProjectRoot}/internal`;
-  const runtimeRoot = `${relativeProjectRoot}/runtime`;
-  const fixturesRoot = `${relativeProjectRoot}/fixtures`;
-  const targetRoot = `${relativeProjectRoot}/target`;
-  const releaseRoot = `${relativeProjectRoot}/release`;
-  const logsRoot = `${relativeProjectRoot}/logs`;
-  const usesTemplateProjectId = meta.projectId === path.basename(meta.paths.projectRoot) || meta.projectId === "project_003";
-  const usesTemplateSlug = meta.slug === path.basename(meta.paths.projectRoot) || meta.slug === "example-project";
-  const usesTemplateDisplayName = meta.displayName === "Example Project Scaffold";
-  const usesTemplateDonorId = meta.donor.donorId === "donor_planned_example";
-  const usesTemplateDonorName = meta.donor.donorName === "Planned donor reference";
-  const usesTemplateTargetId = meta.targetGame.targetGameId === "target.example-project.future-target";
-  const usesTemplateTargetName = meta.targetGame.displayName === "Example Project Target";
+function buildStandardPaths(relativeProjectRoot: string): ProjectMetaLike["paths"] {
+  return {
+    projectRoot: relativeProjectRoot,
+    projectJson: `${relativeProjectRoot}/project.json`,
+    metaPath: `${relativeProjectRoot}/project.meta.json`,
+    registryPath: "40_projects/registry.json",
+    evidenceRoot: `${relativeProjectRoot}/donor`,
+    donorRoot: `${relativeProjectRoot}/donor`,
+    reportsRoot: `${relativeProjectRoot}/reports`,
+    importsRoot: `${relativeProjectRoot}/imports`,
+    internalRoot: `${relativeProjectRoot}/internal`,
+    importPath: `${relativeProjectRoot}/imports/import-manifest.json`,
+    runtimeRoot: `${relativeProjectRoot}/runtime`,
+    fixturesRoot: `${relativeProjectRoot}/fixtures`,
+    targetRoot: `${relativeProjectRoot}/target`,
+    releaseRoot: `${relativeProjectRoot}/release`,
+    logsRoot: `${relativeProjectRoot}/logs`
+  };
+}
+
+function normalizeVerification(value: unknown): ProjectMetaLike["verification"] {
+  const verification = isJsonObject(value) ? value : {};
 
   return {
-    ...meta,
-    projectId: usesTemplateProjectId ? projectFolderName : meta.projectId,
-    slug: usesTemplateSlug ? projectFolderName : meta.slug,
-    displayName: usesTemplateDisplayName ? `${humanizeProjectName(projectFolderName)} Scaffold` : meta.displayName,
-    paths: {
-      ...meta.paths,
-      projectRoot: relativeProjectRoot,
-      projectJson: `${relativeProjectRoot}/project.json`,
-      metaPath: `${relativeProjectRoot}/project.meta.json`,
-      registryPath: "40_projects/registry.json",
-      evidenceRoot: meta.paths.evidenceRoot.startsWith("40_projects/") ? donorRoot : meta.paths.evidenceRoot,
-      donorRoot,
-      reportsRoot,
-      importsRoot,
-      internalRoot,
-      importPath: `${importsRoot}/import-manifest.json`,
-      runtimeRoot,
-      fixturesRoot,
-      targetRoot,
-      releaseRoot,
-      logsRoot
-    },
-    donor: {
-      ...meta.donor,
-      donorId: usesTemplateDonorId ? `donor_planned_${projectFolderName}` : meta.donor.donorId,
-      donorName: usesTemplateDonorName ? `${humanizeProjectName(projectFolderName)} Donor Placeholder` : meta.donor.donorName,
-      evidenceRoot: meta.donor.evidenceRoot.startsWith("40_projects/") ? donorRoot : meta.donor.evidenceRoot
-    },
-    targetGame: {
-      ...meta.targetGame,
-      targetGameId: usesTemplateTargetId ? `target.${projectFolderName}.future-target` : meta.targetGame.targetGameId,
-      displayName: usesTemplateTargetName ? `${humanizeProjectName(projectFolderName)} Target` : meta.targetGame.displayName
-    },
-    timestamps: {
-      ...meta.timestamps,
-      updatedAt: meta.timestamps.updatedAt
+    status: optionalString(verification.status) as ProjectMetaLike["verification"]["status"] ?? "unknown",
+    checks: toStringArray(verification.checks, "verification.checks"),
+    lastVerifiedAt: optionalString(verification.lastVerifiedAt),
+    notes: optionalString(verification.notes)
+  };
+}
+
+function normalizeLifecycleStatus(value: unknown, fallback: LifecycleStageStatus): LifecycleStageStatus {
+  const candidate = optionalString(value) as LifecycleStageStatus | undefined;
+  return candidate && lifecycleStageStatusValues.includes(candidate) ? candidate : fallback;
+}
+
+function buildDefaultLifecycle(projectName: string): ProjectLifecycle {
+  return {
+    currentStage: "donorEvidence",
+    stages: {
+      donorEvidence: {
+        status: "planned",
+        notes: `Capture donor evidence for ${projectName} before any importer or replay work is claimed.`
+      },
+      donorReport: {
+        status: "planned",
+        notes: "Write evidence-backed donor reports after capture is complete."
+      },
+      importMapping: {
+        status: "planned",
+        notes: "Map donor findings into the clean internal project model."
+      },
+      internalReplay: {
+        status: "planned",
+        notes: "Build or validate the internal replay slice only after import mapping exists."
+      },
+      targetConcept: {
+        status: "planned",
+        notes: "Define the resulting game direction once the donor-backed slice is understood."
+      },
+      targetBuild: {
+        status: "deferred",
+        notes: "Do not start target implementation until the project is evidence-backed."
+      },
+      integration: {
+        status: "deferred",
+        notes: "Production integration remains deferred until a later phase."
+      },
+      qa: {
+        status: "deferred",
+        notes: "QA becomes active only after internal replay or target build exists."
+      },
+      releasePrep: {
+        status: "deferred",
+        notes: "Release preparation remains deferred for new scaffolds."
+      }
     }
   };
+}
+
+function normalizeLifecycle(value: unknown, projectName: string): ProjectLifecycle {
+  const lifecycle = isJsonObject(value) ? value : {};
+  const lifecycleStages = isJsonObject(lifecycle.stages) ? lifecycle.stages : {};
+  const defaults = buildDefaultLifecycle(projectName);
+
+  return {
+    currentStage: (optionalString(lifecycle.currentStage) as LifecycleStageId | undefined) && lifecycleStageIds.includes(optionalString(lifecycle.currentStage) as LifecycleStageId)
+      ? optionalString(lifecycle.currentStage) as LifecycleStageId
+      : defaults.currentStage,
+    stages: {
+      donorEvidence: {
+        status: normalizeLifecycleStatus(getObject(lifecycleStages.donorEvidence).status, defaults.stages.donorEvidence.status),
+        notes: optionalString(getObject(lifecycleStages.donorEvidence).notes) ?? defaults.stages.donorEvidence.notes
+      },
+      donorReport: {
+        status: normalizeLifecycleStatus(getObject(lifecycleStages.donorReport).status, defaults.stages.donorReport.status),
+        notes: optionalString(getObject(lifecycleStages.donorReport).notes) ?? defaults.stages.donorReport.notes
+      },
+      importMapping: {
+        status: normalizeLifecycleStatus(getObject(lifecycleStages.importMapping).status, defaults.stages.importMapping.status),
+        notes: optionalString(getObject(lifecycleStages.importMapping).notes) ?? defaults.stages.importMapping.notes
+      },
+      internalReplay: {
+        status: normalizeLifecycleStatus(getObject(lifecycleStages.internalReplay).status, defaults.stages.internalReplay.status),
+        notes: optionalString(getObject(lifecycleStages.internalReplay).notes) ?? defaults.stages.internalReplay.notes
+      },
+      targetConcept: {
+        status: normalizeLifecycleStatus(getObject(lifecycleStages.targetConcept).status, defaults.stages.targetConcept.status),
+        notes: optionalString(getObject(lifecycleStages.targetConcept).notes) ?? defaults.stages.targetConcept.notes
+      },
+      targetBuild: {
+        status: normalizeLifecycleStatus(getObject(lifecycleStages.targetBuild).status, defaults.stages.targetBuild.status),
+        notes: optionalString(getObject(lifecycleStages.targetBuild).notes) ?? defaults.stages.targetBuild.notes
+      },
+      integration: {
+        status: normalizeLifecycleStatus(getObject(lifecycleStages.integration).status, defaults.stages.integration.status),
+        notes: optionalString(getObject(lifecycleStages.integration).notes) ?? defaults.stages.integration.notes
+      },
+      qa: {
+        status: normalizeLifecycleStatus(getObject(lifecycleStages.qa).status, defaults.stages.qa.status),
+        notes: optionalString(getObject(lifecycleStages.qa).notes) ?? defaults.stages.qa.notes
+      },
+      releasePrep: {
+        status: normalizeLifecycleStatus(getObject(lifecycleStages.releasePrep).status, defaults.stages.releasePrep.status),
+        notes: optionalString(getObject(lifecycleStages.releasePrep).notes) ?? defaults.stages.releasePrep.notes
+      }
+    }
+  };
+}
+
+function normalizeNotes(value: unknown, projectName: string): ProjectMetaLike["notes"] {
+  const notes = isJsonObject(value) ? value : {};
+  const summary = optionalString((notes as JsonObject).summary);
+
+  const provenFacts = toStringArray(notes.provenFacts, "notes.provenFacts");
+  const plannedWork = toStringArray(notes.plannedWork, "notes.plannedWork");
+  const assumptions = toStringArray(notes.assumptions, "notes.assumptions");
+  const unresolvedQuestions = toStringArray(notes.unresolvedQuestions, "notes.unresolvedQuestions");
+
+  return {
+    provenFacts: provenFacts.length > 0 ? provenFacts : [`${projectName} scaffold is discoverable from folder metadata.`],
+    plannedWork: plannedWork.length > 0 ? plannedWork : summary ? [summary] : [`Replace placeholder metadata with evidence-backed details before validation.`],
+    assumptions: assumptions.length > 0 ? assumptions : undefined,
+    unresolvedQuestions: unresolvedQuestions.length > 0 ? unresolvedQuestions : undefined
+  };
+}
+
+function normalizeDonor(value: unknown, relativeProjectRoot: string, projectName: string): ProjectMetaLike["donor"] {
+  const donor = isJsonObject(value) ? value : {};
+  const donorId = optionalString(donor.donorId) ?? `donor_planned_${path.basename(relativeProjectRoot)}`;
+  const donorName = optionalString(donor.donorName) ?? "Planned donor reference";
+  const evidenceRoot = optionalString(donor.evidenceRoot) ?? `${relativeProjectRoot}/donor`;
+
+  return {
+    donorId,
+    donorName,
+    evidenceRoot,
+    captureSessions: toStringArray(donor.captureSessions, "donor.captureSessions"),
+    evidenceRefs: toStringArray(donor.evidenceRefs, "donor.evidenceRefs"),
+    status: (optionalString(donor.status) as ProjectMetaLike["donor"]["status"] | undefined) ?? "planned",
+    notes: optionalString(donor.notes) ?? `${projectName} scaffold only. Replace with evidence-backed donor references before validation.`
+  };
+}
+
+function normalizeTargetGame(value: unknown, slug: string, projectName: string): ProjectMetaLike["targetGame"] {
+  const targetGame = isJsonObject(value) ? value : {};
+  const targetGameId = optionalString(targetGame.targetGameId) ?? `target.${slug}.future-target`;
+  const displayName = optionalString(targetGame.displayName) ?? `${projectName} Target`;
+
+  return {
+    targetGameId,
+    displayName,
+    gameFamily: (optionalString(targetGame.gameFamily) as ProjectMetaLike["targetGame"]["gameFamily"] | undefined) ?? "slot",
+    relationship: (optionalString(targetGame.relationship) as ProjectMetaLike["targetGame"]["relationship"] | undefined) ?? "future-target",
+    status: (optionalString(targetGame.status) as ProjectMetaLike["targetGame"]["status"] | undefined) ?? "planned",
+    provenNotes: toStringArray(targetGame.provenNotes, "targetGame.provenNotes"),
+    plannedNotes: toStringArray(targetGame.plannedNotes, "targetGame.plannedNotes"),
+    notes: optionalString(targetGame.notes) ?? "No resulting game implementation is proven yet."
+  };
+}
+
+function resolveProjectMeta(meta: JsonObject, projectRoot: string): ProjectMetaLike {
+  const relativeProjectRoot = toWorkspaceRelative(projectRoot);
+  const normalizedProjectRootName = path.basename(relativeProjectRoot);
+  const inferredProjectId = optionalString(meta.projectId) ?? normalizedProjectRootName;
+  const inferredSlug = optionalString(meta.slug) ?? slugify(optionalString(meta.displayName) ?? inferredProjectId);
+  const inferredDisplayName = optionalString(meta.displayName) ?? humanizeProjectName(inferredSlug);
+  const projectName = inferredDisplayName;
+
+  return {
+    schemaVersion: optionalString(meta.schemaVersion) ?? "0.1.0",
+    projectId: inferredProjectId,
+    slug: inferredSlug,
+    displayName: inferredDisplayName,
+    gameFamily: (optionalString(meta.gameFamily) as ProjectMetaLike["gameFamily"] | undefined) ?? "slot",
+    implementationScope: (optionalString(meta.implementationScope) as ProjectMetaLike["implementationScope"] | undefined) ?? "slot-first",
+    phase: optionalString(meta.phase) ?? "PHASE TEMPLATE",
+    status: (optionalString(meta.status) as ProjectMetaLike["status"] | undefined) ?? "planned",
+    verification: normalizeVerification(meta.verification),
+    lifecycle: normalizeLifecycle(meta.lifecycle, projectName),
+    paths: buildStandardPaths(relativeProjectRoot),
+    donor: normalizeDonor(meta.donor, relativeProjectRoot, projectName),
+    targetGame: normalizeTargetGame(meta.targetGame, inferredSlug, projectName),
+    timestamps: {
+      createdAt: optionalString((isJsonObject(meta.timestamps) ? meta.timestamps : {}).createdAt) ?? new Date().toISOString(),
+      updatedAt: optionalString((isJsonObject(meta.timestamps) ? meta.timestamps : {}).updatedAt) ?? new Date().toISOString(),
+      firstValidatedAt: optionalString((isJsonObject(meta.timestamps) ? meta.timestamps : {}).firstValidatedAt)
+    },
+    notes: normalizeNotes(meta.notes, projectName)
+  };
+}
+
+function formatList(items: readonly string[]): string {
+  return items.map((item) => `- ${item}`).join("\n");
+}
+
+function formatLifecycleList(lifecycle: ProjectLifecycle): string {
+  return lifecycleStageIds.map((stageId) => {
+    const stage = lifecycle.stages[stageId];
+    return `- ${stageId}: ${stage.status}${stage.notes ? ` (${stage.notes})` : ""}`;
+  }).join("\n");
+}
+
+function toWorkspaceRelative(targetPath: string): string {
+  const resolved = path.resolve(targetPath);
+  const relative = path.relative(workspaceRoot, resolved);
+  return relative.startsWith("..") ? targetPath.replace(/\\/g, "/") : relative.replace(/\\/g, "/");
 }
 
 function buildProjectReadme(meta: ProjectMetaLike): string {
@@ -276,6 +442,7 @@ function buildProjectReadme(meta: ProjectMetaLike): string {
     "## Purpose",
     `- ${meta.phase} scaffold for ${meta.gameFamily} project ${meta.projectId}.`,
     `- Current status: ${meta.status}.`,
+    `- Current lifecycle stage: ${meta.lifecycle.currentStage}.`,
     "",
     "## Donor Link",
     `- ${meta.donor.donorName} (${meta.donor.donorId}).`,
@@ -286,6 +453,9 @@ function buildProjectReadme(meta: ProjectMetaLike): string {
     `- ${meta.targetGame.displayName}.`,
     `- Relationship: ${meta.targetGame.relationship}.`,
     `- Target status: ${meta.targetGame.status}.`,
+    "",
+    "## Lifecycle",
+    formatLifecycleList(meta.lifecycle),
     "",
     "## Notes",
     formatList(meta.notes.provenFacts),
@@ -319,6 +489,19 @@ async function writeIfMissing(filePath: string, contents: string, overwrite: boo
   }
 
   await fs.writeFile(filePath, contents, "utf8");
+}
+
+async function assertProjectRootAvailable(projectRoot: string, overwrite: boolean): Promise<void> {
+  try {
+    const entries = await fs.readdir(projectRoot);
+    if (entries.length > 0 && !overwrite) {
+      throw new Error(`Project folder already exists and is not empty: ${toWorkspaceRelative(projectRoot)}`);
+    }
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+      throw error;
+    }
+  }
 }
 
 async function ensureProjectFolderStructure(projectRoot: string, projectRootLabel: string, overwrite: boolean): Promise<void> {
@@ -375,6 +558,8 @@ export async function createProjectScaffold(options: ProjectScaffoldOptions): Pr
   const resolved = path.resolve(projectRoot);
   const projectRootLabel = toWorkspaceRelative(resolved);
 
+  await assertProjectRootAvailable(resolved, overwrite);
+
   const metaPath = path.join(resolved, "project.meta.json");
   const rootReadmePath = path.join(resolved, "README.md");
 
@@ -384,9 +569,103 @@ export async function createProjectScaffold(options: ProjectScaffoldOptions): Pr
 }
 
 export async function createProjectFromTemplate(configPath: string, projectRoot: string, overwrite = false): Promise<void> {
-  const config = resolveProjectMeta(await readJsonObject(configPath));
-  const rebased = rebaseProjectMeta(config, projectRoot);
-  await createProjectScaffold({ projectRoot, meta: rebased, overwrite });
+  const config = await readJsonObject(configPath);
+  const normalized = resolveProjectMeta(config, projectRoot);
+  await createProjectScaffold({ projectRoot, meta: normalized, overwrite });
+  await discoverAndWriteRegistry();
+}
+
+export function buildProjectMetaFromInput(input: ShellCreateProjectInput): ProjectMetaLike {
+  const displayName = requireTrimmedString(input.displayName, "displayName");
+  const slug = slugify(requireTrimmedString(input.slug, "slug"));
+  const donorReference = requireTrimmedString(input.donorReference, "donorReference");
+  const targetDisplayName = requireTrimmedString(input.targetDisplayName, "targetDisplayName");
+  const notesInput = optionalString(input.notes)?.trim();
+  const projectRoot = `40_projects/${slug}`;
+  const now = new Date().toISOString();
+  const donorId = /^[a-z0-9._-]+$/i.test(donorReference) ? donorReference : `donor_manual_${slugify(donorReference)}`;
+  const projectId = `project_${slug.replace(/-/g, "_")}`;
+  const targetGameId = `target.${slug}.future-target`;
+  const gameFamily = gameFamilyValues.includes(input.gameFamily) ? input.gameFamily : "other";
+  const implementationScope: ProjectMetaLike["implementationScope"] = gameFamily === "slot" ? "slot-first" : "reference-only";
+  const lifecycle = buildDefaultLifecycle(displayName);
+
+  return {
+    schemaVersion: "0.1.0",
+    projectId,
+    slug,
+    displayName,
+    gameFamily,
+    implementationScope,
+    phase: "PHASE 4C",
+    status: "planned",
+    verification: {
+      status: "unknown",
+      checks: [],
+      notes: "Scaffold created from the MyIDE shell. No replay or runtime validation exists yet."
+    },
+    lifecycle,
+    paths: buildStandardPaths(projectRoot),
+    donor: {
+      donorId,
+      donorName: donorReference,
+      evidenceRoot: `${projectRoot}/donor`,
+      captureSessions: [],
+      evidenceRefs: [],
+      status: "planned",
+      notes: "Shell-created donor reference only. Replace with evidence-backed donor materials before validation."
+    },
+    targetGame: {
+      targetGameId,
+      displayName: targetDisplayName,
+      gameFamily,
+      relationship: "future-target",
+      status: "planned",
+      provenNotes: [],
+      plannedNotes: [
+        "Confirm the donor-to-target relationship with evidence-backed reports.",
+        "Do not claim runtime or target build progress until implementation exists."
+      ],
+      notes: "Shell-created target/resulting game placeholder only."
+    },
+    timestamps: {
+      createdAt: now,
+      updatedAt: now
+    },
+    notes: {
+      provenFacts: [
+        "Project scaffold was created through the MyIDE workspace flow.",
+        "Folder-based discovery should surface this project after rescan."
+      ],
+      plannedWork: notesInput ? [notesInput] : ["Replace scaffold metadata with evidence-backed donor, import, and replay details."],
+      assumptions: [
+        "This project remains unvalidated until donor evidence and internal replay exist."
+      ],
+      unresolvedQuestions: [
+        "Which donor evidence pack and internal replay slice will validate this project first."
+      ]
+    }
+  };
+}
+
+export async function createProjectFromInput(input: ShellCreateProjectInput, overwrite = false): Promise<ShellCreateProjectResult> {
+  const meta = buildProjectMetaFromInput(input);
+  const resolvedProjectRoot = path.join(workspaceRoot, meta.paths.projectRoot);
+
+  await createProjectScaffold({
+    projectRoot: resolvedProjectRoot,
+    meta,
+    overwrite
+  });
+  await discoverAndWriteRegistry();
+
+  return {
+    projectId: meta.projectId,
+    slug: meta.slug,
+    displayName: meta.displayName,
+    projectRoot: meta.paths.projectRoot,
+    projectMetaPath: meta.paths.metaPath
+  };
 }
 
 function parseArgs(argv: readonly string[]): { configPath?: string; projectRoot?: string; overwrite: boolean } {

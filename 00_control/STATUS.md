@@ -1,8 +1,8 @@
 # MyIDE Status
 
 ## Current Phase
-- Active scope: PHASE 4B folder-based multi-project workspace alignment on top of the existing slot-first implementation slice.
-- Current milestone: make project folders the discoverable unit of the workspace while keeping the only validated implementation slice as `donor_001_mystery_garden`.
+- Active scope: PHASE 4C project onboarding and lifecycle dashboard on top of the existing slot-first implementation slice.
+- Current milestone: make one project visibly represent one donor-to-release cycle while the shell supports project creation and folder-authoritative discovery.
 
 ## Progress Log
 
@@ -36,9 +36,13 @@
 - Added `validate:workspace` and `verify:workspace`, then passed the full workspace verification stack.
 - Started the folder-based workspace standard so each project can own its own donor, imports, reports, runtime, fixtures, target, release, and logs folders.
 - Added the project lifecycle framing so one project now maps to one donor-to-release cycle in the public architecture docs.
+- Added an explicit lifecycle stage model so projects can track donorEvidence through releasePrep with honest statuses.
 - Kept `project_001` compatibility explicit while the folder standard is introduced gradually.
 - Added folder-based discovery and a deterministic derived `40_projects/registry.json` cache so project folders now drive workspace visibility.
 - Added a planned `project_002` scaffold and a reusable create-project helper for future project folders.
+- Added a shell-backed New Project workflow that creates a valid project scaffold under `40_projects/` without leaving the IDE shell.
+- Extended the project browser and inspector to show donor linkage, target/resulting game metadata, verification, and lifecycle stage summaries for the selected project.
+- Added a scaffold smoke test that proves create -> discover -> derived registry refresh -> shell visibility while keeping `project_001` verification intact.
 
 ## Proven Facts
 - Local reference repos are available in the developer workspace outside this repository.
@@ -50,12 +54,15 @@
 - MyIDE now has a public-facing architecture scope doc and subagent workflow doc that keep universal architecture separate from the current slot-first implementation slice.
 - The shell now exposes a real project list and selected-project summary sourced from folder discovery and the derived workspace bundle.
 - The workspace standard now documents a per-project folder layout and transitional compatibility for `project_001`.
+- The project lifecycle now uses explicit stage statuses rather than a single opaque phase value.
 - Project folders under `40_projects/` are now the authoritative source of project existence.
 - `registry.json` is now a generated/derived cache rather than the sole workspace truth.
+- The shell can now create a new project scaffold and have it appear in the browser after the workspace refreshes from disk.
 
 ## Active Assumptions
 - Electron remains an acceptable desktop container for the bounded local replay workflow.
 - File-backed JSON artifacts remain sufficient through the current PHASE 4B workspace-alignment milestone.
+- Lifecycle metadata remains file-backed JSON and intentionally small enough for hand-authored and shell-created projects.
 - The visible `5x3` board is proven by live runtime observation, but the API layout fields remain non-authoritative for display layout.
 - The observed `Space` key behavior is treated as an environment-observed shortcut until a dedicated input capture proves the exact command path.
 
@@ -63,3 +70,4 @@
 - A live `spin` request/response pair, live free-spins entry, and live restart recovery sequence are still uncaptured.
 - Animation timings and the full symbol/paytable inventory remain unresolved.
 - Folder-based discovery is in place, but GUI-level shell validation is still pending in a display-capable environment.
+- The New Project flow is implemented in the shell, but an interactive Electron GUI check is still pending in a display-capable environment.
