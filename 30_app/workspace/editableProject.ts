@@ -71,6 +71,18 @@ export interface EditableProjectData {
   };
 }
 
+export interface EditablePreviewLayer extends EditableLayer {
+  objectIds: string[];
+}
+
+export interface EditablePreviewScene {
+  bridgeVersion: "editable-scene-direct-v1";
+  source: "editable-internal";
+  scene: EditableSceneDocument;
+  layers: EditablePreviewLayer[];
+  objects: EditableObject[];
+}
+
 export interface SaveEditableProjectResult {
   savedAt: string;
   snapshotDir?: string;
@@ -141,6 +153,42 @@ export async function loadEditableProjectData(projectRoot: string): Promise<Edit
     layers: Array.isArray(layersDocument.layers) ? layersDocument.layers : [],
     objects: Array.isArray(objectsDocument.objects) ? objectsDocument.objects : [],
     paths
+  };
+}
+
+export function buildPreviewSceneFromEditableProject(data: EditableProjectData): EditablePreviewScene {
+  const layers = data.layers
+    .slice()
+    .sort((left, right) => left.order - right.order || left.displayName.localeCompare(right.displayName));
+  const objectOrder = new Map(data.objects.map((object, index) => [object.id, index]));
+  const objects = data.objects
+    .slice()
+    .sort((left, right) => {
+      const leftLayer = layers.findIndex((layer) => layer.id === left.layerId);
+      const rightLayer = layers.findIndex((layer) => layer.id === right.layerId);
+      const layerDiff = leftLayer - rightLayer;
+      if (layerDiff !== 0) {
+        return layerDiff;
+      }
+
+      return (objectOrder.get(left.id) ?? 0) - (objectOrder.get(right.id) ?? 0);
+    });
+
+  const layersWithObjects: EditablePreviewLayer[] = layers.map((layer) => ({
+    ...layer,
+    objectIds: objects.filter((object) => object.layerId === layer.id).map((object) => object.id)
+  }));
+
+  return {
+    bridgeVersion: "editable-scene-direct-v1",
+    source: "editable-internal",
+    scene: {
+      ...data.scene,
+      layerIds: layersWithObjects.map((layer) => layer.id),
+      objectIds: objects.map((object) => object.id)
+    },
+    layers: layersWithObjects,
+    objects
   };
 }
 

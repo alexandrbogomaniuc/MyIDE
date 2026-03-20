@@ -1,7 +1,12 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { loadWorkspaceSlice, type WorkspaceSliceBundle } from "./workspaceSlice";
-import { loadEditableProjectData, type EditableProjectData } from "../workspace/editableProject";
+import {
+  buildPreviewSceneFromEditableProject,
+  loadEditableProjectData,
+  type EditablePreviewScene,
+  type EditableProjectData
+} from "../workspace/editableProject";
 
 type JsonValue = null | boolean | number | string | JsonObject | JsonValue[];
 type JsonObject = { [key: string]: JsonValue };
@@ -10,6 +15,7 @@ export interface ProjectSliceBundle {
   workspace: WorkspaceSliceBundle;
   selectedProjectId: string;
   project: JsonObject;
+  previewScene: EditablePreviewScene | null;
   editableProject: EditableProjectData | null;
   fixtures: {
     normalSpin: JsonObject;
@@ -106,11 +112,13 @@ export async function loadProjectSlice(requestedProjectId?: string): Promise<Pro
 
   const selectedProjectId = resolveSelectedProjectId(workspace, requestedProjectId);
   const editableProject = await loadSelectedEditableProject(workspace, selectedProjectId);
+  const previewScene = editableProject ? buildPreviewSceneFromEditableProject(editableProject) : null;
 
   return {
     workspace,
     selectedProjectId,
     project,
+    previewScene,
     editableProject,
     fixtures: {
       normalSpin,

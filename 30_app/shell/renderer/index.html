@@ -94,8 +94,11 @@
             <span>Internal scene data only</span>
           </div>
           <div class="editor-toolbar">
+            <button id="action-undo" type="button">Undo</button>
+            <button id="action-redo" type="button">Redo</button>
             <button id="action-save" type="button">Save Scene Changes</button>
             <button id="action-reload-editor" type="button">Reload From Disk</button>
+            <span id="dirty-indicator" class="toolbar-indicator">Saved</span>
           </div>
           <div id="project-summary" class="project-summary" aria-live="polite"></div>
           <div class="editor-canvas-shell">
@@ -127,6 +130,7 @@
         <span>Property Save Loop</span>
       </footer>
     </div>
+    <script src="./editorState.js"></script>
     <script src="./app.js"></script>
   </body>
 </html>

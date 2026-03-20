@@ -62,6 +62,7 @@ The internal model is the editable source of truth for reconstructed games insid
 - The model supports placeholder and recreated assets so local replay can progress before every donor detail is fully proven.
 - Replay fixtures, mock `gameState`, and mock `lastAction` live under `40_projects/` and are internal data only.
 - The first editable scene slice for `project_001` lives under `40_projects/project_001/internal/scene.json`, `layers.json`, and `objects.json`, while the legacy `project.json` replay slice remains the runtime source of truth for now.
+- The preview-facing shell bundle derives its scene view from the editable internal scene files when they exist, then falls back to the validated replay slice only if no editable scene is present.
 
 ## Assumptions
 - File-backed JSON artifacts are sufficient for PHASE 2.
@@ -69,6 +70,7 @@ The internal model is the editable source of truth for reconstructed games insid
 - PHASE 2 restart recovery can be modeled with clean internal checkpoints before any production adapter exists.
 - The shell can consume discovered project summaries while the replay engine continues to consume only `project_001` internal data.
 - The lifecycle model remains intentionally file-backed and small enough for shell-created projects and manual folder additions.
+- The authoritative relationship for the first visual editor slice is `internal/scene.json + layers.json + objects.json -> deterministic preview bridge`, while `project.json` remains the replay validation baseline.
 
 ## TODO Investigation
 - Decide whether the derived registry cache should stay single-file or split by product line when the list grows.

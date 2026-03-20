@@ -1,3 +1,5 @@
+import type { SessionEditHistorySummary } from "../helpers/SessionEditHistory";
+
 export const PROPERTY_PANEL_ADAPTER_BOUNDARY = "myide.ui.property-panel.v1";
 
 export type PropertyStatus = "proven" | "assumption" | "todo";
@@ -40,6 +42,7 @@ export interface PropertyPanelInput {
   readonly title: string;
   readonly subtitle?: string;
   readonly mode?: PropertyPanelMode;
+  readonly history?: SessionEditHistorySummary;
   readonly evidenceRefs?: readonly string[];
   readonly facts?: readonly string[];
   readonly assumptions?: readonly string[];
@@ -53,6 +56,7 @@ export interface PropertyPanelViewModel {
   readonly subtitle?: string;
   readonly subjectKind: PropertyPanelInput["subjectKind"];
   readonly mode: PropertyPanelMode;
+  readonly history?: SessionEditHistorySummary;
   readonly evidenceRefs: readonly string[];
   readonly groups: readonly PropertyGroup[];
   readonly facts: readonly string[];
@@ -92,6 +96,21 @@ function normalizeOptions(options: readonly PropertyFieldOption[] | undefined): 
   return normalized.length > 0 ? normalized : undefined;
 }
 
+function normalizeHistory(history: SessionEditHistorySummary | undefined): SessionEditHistorySummary | undefined {
+  if (!history) {
+    return undefined;
+  }
+
+  return {
+    dirty: Boolean(history.dirty),
+    canUndo: Boolean(history.canUndo),
+    canRedo: Boolean(history.canRedo),
+    undoDepth: Math.max(0, Math.floor(history.undoDepth)),
+    redoDepth: Math.max(0, Math.floor(history.redoDepth)),
+    maxEntries: Math.max(1, Math.floor(history.maxEntries))
+  };
+}
+
 function normalizeGroups(groups: readonly PropertyGroup[] | undefined): readonly PropertyGroup[] {
   if (!groups) {
     return [];
@@ -124,6 +143,7 @@ export class LocalPropertyPanelAdapter implements PropertyPanelAdapter {
       subtitle: input.subtitle,
       subjectKind: input.subjectKind,
       mode: input.mode ?? "inspect",
+      history: normalizeHistory(input.history),
       evidenceRefs: normalizeStrings(input.evidenceRefs),
       groups,
       facts: normalizeStrings(input.facts),

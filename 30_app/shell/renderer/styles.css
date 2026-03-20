@@ -176,6 +176,7 @@ select {
 .browser-toolbar button,
 .editor-toolbar button,
 .form-actions button,
+.layer-toggle,
 .canvas-object,
 .project-card,
 .object-row {
@@ -187,7 +188,8 @@ select {
 
 .browser-toolbar button,
 .editor-toolbar button,
-.form-actions button {
+.form-actions button,
+.layer-toggle {
   justify-self: start;
   border-radius: 999px;
   padding: 0.72rem 1rem;
@@ -202,7 +204,8 @@ select {
 
 .browser-toolbar button:hover,
 .editor-toolbar button:hover,
-.form-actions button:hover {
+.form-actions button:hover,
+.layer-toggle:hover {
   border-color: rgba(230, 191, 100, 0.54);
 }
 
@@ -309,6 +312,25 @@ button:disabled {
 .object-row.is-selected {
   border-color: rgba(230, 191, 100, 0.68);
   background: rgba(230, 191, 100, 0.08);
+}
+
+.layer-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.layer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.layer-toggle {
+  padding: 0.45rem 0.72rem;
+  font-size: 0.78rem;
 }
 
 .project-card-head {
@@ -452,6 +474,31 @@ button:disabled {
   gap: 10px;
 }
 
+.toolbar-indicator {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.42rem 0.72rem;
+  border-radius: 999px;
+  border: 1px solid rgba(179, 209, 186, 0.18);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted);
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.toolbar-indicator[data-tone="dirty"] {
+  color: #f5e3a4;
+  border-color: rgba(230, 191, 100, 0.5);
+  background: rgba(230, 191, 100, 0.08);
+}
+
+.toolbar-indicator[data-tone="saved"] {
+  color: #d5f0cb;
+  border-color: rgba(147, 201, 133, 0.32);
+  background: rgba(147, 201, 133, 0.08);
+}
+
 .editor-canvas-shell {
   overflow: auto;
   border-radius: 18px;
@@ -469,6 +516,7 @@ button:disabled {
 
 .canvas-meta {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   gap: 12px;
   color: var(--muted);
@@ -486,6 +534,11 @@ button:disabled {
     radial-gradient(circle at top left, rgba(147, 201, 133, 0.16), transparent 32%),
     radial-gradient(circle at bottom right, rgba(230, 191, 100, 0.12), transparent 26%),
     linear-gradient(180deg, rgba(24, 49, 40, 0.96), rgba(10, 20, 18, 0.98));
+  outline: none;
+}
+
+.canvas-stage:focus-visible {
+  box-shadow: 0 0 0 2px rgba(230, 191, 100, 0.34), 0 18px 28px rgba(0, 0, 0, 0.26);
 }
 
 .canvas-object {
@@ -495,8 +548,14 @@ button:disabled {
   gap: 6px;
   padding: 10px 12px;
   border-radius: 18px;
+  cursor: grab;
   transform-origin: top left;
   box-shadow: 0 14px 24px rgba(0, 0, 0, 0.22);
+}
+
+.canvas-object:active,
+.canvas-object.is-dragging {
+  cursor: grabbing;
 }
 
 .canvas-object-title {
@@ -516,6 +575,10 @@ button:disabled {
 .canvas-object.is-locked {
   cursor: default;
   opacity: 0.82;
+}
+
+.canvas-object.is-locked:active {
+  cursor: default;
 }
 
 .object-shape {

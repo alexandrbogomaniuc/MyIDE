@@ -29,6 +29,7 @@ function resolveWorkspaceRoot(): string {
 
 const workspaceRoot = resolveWorkspaceRoot();
 const projectRoot = path.join(workspaceRoot, "40_projects", "project_001");
+const editorState = require(path.join(workspaceRoot, "30_app", "shell", "renderer", "editorState.js"));
 
 function findEditableObject(data: NonNullable<Awaited<ReturnType<typeof loadEditableProjectData>>>, objectId: string) {
   const object = data.objects.find((entry) => entry.id === objectId);
@@ -54,20 +55,24 @@ async function main(): Promise<void> {
   const originalX = titleObject.x;
   const originalY = titleObject.y;
   const originalScaleX = titleObject.scaleX;
+  const originalScaleY = titleObject.scaleY;
   const originalVisible = titleObject.visible;
   const originalLayerVisible = uiLayer.visible;
   const originalLayerLocked = uiLayer.locked;
+  let history = editorState.createHistory(original);
 
   titleObject.displayName = `${originalDisplayName} (edited)`;
   titleObject.x = originalX + 18;
   titleObject.y = originalY + 12;
   titleObject.scaleX = Number((originalScaleX + 0.1).toFixed(2));
+  titleObject.scaleY = Number((originalScaleY + 0.1).toFixed(2));
   titleObject.visible = !originalVisible;
   titleObject.notes = `${titleObject.notes ?? "Editable title text"} | edit-project smoke test`;
 
   uiLayer.visible = false;
   uiLayer.locked = true;
   uiLayer.notes = `${uiLayer.notes ?? "UI layer"} | edit-project smoke test`;
+  history = editorState.pushUndoSnapshot(history, original, "Edited node.title and layer.ui");
 
   const mutatedSave = await saveEditableProjectData(projectRoot, mutated);
   const mutatedSnapshotDir = mutatedSave.snapshotDir;
@@ -85,6 +90,7 @@ async function main(): Promise<void> {
   assert.equal(reloadedObject.x, originalX + 18, "Saved x edits must survive reload.");
   assert.equal(reloadedObject.y, originalY + 12, "Saved y edits must survive reload.");
   assert.equal(reloadedObject.scaleX, Number((originalScaleX + 0.1).toFixed(2)), "Saved scale edits must survive reload.");
+  assert.equal(reloadedObject.scaleY, Number((originalScaleY + 0.1).toFixed(2)), "Saved vertical scale edits must survive reload.");
   assert.equal(reloadedObject.visible, !originalVisible, "Saved visibility edits must survive reload.");
   assert.equal(reloadedLayer.visible, false, "Saved layer visibility must survive reload.");
   assert.equal(reloadedLayer.locked, true, "Saved layer lock state must survive reload.");
@@ -98,9 +104,36 @@ async function main(): Promise<void> {
   assert.equal(sliceObject.x, originalX + 18, "Shell project reload must reflect the saved object x position.");
   assert.equal(sliceObject.y, originalY + 12, "Shell project reload must reflect the saved object y position.");
   assert.equal(sliceObject.scaleX, Number((originalScaleX + 0.1).toFixed(2)), "Shell project reload must reflect the saved object scale.");
+  assert.equal(sliceObject.scaleY, Number((originalScaleY + 0.1).toFixed(2)), "Shell project reload must reflect the saved object vertical scale.");
   assert.equal(sliceObject.visible, !originalVisible, "Shell project reload must reflect the saved object visibility.");
   assert.equal(sliceLayer.visible, false, "Shell project reload must reflect the saved layer visibility.");
   assert.equal(sliceLayer.locked, true, "Shell project reload must reflect the saved layer lock state.");
+
+  const undone = editorState.undo(history, mutated);
+  assert(undone, "Undo state must exist after the bounded edit snapshot.");
+  const undoneObject = findEditableObject(undone.editorData, "node.title");
+  const undoneLayer = findEditableLayer(undone.editorData, "layer.ui");
+  assert.equal(undoneObject.displayName, originalDisplayName, "Undo must restore displayName in memory.");
+  assert.equal(undoneObject.x, originalX, "Undo must restore x in memory.");
+  assert.equal(undoneObject.y, originalY, "Undo must restore y in memory.");
+  assert.equal(undoneObject.scaleX, originalScaleX, "Undo must restore scaleX in memory.");
+  assert.equal(undoneObject.scaleY, originalScaleY, "Undo must restore scaleY in memory.");
+  assert.equal(undoneObject.visible, originalVisible, "Undo must restore visible in memory.");
+  assert.equal(undoneLayer.visible, originalLayerVisible, "Undo must restore layer visible state in memory.");
+  assert.equal(undoneLayer.locked, originalLayerLocked, "Undo must restore layer lock state in memory.");
+
+  const redone = editorState.redo(undone.history, undone.editorData);
+  assert(redone, "Redo state must exist immediately after undo.");
+  const redoneObject = findEditableObject(redone.editorData, "node.title");
+  const redoneLayer = findEditableLayer(redone.editorData, "layer.ui");
+  assert.equal(redoneObject.displayName, `${originalDisplayName} (edited)`, "Redo must restore displayName in memory.");
+  assert.equal(redoneObject.x, originalX + 18, "Redo must restore x in memory.");
+  assert.equal(redoneObject.y, originalY + 12, "Redo must restore y in memory.");
+  assert.equal(redoneObject.scaleX, Number((originalScaleX + 0.1).toFixed(2)), "Redo must restore scaleX in memory.");
+  assert.equal(redoneObject.scaleY, Number((originalScaleY + 0.1).toFixed(2)), "Redo must restore scaleY in memory.");
+  assert.equal(redoneObject.visible, !originalVisible, "Redo must restore visible in memory.");
+  assert.equal(redoneLayer.visible, false, "Redo must restore layer visible state in memory.");
+  assert.equal(redoneLayer.locked, true, "Redo must restore layer lock state in memory.");
 
   const restoreSave = await saveEditableProjectData(projectRoot, restoredSnapshot);
   const restoreSnapshotDir = restoreSave.snapshotDir;
@@ -118,6 +151,7 @@ async function main(): Promise<void> {
   assert.equal(restoredObject.x, originalX, "Original x must be restored after the smoke test.");
   assert.equal(restoredObject.y, originalY, "Original y must be restored after the smoke test.");
   assert.equal(restoredObject.scaleX, originalScaleX, "Original scaleX must be restored after the smoke test.");
+  assert.equal(restoredObject.scaleY, originalScaleY, "Original scaleY must be restored after the smoke test.");
   assert.equal(restoredObject.visible, originalVisible, "Original visible state must be restored after the smoke test.");
   assert.equal(restoredLayer.visible, originalLayerVisible, "Original layer visibility must be restored after the smoke test.");
   assert.equal(restoredLayer.locked, originalLayerLocked, "Original layer lock state must be restored after the smoke test.");
@@ -138,7 +172,7 @@ async function main(): Promise<void> {
   console.log(`Edited object: ${path.relative(workspaceRoot, projectRoot)}/internal/objects.json`);
   console.log(`Saved and restored snapshots: ${path.relative(workspaceRoot, mutatedSnapshotDir)} and ${path.relative(workspaceRoot, restoreSnapshotDir)}`);
   console.log(`History log: ${path.relative(workspaceRoot, mutatedHistoryPath)}`);
-  console.log("Undo/redo-equivalent behavior: save mutation, reload, restore original, reload again.");
+  console.log("Verified bounded undo/redo snapshots for displayName, x, y, scaleX, scaleY, visible, and layer state.");
 }
 
 main().catch((error: unknown) => {

@@ -3,6 +3,8 @@ const state = {
   selectedProjectId: null,
   editorData: null,
   selectedObjectId: null,
+  history: null,
+  canvasDrag: null,
   dirty: false,
   activityLog: []
 };
@@ -40,8 +42,11 @@ const elements = {
   inspector: document.getElementById("inspector"),
   activityLog: document.getElementById("activity-log"),
   actionRescan: document.getElementById("action-rescan"),
+  actionUndo: document.getElementById("action-undo"),
+  actionRedo: document.getElementById("action-redo"),
   actionSave: document.getElementById("action-save"),
   actionReloadEditor: document.getElementById("action-reload-editor"),
+  dirtyIndicator: document.getElementById("dirty-indicator"),
   newProjectForm: document.getElementById("new-project-form"),
   createProjectStatus: document.getElementById("create-project-status"),
   fieldDisplayName: document.getElementById("field-display-name"),
@@ -70,6 +75,12 @@ function bindActions() {
   elements.actionRescan?.addEventListener("click", () => {
     void reloadWorkspace(false, state.selectedProjectId);
   });
+  elements.actionUndo?.addEventListener("click", () => {
+    handleUndo();
+  });
+  elements.actionRedo?.addEventListener("click", () => {
+    handleRedo();
+  });
   elements.actionSave?.addEventListener("click", () => {
     void handleSaveEditor();
   });
@@ -95,6 +106,16 @@ function bindActions() {
   elements.sceneExplorer?.addEventListener("click", (event) => {
     const target = event.target;
     if (!(target instanceof HTMLElement)) {
+      return;
+    }
+
+    const layerToggle = target.closest("[data-layer-action]");
+    if (layerToggle instanceof HTMLElement) {
+      const layerId = layerToggle.dataset.layerId;
+      const action = layerToggle.dataset.layerAction;
+      if (layerId && action) {
+        handleLayerAction(layerId, action);
+      }
       return;
     }
 
@@ -126,6 +147,21 @@ function bindActions() {
       renderAll();
     }
   });
+  elements.editorCanvas?.addEventListener("pointerdown", (event) => {
+    handleCanvasPointerDown(event);
+  });
+  window.addEventListener("pointermove", (event) => {
+    handleCanvasPointerMove(event);
+  });
+  window.addEventListener("pointerup", (event) => {
+    handleCanvasPointerUp(event);
+  });
+  window.addEventListener("pointercancel", (event) => {
+    handleCanvasPointerUp(event);
+  });
+  window.addEventListener("keydown", (event) => {
+    handleCanvasKeyboard(event);
+  });
   elements.inspector?.addEventListener("input", (event) => {
     handleInspectorEvent(event);
   });
@@ -151,6 +187,108 @@ function bindActions() {
 
 function clone(value) {
   return value ? JSON.parse(JSON.stringify(value)) : value;
+}
+
+function getEditorStateTools() {
+  return window.MyIDEEditorState ?? {
+    clone,
+    fingerprint: (editorData) => JSON.stringify(editorData ?? null),
+    createHistory: (editorData, limit = 48) => ({
+      limit,
+      savedFingerprint: JSON.stringify(editorData ?? null),
+      undoStack: [],
+      redoStack: []
+    }),
+    isDirty: (history, editorData) => JSON.stringify(editorData ?? null) !== history?.savedFingerprint,
+    markSaved: (history, editorData) => ({
+      ...(history ?? { limit: 48, undoStack: [], redoStack: [] }),
+      savedFingerprint: JSON.stringify(editorData ?? null)
+    }),
+    pushUndoSnapshot: (history, snapshot, label) => ({
+      ...(history ?? { limit: 48, savedFingerprint: JSON.stringify(snapshot ?? null), undoStack: [], redoStack: [] }),
+      undoStack: [...(history?.undoStack ?? []), { label: label ?? "Edit", snapshot: clone(snapshot) }],
+      redoStack: []
+    }),
+    undo: (history, currentEditorData) => {
+      if (!history || history.undoStack.length === 0) {
+        return null;
+      }
+
+      const previous = history.undoStack[history.undoStack.length - 1];
+      return {
+        history: {
+          ...history,
+          undoStack: history.undoStack.slice(0, -1),
+          redoStack: [...history.redoStack, { label: previous.label, snapshot: clone(currentEditorData) }]
+        },
+        editorData: clone(previous.snapshot),
+        label: previous.label
+      };
+    },
+    redo: (history, currentEditorData) => {
+      if (!history || history.redoStack.length === 0) {
+        return null;
+      }
+
+      const next = history.redoStack[history.redoStack.length - 1];
+      return {
+        history: {
+          ...history,
+          redoStack: history.redoStack.slice(0, -1),
+          undoStack: [...history.undoStack, { label: next.label, snapshot: clone(currentEditorData) }]
+        },
+        editorData: clone(next.snapshot),
+        label: next.label
+      };
+    }
+  };
+}
+
+function resetEditorHistory() {
+  const tools = getEditorStateTools();
+  state.history = tools.createHistory(state.editorData);
+  state.dirty = false;
+}
+
+function syncDirtyState() {
+  state.dirty = Boolean(state.editorData) && getEditorStateTools().isDirty(state.history, state.editorData);
+}
+
+function recordUndoSnapshot(beforeSnapshot, label) {
+  if (!beforeSnapshot) {
+    return;
+  }
+
+  state.history = getEditorStateTools().pushUndoSnapshot(state.history, beforeSnapshot, label);
+  syncDirtyState();
+}
+
+function applyEditorMutation(label, mutate) {
+  if (!state.editorData) {
+    return false;
+  }
+
+  const tools = getEditorStateTools();
+  const beforeSnapshot = clone(state.editorData);
+  const beforeFingerprint = tools.fingerprint(beforeSnapshot);
+  mutate(state.editorData);
+
+  if (tools.fingerprint(state.editorData) === beforeFingerprint) {
+    return false;
+  }
+
+  recordUndoSnapshot(beforeSnapshot, label);
+  pushLog(label);
+  renderAll();
+  return true;
+}
+
+function canUndo() {
+  return Boolean(state.history?.undoStack?.length);
+}
+
+function canRedo() {
+  return Boolean(state.history?.redoStack?.length);
 }
 
 function slugifyValue(value) {
@@ -224,6 +362,13 @@ function isObjectEditable(object) {
   return !object.locked && !layer?.locked;
 }
 
+function isTypingTarget(target) {
+  return target instanceof HTMLInputElement
+    || target instanceof HTMLTextAreaElement
+    || target instanceof HTMLSelectElement
+    || Boolean(target && typeof target === "object" && "isContentEditable" in target && target.isContentEditable);
+}
+
 function getLayerMap() {
   const layerEntries = Array.isArray(state.editorData?.layers) ? state.editorData.layers : [];
   return new Map(layerEntries.map((layer) => [layer.id, layer]));
@@ -250,6 +395,264 @@ function ensureSelectedObject() {
   }
 }
 
+function getSceneViewport() {
+  const viewport = state.editorData?.scene?.viewport;
+  const width = Number.isFinite(viewport?.width) ? viewport.width : 1280;
+  const height = Number.isFinite(viewport?.height) ? viewport.height : 720;
+
+  return {
+    width: Math.max(1, Math.round(width)),
+    height: Math.max(1, Math.round(height))
+  };
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function getObjectExtent(object) {
+  const dimensions = getObjectDimensions(object);
+  const scaleX = Number.isFinite(object.scaleX) ? Math.abs(object.scaleX) : 1;
+  const scaleY = Number.isFinite(object.scaleY) ? Math.abs(object.scaleY) : 1;
+
+  return {
+    width: Math.max(1, Math.round(dimensions.width * scaleX)),
+    height: Math.max(1, Math.round(dimensions.height * scaleY))
+  };
+}
+
+function clampObjectPosition(object, x, y) {
+  const viewport = getSceneViewport();
+  const extent = getObjectExtent(object);
+  const maxX = Math.max(0, viewport.width - extent.width);
+  const maxY = Math.max(0, viewport.height - extent.height);
+
+  return {
+    x: Math.round(clamp(x, 0, maxX)),
+    y: Math.round(clamp(y, 0, maxY))
+  };
+}
+
+function getCanvasStage() {
+  return elements.editorCanvas?.querySelector(".canvas-stage") ?? null;
+}
+
+function getCanvasObjectById(objectId) {
+  if (!state.editorData || !Array.isArray(state.editorData.objects)) {
+    return null;
+  }
+
+  return state.editorData.objects.find((entry) => entry.id === objectId) ?? null;
+}
+
+function setSelectedObject(objectId) {
+  state.selectedObjectId = objectId;
+}
+
+function beginCanvasDrag(object, event) {
+  if (!object || !isObjectEditable(object)) {
+    return false;
+  }
+
+  const stage = getCanvasStage();
+  if (!stage) {
+    return false;
+  }
+
+  const rect = stage.getBoundingClientRect();
+  const pointerX = event.clientX - rect.left;
+  const pointerY = event.clientY - rect.top;
+
+  state.canvasDrag = {
+    objectId: object.id,
+    pointerId: event.pointerId,
+    offsetX: pointerX - object.x,
+    offsetY: pointerY - object.y,
+    beforeSnapshot: clone(state.editorData),
+    moved: false
+  };
+
+  if (typeof elements.editorCanvas?.setPointerCapture === "function") {
+    try {
+      elements.editorCanvas.setPointerCapture(event.pointerId);
+    } catch {
+      // Pointer capture is best-effort only.
+    }
+  }
+
+  pushLog(`Dragging ${object.displayName}. Use arrows or pointer movement to reposition it.`);
+  setPreviewStatus(`Dragging ${object.displayName}. Release to keep the new position.`);
+  return true;
+}
+
+function applyObjectPosition(object, x, y, sourceLabel) {
+  const bounded = clampObjectPosition(object, x, y);
+  applyEditorMutation(`${sourceLabel ?? "Moved"} ${object.displayName} to ${bounded.x}, ${bounded.y}.`, (editorData) => {
+    const editableObject = editorData.objects.find((entry) => entry.id === object.id);
+    if (!editableObject) {
+      return;
+    }
+
+    editableObject.x = bounded.x;
+    editableObject.y = bounded.y;
+  });
+  setPreviewStatus(`Moved ${object.displayName} to ${bounded.x}, ${bounded.y}. Save to persist the change.`);
+}
+
+function nudgeSelectedObject(deltaX, deltaY, sourceLabel) {
+  const selectedObject = getSelectedObject();
+  if (!selectedObject || !isObjectEditable(selectedObject)) {
+    return false;
+  }
+
+  applyObjectPosition(selectedObject, selectedObject.x + deltaX, selectedObject.y + deltaY, sourceLabel);
+  return true;
+}
+
+function handleCanvasPointerDown(event) {
+  if (!state.editorData || event.button !== 0) {
+    return;
+  }
+
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) {
+    return;
+  }
+
+  const objectButton = target.closest("[data-canvas-object-id]");
+  const canvasStage = target.closest(".canvas-stage");
+
+  if (!canvasStage) {
+    return;
+  }
+
+  if (objectButton instanceof HTMLElement) {
+    const objectId = objectButton.dataset.canvasObjectId;
+    const object = typeof objectId === "string" ? getCanvasObjectById(objectId) : null;
+
+    if (!object) {
+      return;
+    }
+
+    setSelectedObject(object.id);
+    renderAll();
+    beginCanvasDrag(object, event);
+    event.preventDefault();
+    return;
+  }
+
+  if (state.selectedObjectId !== null) {
+    state.selectedObjectId = null;
+    renderAll();
+    setPreviewStatus("Canvas selection cleared.");
+  }
+}
+
+function handleCanvasPointerMove(event) {
+  if (!state.canvasDrag || event.pointerId !== state.canvasDrag.pointerId || !state.editorData) {
+    return;
+  }
+
+  const object = getCanvasObjectById(state.canvasDrag.objectId);
+  if (!object || !isObjectEditable(object)) {
+    return;
+  }
+
+  const stage = getCanvasStage();
+  if (!stage) {
+    return;
+  }
+
+  const rect = stage.getBoundingClientRect();
+  const pointerX = event.clientX - rect.left;
+  const pointerY = event.clientY - rect.top;
+  const nextX = pointerX - state.canvasDrag.offsetX;
+  const nextY = pointerY - state.canvasDrag.offsetY;
+  const bounded = clampObjectPosition(object, nextX, nextY);
+
+  if (bounded.x === object.x && bounded.y === object.y) {
+    return;
+  }
+
+  object.x = bounded.x;
+  object.y = bounded.y;
+  state.canvasDrag.moved = true;
+  syncDirtyState();
+  renderAll();
+}
+
+function handleCanvasPointerUp(event) {
+  if (!state.canvasDrag || (event?.pointerId !== undefined && event.pointerId !== state.canvasDrag.pointerId)) {
+    return;
+  }
+
+  const object = getCanvasObjectById(state.canvasDrag.objectId);
+  const beforeSnapshot = state.canvasDrag.beforeSnapshot;
+  const moved = Boolean(state.canvasDrag.moved);
+
+  try {
+    if (typeof elements.editorCanvas?.releasePointerCapture === "function") {
+      elements.editorCanvas.releasePointerCapture(state.canvasDrag.pointerId);
+    }
+  } catch {
+    // Pointer capture release is best-effort only.
+  }
+
+  state.canvasDrag = null;
+
+  if (object && moved) {
+    recordUndoSnapshot(beforeSnapshot, `Dragged ${object.displayName}`);
+    pushLog(`Committed ${object.displayName} at ${object.x}, ${object.y}.`);
+    setPreviewStatus(`Canvas move completed for ${object.displayName}. Save to persist the change.`);
+    renderAll();
+  }
+}
+
+function handleCanvasKeyboard(event) {
+  if (!state.editorData || isTypingTarget(event.target)) {
+    return;
+  }
+
+  const modifierPressed = event.metaKey || event.ctrlKey;
+  if (modifierPressed && event.key.toLowerCase() === "z") {
+    event.preventDefault();
+    if (event.shiftKey) {
+      handleRedo();
+    } else {
+      handleUndo();
+    }
+    return;
+  }
+
+  if (modifierPressed && event.key.toLowerCase() === "y") {
+    event.preventDefault();
+    handleRedo();
+    return;
+  }
+
+  const keyMap = {
+    ArrowLeft: [-1, 0],
+    ArrowRight: [1, 0],
+    ArrowUp: [0, -1],
+    ArrowDown: [0, 1]
+  };
+
+  const delta = keyMap[event.key];
+  if (!delta) {
+    return;
+  }
+
+  const selectedObject = getSelectedObject();
+  if (!selectedObject || !isObjectEditable(selectedObject)) {
+    return;
+  }
+
+  event.preventDefault();
+
+  const step = event.shiftKey ? 10 : 1;
+  nudgeSelectedObject(delta[0] * step, delta[1] * step, event.shiftKey ? "Keyboard nudge (fast)" : "Keyboard nudge");
+}
+
 async function reloadWorkspace(isInitialLoad, requestedProjectId = null) {
   if (!window.myideApi || typeof window.myideApi.loadProjectSlice !== "function") {
     throw new Error("MyIDE desktop bridge is unavailable.");
@@ -258,7 +661,8 @@ async function reloadWorkspace(isInitialLoad, requestedProjectId = null) {
   state.bundle = await window.myideApi.loadProjectSlice(requestedProjectId ?? state.selectedProjectId ?? undefined);
   state.selectedProjectId = state.bundle.selectedProjectId;
   state.editorData = state.bundle.editableProject ? clone(state.bundle.editableProject) : null;
-  state.dirty = false;
+  state.canvasDrag = null;
+  resetEditorHistory();
   ensureSelectedObject();
 
   if (isInitialLoad) {
@@ -334,7 +738,7 @@ function handleInspectorEvent(event) {
   }
 
   const selectedObject = getSelectedObject();
-  if (!selectedObject || selectedObject.locked) {
+  if (!selectedObject || !isObjectEditable(selectedObject)) {
     return;
   }
 
@@ -353,10 +757,91 @@ function handleInspectorEvent(event) {
     nextValue = target.value;
   }
 
-  selectedObject[field] = nextValue;
-  state.dirty = true;
+  const didChange = applyEditorMutation(`Edited ${selectedObject.displayName} ${field}.`, (editorData) => {
+    const editableObject = editorData.objects.find((entry) => entry.id === selectedObject.id);
+    if (!editableObject) {
+      return;
+    }
+
+    editableObject[field] = nextValue;
+  });
+
+  if (didChange) {
+    setPreviewStatus(`Edited ${selectedObject.displayName}. Save to persist the change.`);
+  }
+}
+
+function handleLayerAction(layerId, action) {
+  const layer = getLayerById(layerId);
+  if (!layer || !state.editorData) {
+    return;
+  }
+
+  const actionLabels = {
+    "toggle-visible": layer.visible ? `Hid layer ${layer.displayName}.` : `Showed layer ${layer.displayName}.`,
+    "toggle-locked": layer.locked ? `Unlocked layer ${layer.displayName}.` : `Locked layer ${layer.displayName}.`
+  };
+
+  const didChange = applyEditorMutation(actionLabels[action] ?? `Updated layer ${layer.displayName}.`, (editorData) => {
+    const editableLayer = editorData.layers.find((entry) => entry.id === layerId);
+    if (!editableLayer) {
+      return;
+    }
+
+    if (action === "toggle-visible") {
+      editableLayer.visible = !editableLayer.visible;
+    }
+
+    if (action === "toggle-locked") {
+      editableLayer.locked = !editableLayer.locked;
+    }
+  });
+
+  if (didChange) {
+    setPreviewStatus(`Updated ${layer.displayName}. Save to persist the layer change.`);
+  }
+}
+
+function handleUndo() {
+  if (!state.editorData) {
+    return;
+  }
+
+  const result = getEditorStateTools().undo(state.history, state.editorData);
+  if (!result) {
+    setPreviewStatus("Nothing is available to undo.");
+    return;
+  }
+
+  state.history = result.history;
+  state.editorData = result.editorData;
+  state.canvasDrag = null;
+  ensureSelectedObject();
+  syncDirtyState();
+  pushLog(`Undo: ${result.label}`);
   renderAll();
-  setPreviewStatus(`Edited ${selectedObject.displayName}. Save to persist the change.`);
+  setPreviewStatus(`Undo applied: ${result.label}`);
+}
+
+function handleRedo() {
+  if (!state.editorData) {
+    return;
+  }
+
+  const result = getEditorStateTools().redo(state.history, state.editorData);
+  if (!result) {
+    setPreviewStatus("Nothing is available to redo.");
+    return;
+  }
+
+  state.history = result.history;
+  state.editorData = result.editorData;
+  state.canvasDrag = null;
+  ensureSelectedObject();
+  syncDirtyState();
+  pushLog(`Redo: ${result.label}`);
+  renderAll();
+  setPreviewStatus(`Redo applied: ${result.label}`);
 }
 
 async function handleSaveEditor() {
@@ -497,8 +982,20 @@ function renderSceneExplorer() {
 
     return `
       <div class="tree-row">
-        <strong>${layer.displayName}</strong>
-        <span>order ${layer.order} · ${layer.visible ? "visible" : "hidden"} · ${layer.locked ? "locked" : "editable"}</span>
+        <div class="layer-row">
+          <div>
+            <strong>${layer.displayName}</strong>
+            <span>order ${layer.order} · ${layer.visible ? "visible" : "hidden"} · ${layer.locked ? "locked" : "editable"}</span>
+          </div>
+          <div class="layer-actions">
+            <button class="layer-toggle" type="button" data-layer-id="${layer.id}" data-layer-action="toggle-visible">
+              ${layer.visible ? "Hide" : "Show"}
+            </button>
+            <button class="layer-toggle" type="button" data-layer-id="${layer.id}" data-layer-action="toggle-locked">
+              ${layer.locked ? "Unlock" : "Lock"}
+            </button>
+          </div>
+        </div>
         <div class="object-list">${objectMarkup}</div>
       </div>
     `;
@@ -565,6 +1062,11 @@ function renderProjectSummary() {
         <strong>${state.dirty ? "Unsaved Changes" : "Saved"}</strong>
         <small>${sceneSummary}</small>
       </div>
+      <div class="detail-card">
+        <span>Preview Source</span>
+        <strong>Editable Internal Scene</strong>
+        <small>The shell preview is driven directly from <code>internal/scene.json</code>, <code>layers.json</code>, and <code>objects.json</code>.</small>
+      </div>
     </div>
     <div class="tree-row">
       <strong>Lifecycle Summary</strong>
@@ -611,6 +1113,7 @@ function renderEditorCanvas() {
     const layer = getLayerById(object.layerId);
     const visible = object.visible && visibleLayerIds.has(object.layerId);
     const locked = object.locked || layer?.locked;
+    const dragging = state.canvasDrag?.objectId === object.id;
     const dimensions = getObjectDimensions(object);
     const layerOrder = typeof layer?.order === "number" ? layer.order : 0;
     const style = [
@@ -622,14 +1125,20 @@ function renderEditorCanvas() {
       `z-index:${layerOrder + 1}`,
       visible ? "" : "display:none"
     ].filter(Boolean).join("; ");
+    const selected = object.id === state.selectedObjectId;
 
     return `
       <button
-        class="canvas-object object-${object.type} ${object.id === state.selectedObjectId ? "is-selected" : ""} ${locked ? "is-locked" : ""}"
+        class="canvas-object object-${object.type} ${selected ? "is-selected" : ""} ${locked ? "is-locked" : "is-draggable"} ${dragging ? "is-dragging" : ""}"
         type="button"
         data-canvas-object-id="${object.id}"
+        data-object-x="${object.x}"
+        data-object-y="${object.y}"
+        data-object-width="${dimensions.width}"
+        data-object-height="${dimensions.height}"
         style="${style}"
         title="${object.displayName}"
+        aria-pressed="${selected ? "true" : "false"}"
       >
         <span class="canvas-object-title">${object.displayName}</span>
         <small>${getObjectLabel(object)}</small>
@@ -639,14 +1148,17 @@ function renderEditorCanvas() {
 
   const viewportWidth = editorData.scene.viewport?.width ?? 1280;
   const viewportHeight = editorData.scene.viewport?.height ?? 720;
+  const selectedObject = getSelectedObject();
 
   elements.editorCanvas.innerHTML = `
     <div class="canvas-meta">
       <span>${editorData.scene.sceneId}</span>
       <span>${viewportWidth} × ${viewportHeight}</span>
       <span>Internal files only</span>
+      <span>${selectedObject ? `Selected: ${selectedObject.displayName}` : "No selection"}</span>
+      <span>Drag or arrow-nudge to move</span>
     </div>
-    <div class="canvas-stage" style="width:${viewportWidth}px; height:${viewportHeight}px;">
+    <div class="canvas-stage" tabindex="0" aria-label="Project editor canvas" style="width:${viewportWidth}px; height:${viewportHeight}px;">
       ${objectMarkup}
     </div>
   `;
@@ -924,8 +1436,18 @@ function renderAll() {
   renderInspector();
   renderActivityLog();
 
+  if (elements.actionUndo) {
+    elements.actionUndo.disabled = !state.editorData || !canUndo();
+  }
+  if (elements.actionRedo) {
+    elements.actionRedo.disabled = !state.editorData || !canRedo();
+  }
   if (elements.actionSave) {
     elements.actionSave.disabled = !state.editorData || !state.dirty;
+  }
+  if (elements.dirtyIndicator) {
+    elements.dirtyIndicator.textContent = state.dirty ? "Unsaved changes" : "Saved";
+    elements.dirtyIndicator.dataset.tone = state.dirty ? "dirty" : "saved";
   }
 }
 
@@ -965,6 +1487,15 @@ window.render_game_to_text = () => JSON.stringify({
   selectedProjectId: state.selectedProjectId,
   selectedObjectId: state.selectedObjectId,
   dirty: state.dirty,
+  undoCount: state.history?.undoStack?.length ?? 0,
+  redoCount: state.history?.redoStack?.length ?? 0,
+  layers: Array.isArray(state.editorData?.layers)
+    ? state.editorData.layers.map((entry) => ({
+      id: entry.id,
+      visible: entry.visible,
+      locked: entry.locked
+    }))
+    : [],
   editorObjectPositions: Array.isArray(state.editorData?.objects)
     ? state.editorData.objects.map((entry) => ({
       id: entry.id,

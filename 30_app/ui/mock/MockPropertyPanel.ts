@@ -7,6 +7,14 @@ export function createMockPropertyPanel(): PropertyPanelViewModel {
     title: "project_001",
     subtitle: "Mystery Garden replay slice",
     mode: "edit",
+    history: {
+      dirty: false,
+      canUndo: false,
+      canRedo: false,
+      undoDepth: 0,
+      redoDepth: 0,
+      maxEntries: 50
+    },
     evidenceRefs: [
       "MG-EV-20260320-WEB-A-001",
       "MG-EV-20260320-WEB-A-005",
@@ -138,6 +146,48 @@ export function createMockPropertyPanel(): PropertyPanelViewModel {
             status: "proven",
             fieldState: "read-only",
             path: ["runtime", "replay"]
+          }
+        ]
+      },
+      {
+        groupId: "group.history",
+        title: "Session History",
+        description: "Bounded session-only undo/redo keeps dirty state derived from snapshots, not hand-toggled flags.",
+        rows: [
+          {
+            key: "scope",
+            label: "Scope",
+            value: "selected object only",
+            status: "proven",
+            fieldState: "read-only"
+          },
+          {
+            key: "baseline",
+            label: "Baseline",
+            value: "last saved snapshot",
+            status: "proven",
+            fieldState: "read-only"
+          },
+          {
+            key: "undoBudget",
+            label: "Undo Budget",
+            value: "50 snapshots max",
+            status: "proven",
+            fieldState: "read-only"
+          },
+          {
+            key: "redoRule",
+            label: "Redo Rule",
+            value: "redo clears when a new edit branches after undo",
+            status: "proven",
+            fieldState: "read-only"
+          },
+          {
+            key: "dirtyRule",
+            label: "Dirty Rule",
+            value: "dirty = current snapshot differs from baseline",
+            status: "proven",
+            fieldState: "read-only"
           }
         ]
       }

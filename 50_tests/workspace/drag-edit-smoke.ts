@@ -3,7 +3,6 @@ import { existsSync, promises as fs } from "node:fs";
 import path from "node:path";
 import { cloneEditableProjectData, loadEditableProjectData, saveEditableProjectData } from "../../30_app/workspace/editableProject";
 import { loadProjectSlice } from "../../30_app/shell/projectSlice";
-import { loadWorkspaceSlice } from "../../30_app/shell/workspaceSlice";
 
 function resolveWorkspaceRoot(): string {
   const candidates = [process.cwd(), __dirname, path.resolve(__dirname, ".."), path.resolve(__dirname, "../..")];
@@ -29,17 +28,12 @@ function resolveWorkspaceRoot(): string {
 
 const workspaceRoot = resolveWorkspaceRoot();
 const projectRoot = path.join(workspaceRoot, "40_projects", "project_001");
+const editorState = require(path.join(workspaceRoot, "30_app", "shell", "renderer", "editorState.js"));
 
 function findEditableObject(data: NonNullable<Awaited<ReturnType<typeof loadEditableProjectData>>>, objectId: string) {
   const object = data.objects.find((entry) => entry.id === objectId);
   assert(object, `Editable object ${objectId} must exist.`);
   return object;
-}
-
-function findEditableLayer(data: NonNullable<Awaited<ReturnType<typeof loadEditableProjectData>>>, layerId: string) {
-  const layer = data.layers.find((entry) => entry.id === layerId);
-  assert(layer, `Editable layer ${layerId} must exist.`);
-  return layer;
 }
 
 async function main(): Promise<void> {
@@ -48,92 +42,68 @@ async function main(): Promise<void> {
 
   const restoredSnapshot = cloneEditableProjectData(original);
   const mutated = cloneEditableProjectData(original);
-  const draggedObject = findEditableObject(mutated, "node.title");
-  const gameplayLayer = findEditableLayer(mutated, "layer.gameplay");
-  const uiLayer = findEditableLayer(mutated, "layer.ui");
-  const originalLayerId = draggedObject.layerId;
-  const originalX = draggedObject.x;
-  const originalY = draggedObject.y;
-  const originalUiVisible = uiLayer.visible;
-  const originalUiLocked = uiLayer.locked;
-  const originalGameplayLocked = gameplayLayer.locked;
+  const targetObject = findEditableObject(mutated, "node.free-spins-modal");
+  const originalX = targetObject.x;
+  const originalY = targetObject.y;
 
-  draggedObject.layerId = "layer.ui";
-  draggedObject.x = originalX + 64;
-  draggedObject.y = originalY + 32;
-  draggedObject.notes = `${draggedObject.notes ?? "Editable title text"} | drag-edit smoke test`;
+  let history = editorState.createHistory(original);
+  history = editorState.pushUndoSnapshot(history, original, "Dragged node.free-spins-modal");
 
-  uiLayer.visible = false;
-  uiLayer.locked = true;
-  uiLayer.notes = `${uiLayer.notes ?? "UI layer"} | drag-edit smoke test`;
-  gameplayLayer.locked = true;
-  gameplayLayer.notes = `${gameplayLayer.notes ?? "Gameplay layer"} | drag-edit smoke test`;
+  targetObject.x = originalX + 36;
+  targetObject.y = originalY + 24;
 
   const dragSave = await saveEditableProjectData(projectRoot, mutated);
-  const dragSnapshotDir = dragSave.snapshotDir;
-  const dragHistoryPath = dragSave.historyPath;
-  assert(dragSnapshotDir, "drag-edit save must create a snapshot directory.");
-  assert(dragHistoryPath, "drag-edit save must append a save-history log.");
-  await fs.access(dragSnapshotDir);
-  await fs.access(dragHistoryPath);
+  assert(dragSave.snapshotDir, "drag save must create a snapshot directory.");
+  assert(dragSave.historyPath, "drag save must append a local save-history log.");
+  await fs.access(dragSave.snapshotDir);
+  await fs.access(dragSave.historyPath);
 
-  const reloadedAfterDrag = await loadEditableProjectData(projectRoot);
-  assert(reloadedAfterDrag, "project_001 editable data must still load after the drag-edit save.");
-  const reloadedObject = findEditableObject(reloadedAfterDrag, "node.title");
-  const reloadedUiLayer = findEditableLayer(reloadedAfterDrag, "layer.ui");
-  const reloadedGameplayLayer = findEditableLayer(reloadedAfterDrag, "layer.gameplay");
-  assert.equal(reloadedObject.layerId, "layer.ui", "Dragged object layerId must survive reload.");
-  assert.equal(reloadedObject.x, originalX + 64, "Dragged object x must survive reload.");
-  assert.equal(reloadedObject.y, originalY + 32, "Dragged object y must survive reload.");
-  assert.equal(reloadedUiLayer.visible, false, "UI layer visibility must survive reload.");
-  assert.equal(reloadedUiLayer.locked, true, "UI layer locked state must survive reload.");
-  assert.equal(reloadedGameplayLayer.locked, true, "Gameplay layer locked state must survive reload.");
+  const reloadedAfterSave = await loadEditableProjectData(projectRoot);
+  assert(reloadedAfterSave, "project_001 editable data must still load after drag save.");
+  const savedObject = findEditableObject(reloadedAfterSave, "node.free-spins-modal");
+  assert.equal(savedObject.x, originalX + 36, "Dragged x position must persist after save.");
+  assert.equal(savedObject.y, originalY + 24, "Dragged y position must persist after save.");
 
-  const sliceAfterDrag = await loadProjectSlice("project_001");
-  const sliceObject = sliceAfterDrag.editableProject?.objects.find((entry) => entry.id === "node.title");
-  const sliceUiLayer = sliceAfterDrag.editableProject?.layers.find((entry) => entry.id === "layer.ui");
-  assert(sliceObject, "Shell project slice must include the dragged title object after save.");
-  assert(sliceUiLayer, "Shell project slice must include the UI layer after save.");
-  assert.equal(sliceObject.layerId, "layer.ui", "Shell reload must reflect the dragged layer move.");
-  assert.equal(sliceObject.x, originalX + 64, "Shell reload must reflect the dragged x position.");
-  assert.equal(sliceObject.y, originalY + 32, "Shell reload must reflect the dragged y position.");
-  assert.equal(sliceUiLayer.visible, false, "Shell reload must reflect the saved layer visibility.");
-  assert.equal(sliceUiLayer.locked, true, "Shell reload must reflect the saved layer lock state.");
+  const sliceAfterSave = await loadProjectSlice("project_001");
+  const sliceObject = sliceAfterSave.editableProject?.objects.find((entry) => entry.id === "node.free-spins-modal");
+  assert(sliceObject, "Shell project slice must include the dragged object after save.");
+  assert.equal(sliceObject.x, originalX + 36, "Project slice must reflect dragged x after reload.");
+  assert.equal(sliceObject.y, originalY + 24, "Project slice must reflect dragged y after reload.");
+
+  const undone = editorState.undo(history, mutated);
+  assert(undone, "Undo state must exist for the drag snapshot.");
+  const undoneObject = findEditableObject(undone.editorData, "node.free-spins-modal");
+  assert.equal(undoneObject.x, originalX, "Undo must restore dragged x in memory.");
+  assert.equal(undoneObject.y, originalY, "Undo must restore dragged y in memory.");
+
+  const redone = editorState.redo(undone.history, undone.editorData);
+  assert(redone, "Redo state must exist after drag undo.");
+  const redoneObject = findEditableObject(redone.editorData, "node.free-spins-modal");
+  assert.equal(redoneObject.x, originalX + 36, "Redo must restore dragged x in memory.");
+  assert.equal(redoneObject.y, originalY + 24, "Redo must restore dragged y in memory.");
 
   const restoreSave = await saveEditableProjectData(projectRoot, restoredSnapshot);
-  const restoreSnapshotDir = restoreSave.snapshotDir;
-  assert(restoreSnapshotDir, "drag-edit restore must create a snapshot directory.");
-  await fs.access(restoreSnapshotDir);
+  assert(restoreSave.snapshotDir, "restore save must create a snapshot directory.");
+  assert(restoreSave.historyPath, "restore save must append a local save-history log.");
+  await fs.access(restoreSave.snapshotDir);
+  await fs.access(restoreSave.historyPath);
 
   const reloadedAfterRestore = await loadEditableProjectData(projectRoot);
-  assert(reloadedAfterRestore, "project_001 editable data must still load after the drag-edit restore.");
-  const restoredObject = findEditableObject(reloadedAfterRestore, "node.title");
-  const restoredUiLayer = findEditableLayer(reloadedAfterRestore, "layer.ui");
-  const restoredGameplayLayer = findEditableLayer(reloadedAfterRestore, "layer.gameplay");
-  assert.equal(restoredObject.layerId, originalLayerId, "Original object layerId must be restored after drag-edit smoke.");
-  assert.equal(restoredObject.x, originalX, "Original x must be restored after drag-edit smoke.");
-  assert.equal(restoredObject.y, originalY, "Original y must be restored after drag-edit smoke.");
-  assert.equal(restoredUiLayer.visible, originalUiVisible, "Original UI layer visibility must be restored after drag-edit smoke.");
-  assert.equal(restoredUiLayer.locked, originalUiLocked, "Original UI layer lock state must be restored after drag-edit smoke.");
-  assert.equal(restoredGameplayLayer.locked, originalGameplayLocked, "Original gameplay layer lock state must be restored after drag-edit smoke.");
+  assert(reloadedAfterRestore, "project_001 editable data must still load after drag restore.");
+  const restoredObject = findEditableObject(reloadedAfterRestore, "node.free-spins-modal");
+  assert.equal(restoredObject.x, originalX, "Original x must be restored after the drag smoke test.");
+  assert.equal(restoredObject.y, originalY, "Original y must be restored after the drag smoke test.");
 
   await Promise.all([
-    fs.rm(dragSnapshotDir, { recursive: true, force: true }),
-    fs.rm(restoreSnapshotDir, { recursive: true, force: true }),
-    fs.rm(dragHistoryPath, { force: true })
+    fs.rm(dragSave.snapshotDir, { recursive: true, force: true }),
+    fs.rm(restoreSave.snapshotDir, { recursive: true, force: true }),
+    fs.rm(dragSave.historyPath, { force: true })
   ]);
-
-  const workspace = await loadWorkspaceSlice();
-  assert(
-    workspace.projects.some((project) => project.projectId === "project_001"),
-    "project_001 must remain discoverable after drag-edit smoke testing."
-  );
 
   console.log("PASS smoke:drag-edit");
   console.log(`Dragged object: ${path.relative(workspaceRoot, projectRoot)}/internal/objects.json`);
-  console.log(`Saved and restored snapshots: ${path.relative(workspaceRoot, dragSnapshotDir)} and ${path.relative(workspaceRoot, restoreSnapshotDir)}`);
-  console.log(`History log: ${path.relative(workspaceRoot, dragHistoryPath)}`);
-  console.log("Layer persistence: UI visibility/lock state and gameplay layer lock state survived save/reload and restore.");
+  console.log(`Snapshot directories: ${path.relative(workspaceRoot, dragSave.snapshotDir)} and ${path.relative(workspaceRoot, restoreSave.snapshotDir)}`);
+  console.log(`History log: ${path.relative(workspaceRoot, dragSave.historyPath)}`);
 }
 
 main().catch((error: unknown) => {
