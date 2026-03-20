@@ -7,7 +7,11 @@ const state = {
   canvasDrag: null,
   dirty: false,
   activityLog: [],
-  syncStatus: null
+  syncStatus: null,
+  snap: {
+    enabled: false,
+    size: 10
+  }
 };
 
 const lifecycleStageOrder = [
@@ -45,6 +49,7 @@ const elements = {
   actionRescan: document.getElementById("action-rescan"),
   actionUndo: document.getElementById("action-undo"),
   actionRedo: document.getElementById("action-redo"),
+  actionToggleSnap: document.getElementById("action-toggle-snap"),
   actionNewObject: document.getElementById("action-new-object"),
   actionDuplicate: document.getElementById("action-duplicate"),
   actionDelete: document.getElementById("action-delete"),
@@ -85,6 +90,9 @@ function bindActions() {
   });
   elements.actionRedo?.addEventListener("click", () => {
     handleRedo();
+  });
+  elements.actionToggleSnap?.addEventListener("click", () => {
+    handleToggleSnap();
   });
   elements.actionNewObject?.addEventListener("click", () => {
     handleCreateNewObject();
@@ -412,6 +420,35 @@ function canRedo() {
   return Boolean(state.history?.redoStack?.length);
 }
 
+function getSnapSize() {
+  return Number.isFinite(state.snap?.size) && state.snap.size > 0 ? state.snap.size : 10;
+}
+
+function isSnapEnabled() {
+  return Boolean(state.snap?.enabled);
+}
+
+function normalizeObjectPosition(object, x, y) {
+  const tools = getEditorStateTools();
+  const normalized = isSnapEnabled() && typeof tools.snapPoint === "function"
+    ? tools.snapPoint({ x, y }, getSnapSize())
+    : {
+      x: Math.round(x),
+      y: Math.round(y)
+    };
+
+  return clampObjectPosition(object, normalized.x, normalized.y);
+}
+
+function getSelectedLayerLabel() {
+  const selectedObject = getSelectedObject();
+  if (!selectedObject) {
+    return "No layer";
+  }
+
+  return getLayerById(selectedObject.layerId)?.displayName ?? selectedObject.layerId;
+}
+
 function slugifyValue(value) {
   return String(value ?? "")
     .trim()
@@ -676,7 +713,7 @@ function beginCanvasDrag(object, event) {
 }
 
 function applyObjectPosition(object, x, y, sourceLabel) {
-  const bounded = clampObjectPosition(object, x, y);
+  const bounded = normalizeObjectPosition(object, x, y);
   applyEditorMutation(`${sourceLabel ?? "Moved"} ${object.displayName} to ${bounded.x}, ${bounded.y}.`, (editorData) => {
     const editableObject = editorData.objects.find((entry) => entry.id === object.id);
     if (!editableObject) {
@@ -758,7 +795,7 @@ function handleCanvasPointerMove(event) {
   const pointerY = event.clientY - rect.top;
   const nextX = pointerX - state.canvasDrag.offsetX;
   const nextY = pointerY - state.canvasDrag.offsetY;
-  const bounded = clampObjectPosition(object, nextX, nextY);
+  const bounded = normalizeObjectPosition(object, nextX, nextY);
 
   if (bounded.x === object.x && bounded.y === object.y) {
     return;
@@ -837,6 +874,18 @@ function handleCanvasKeyboard(event) {
     return;
   }
 
+  if (modifierPressed && event.shiftKey && event.key.toLowerCase() === "g") {
+    event.preventDefault();
+    handleToggleSnap();
+    return;
+  }
+
+  if (modifierPressed && event.shiftKey && event.key.toLowerCase() === "n") {
+    event.preventDefault();
+    handleCreateNewObject();
+    return;
+  }
+
   if (event.key === "Delete" || event.key === "Backspace") {
     event.preventDefault();
     handleDeleteSelectedObject();
@@ -862,7 +911,8 @@ function handleCanvasKeyboard(event) {
 
   event.preventDefault();
 
-  const step = event.shiftKey ? 10 : 1;
+  const baseStep = isSnapEnabled() ? getSnapSize() : 1;
+  const step = event.shiftKey ? baseStep * 5 : baseStep;
   nudgeSelectedObject(delta[0] * step, delta[1] * step, event.shiftKey ? "Keyboard nudge (fast)" : "Keyboard nudge");
 }
 
@@ -961,6 +1011,8 @@ function handleInspectorEvent(event) {
 
   if (field === "visible") {
     nextValue = target instanceof HTMLInputElement ? target.checked : false;
+  } else if (field === "layerId") {
+    nextValue = target.value;
   } else if (["x", "y", "scaleX", "scaleY"].includes(field)) {
     const numeric = Number(target.value);
     if (!Number.isFinite(numeric)) {
@@ -971,17 +1023,40 @@ function handleInspectorEvent(event) {
     nextValue = target.value;
   }
 
-  const didChange = applyEditorMutation(`Edited ${selectedObject.displayName} ${field}.`, (editorData) => {
-    const editableObject = editorData.objects.find((entry) => entry.id === selectedObject.id);
-    if (!editableObject) {
-      return;
-    }
+  const didChange = applyEditorMutation(
+    field === "layerId"
+      ? `Moved ${selectedObject.displayName} to a different layer.`
+      : `Edited ${selectedObject.displayName} ${field}.`,
+    (editorData) => {
+      const editableObject = editorData.objects.find((entry) => entry.id === selectedObject.id);
+      if (!editableObject) {
+        return;
+      }
 
-    editableObject[field] = nextValue;
-  });
+      if (field === "layerId") {
+        const tools = getEditorStateTools();
+        const reassigned = typeof tools.reassignObjectLayer === "function"
+          ? tools.reassignObjectLayer(editorData, selectedObject.id, nextValue)
+          : null;
+        if (!reassigned?.changed) {
+          return;
+        }
+        return;
+      }
+
+      editableObject[field] = nextValue;
+    }
+  );
 
   if (didChange) {
-    setPreviewStatus(`Edited ${selectedObject.displayName}. Save to persist the change.`);
+    if (field === "layerId") {
+      const targetLayer = getLayerById(nextValue);
+      const targetName = targetLayer?.displayName ?? nextValue;
+      const visibilityNote = targetLayer?.visible === false ? " The target layer is currently hidden." : "";
+      setPreviewStatus(`Moved ${selectedObject.displayName} to ${targetName}.${visibilityNote} Save to persist the layer change.`);
+    } else {
+      setPreviewStatus(`Edited ${selectedObject.displayName}. Save to persist the change.`);
+    }
   }
 }
 
@@ -1306,6 +1381,7 @@ function renderProjectSummary() {
   const sceneSummary = editorData
     ? `${editorData.scene.displayName} · ${editorData.layers.length} layers · ${editorData.objects.length} objects`
     : "No editable scene slice yet.";
+  const editorStatusSummary = `${sceneSummary} · ${isSnapEnabled() ? `Snap ${getSnapSize()}px` : "Snap off"} · ${getSelectedLayerLabel()}`;
 
   const lifecycleChips = lifecycleStageOrder.map((stageId) => {
     const stage = selectedProject.lifecycle?.stages?.[stageId];
@@ -1335,7 +1411,7 @@ function renderProjectSummary() {
       <div class="detail-card">
         <span>Editor State</span>
         <strong>${state.dirty ? "Unsaved Changes" : "Saved"}</strong>
-        <small>${sceneSummary}</small>
+        <small>${editorStatusSummary}</small>
       </div>
       <div class="detail-card">
         <span>Preview Source</span>
@@ -1438,6 +1514,28 @@ function getPreferredCreationLayerId() {
 
 function canCreateObject() {
   return Boolean(state.editorData && getPreferredCreationLayerId());
+}
+
+function getAssignableLayers() {
+  if (!state.editorData) {
+    return [];
+  }
+
+  const tools = getEditorStateTools();
+  if (typeof tools.getEditableLayers === "function") {
+    return tools.getEditableLayers(state.editorData.layers);
+  }
+
+  return sortLayers(state.editorData.layers).filter((entry) => !entry.locked);
+}
+
+function handleToggleSnap() {
+  state.snap.enabled = !state.snap.enabled;
+  pushLog(state.snap.enabled ? `Snap enabled at ${getSnapSize()}px.` : "Snap disabled.");
+  renderAll();
+  setPreviewStatus(state.snap.enabled
+    ? `Snap enabled at ${getSnapSize()}px for drag and keyboard nudge.`
+    : "Snap disabled. Movement is now freeform again.");
 }
 
 function handleCreateNewObject() {
@@ -1621,6 +1719,8 @@ function renderEditorCanvas() {
   const viewportWidth = editorData.scene.viewport?.width ?? 1280;
   const viewportHeight = editorData.scene.viewport?.height ?? 720;
   const selectedObject = getSelectedObject();
+  const selectedLayerLabel = getSelectedLayerLabel();
+  const snapLabel = isSnapEnabled() ? `Snap ${getSnapSize()}px on` : "Snap off";
 
   elements.editorCanvas.innerHTML = `
     <div class="canvas-meta">
@@ -1628,9 +1728,11 @@ function renderEditorCanvas() {
       <span>${viewportWidth} × ${viewportHeight}</span>
       <span>Internal files only</span>
       <span>${selectedObject ? `Selected: ${selectedObject.displayName}` : "No selection"}</span>
+      <span>Layer: ${selectedLayerLabel}</span>
+      <span>${snapLabel}</span>
       <span>Drag or arrow-nudge to move</span>
     </div>
-    <div class="canvas-stage" tabindex="0" aria-label="Project editor canvas" style="width:${viewportWidth}px; height:${viewportHeight}px;">
+    <div class="canvas-stage ${isSnapEnabled() ? "is-snap-enabled" : ""}" tabindex="0" aria-label="Project editor canvas" style="width:${viewportWidth}px; height:${viewportHeight}px;">
       ${objectMarkup}
     </div>
   `;
@@ -1672,6 +1774,10 @@ function renderInspector() {
 
   const layer = getLayerById(selectedObject.layerId);
   const locked = selectedObject.locked || layer?.locked;
+  const assignableLayers = getAssignableLayers().map((entry) => ({
+    value: entry.id,
+    label: `${entry.displayName}${entry.visible === false ? " (hidden)" : ""}`
+  }));
   const projectNotes = selectedProject.notes ?? {};
   const inspectorInput = {
     subjectId: selectedObject.id,
@@ -1694,7 +1800,7 @@ function renderInspector() {
         rows: [
           { key: "id", label: "Object ID", value: selectedObject.id, status: "proven", fieldState: "read-only" },
           { key: "type", label: "Type", value: selectedObject.type, status: "proven", fieldState: "read-only" },
-          { key: "layerId", label: "Layer", value: selectedObject.layerId, status: "proven", fieldState: "read-only" },
+          { key: "layerId", label: "Layer ID", value: selectedObject.layerId, status: "proven", fieldState: "read-only" },
           {
             key: "assetRef",
             label: "Asset / Placeholder",
@@ -1718,6 +1824,17 @@ function renderInspector() {
             fieldKind: "text",
             fieldState: locked ? "locked" : "editable",
             path: ["objects", selectedObject.id, "displayName"]
+          },
+          {
+            key: "layerId",
+            label: "Assigned Layer",
+            value: selectedObject.layerId,
+            status: "proven",
+            fieldKind: "select",
+            fieldState: locked ? "locked" : "editable",
+            options: assignableLayers,
+            path: ["objects", selectedObject.id, "layerId"],
+            notes: "Only unlocked layers are valid reassignment targets."
           },
           {
             key: "x",
@@ -1914,6 +2031,13 @@ function renderAll() {
   }
   if (elements.actionRedo) {
     elements.actionRedo.disabled = !state.editorData || !canRedo();
+  }
+  if (elements.actionToggleSnap) {
+    elements.actionToggleSnap.disabled = !state.editorData;
+    elements.actionToggleSnap.textContent = isSnapEnabled()
+      ? `Snap ${getSnapSize()}px On`
+      : `Snap ${getSnapSize()}px Off`;
+    elements.actionToggleSnap.dataset.tone = isSnapEnabled() ? "active" : "default";
   }
   if (elements.actionNewObject) {
     elements.actionNewObject.disabled = !canCreateObject() || Boolean(state.canvasDrag);

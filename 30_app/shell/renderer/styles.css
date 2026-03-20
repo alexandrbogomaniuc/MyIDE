@@ -207,6 +207,12 @@ select {
   background: linear-gradient(180deg, rgba(88, 42, 28, 0.96), rgba(52, 25, 16, 0.98));
 }
 
+.editor-toolbar button[data-tone="active"] {
+  border-color: rgba(110, 169, 216, 0.48);
+  background: linear-gradient(180deg, rgba(38, 62, 88, 0.96), rgba(18, 34, 52, 0.98));
+  color: #d9ebf7;
+}
+
 .browser-toolbar button:hover,
 .editor-toolbar button:hover,
 .form-actions button:hover,
@@ -601,6 +607,19 @@ button:disabled {
     radial-gradient(circle at bottom right, rgba(230, 191, 100, 0.12), transparent 26%),
     linear-gradient(180deg, rgba(24, 49, 40, 0.96), rgba(10, 20, 18, 0.98));
   outline: none;
+}
+
+.canvas-stage.is-snap-enabled::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(230, 191, 100, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(230, 191, 100, 0.08) 1px, transparent 1px);
+  background-size: 10px 10px;
+  mix-blend-mode: screen;
+  opacity: 0.55;
 }
 
 .canvas-stage:focus-visible {

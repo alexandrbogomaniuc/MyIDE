@@ -6,6 +6,8 @@
     module.exports = api;
   }
 })(typeof globalThis !== "undefined" ? globalThis : this, function createMyIDEEditorState() {
+  const DEFAULT_SNAP_SIZE = 10;
+
   function clone(value) {
     return value ? JSON.parse(JSON.stringify(value)) : value;
   }
@@ -156,6 +158,26 @@
     });
   }
 
+  function getEditableLayers(layers) {
+    return sortLayers(layers).filter((entry) => !entry?.locked);
+  }
+
+  function snapValue(value, step = DEFAULT_SNAP_SIZE) {
+    const normalizedStep = Number.isFinite(step) && step > 0 ? Math.round(step) : DEFAULT_SNAP_SIZE;
+    if (!Number.isFinite(value)) {
+      return 0;
+    }
+
+    return Math.round(value / normalizedStep) * normalizedStep;
+  }
+
+  function snapPoint(point, step = DEFAULT_SNAP_SIZE) {
+    return {
+      x: snapValue(point?.x ?? 0, step),
+      y: snapValue(point?.y ?? 0, step)
+    };
+  }
+
   function resolveCreationLayer(layers, selectedLayerId) {
     const sortedLayers = sortLayers(layers);
     const preferredSelectedLayer = sortedLayers.find((entry) => entry.id === selectedLayerId && !entry.locked);
@@ -236,6 +258,42 @@
     };
   }
 
+  function reassignObjectLayer(editorData, selectedObjectId, targetLayerId) {
+    if (!editorData || !Array.isArray(editorData.objects)) {
+      return null;
+    }
+
+    const targetLayer = getEditableLayers(editorData.layers).find((entry) => entry.id === targetLayerId);
+    if (!targetLayer) {
+      return null;
+    }
+
+    const selectedObject = editorData.objects.find((entry) => entry.id === selectedObjectId);
+    if (!selectedObject || selectedObject.locked) {
+      return null;
+    }
+
+    const previousLayerId = selectedObject.layerId;
+    if (previousLayerId === targetLayer.id) {
+      return {
+        objectId: selectedObject.id,
+        previousLayerId,
+        targetLayerId: targetLayer.id,
+        targetLayerName: targetLayer.displayName,
+        changed: false
+      };
+    }
+
+    selectedObject.layerId = targetLayer.id;
+    return {
+      objectId: selectedObject.id,
+      previousLayerId,
+      targetLayerId: targetLayer.id,
+      targetLayerName: targetLayer.displayName,
+      changed: true
+    };
+  }
+
   function deleteObject(editorData, selectedObjectId) {
     if (!editorData || !Array.isArray(editorData.objects)) {
       return null;
@@ -288,11 +346,16 @@
     pushUndoSnapshot,
     undo,
     redo,
+    DEFAULT_SNAP_SIZE,
+    snapValue,
+    snapPoint,
     createUniqueObjectId,
     createNumberedObjectId,
+    getEditableLayers,
     createPlaceholderObject,
     duplicateObject,
     deleteObject,
+    reassignObjectLayer,
     resolveSelectedObjectId
   };
 });

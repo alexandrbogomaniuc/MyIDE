@@ -61,12 +61,19 @@ async function main(): Promise<void> {
   const targetObject = findEditableObject(mutated, "node.free-spins-modal");
   const originalX = targetObject.x;
   const originalY = targetObject.y;
+  const requestedPosition = {
+    x: originalX + 13,
+    y: originalY + 17
+  };
+  const snappedPosition = editorState.snapPoint(requestedPosition, editorState.DEFAULT_SNAP_SIZE);
+  assert.notEqual(snappedPosition.x, requestedPosition.x, "Snap smoke should use an x position that rounds to the configured snap grid.");
+  assert.notEqual(snappedPosition.y, requestedPosition.y, "Snap smoke should use a y position that rounds to the configured snap grid.");
 
   let history = editorState.createHistory(original);
   history = editorState.pushUndoSnapshot(history, original, "Dragged node.free-spins-modal");
 
-  targetObject.x = originalX + 36;
-  targetObject.y = originalY + 24;
+  targetObject.x = snappedPosition.x;
+  targetObject.y = snappedPosition.y;
 
   const dragSave = await saveEditableProjectData(projectRoot, mutated);
   assert(dragSave.snapshotDir, "drag save must create a snapshot directory.");
@@ -79,18 +86,18 @@ async function main(): Promise<void> {
   const reloadedAfterSave = await loadEditableProjectData(projectRoot);
   assert(reloadedAfterSave, "project_001 editable data must still load after drag save.");
   const savedObject = findEditableObject(reloadedAfterSave, "node.free-spins-modal");
-  assert.equal(savedObject.x, originalX + 36, "Dragged x position must persist after save.");
-  assert.equal(savedObject.y, originalY + 24, "Dragged y position must persist after save.");
+  assert.equal(savedObject.x, snappedPosition.x, "Snapped x position must persist after save.");
+  assert.equal(savedObject.y, snappedPosition.y, "Snapped y position must persist after save.");
 
   const sliceAfterSave = await loadProjectSlice("project_001");
   const sliceObject = sliceAfterSave.editableProject?.objects.find((entry) => entry.id === "node.free-spins-modal");
   assert(sliceObject, "Shell project slice must include the dragged object after save.");
-  assert.equal(sliceObject.x, originalX + 36, "Project slice must reflect dragged x after reload.");
-  assert.equal(sliceObject.y, originalY + 24, "Project slice must reflect dragged y after reload.");
+  assert.equal(sliceObject.x, snappedPosition.x, "Project slice must reflect snapped x after reload.");
+  assert.equal(sliceObject.y, snappedPosition.y, "Project slice must reflect snapped y after reload.");
   const syncedModalNode = getSyncedSceneNode(sliceAfterSave.project as Record<string, unknown>, "node.free-spins-modal") as Record<string, unknown>;
   const syncedModalPosition = syncedModalNode.position as Record<string, unknown>;
-  assert.equal(syncedModalPosition.x, originalX + 36, "Replay-facing project.json must reflect dragged x after sync.");
-  assert.equal(syncedModalPosition.y, originalY + 24, "Replay-facing project.json must reflect dragged y after sync.");
+  assert.equal(syncedModalPosition.x, snappedPosition.x, "Replay-facing project.json must reflect snapped x after sync.");
+  assert.equal(syncedModalPosition.y, snappedPosition.y, "Replay-facing project.json must reflect snapped y after sync.");
 
   const undone = editorState.undo(history, mutated);
   assert(undone, "Undo state must exist for the drag snapshot.");
@@ -101,8 +108,8 @@ async function main(): Promise<void> {
   const redone = editorState.redo(undone.history, undone.editorData);
   assert(redone, "Redo state must exist after drag undo.");
   const redoneObject = findEditableObject(redone.editorData, "node.free-spins-modal");
-  assert.equal(redoneObject.x, originalX + 36, "Redo must restore dragged x in memory.");
-  assert.equal(redoneObject.y, originalY + 24, "Redo must restore dragged y in memory.");
+  assert.equal(redoneObject.x, snappedPosition.x, "Redo must restore snapped x in memory.");
+  assert.equal(redoneObject.y, snappedPosition.y, "Redo must restore snapped y in memory.");
 
   const restoreSave = await saveEditableProjectData(projectRoot, restoredSnapshot);
   assert(restoreSave.snapshotDir, "restore save must create a snapshot directory.");
