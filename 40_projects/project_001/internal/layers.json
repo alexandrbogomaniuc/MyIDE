@@ -8,7 +8,7 @@
       "visible": true,
       "locked": true,
       "order": 0,
-      "notes": "Backdrop art and ambient scene layer."
+      "notes": "Backdrop art and ambient scene layer. Visibility and lock are explicit persisted fields."
     },
     {
       "id": "layer.gameplay",
@@ -16,7 +16,7 @@
       "visible": true,
       "locked": false,
       "order": 1,
-      "notes": "Board frame, title, and side-panel objects. Unlocked for the first editor slice."
+      "notes": "Board frame, title, and side-panel objects. Unlocked for the first editor slice and persisted exactly as stored."
     },
     {
       "id": "layer.ui",
@@ -24,7 +24,7 @@
       "visible": true,
       "locked": false,
       "order": 2,
-      "notes": "HUD, banner, and counter objects. Unlocked for bounded property edits."
+      "notes": "HUD, banner, and counter objects. Unlocked for bounded property edits and persisted exactly as stored."
     },
     {
       "id": "layer.overlay",
@@ -32,7 +32,7 @@
       "visible": true,
       "locked": false,
       "order": 3,
-      "notes": "Modal and restore overlay objects."
+      "notes": "Modal and restore overlay objects. Visibility and lock are explicit persisted fields."
     }
   ]
 }

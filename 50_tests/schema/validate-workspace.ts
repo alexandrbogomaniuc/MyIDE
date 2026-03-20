@@ -3,6 +3,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import Ajv2020 from "ajv/dist/2020";
 import type { ErrorObject, ValidateFunction } from "ajv";
+import { loadEditableProjectData } from "../../30_app/workspace/editableProject";
 import { loadWorkspaceSlice } from "../../30_app/shell/workspaceSlice";
 import { buildDerivedRegistry, discoverProjectMetas, isJsonObject, readJsonObject } from "../../30_app/workspace/discoverProjects";
 
@@ -88,6 +89,40 @@ function assertProjectPaths(meta: JsonObject, expectedProjectRoot: string, expec
   assert(getString(paths.registryPath, `${expectedMetaPath}.paths.registryPath`) === "40_projects/registry.json", `${expectedMetaPath} registryPath must point to the derived registry`);
 }
 
+function assertLayerCollectionShape(value: JsonObject, label: string): void {
+  const layers = Array.isArray(value.layers) ? value.layers : [];
+  assert(layers.length > 0, `${label}.layers must contain at least one layer`);
+
+  for (const [index, layer] of layers.entries()) {
+    const layerObject = getObject(layer as JsonValue, `${label}.layers[${index}]`);
+    assert(typeof layerObject.id === "string" && layerObject.id.length > 0, `${label}.layers[${index}].id must be a non-empty string`);
+    assert(typeof layerObject.displayName === "string" && layerObject.displayName.length > 0, `${label}.layers[${index}].displayName must be a non-empty string`);
+    assert(typeof layerObject.visible === "boolean", `${label}.layers[${index}].visible must be an explicit boolean`);
+    assert(typeof layerObject.locked === "boolean", `${label}.layers[${index}].locked must be an explicit boolean`);
+    assert(typeof layerObject.order === "number", `${label}.layers[${index}].order must be a number`);
+  }
+}
+
+function assertObjectCollectionShape(value: JsonObject, label: string, knownLayerIds: readonly string[]): void {
+  const objects = Array.isArray(value.objects) ? value.objects : [];
+  assert(objects.length > 0, `${label}.objects must contain at least one object`);
+
+  for (const [index, object] of objects.entries()) {
+    const objectRecord = getObject(object as JsonValue, `${label}.objects[${index}]`);
+    assert(typeof objectRecord.id === "string" && objectRecord.id.length > 0, `${label}.objects[${index}].id must be a non-empty string`);
+    assert(typeof objectRecord.displayName === "string" && objectRecord.displayName.length > 0, `${label}.objects[${index}].displayName must be a non-empty string`);
+    assert(typeof objectRecord.type === "string" && objectRecord.type.length > 0, `${label}.objects[${index}].type must be a non-empty string`);
+    assert(typeof objectRecord.layerId === "string" && objectRecord.layerId.length > 0, `${label}.objects[${index}].layerId must be a non-empty string`);
+    assert(knownLayerIds.includes(objectRecord.layerId), `${label}.objects[${index}].layerId must reference a known layer`);
+    assert(typeof objectRecord.x === "number", `${label}.objects[${index}].x must be a number`);
+    assert(typeof objectRecord.y === "number", `${label}.objects[${index}].y must be a number`);
+    assert(typeof objectRecord.scaleX === "number", `${label}.objects[${index}].scaleX must be a number`);
+    assert(typeof objectRecord.scaleY === "number", `${label}.objects[${index}].scaleY must be a number`);
+    assert(typeof objectRecord.visible === "boolean", `${label}.objects[${index}].visible must be an explicit boolean`);
+    assert(typeof objectRecord.locked === "boolean", `${label}.objects[${index}].locked must be an explicit boolean`);
+  }
+}
+
 async function main(): Promise<void> {
   const ajv = await createAjv();
   const validateProjectSchema = requireSchema(ajv, "https://myide.local/schemas/project.schema.json");
@@ -100,6 +135,7 @@ async function main(): Promise<void> {
   const discoveredProjects = await discoverProjectMetas();
   const derivedRegistry = JSON.parse(JSON.stringify(buildDerivedRegistry(discoveredProjects))) as JsonObject;
   const workspaceBundle = JSON.parse(JSON.stringify(await loadWorkspaceSlice())) as JsonObject;
+  const editableProject = await loadEditableProjectData(path.join(projectsRoot, "project_001"));
   const project001Json = await readJsonObject(project001JsonPath);
   const project002Meta = await readJsonObject(project002MetaPath);
   const project001InternalScene = await readJsonObject(project001InternalScenePath);
@@ -126,11 +162,22 @@ async function main(): Promise<void> {
   const project001InternalSceneIsValid = validateSceneSchema(project001InternalScene);
   assert(project001InternalSceneIsValid, `project_001/internal/scene.json failed schema validation: ${formatErrors(validateSceneSchema.errors)}`);
 
-  const project001InternalLayersIsValid = validateSceneSchema(project001InternalLayers);
-  assert(project001InternalLayersIsValid, `project_001/internal/layers.json failed schema validation: ${formatErrors(validateSceneSchema.errors)}`);
+  assertLayerCollectionShape(project001InternalLayers, "project_001/internal/layers.json");
+  assertObjectCollectionShape(project001InternalObjects, "project_001/internal/objects.json", Array.isArray(project001InternalLayers.layers)
+    ? project001InternalLayers.layers.map((entry, index) => getString(getObject(entry as JsonValue, `project_001/internal/layers.json.layers[${index}]`).id, `project_001/internal/layers.json.layers[${index}].id`))
+    : []);
 
-  const project001InternalObjectsIsValid = validateSceneSchema(project001InternalObjects);
-  assert(project001InternalObjectsIsValid, `project_001/internal/objects.json failed schema validation: ${formatErrors(validateSceneSchema.errors)}`);
+  assert(editableProject, "project_001 editable project data must be loadable.");
+  assert.deepStrictEqual(
+    JSON.parse(JSON.stringify(editableProject.layers)),
+    JSON.parse(JSON.stringify(Array.isArray(project001InternalLayers.layers) ? project001InternalLayers.layers : [])),
+    "loadEditableProjectData must preserve explicit layer visibility and lock state"
+  );
+  assert.deepStrictEqual(
+    JSON.parse(JSON.stringify(editableProject.objects)),
+    JSON.parse(JSON.stringify(Array.isArray(project001InternalObjects.objects) ? project001InternalObjects.objects : [])),
+    "loadEditableProjectData must preserve internal object placement data"
+  );
 
   const workspaceIsValid = validateWorkspaceSchema(workspaceBundle);
   assert(workspaceIsValid, `workspace slice failed schema validation: ${formatErrors(validateWorkspaceSchema.errors)}`);
