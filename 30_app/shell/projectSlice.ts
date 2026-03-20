@@ -1,10 +1,12 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { loadWorkspaceSlice, type WorkspaceSliceBundle } from "./workspaceSlice";
 
 type JsonValue = null | boolean | number | string | JsonObject | JsonValue[];
 type JsonObject = { [key: string]: JsonValue };
 
 export interface ProjectSliceBundle {
+  workspace: WorkspaceSliceBundle;
   project: JsonObject;
   fixtures: {
     normalSpin: JsonObject;
@@ -70,7 +72,8 @@ function assertPreviewAssetsStayInternal(project: JsonObject): void {
 
 export async function loadProjectSlice(): Promise<ProjectSliceBundle> {
   const [projectPath, normalSpinPath, freeSpinsTriggerPath, restartRestorePath, mockedGameStatePath, mockedLastActionPath] = getProjectSlicePaths();
-  const [project, normalSpin, freeSpinsTrigger, restartRestore, mockedGameState, mockedLastAction] = await Promise.all([
+  const [workspace, project, normalSpin, freeSpinsTrigger, restartRestore, mockedGameState, mockedLastAction] = await Promise.all([
+    loadWorkspaceSlice(),
     readJsonFile(projectPath),
     readJsonFile(normalSpinPath),
     readJsonFile(freeSpinsTriggerPath),
@@ -82,6 +85,7 @@ export async function loadProjectSlice(): Promise<ProjectSliceBundle> {
   assertPreviewAssetsStayInternal(project);
 
   return {
+    workspace,
     project,
     fixtures: {
       normalSpin,

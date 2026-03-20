@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://myide.local/schemas/target-game.schema.json",
+  "title": "MyIDE Target Game",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["targetGameId", "displayName", "gameFamily", "relationship", "status"],
+  "properties": {
+    "targetGameId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "displayName": {
+      "type": "string",
+      "minLength": 1
+    },
+    "gameFamily": {
+      "type": "string",
+      "enum": ["slot", "card", "dice", "crash", "other"]
+    },
+    "relationship": {
+      "type": "string",
+      "enum": ["donor-source", "reconstruction-target", "resulting-game", "future-target", "reference-only"]
+    },
+    "status": {
+      "type": "string",
+      "enum": ["proven", "validated", "planned", "in-progress", "blocked", "reference-only"]
+    },
+    "provenNotes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "plannedNotes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "notes": {
+      "type": "string"
+    }
+  }
+}

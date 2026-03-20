@@ -1,5 +1,6 @@
 const state = {
   bundle: null,
+  selectedProjectId: null,
   activeStateId: "state.idle",
   activeFixtureKey: null,
   currentGrid: [],
@@ -61,6 +62,7 @@ async function init() {
     }
 
     state.bundle = await window.myideApi.loadProjectSlice();
+    state.selectedProjectId = state.bundle.workspace?.selectedProjectId ?? state.bundle.workspace?.projects?.[0]?.projectId ?? null;
     resetToIdle(true);
   } catch (error) {
     renderFatal(error instanceof Error ? error.message : "Unknown preview error.");
@@ -81,10 +83,45 @@ function bindActions() {
   elements.actionDemo?.addEventListener("click", () => {
     void playFullDemo();
   });
+  elements.projectBrowser?.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) {
+      return;
+    }
+
+    const button = target.closest("[data-project-id]");
+    if (!(button instanceof HTMLElement)) {
+      return;
+    }
+
+    const projectId = button.dataset.projectId;
+    if (typeof projectId === "string" && projectId.length > 0) {
+      state.selectedProjectId = projectId;
+      renderAll();
+    }
+  });
 }
 
 function getProject() {
   return state.bundle.project;
+}
+
+function getWorkspace() {
+  return state.bundle.workspace;
+}
+
+function getWorkspaceProjects() {
+  const workspace = getWorkspace();
+  return Array.isArray(workspace.projects) ? workspace.projects : [];
+}
+
+function getSelectedWorkspaceProject() {
+  const projects = getWorkspaceProjects();
+  if (projects.length === 0) {
+    return null;
+  }
+
+  return projects.find((entry) => entry.projectId === state.selectedProjectId) ?? projects[0];
 }
 
 function getFixture(key) {
@@ -322,28 +359,72 @@ function renderProjectBrowser() {
     return;
   }
 
-  const project = getProject();
-  const assumptions = Array.isArray(project.provenance?.assumptions) ? project.provenance.assumptions : [];
-  const todos = Array.isArray(project.provenance?.todo) ? project.provenance.todo : [];
+  const workspace = getWorkspace();
+  const projects = getWorkspaceProjects();
+  const selectedProject = getSelectedWorkspaceProject();
+  const projectCards = projects.map((project) => {
+    const isSelected = project.projectId === selectedProject?.projectId;
+
+    return `
+      <button class="project-card ${isSelected ? "is-selected" : ""}" type="button" data-project-id="${project.projectId}">
+        <div class="project-card-head">
+          <strong>${project.displayName}</strong>
+          <span>${project.verificationStatus}</span>
+        </div>
+        <p>${project.donor.donorName} <code>${project.donor.donorId}</code></p>
+        <p>${project.targetGame.displayName}</p>
+        <div class="chip-row">
+          <span>${project.phase}</span>
+          <span>${project.gameFamily}</span>
+          <span>${project.implementationScope}</span>
+        </div>
+      </button>
+    `;
+  }).join("");
+
+  const selectedNotes = selectedProject ? `
+    <div class="detail-grid">
+      <div class="detail-card">
+        <span>Donor</span>
+        <strong>${selectedProject.donor.donorName}</strong>
+        <small>${selectedProject.donor.donorId}</small>
+      </div>
+      <div class="detail-card">
+        <span>Target / Resulting Game</span>
+        <strong>${selectedProject.targetGame.displayName}</strong>
+        <small>${selectedProject.targetGame.notes}</small>
+      </div>
+      <div class="detail-card">
+        <span>Phase</span>
+        <strong>${selectedProject.phase}</strong>
+        <small>${selectedProject.gameFamily} / ${selectedProject.implementationScope}</small>
+      </div>
+      <div class="detail-card">
+        <span>Verification</span>
+        <strong>${selectedProject.verificationStatus}</strong>
+        <small>${workspace.source.registryFound ? "Registry-backed workspace view." : "Synthesized from validated project_001."}</small>
+      </div>
+    </div>
+  ` : `<p class="muted-copy">No projects available.</p>`;
 
   elements.projectBrowser.innerHTML = `
     <div class="tree-row">
-      <strong>${project.projectId}</strong>
-      <span>${project.description}</span>
-      <code>${project.sources.editableRoot}</code>
+      <strong>${workspace.displayName}</strong>
+      <span>${workspace.description}</span>
+      <code>${workspace.registryPath}</code>
     </div>
     <div class="tree-row">
-      <strong>Replay Scope</strong>
-      <span>Idle, base win, free spins trigger, free spins active, mocked restart recovery.</span>
+      <strong>Registry Source</strong>
+      <span>${workspace.source.registryFound ? "Loaded from registry.json" : workspace.source.note}</span>
+    </div>
+    <div class="project-list">
+      ${projectCards}
     </div>
     <div class="tree-row">
-      <strong>Assumptions</strong>
-      <ul>${assumptions.map((item) => `<li>${item}</li>`).join("")}</ul>
+      <strong>Selected Project</strong>
+      <span>${selectedProject ? selectedProject.displayName : "No selection"}</span>
     </div>
-    <div class="tree-row">
-      <strong>Next Proof Gaps</strong>
-      <ul>${todos.map((item) => `<li>${item}</li>`).join("")}</ul>
-    </div>
+    ${selectedNotes}
   `;
 }
 
@@ -397,6 +478,7 @@ function renderGrid() {
 function renderStage() {
   const activeState = getActiveStateRecord();
   const fixture = state.activeFixtureKey ? getFixture(state.activeFixtureKey) : null;
+  const selectedProject = getSelectedWorkspaceProject();
 
   if (elements.sceneLabel) {
     elements.sceneLabel.textContent = "scene.main";
@@ -405,15 +487,15 @@ function renderStage() {
     elements.activeStateChip.textContent = state.activeStateId;
   }
   if (elements.sceneTitle) {
-    elements.sceneTitle.textContent = "MYSTERY GARDEN";
+    elements.sceneTitle.textContent = selectedProject?.targetGame.displayName ?? "MYSTERY GARDEN";
   }
   if (elements.sideHeading) {
-    elements.sideHeading.textContent = state.activeStateId === "state.free-spins-active" ? "Bonus Active Panel" : "Buy Bonus Panel";
+    elements.sideHeading.textContent = selectedProject?.displayName ?? (state.activeStateId === "state.free-spins-active" ? "Bonus Active Panel" : "Buy Bonus Panel");
   }
   if (elements.sideCopy) {
-    elements.sideCopy.textContent = state.activeStateId === "state.free-spins-active"
+    elements.sideCopy.textContent = selectedProject?.notes?.proven?.[0] ?? (state.activeStateId === "state.free-spins-active"
       ? "Sticky frame placeholders stay highlighted while the local replay remains in bonus mode."
-      : "This bounded replay mirrors the visible donor layout with clean internal placeholders.";
+      : "This bounded replay mirrors the visible donor layout with clean internal placeholders.");
   }
   if (elements.balanceLabel) {
     elements.balanceLabel.textContent = toFixedAmount(state.balance);
@@ -467,6 +549,7 @@ function renderInspector() {
   }
 
   const project = getProject();
+  const selectedProject = getSelectedWorkspaceProject();
   const activeState = getActiveStateRecord();
   const fixture = state.activeFixtureKey ? getFixture(state.activeFixtureKey) : null;
   const evidenceRefs = Array.from(new Set([
@@ -478,15 +561,28 @@ function renderInspector() {
 
   elements.inspector.innerHTML = `
     <div class="inspector-title">
-      <p>Replay State</p>
-      <h3>${state.activeStateId}</h3>
+      <p>Workspace + Replay State</p>
+      <h3>${selectedProject?.displayName ?? project.projectId}</h3>
     </div>
-    <p class="inspector-purpose">${activeState?.name ?? "Unknown state"} mapped to a bounded PHASE 3 local replay.</p>
+    <p class="inspector-purpose">${selectedProject?.donor.donorName ?? "Unknown project"} mapped to a bounded local replay.</p>
+    <section>
+      <h4>Project Metadata</h4>
+      <ul>
+        <li>Project ID: <code>${selectedProject?.projectId ?? "unknown"}</code></li>
+        <li>Status: <code>${selectedProject?.status ?? "unknown"}</code></li>
+        <li>Target / Resulting game: <code>${selectedProject?.targetGame.displayName ?? "unknown"}</code></li>
+        <li>Phase: <code>${selectedProject?.phase ?? "unknown"}</code></li>
+        <li>Implementation scope: <code>${selectedProject?.implementationScope ?? "unknown"}</code></li>
+        <li>Verification: <code>${selectedProject?.verificationStatus ?? "unknown"}</code></li>
+        <li>Workspace active project: <code>${state.bundle.workspace.activeProjectId ?? "unknown"}</code></li>
+      </ul>
+    </section>
     <section>
       <h4>Proven Facts</h4>
       <ul>
         <li>Preview data is loaded from <code>40_projects/project_001</code> only.</li>
         <li>Current fixture: <code>${fixture?.fixtureId ?? "idle-only"}</code>.</li>
+        <li>Selected project metadata is registry-backed; replay runtime still uses the validated internal slice only.</li>
         <li>Evidence refs on the active donor-backed state are shown below.</li>
       </ul>
     </section>
@@ -501,6 +597,13 @@ function renderInspector() {
     <section>
       <h4>Unresolved</h4>
       <ul>${unresolved.map((item) => `<li>${item}</li>`).join("")}</ul>
+    </section>
+    <section>
+      <h4>Notes</h4>
+      <ul>
+        <li>${selectedProject?.notes?.proven?.[0] ?? "Validated slice remains intact."}</li>
+        <li>${selectedProject?.notes?.planned?.[0] ?? "Workspace registry will expand over time."}</li>
+      </ul>
     </section>
   `;
 }

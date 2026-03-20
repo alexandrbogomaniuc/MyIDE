@@ -1,0 +1,185 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://myide.local/schemas/project-metadata.schema.json",
+  "title": "MyIDE Project Metadata",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "projectId",
+    "slug",
+    "displayName",
+    "gameFamily",
+    "implementationScope",
+    "phase",
+    "status",
+    "verification",
+    "paths",
+    "donor",
+    "targetGame",
+    "timestamps",
+    "notes"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "0.1.0"
+    },
+    "projectId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "slug": {
+      "type": "string",
+      "minLength": 1
+    },
+    "displayName": {
+      "type": "string",
+      "minLength": 1
+    },
+    "gameFamily": {
+      "type": "string",
+      "enum": ["slot", "card", "dice", "crash", "other"]
+    },
+    "implementationScope": {
+      "type": "string",
+      "enum": ["slot-first", "universal-architecture", "reference-only"]
+    },
+    "phase": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "type": "string",
+      "enum": ["planned", "in-progress", "validated", "blocked", "archived"]
+    },
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "checks"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["unknown", "in-progress", "verified-replay-slice", "verified-workspace", "blocked"]
+        },
+        "checks": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "lastVerifiedAt": {
+          "type": "string",
+          "minLength": 1
+        },
+        "notes": {
+          "type": "string"
+        }
+      }
+    },
+    "paths": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["projectRoot", "projectJson", "metaPath", "registryPath", "evidenceRoot"],
+      "properties": {
+        "projectRoot": {
+          "type": "string",
+          "minLength": 1
+        },
+        "projectJson": {
+          "type": "string",
+          "minLength": 1
+        },
+        "metaPath": {
+          "type": "string",
+          "minLength": 1
+        },
+        "registryPath": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evidenceRoot": {
+          "type": "string",
+          "minLength": 1
+        },
+        "importPath": {
+          "type": "string",
+          "minLength": 1
+        },
+        "runtimeRoot": {
+          "type": "string",
+          "minLength": 1
+        },
+        "fixturesRoot": {
+          "type": "string",
+          "minLength": 1
+        },
+        "logsRoot": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "donor": {
+      "$ref": "./donor-link.schema.json"
+    },
+    "targetGame": {
+      "$ref": "./target-game.schema.json"
+    },
+    "timestamps": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["createdAt", "updatedAt"],
+      "properties": {
+        "createdAt": {
+          "type": "string",
+          "minLength": 1
+        },
+        "updatedAt": {
+          "type": "string",
+          "minLength": 1
+        },
+        "firstValidatedAt": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "notes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provenFacts", "plannedWork"],
+      "properties": {
+        "provenFacts": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "plannedWork": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "assumptions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "unresolvedQuestions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  }
+}

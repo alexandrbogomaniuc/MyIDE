@@ -1,0 +1,95 @@
+{
+  "schemaVersion": "0.1.0",
+  "projectId": "project_001",
+  "slug": "mystery-garden",
+  "displayName": "Mystery Garden Replay Slice",
+  "gameFamily": "slot",
+  "implementationScope": "slot-first",
+  "phase": "PHASE 3",
+  "status": "validated",
+  "verification": {
+    "status": "verified-replay-slice",
+    "checks": [
+      "import:mystery-garden",
+      "validate:project_001",
+      "assert:replay"
+    ],
+    "lastVerifiedAt": "2026-03-20T10:32:56Z",
+    "notes": "Internal replay slice is verified; live restart and free-spins capture gaps remain."
+  },
+  "paths": {
+    "projectRoot": "40_projects/project_001",
+    "projectJson": "40_projects/project_001/project.json",
+    "metaPath": "40_projects/project_001/project.meta.json",
+    "registryPath": "40_projects/registry.json",
+    "evidenceRoot": "10_donors/donor_001_mystery_garden/evidence",
+    "importPath": "40_projects/project_001/imports/mystery-garden-import.json",
+    "runtimeRoot": "40_projects/project_001/runtime",
+    "fixturesRoot": "40_projects/project_001/fixtures",
+    "logsRoot": "40_projects/project_001/logs"
+  },
+  "donor": {
+    "donorId": "donor_001_mystery_garden",
+    "donorName": "Mystery Garden",
+    "evidenceRoot": "10_donors/donor_001_mystery_garden/evidence",
+    "captureSessions": [
+      "MG-CS-20260320-WEB-A",
+      "MG-CS-20260320-LIVE-A"
+    ],
+    "evidenceRefs": [
+      "MG-EV-20260320-WEB-A-001",
+      "MG-EV-20260320-WEB-A-002",
+      "MG-EV-20260320-WEB-A-003",
+      "MG-EV-20260320-WEB-A-004",
+      "MG-EV-20260320-WEB-A-005",
+      "MG-EV-20260320-WEB-A-006",
+      "MG-EV-20260320-WEB-A-007",
+      "MG-EV-20260320-WEB-A-008",
+      "MG-EV-20260320-LIVE-A-001",
+      "MG-EV-20260320-LIVE-A-002",
+      "MG-EV-20260320-LIVE-A-003",
+      "MG-EV-20260320-LIVE-A-004",
+      "MG-EV-20260320-LIVE-A-005",
+      "MG-EV-20260320-LIVE-A-006"
+    ],
+    "status": "proven",
+    "notes": "Only validated donor slice in the current workspace."
+  },
+  "targetGame": {
+    "targetGameId": "target.mystery-garden.replay-slice",
+    "displayName": "Mystery Garden Replay Slice",
+    "gameFamily": "slot",
+    "relationship": "reconstruction-target",
+    "status": "validated",
+    "provenNotes": [
+      "Internal replay runs from clean project data only.",
+      "The donor-to-replay path is verified without production integration."
+    ],
+    "plannedNotes": [
+      "Future reskinning is deferred.",
+      "Additional donor slices may be added later."
+    ],
+    "notes": "Validated internal slice only; not the final resulting game."
+  },
+  "timestamps": {
+    "createdAt": "2026-03-20T00:00:00Z",
+    "updatedAt": "2026-03-20T10:32:56Z",
+    "firstValidatedAt": "2026-03-20T10:32:56Z"
+  },
+  "notes": {
+    "provenFacts": [
+      "Replay loader uses internal project data only.",
+      "Project_001 is the only validated donor-backed project so far."
+    ],
+    "plannedWork": [
+      "Add future projects through the workspace registry.",
+      "Keep donor links and target game metadata explicit for every project."
+    ],
+    "assumptions": [
+      "This metadata file is the shell-facing project summary until a richer workspace state file exists."
+    ],
+    "unresolvedQuestions": [
+      "How quickly the project registry will grow beyond a single validated entry."
+    ]
+  }
+}

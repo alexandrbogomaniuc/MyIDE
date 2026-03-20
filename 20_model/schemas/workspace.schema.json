@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://myide.local/schemas/workspace.schema.json",
+  "title": "MyIDE Workspace",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "workspaceId", "displayName", "implementationScope", "projectRegistryPath", "activeProjectId", "projectSummaries"],
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "0.1.0"
+    },
+    "workspaceId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "displayName": {
+      "type": "string",
+      "minLength": 1
+    },
+    "implementationScope": {
+      "type": "string",
+      "enum": ["universal-local-first", "slot-first", "reference-only"]
+    },
+    "projectRegistryPath": {
+      "type": "string",
+      "minLength": 1
+    },
+    "activeProjectId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "projectSummaries": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["projectId", "displayName", "phase", "status", "verificationStatus"],
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "displayName": {
+            "type": "string",
+            "minLength": 1
+          },
+          "phase": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": ["planned", "in-progress", "validated", "blocked", "archived"]
+          },
+          "verificationStatus": {
+            "type": "string",
+            "enum": ["unknown", "in-progress", "verified-replay-slice", "verified-workspace", "blocked"]
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  }
+}

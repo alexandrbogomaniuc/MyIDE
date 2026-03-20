@@ -8,8 +8,20 @@ The internal model is the editable source of truth for reconstructed games insid
 - V1 is single-user only.
 - Raw donor files must remain separate and read-only.
 - The first milestone is donor to local preview.
+- MyIDE is a universal local-first IDE with a multi-project workspace model, even though the current implementation slice remains slot-first.
+- Each project is expected to carry donor linkage, internal model data, target/resulting game metadata, verification history, and phase/status context.
 
 ## Draft Model Shape
+- `workspace.schema.json`
+  - workspace identity, project browser state, and registry path for the shell.
+- `project-registry.schema.json`
+  - the multi-project registry consumed by the shell and future workspace tooling.
+- `project-metadata.schema.json`
+  - project-level linkage between donor evidence, internal clean model, and target/resulting game.
+- `donor-link.schema.json`
+  - explicit donor provenance and evidence references for a project.
+- `target-game.schema.json`
+  - the resulting or future game target for a project, with clear status markers.
 - `project.schema.json`
   - overall project metadata,
   - storage roots,
@@ -49,9 +61,10 @@ The internal model is the editable source of truth for reconstructed games insid
 - File-backed JSON artifacts are sufficient for PHASE 2.
 - The first imported projects will benefit from one root document referencing modular sub-documents.
 - PHASE 2 restart recovery can be modeled with clean internal checkpoints before any production adapter exists.
+- The workspace registry can stay small and explicit until additional projects are added.
+- The shell can consume registry summaries while the replay engine continues to consume only `project_001` internal data.
 
 ## TODO Investigation
-- Decide whether a scene document should stay embedded in the project file or split into multiple files for larger games.
-- Decide how much replay/runtime state should be serialized versus recomputed.
-- Decide whether PixiJS becomes the canonical preview renderer or only one renderer option.
-- Validate whether message and localization packs should remain embedded in the root document or split when the first multi-locale project appears.
+- Decide whether future projects should share a single workspace registry file or split by product line when the list grows.
+- Decide how much of the project metadata should be duplicated between registry summaries and project meta files.
+- Decide whether a future workspace file should become the shell's active-state source or remain an editor-only concept.

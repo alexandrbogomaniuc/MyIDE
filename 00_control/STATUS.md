@@ -1,8 +1,8 @@
 # MyIDE Status
 
 ## Current Phase
-- Active scope: PHASE 3.
-- Current milestone: public-safe PHASE 3 closeout for one Mystery Garden slice with deterministic importer generation and verified internal-only replay.
+- Active scope: PHASE 4A architecture alignment on top of the existing slot-first implementation slice.
+- Current milestone: make the workspace explicitly multi-project while keeping the only validated implementation slice as `donor_001_mystery_garden`.
 
 ## Progress Log
 
@@ -29,6 +29,8 @@
 - Moved raw donor downloads and runtime payload bodies behind a git-ignored `local_only/` evidence boundary while keeping hashes, inventories, and honest capture notes public.
 - Added an executable `import:mystery-garden` CLI step and a consolidated `verify:project_001` command.
 - Hardened validation so the import artifact must match deterministic importer output and current fixture shape expectations.
+- Reframed MyIDE as a universal multi-project IDE while keeping the validated implementation slice slot-first and single-user.
+- Introduced workspace/project terminology for donor -> internal model -> target/resulting game relationships.
 
 ## Proven Facts
 - Local reference repos are available at `/Users/alexb/Documents/Dev/new-games-client` and `/Users/alexb/Documents/Dev/new-games-server`.
@@ -36,6 +38,7 @@
 - Replay/runtime data still lives only under `40_projects/project_001`.
 - The importer command, validation command, and replay assertion command now exist in `package.json`.
 - The public repo no longer tracks raw donor downloads or live runtime payload bodies for the current donor pack.
+- MyIDE now has a public-facing architecture scope doc and subagent workflow doc that keep universal architecture separate from the current slot-first implementation slice.
 
 ## Active Assumptions
 - Electron remains an acceptable desktop container for the bounded local replay workflow.
@@ -47,3 +50,4 @@
 - A live `spin` request/response pair, live free-spins entry, and live restart recovery sequence are still uncaptured.
 - Animation timings and the full symbol/paytable inventory remain unresolved.
 - Interactive Electron launch still needs GUI validation in a display-capable environment.
+- The workspace browser and registry layer are not yet implemented in this file set; this run only resets the public positioning and scope language.
