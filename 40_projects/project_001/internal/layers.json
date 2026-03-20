@@ -14,17 +14,17 @@
       "id": "layer.gameplay",
       "displayName": "Gameplay",
       "visible": true,
-      "locked": true,
+      "locked": false,
       "order": 1,
-      "notes": "Board frame, title, and side-panel objects."
+      "notes": "Board frame, title, and side-panel objects. Unlocked for the first editor slice."
     },
     {
       "id": "layer.ui",
       "displayName": "UI",
       "visible": true,
-      "locked": true,
+      "locked": false,
       "order": 2,
-      "notes": "HUD, banner, and counter objects."
+      "notes": "HUD, banner, and counter objects. Unlocked for bounded property edits."
     },
     {
       "id": "layer.overlay",

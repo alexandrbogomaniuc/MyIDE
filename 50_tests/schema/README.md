@@ -4,12 +4,14 @@
 - Discover projects from `40_projects/*/project.meta.json`.
 - Validate discovered project metadata against the model schemas.
 - Derive the registry projection from discovered folders and compare it to `40_projects/registry.json`.
+- Validate `project_001/internal/scene.json`, `layers.json`, and `objects.json` against the scene contract.
 - Keep `project_001` replay-slice verification passing.
 
 ## Command
 - `npm run typecheck`
 - `npm run validate:workspace`
 - `npm run smoke:create-project`
+- `npm run smoke:edit-project`
 - `npm run verify:workspace`
 
 ## Known Gaps

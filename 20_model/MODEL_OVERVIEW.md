@@ -34,7 +34,8 @@ The internal model is the editable source of truth for reconstructed games insid
 - `assets.schema.json`
   - clean asset catalog for imported, recreated, original, or placeholder assets.
 - `scene.schema.json`
-  - scene graph and layout nodes for preview and shell presentation.
+  - backward-compatible legacy scene graph plus the first editable scene/layer/object contract for visual editor slices.
+  - supports split internal scene documents for header, layer stack, and object placement while keeping replay validation intact.
 - `animations.schema.json`
   - clips, timelines, and trigger bindings.
 - `states.schema.json`
@@ -60,6 +61,7 @@ The internal model is the editable source of truth for reconstructed games insid
 - Each claim is marked as `proven`, `assumption`, or `todo`.
 - The model supports placeholder and recreated assets so local replay can progress before every donor detail is fully proven.
 - Replay fixtures, mock `gameState`, and mock `lastAction` live under `40_projects/` and are internal data only.
+- The first editable scene slice for `project_001` lives under `40_projects/project_001/internal/scene.json`, `layers.json`, and `objects.json`, while the legacy `project.json` replay slice remains the runtime source of truth for now.
 
 ## Assumptions
 - File-backed JSON artifacts are sufficient for PHASE 2.

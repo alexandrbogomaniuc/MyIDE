@@ -12,14 +12,13 @@
         <div class="brand">
           <p class="eyebrow">Local-first reconstruction studio</p>
           <h1>MyIDE</h1>
-          <p class="lede">Universal multi-project IDE, currently validated on one slot-first Mystery Garden slice.</p>
+          <p class="lede">Universal multi-project IDE with the first usable scene editor slice for the validated Mystery Garden project.</p>
         </div>
         <div class="chips" aria-label="Project constraints">
           <span>MULTI PROJECT</span>
-          <span>V1</span>
-          <span>SLOT ONLY</span>
+          <span>SLOT FIRST</span>
           <span>SINGLE USER</span>
-          <span>PROJECT LIST</span>
+          <span>LOCAL SAVE</span>
         </div>
       </header>
 
@@ -31,7 +30,7 @@
               <span>Folder-discovered workspace</span>
             </div>
             <div class="browser-toolbar">
-              <p class="muted-copy">Add a project folder, rescan, and the workspace should surface it when the metadata is valid.</p>
+              <p class="muted-copy">Project folders stay authoritative. Open `project_001` to edit the first validated scene slice.</p>
               <button id="action-rescan" type="button">Rescan Workspace</button>
             </div>
             <div id="project-browser" class="browser-stack" aria-live="polite"></div>
@@ -39,8 +38,16 @@
 
           <article class="panel">
             <div class="panel-head">
+              <h2>Scene Explorer</h2>
+              <span>Scene, layer, object list</span>
+            </div>
+            <div id="scene-explorer" class="browser-stack" aria-live="polite"></div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-head">
               <h2>New Project</h2>
-              <span>Create a scaffold from the shell</span>
+              <span>Keep onboarding local-first</span>
             </div>
             <form id="new-project-form" class="project-form">
               <label class="form-field">
@@ -79,102 +86,45 @@
               </div>
             </form>
           </article>
-
-          <article class="panel">
-            <div class="panel-head">
-              <h2>Donor Evidence Browser</h2>
-              <span>Referenced, not loaded at runtime</span>
-            </div>
-            <div id="evidence-browser" class="browser-stack" aria-live="polite"></div>
-          </article>
         </section>
 
-        <section class="panel preview-panel">
+        <section class="panel editor-panel">
           <div class="panel-head">
-            <h2>Local Replay</h2>
-            <span>Deterministic internal slice</span>
+            <h2>Editor Canvas</h2>
+            <span>Internal scene data only</span>
           </div>
-          <div class="controls" role="toolbar" aria-label="Replay controls">
-            <button id="action-idle" type="button">Idle</button>
-            <button id="action-spin" type="button">Normal Spin</button>
-            <button id="action-free-spins" type="button">Free Spins Trigger</button>
-            <button id="action-restore" type="button">Restore Mocked Restart</button>
-            <button id="action-demo" type="button">Play Full Demo</button>
+          <div class="editor-toolbar">
+            <button id="action-save" type="button">Save Scene Changes</button>
+            <button id="action-reload-editor" type="button">Reload From Disk</button>
           </div>
-          <div class="stage-shell">
-            <div class="stage-frame" aria-label="Mystery Garden replay stage">
-              <div class="stage-topline">
-                <span id="scene-label">scene.main</span>
-                <span id="active-state-chip">state.idle</span>
-              </div>
-              <div class="stage-title" id="scene-title">MYSTERY GARDEN</div>
-              <div class="side-card">
-                <p class="card-eyebrow">Observed UI</p>
-                <h3 id="side-heading">Buy Bonus Panel</h3>
-                <p id="side-copy">Internal placeholder mapped from evidence-backed donor layout.</p>
-                <div class="meta-grid">
-                  <div>
-                    <span>Balance</span>
-                    <strong id="balance-label">1200.00</strong>
-                  </div>
-                  <div>
-                    <span>Bet</span>
-                    <strong id="bet-label">1.00</strong>
-                  </div>
-                </div>
-              </div>
-              <div class="board-frame">
-                <div class="board-grid" id="reel-grid" aria-live="polite"></div>
-                <div class="win-banner is-hidden" id="win-banner"></div>
-                <div class="free-spins-pill is-hidden" id="free-spins-pill"></div>
-                <div class="restore-chip is-hidden" id="restore-chip"></div>
-                <div class="overlay-card is-hidden" id="overlay-card">
-                  <p id="overlay-title"></p>
-                  <h3 id="overlay-value"></h3>
-                </div>
-              </div>
-              <div class="bottom-hud">
-                <div>
-                  <span>Mode</span>
-                  <strong>Local replay</strong>
-                </div>
-                <div>
-                  <span>Source</span>
-                  <strong>project_001 JSON</strong>
-                </div>
-                <div>
-                  <span>Restart</span>
-                  <strong>Mocked only</strong>
-                </div>
-              </div>
-            </div>
-            <div class="timeline-card">
-              <div class="panel-head panel-head-tight">
-                <h2>Replay Log</h2>
-                <span>Latest events</span>
-              </div>
-              <ul id="replay-log" class="log-list"></ul>
-            </div>
+          <div id="project-summary" class="project-summary" aria-live="polite"></div>
+          <div class="editor-canvas-shell">
+            <div id="editor-canvas" class="editor-canvas" aria-label="Project editor canvas"></div>
           </div>
           <div class="preview-footer">
-            <p id="preview-status">Loading project_001 internal replay slice.</p>
+            <p id="preview-status">Loading editor state for the selected project.</p>
           </div>
         </section>
 
         <aside class="panel inspector-panel">
           <div class="panel-head">
-            <h2>Inspector</h2>
-            <span>Facts, assumptions, unresolved</span>
+            <h2>Property Inspector</h2>
+            <span>Edit selected object</span>
           </div>
-          <div class="inspector-card" id="inspector"></div>
+          <div id="inspector" class="inspector-card"></div>
+          <div class="panel-head panel-head-tight">
+            <h2>Activity</h2>
+            <span>Recent local actions</span>
+          </div>
+          <ul id="activity-log" class="log-list"></ul>
         </aside>
       </main>
 
       <footer class="bottombar">
-        <span>Importer</span>
-        <span>Preview</span>
-        <span>Fixtures</span>
-        <span>Restart Recovery</span>
+        <span>Project Browser</span>
+        <span>Scene Explorer</span>
+        <span>Canvas Preview</span>
+        <span>Property Save Loop</span>
       </footer>
     </div>
     <script src="./app.js"></script>

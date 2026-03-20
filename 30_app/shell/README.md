@@ -8,6 +8,9 @@ Electron desktop shell for MyIDE.
 - Create a new project scaffold from the shell through a bounded local IPC bridge.
 - Support a simple workspace rescan so newly added project folders can appear after discovery refreshes the derived registry.
 - Show the selected project's donor, target/resulting game, lifecycle stage summary, phase, verification status, folder path, and notes.
+- Show a scene/layer/object explorer for the selected project's editable internal scene files.
+- Render a simple editor canvas from internal scene data only.
+- Support object selection, bounded property editing, save, and reload for the validated `project_001` editor slice.
 - Keep the validated `project_001` replay slice intact.
 - Keep donor decoding and server integration out of this phase.
 

@@ -15,6 +15,9 @@ const projectsRoot = path.join(workspaceRoot, "40_projects");
 const workspaceRegistryPath = path.join(projectsRoot, "registry.json");
 const project001JsonPath = path.join(projectsRoot, "project_001", "project.json");
 const project002MetaPath = path.join(projectsRoot, "project_002", "project.meta.json");
+const project001InternalScenePath = path.join(projectsRoot, "project_001", "internal", "scene.json");
+const project001InternalLayersPath = path.join(projectsRoot, "project_001", "internal", "layers.json");
+const project001InternalObjectsPath = path.join(projectsRoot, "project_001", "internal", "objects.json");
 
 async function createAjv(): Promise<Ajv2020> {
   const ajv = new Ajv2020({ allErrors: true, strict: false });
@@ -91,6 +94,7 @@ async function main(): Promise<void> {
   const validateProjectMetaSchema = requireSchema(ajv, "https://myide.local/schemas/project-metadata.schema.json");
   const validateRegistrySchema = requireSchema(ajv, "https://myide.local/schemas/project-registry.schema.json");
   const validateWorkspaceSchema = requireSchema(ajv, "https://myide.local/schemas/workspace.schema.json");
+  const validateSceneSchema = requireSchema(ajv, "https://myide.local/schemas/scene.schema.json");
 
   const registry = await readJsonObject(workspaceRegistryPath);
   const discoveredProjects = await discoverProjectMetas();
@@ -98,6 +102,9 @@ async function main(): Promise<void> {
   const workspaceBundle = JSON.parse(JSON.stringify(await loadWorkspaceSlice())) as JsonObject;
   const project001Json = await readJsonObject(project001JsonPath);
   const project002Meta = await readJsonObject(project002MetaPath);
+  const project001InternalScene = await readJsonObject(project001InternalScenePath);
+  const project001InternalLayers = await readJsonObject(project001InternalLayersPath);
+  const project001InternalObjects = await readJsonObject(project001InternalObjectsPath);
 
   const registryIsValid = validateRegistrySchema(registry);
   assert(registryIsValid, `registry.json failed schema validation: ${formatErrors(validateRegistrySchema.errors)}`);
@@ -115,6 +122,15 @@ async function main(): Promise<void> {
 
   const project001JsonIsValid = validateProjectSchema(project001Json);
   assert(project001JsonIsValid, `project_001/project.json failed schema validation: ${formatErrors(validateProjectSchema.errors)}`);
+
+  const project001InternalSceneIsValid = validateSceneSchema(project001InternalScene);
+  assert(project001InternalSceneIsValid, `project_001/internal/scene.json failed schema validation: ${formatErrors(validateSceneSchema.errors)}`);
+
+  const project001InternalLayersIsValid = validateSceneSchema(project001InternalLayers);
+  assert(project001InternalLayersIsValid, `project_001/internal/layers.json failed schema validation: ${formatErrors(validateSceneSchema.errors)}`);
+
+  const project001InternalObjectsIsValid = validateSceneSchema(project001InternalObjects);
+  assert(project001InternalObjectsIsValid, `project_001/internal/objects.json failed schema validation: ${formatErrors(validateSceneSchema.errors)}`);
 
   const workspaceIsValid = validateWorkspaceSchema(workspaceBundle);
   assert(workspaceIsValid, `workspace slice failed schema validation: ${formatErrors(validateWorkspaceSchema.errors)}`);
@@ -141,11 +157,26 @@ async function main(): Promise<void> {
   assertLifecycle(project002Meta, "40_projects/project_002/project.meta.json");
   assert(getString(getObject(project002Meta.lifecycle, "project_002.lifecycle").currentStage, "project_002.lifecycle.currentStage") === "donorEvidence", "project_002 must remain a donor-evidence-stage scaffold");
 
+  const sceneLayerIds = Array.isArray(project001InternalScene.layerIds) ? project001InternalScene.layerIds : [];
+  const sceneObjectIds = Array.isArray(project001InternalScene.objectIds) ? project001InternalScene.objectIds : [];
+  const layerEntries = Array.isArray(project001InternalLayers.layers) ? project001InternalLayers.layers : [];
+  const objectEntries = Array.isArray(project001InternalObjects.objects) ? project001InternalObjects.objects : [];
+  const layerIds = layerEntries.map((entry, index) => getString(getObject(entry as JsonValue, `project_001/internal/layers.json.layers[${index}]`).id, `project_001/internal/layers.json.layers[${index}].id`));
+  const objectIds = objectEntries.map((entry, index) => getString(getObject(entry as JsonValue, `project_001/internal/objects.json.objects[${index}]`).id, `project_001/internal/objects.json.objects[${index}].id`));
+
+  assert.deepStrictEqual(sceneLayerIds, layerIds, "project_001/internal/scene.json layerIds must match layers.json order");
+  assert.deepStrictEqual(sceneObjectIds, objectIds, "project_001/internal/scene.json objectIds must match objects.json order");
+  for (const [index, object] of objectEntries.entries()) {
+    const objectEntry = getObject(object as JsonValue, `project_001/internal/objects.json.objects[${index}]`);
+    const layerId = getString(objectEntry.layerId, `project_001/internal/objects.json.objects[${index}].layerId`);
+    assert(layerIds.includes(layerId), `project_001/internal/objects.json.objects[${index}] must reference a known layerId`);
+  }
+
   console.log("PASS validate:workspace");
   console.log(`Discovered project folders: ${discoveredProjectIds.join(", ")}`);
   console.log(`Validated workspace registry: ${path.relative(workspaceRoot, workspaceRegistryPath)}`);
   console.log(`Validated project metadata: 40_projects/project_001/project.meta.json, 40_projects/project_002/project.meta.json`);
-  console.log("Validated folder-based discovery, derived registry consistency, project metadata, and workspace shell bundle.");
+  console.log("Validated folder-based discovery, derived registry consistency, project metadata, workspace shell bundle, and project_001 internal editor scene files.");
 }
 
 main().catch((error: unknown) => {

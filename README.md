@@ -3,9 +3,10 @@
 MyIDE is a universal local-first IDE for multiple game projects over time, with a desktop web UI for collecting donor evidence, reconstructing each project into a clean internal model, replaying that model locally, and preparing a project-specific target or resulting game path.
 
 ## Current Phase
-- Current milestone: controlled PHASE 4C project onboarding and lifecycle dashboard on top of the folder-based multi-project workspace.
+- Current milestone: PHASE 5A visual editor vertical slice on top of the folder-based multi-project workspace.
 - Active validated donor slice: `donor_001_mystery_garden`.
 - Proven replay scope: one bounded Mystery Garden slice driven only by internal project data under `40_projects/project_001`.
+- Proven editor scope: open `project_001`, inspect the internal scene/layer/object list, edit bounded object properties, save, reload, and confirm the preview reflects persisted internal changes.
 
 ## Core Rules
 - The product architecture is universal and multi-project.
@@ -36,6 +37,7 @@ Public publication rules are defined in [`00_control/PUBLIC_REPO_POLICY.md`](./0
 - `npm run generate:registry`
 - `npm run create:project -- --config 40_projects/templates/project-template/project.meta.json.example --project-root 40_projects/project_003`
 - `npm run smoke:create-project`
+- `npm run smoke:edit-project`
 - `npm run import:mystery-garden`
 - `npm run validate:workspace`
 - `npm run verify:workspace`
@@ -44,5 +46,5 @@ Public publication rules are defined in [`00_control/PUBLIC_REPO_POLICY.md`](./0
 ## Current Boundaries
 - No production server adapter implementation yet.
 - No reskinning yet.
-- No full editor platform yet.
+- No full editor platform yet beyond the first save/reload property-editing slice.
 - No non-slot or multi-user implementation yet.

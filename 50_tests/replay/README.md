@@ -10,5 +10,5 @@
 
 ## Known Gaps
 - Assertions cover deterministic replay structure and state flow, not production server behavior.
-- Visual fidelity still depends on separate manual/GUI checks.
+- Visual fidelity and shell editing UX still depend on separate Electron/manual checks.
 - Replay assertions currently prove the bounded `project_001` slice only.

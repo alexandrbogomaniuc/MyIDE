@@ -12,11 +12,13 @@ Test whether [PCUI](https://github.com/playcanvas/pcui) is a good fit for MyIDE 
 - Render `mockPropertyPanel` through a thin wrapper.
 - Compare the mock implementation against a future PCUI-backed implementation.
 - Measure whether the component library reduces code without forcing core coupling.
+- Only promote PCUI if it can consume the local `PropertyPanelViewModel` contract without leaking vendor types into the shell or runtime.
 
 ## Notes
 - The isolated PHASE 3 spike lives in `index.html` and `spike.mjs`.
 - It uses `@playcanvas/pcui` from local `node_modules` plus an import map for `@playcanvas/observer`.
 - It stays browser-only and is not imported into replay/runtime code.
+- For PHASE 5A, actual PCUI use is not required for the inspector boundary to be useful; the mock implementation remains the default contract and the spike is only a proof point.
 
 ## Manual Open
 - Serve the MyIDE repo root over HTTP, then open `http://127.0.0.1:8123/30_app/ui/spikes/pcui/index.html`.

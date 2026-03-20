@@ -28,7 +28,8 @@
       "scaleX": 1,
       "scaleY": 1,
       "visible": true,
-      "locked": true,
+      "locked": false,
+      "placeholderRef": "placeholder.text.title-plate",
       "notes": "Editable title text captured from the validated Mystery Garden slice."
     },
     {
@@ -73,8 +74,9 @@
       "scaleX": 1,
       "scaleY": 1,
       "visible": false,
-      "locked": true,
-      "notes": "Overlay banner shown during wins."
+      "locked": false,
+      "placeholderRef": "placeholder.text.win-banner",
+      "notes": "Overlay banner shown during wins and editable in the first shell inspector slice."
     },
     {
       "id": "node.bottom-bar",
@@ -88,8 +90,9 @@
       "scaleX": 1,
       "scaleY": 1,
       "visible": true,
-      "locked": true,
-      "notes": "Bottom HUD strip."
+      "locked": false,
+      "placeholderRef": "placeholder.ui.bottom-hud",
+      "notes": "Bottom HUD strip kept editable for position and visibility checks."
     },
     {
       "id": "node.free-spins-pill",
@@ -101,8 +104,9 @@
       "scaleX": 1,
       "scaleY": 1,
       "visible": false,
-      "locked": true,
-      "notes": "Free spins counter shown when triggered."
+      "locked": false,
+      "placeholderRef": "placeholder.text.free-spins-pill",
+      "notes": "Free spins counter shown when triggered and available for editor-slice transforms."
     },
     {
       "id": "node.free-spins-modal",
@@ -131,6 +135,7 @@
       "scaleY": 1,
       "visible": false,
       "locked": false,
+      "placeholderRef": "placeholder.text.restart-recovery",
       "notes": "Restart recovery badge for mocked restore flow."
     }
   ]

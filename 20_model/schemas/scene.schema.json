@@ -3,183 +3,399 @@
   "$id": "https://myide.local/schemas/scene.schema.json",
   "title": "MyIDE Scene",
   "type": "object",
-  "additionalProperties": false,
-  "required": ["sceneId", "name", "kind", "layers"],
-  "properties": {
-    "sceneId": {
-      "type": "string",
-      "minLength": 1
+  "oneOf": [
+    {
+      "$ref": "#/$defs/legacyScene"
     },
-    "name": {
-      "type": "string",
-      "minLength": 1
+    {
+      "$ref": "#/$defs/sceneDocument"
     },
-    "kind": {
+    {
+      "$ref": "#/$defs/layersDocument"
+    },
+    {
+      "$ref": "#/$defs/objectsDocument"
+    }
+  ],
+  "$defs": {
+    "commonKind": {
       "type": "string",
       "enum": ["boot", "gameplay", "preview", "overlay", "menu", "debug", "transition"]
     },
-    "viewport": {
+    "legacyScene": {
       "type": "object",
       "additionalProperties": false,
+      "required": ["sceneId", "name", "kind", "layers"],
       "properties": {
-        "width": {
-          "type": "integer",
-          "minimum": 0
+        "sceneId": {
+          "type": "string",
+          "minLength": 1
         },
-        "height": {
-          "type": "integer",
-          "minimum": 0
+        "name": {
+          "type": "string",
+          "minLength": 1
         },
-        "safeArea": {
+        "kind": {
+          "$ref": "#/$defs/commonKind"
+        },
+        "viewport": {
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "top": {
-              "type": "number"
+            "width": {
+              "type": "integer",
+              "minimum": 0
             },
-            "right": {
-              "type": "number"
+            "height": {
+              "type": "integer",
+              "minimum": 0
             },
-            "bottom": {
-              "type": "number"
-            },
-            "left": {
-              "type": "number"
-            }
-          }
-        }
-      }
-    },
-    "layers": {
-      "type": "array",
-      "minItems": 1,
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["layerId", "name", "role", "nodes"],
-        "properties": {
-          "layerId": {
-            "type": "string",
-            "minLength": 1
-          },
-          "name": {
-            "type": "string",
-            "minLength": 1
-          },
-          "role": {
-            "type": "string",
-            "enum": ["background", "midground", "foreground", "ui", "fx", "debug"]
-          },
-          "nodes": {
-            "type": "array",
-            "items": {
+            "safeArea": {
               "type": "object",
               "additionalProperties": false,
-              "required": ["nodeId", "type", "position"],
               "properties": {
-                "nodeId": {
-                  "type": "string",
-                  "minLength": 1
+                "top": {
+                  "type": "number"
                 },
-                "name": {
-                  "type": "string",
-                  "minLength": 1
+                "right": {
+                  "type": "number"
                 },
-                "type": {
-                  "type": "string",
-                  "enum": ["sprite", "text", "container", "shape", "video", "particle", "hotspot", "webview"]
+                "bottom": {
+                  "type": "number"
                 },
-                "assetRef": {
-                  "type": "string",
-                  "minLength": 1
-                },
-                "position": {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "required": ["x", "y"],
-                  "properties": {
-                    "x": {
-                      "type": "number"
-                    },
-                    "y": {
-                      "type": "number"
-                    },
-                    "width": {
-                      "type": "number"
-                    },
-                    "height": {
-                      "type": "number"
-                    },
-                    "anchorX": {
-                      "type": "number"
-                    },
-                    "anchorY": {
-                      "type": "number"
-                    },
-                    "scaleX": {
-                      "type": "number"
-                    },
-                    "scaleY": {
-                      "type": "number"
-                    },
-                    "rotation": {
-                      "type": "number"
-                    }
-                  }
-                },
-                "visible": {
-                  "type": "boolean",
-                  "default": true
-                },
-                "children": {
-                  "type": "array",
-                  "items": {
-                    "type": "string",
-                    "minLength": 1
-                  }
-                },
-                "bindings": {
-                  "type": "array",
-                  "items": {
-                    "type": "string",
-                    "minLength": 1
-                  }
-                },
-                "tags": {
-                  "type": "array",
-                  "items": {
-                    "type": "string",
-                    "minLength": 1
-                  }
-                },
-                "extensions": {
-                  "type": "object",
-                  "additionalProperties": true
+                "left": {
+                  "type": "number"
                 }
               }
             }
           }
+        },
+        "layers": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["layerId", "name", "role", "nodes"],
+            "properties": {
+              "layerId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "role": {
+                "type": "string",
+                "enum": ["background", "midground", "foreground", "ui", "fx", "debug"]
+              },
+              "nodes": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["nodeId", "type", "position"],
+                  "properties": {
+                    "nodeId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "name": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "type": {
+                      "type": "string",
+                      "enum": ["sprite", "text", "container", "shape", "video", "particle", "hotspot", "webview"]
+                    },
+                    "assetRef": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "position": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["x", "y"],
+                      "properties": {
+                        "x": {
+                          "type": "number"
+                        },
+                        "y": {
+                          "type": "number"
+                        },
+                        "width": {
+                          "type": "number"
+                        },
+                        "height": {
+                          "type": "number"
+                        },
+                        "anchorX": {
+                          "type": "number"
+                        },
+                        "anchorY": {
+                          "type": "number"
+                        },
+                        "scaleX": {
+                          "type": "number"
+                        },
+                        "scaleY": {
+                          "type": "number"
+                        },
+                        "rotation": {
+                          "type": "number"
+                        }
+                      }
+                    },
+                    "visible": {
+                      "type": "boolean",
+                      "default": true
+                    },
+                    "children": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "bindings": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "tags": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "extensions": {
+                      "type": "object",
+                      "additionalProperties": true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "camera": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "x": {
+              "type": "number"
+            },
+            "y": {
+              "type": "number"
+            },
+            "zoom": {
+              "type": "number"
+            }
+          }
+        },
+        "extensions": {
+          "type": "object",
+          "additionalProperties": true
         }
       }
     },
-    "camera": {
+    "sceneDocument": {
       "type": "object",
       "additionalProperties": false,
+      "required": ["schemaVersion", "sceneId", "displayName", "kind", "layerIds", "objectIds"],
       "properties": {
+        "schemaVersion": {
+          "type": "string",
+          "const": "0.1.0"
+        },
+        "sceneId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "$ref": "#/$defs/commonKind"
+        },
+        "layerIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "objectIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "viewport": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "width": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "height": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "notes": {
+          "type": "string"
+        }
+      }
+    },
+    "layersDocument": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "sceneId", "layers"],
+      "properties": {
+        "schemaVersion": {
+          "type": "string",
+          "const": "0.1.0"
+        },
+        "sceneId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "layers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/layer"
+          }
+        }
+      }
+    },
+    "objectsDocument": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "sceneId", "objects"],
+      "properties": {
+        "schemaVersion": {
+          "type": "string",
+          "const": "0.1.0"
+        },
+        "sceneId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "objects": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/object"
+          }
+        }
+      }
+    },
+    "layer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "displayName", "visible", "locked", "order"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "visible": {
+          "type": "boolean"
+        },
+        "locked": {
+          "type": "boolean"
+        },
+        "order": {
+          "type": "integer"
+        },
+        "notes": {
+          "type": "string"
+        }
+      }
+    },
+    "object": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "displayName", "type", "layerId", "x", "y", "scaleX", "scaleY", "visible", "locked"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "layerId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "parentId": {
+          "type": "string",
+          "minLength": 1
+        },
         "x": {
           "type": "number"
         },
         "y": {
           "type": "number"
         },
-        "zoom": {
+        "width": {
+          "type": "number",
+          "minimum": 0
+        },
+        "height": {
+          "type": "number",
+          "minimum": 0
+        },
+        "scaleX": {
           "type": "number"
+        },
+        "scaleY": {
+          "type": "number"
+        },
+        "visible": {
+          "type": "boolean"
+        },
+        "locked": {
+          "type": "boolean"
+        },
+        "assetRef": {
+          "type": "string",
+          "minLength": 1
+        },
+        "placeholderRef": {
+          "type": "string",
+          "minLength": 1
+        },
+        "notes": {
+          "type": "string"
         }
-      }
-    },
-    "extensions": {
-      "type": "object",
-      "additionalProperties": true
+      },
+      "oneOf": [
+        {
+          "required": ["assetRef"]
+        },
+        {
+          "required": ["placeholderRef"]
+        }
+      ]
     }
   }
 }

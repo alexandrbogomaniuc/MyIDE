@@ -65,6 +65,19 @@
 - [x] Add a create-project smoke test for create -> discover -> registry -> shell visibility.
 - [ ] Verify the shell New Project flow interactively in a GUI-capable Electron session.
 
+## PHASE 5A
+- [x] Define the first editable scene/layer/object contract for `project_001`.
+- [x] Show a scene/layer/object explorer in the shell.
+- [x] Render a simple editor canvas from internal project data only.
+- [x] Allow selection from the object list and the preview canvas.
+- [x] Allow bounded object edits for `displayName`, `x`, `y`, `scaleX`, `scaleY`, and `visible`.
+- [x] Save editor changes back to internal project files.
+- [x] Reload the selected project and confirm persisted editor changes remain visible.
+- [x] Add local-only save snapshots / save-history safety outputs.
+- [x] Add an edit-project smoke test for edit -> save -> reload -> restore.
+- [ ] Verify the editor workflow interactively in a GUI-capable Electron session.
+- [ ] Decide whether the next editor target is preview hit-manipulation, richer inspector fields, or undo/redo.
+
 ## Deferred
 - [ ] Donor decoding automation.
 - [ ] Full editor interactions.

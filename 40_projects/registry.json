@@ -16,17 +16,19 @@
       "displayName": "Mystery Garden Replay Slice",
       "gameFamily": "slot",
       "implementationScope": "slot-first",
-      "phase": "PHASE 3",
+      "phase": "PHASE 5A",
       "status": "validated",
       "verification": {
         "status": "verified-replay-slice",
         "checks": [
+          "validate:workspace",
+          "smoke:edit-project",
           "import:mystery-garden",
           "validate:project_001",
           "assert:replay"
         ],
-        "lastVerifiedAt": "2026-03-20T10:32:56Z",
-        "notes": "Internal replay slice is verified; live restart and free-spins capture gaps remain."
+        "lastVerifiedAt": "2026-03-20T14:23:12Z",
+        "notes": "Internal replay slice plus the first save/reload editor workflow are verified; live restart and free-spins capture gaps remain."
       },
       "lifecycle": {
         "currentStage": "internalReplay",
@@ -45,7 +47,7 @@
           },
           "internalReplay": {
             "status": "verified",
-            "notes": "Validated internal replay slice exists in project_001."
+            "notes": "Validated internal replay slice exists in project_001, now with a bounded editable shell workflow."
           },
           "targetConcept": {
             "status": "planned",
@@ -131,23 +133,27 @@
       },
       "timestamps": {
         "createdAt": "2026-03-20T00:00:00Z",
-        "updatedAt": "2026-03-20T11:55:17Z",
+        "updatedAt": "2026-03-20T14:23:12Z",
         "firstValidatedAt": "2026-03-20T10:32:56Z"
       },
       "notes": {
         "provenFacts": [
           "Replay loader uses internal project data only.",
-          "Project_001 is the only validated donor-backed project so far."
+          "Project_001 is the only validated donor-backed project so far.",
+          "The shell can now edit and persist bounded object properties from project_001 internal scene files."
         ],
         "plannedWork": [
           "Keep donor links and target game metadata explicit for every project.",
-          "Maintain the standard folder-based project lifecycle alongside the validated replay slice."
+          "Maintain the standard folder-based project lifecycle alongside the validated replay slice.",
+          "Expand the editor slice carefully without jumping into a full drag/drop editor."
         ],
         "assumptions": [
-          "This metadata file is the shell-facing project summary until a richer workspace state file exists."
+          "This metadata file is the shell-facing project summary until a richer workspace state file exists.",
+          "The current property-editor slice is intentionally small enough to stay reliable without a full undo stack yet."
         ],
         "unresolvedQuestions": [
-          "How quickly the project registry will grow beyond a single validated entry."
+          "How quickly the project registry will grow beyond a single validated entry.",
+          "Which next editor capability should come before broader scene editing."
         ]
       }
     },

@@ -1,13 +1,16 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { loadWorkspaceSlice, type WorkspaceSliceBundle } from "./workspaceSlice";
+import { loadEditableProjectData, type EditableProjectData } from "../workspace/editableProject";
 
 type JsonValue = null | boolean | number | string | JsonObject | JsonValue[];
 type JsonObject = { [key: string]: JsonValue };
 
 export interface ProjectSliceBundle {
   workspace: WorkspaceSliceBundle;
+  selectedProjectId: string;
   project: JsonObject;
+  editableProject: EditableProjectData | null;
   fixtures: {
     normalSpin: JsonObject;
     freeSpinsTrigger: JsonObject;
@@ -20,16 +23,16 @@ export interface ProjectSliceBundle {
 }
 
 const workspaceRoot = path.resolve(__dirname, "../../..");
-const projectRoot = path.join(workspaceRoot, "40_projects", "project_001");
+const replayProjectRoot = path.join(workspaceRoot, "40_projects", "project_001");
 
 export function getProjectSlicePaths(): readonly string[] {
   return [
-    path.join(projectRoot, "project.json"),
-    path.join(projectRoot, "fixtures", "normal_spin.json"),
-    path.join(projectRoot, "fixtures", "free_spins_trigger.json"),
-    path.join(projectRoot, "fixtures", "restart_restore.json"),
-    path.join(projectRoot, "runtime", "mock-game-state.json"),
-    path.join(projectRoot, "runtime", "mock-last-action.json")
+    path.join(replayProjectRoot, "project.json"),
+    path.join(replayProjectRoot, "fixtures", "normal_spin.json"),
+    path.join(replayProjectRoot, "fixtures", "free_spins_trigger.json"),
+    path.join(replayProjectRoot, "fixtures", "restart_restore.json"),
+    path.join(replayProjectRoot, "runtime", "mock-game-state.json"),
+    path.join(replayProjectRoot, "runtime", "mock-last-action.json")
   ];
 }
 
@@ -70,7 +73,24 @@ function assertPreviewAssetsStayInternal(project: JsonObject): void {
   }
 }
 
-export async function loadProjectSlice(): Promise<ProjectSliceBundle> {
+function resolveSelectedProjectId(workspace: WorkspaceSliceBundle, requestedProjectId?: string): string {
+  return requestedProjectId
+    ?? workspace.selectedProjectId
+    ?? workspace.activeProjectId
+    ?? workspace.projects[0]?.projectId
+    ?? "project_001";
+}
+
+async function loadSelectedEditableProject(workspace: WorkspaceSliceBundle, selectedProjectId: string): Promise<EditableProjectData | null> {
+  const selectedProject = workspace.projects.find((entry) => entry.projectId === selectedProjectId);
+  if (!selectedProject) {
+    return null;
+  }
+
+  return loadEditableProjectData(path.join(workspaceRoot, selectedProject.keyPaths.projectRoot));
+}
+
+export async function loadProjectSlice(requestedProjectId?: string): Promise<ProjectSliceBundle> {
   const [projectPath, normalSpinPath, freeSpinsTriggerPath, restartRestorePath, mockedGameStatePath, mockedLastActionPath] = getProjectSlicePaths();
   const [workspace, project, normalSpin, freeSpinsTrigger, restartRestore, mockedGameState, mockedLastAction] = await Promise.all([
     loadWorkspaceSlice(),
@@ -84,9 +104,14 @@ export async function loadProjectSlice(): Promise<ProjectSliceBundle> {
 
   assertPreviewAssetsStayInternal(project);
 
+  const selectedProjectId = resolveSelectedProjectId(workspace, requestedProjectId);
+  const editableProject = await loadSelectedEditableProject(workspace, selectedProjectId);
+
   return {
     workspace,
+    selectedProjectId,
     project,
+    editableProject,
     fixtures: {
       normalSpin,
       freeSpinsTrigger,

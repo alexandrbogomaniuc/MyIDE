@@ -1,8 +1,8 @@
 # MyIDE Status
 
 ## Current Phase
-- Active scope: PHASE 4C project onboarding and lifecycle dashboard on top of the existing slot-first implementation slice.
-- Current milestone: make one project visibly represent one donor-to-release cycle while the shell supports project creation and folder-authoritative discovery.
+- Active scope: PHASE 5A visual editor vertical slice on top of the existing slot-first implementation slice.
+- Current milestone: make `project_001` editable inside the shell through a real select -> edit -> save -> reload loop driven only by internal project files.
 
 ## Progress Log
 
@@ -43,6 +43,12 @@
 - Added a shell-backed New Project workflow that creates a valid project scaffold under `40_projects/` without leaving the IDE shell.
 - Extended the project browser and inspector to show donor linkage, target/resulting game metadata, verification, and lifecycle stage summaries for the selected project.
 - Added a scaffold smoke test that proves create -> discover -> derived registry refresh -> shell visibility while keeping `project_001` verification intact.
+- Added the first editable scene contract under `40_projects/project_001/internal/scene.json`, `layers.json`, and `objects.json`.
+- Turned the shell into a visible editor-style workspace with project browser, scene explorer, preview canvas, property inspector, save, and reload actions.
+- Added the first bounded object-edit loop for `displayName`, `x`, `y`, `scaleX`, `scaleY`, and `visible`.
+- Added local save snapshots and save-history logging under `40_projects/project_001/logs/` as ignored local-only safety outputs.
+- Added an `edit-project` smoke test that proves edit -> save -> reload -> restore for the validated `project_001` editor slice.
+- Kept folder-based discovery authoritative while the shell editor continues to use internal project data only.
 
 ## Proven Facts
 - Local reference repos are available in the developer workspace outside this repository.
@@ -58,6 +64,9 @@
 - Project folders under `40_projects/` are now the authoritative source of project existence.
 - `registry.json` is now a generated/derived cache rather than the sole workspace truth.
 - The shell can now create a new project scaffold and have it appear in the browser after the workspace refreshes from disk.
+- The shell now exposes the first real editor-style workflow for `project_001`, including object selection, bounded property edits, save, and reload.
+- `project_001/internal/*.json` now forms the persistence target for the first editor slice while `project.json` remains the validated replay source.
+- Workspace verification now validates the internal editor scene files in addition to project metadata and replay contracts.
 
 ## Active Assumptions
 - Electron remains an acceptable desktop container for the bounded local replay workflow.
@@ -71,3 +80,4 @@
 - Animation timings and the full symbol/paytable inventory remain unresolved.
 - Folder-based discovery is in place, but GUI-level shell validation is still pending in a display-capable environment.
 - The New Project flow is implemented in the shell, but an interactive Electron GUI check is still pending in a display-capable environment.
+- Preview hit-selection works in the shell canvas, but this remains a minimal property-edit slice rather than a full drag/drop scene editor.

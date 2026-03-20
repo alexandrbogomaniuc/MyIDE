@@ -1,13 +1,26 @@
 export const PROPERTY_PANEL_ADAPTER_BOUNDARY = "myide.ui.property-panel.v1";
 
 export type PropertyStatus = "proven" | "assumption" | "todo";
+export type PropertyFieldKind = "text" | "multiline" | "number" | "boolean" | "select" | "json";
+export type PropertyFieldState = "read-only" | "editable" | "locked";
 export type PropertyValue = string | number | boolean | null | readonly string[];
+
+export interface PropertyFieldOption {
+  readonly label: string;
+  readonly value: string | number | boolean;
+  readonly description?: string;
+}
 
 export interface PropertyRow {
   readonly key: string;
   readonly label: string;
   readonly value: PropertyValue;
   readonly status: PropertyStatus;
+  readonly fieldKind?: PropertyFieldKind;
+  readonly fieldState?: PropertyFieldState;
+  readonly path?: readonly string[];
+  readonly placeholder?: string;
+  readonly options?: readonly PropertyFieldOption[];
   readonly evidenceRefs?: readonly string[];
   readonly notes?: string;
 }
@@ -15,14 +28,18 @@ export interface PropertyRow {
 export interface PropertyGroup {
   readonly groupId: string;
   readonly title: string;
+  readonly description?: string;
   readonly rows: readonly PropertyRow[];
 }
 
+export type PropertyPanelMode = "inspect" | "edit";
+
 export interface PropertyPanelInput {
   readonly subjectId: string;
-  readonly subjectKind: "project" | "scene" | "state" | "asset" | "fixture" | "runtime";
+  readonly subjectKind: "project" | "scene" | "object" | "state" | "asset" | "fixture" | "runtime";
   readonly title: string;
   readonly subtitle?: string;
+  readonly mode?: PropertyPanelMode;
   readonly evidenceRefs?: readonly string[];
   readonly facts?: readonly string[];
   readonly assumptions?: readonly string[];
@@ -35,11 +52,14 @@ export interface PropertyPanelViewModel {
   readonly title: string;
   readonly subtitle?: string;
   readonly subjectKind: PropertyPanelInput["subjectKind"];
+  readonly mode: PropertyPanelMode;
   readonly evidenceRefs: readonly string[];
   readonly groups: readonly PropertyGroup[];
   readonly facts: readonly string[];
   readonly assumptions: readonly string[];
   readonly unresolved: readonly string[];
+  readonly editableRowCount: number;
+  readonly readOnlyRowCount: number;
 }
 
 export interface PropertyPanelAdapter {
@@ -54,29 +74,63 @@ function normalizeStrings(items: readonly string[] | undefined): readonly string
   return items.filter((item) => item.trim().length > 0);
 }
 
+function normalizePath(path: readonly string[] | undefined): readonly string[] | undefined {
+  if (!path) {
+    return undefined;
+  }
+
+  const normalized = path.map((segment) => segment.trim()).filter((segment) => segment.length > 0);
+  return normalized.length > 0 ? normalized : undefined;
+}
+
+function normalizeOptions(options: readonly PropertyFieldOption[] | undefined): readonly PropertyFieldOption[] | undefined {
+  if (!options) {
+    return undefined;
+  }
+
+  const normalized = options.filter((option) => option.label.trim().length > 0);
+  return normalized.length > 0 ? normalized : undefined;
+}
+
 function normalizeGroups(groups: readonly PropertyGroup[] | undefined): readonly PropertyGroup[] {
   if (!groups) {
     return [];
   }
 
-  return groups.map((group) => ({
-    ...group,
-    rows: group.rows.filter((row) => row.key.length > 0)
-  }));
+  return groups
+    .map((group) => ({
+      ...group,
+      rows: group.rows
+        .filter((row) => row.key.trim().length > 0)
+        .map((row) => ({
+          ...row,
+          path: normalizePath(row.path),
+          options: normalizeOptions(row.options)
+        }))
+    }))
+    .filter((group) => group.rows.length > 0);
 }
 
 export class LocalPropertyPanelAdapter implements PropertyPanelAdapter {
   toViewModel(input: PropertyPanelInput): PropertyPanelViewModel {
+    const groups = normalizeGroups(input.groups);
+    const rows = groups.flatMap((group) => group.rows);
+    const editableRowCount = rows.filter((row) => row.fieldState === "editable").length;
+    const readOnlyRowCount = rows.length - editableRowCount;
+
     return {
       panelId: input.subjectId,
       title: input.title,
       subtitle: input.subtitle,
       subjectKind: input.subjectKind,
+      mode: input.mode ?? "inspect",
       evidenceRefs: normalizeStrings(input.evidenceRefs),
-      groups: normalizeGroups(input.groups),
+      groups,
       facts: normalizeStrings(input.facts),
       assumptions: normalizeStrings(input.assumptions),
-      unresolved: normalizeStrings(input.unresolved)
+      unresolved: normalizeStrings(input.unresolved),
+      editableRowCount,
+      readOnlyRowCount
     };
   }
 }

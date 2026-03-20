@@ -16,14 +16,21 @@ function findEditableObject(data: NonNullable<Awaited<ReturnType<typeof loadEdit
 
 async function main(): Promise<void> {
   const original = await loadEditableProjectData(projectRoot);
-  assert(original, "project_001 editable scene data must exist before the persistence smoke test.");
+  assert(original, "project_001 editable scene data must exist before the edit-project smoke test.");
 
   const restoredSnapshot = cloneEditableProjectData(original);
   const mutated = cloneEditableProjectData(original);
   const targetObject = findEditableObject(mutated, "node.title");
   const originalDisplayName = targetObject.displayName;
-  targetObject.displayName = `${originalDisplayName} (saved)`;
-  targetObject.notes = `${targetObject.notes ?? "Editable title text"} | persistence smoke test`;
+  const originalX = targetObject.x;
+  const originalScaleX = targetObject.scaleX;
+  const originalVisible = targetObject.visible;
+
+  targetObject.displayName = `${originalDisplayName} (edited)`;
+  targetObject.x = originalX + 18;
+  targetObject.scaleX = Number((originalScaleX + 0.1).toFixed(2));
+  targetObject.visible = !originalVisible;
+  targetObject.notes = `${targetObject.notes ?? "Editable title text"} | edit-project smoke test`;
 
   const mutatedSave = await saveEditableProjectData(projectRoot, mutated);
   const mutatedSnapshotDir = mutatedSave.snapshotDir;
@@ -35,20 +42,20 @@ async function main(): Promise<void> {
 
   const reloadedAfterSave = await loadEditableProjectData(projectRoot);
   assert(reloadedAfterSave, "project_001 editable data must still load after save.");
-  assert.equal(
-    findEditableObject(reloadedAfterSave, "node.title").displayName,
-    `${originalDisplayName} (saved)`,
-    "Saved object edits must survive a reload."
-  );
+  const reloadedObject = findEditableObject(reloadedAfterSave, "node.title");
+  assert.equal(reloadedObject.displayName, `${originalDisplayName} (edited)`, "Saved displayName edits must survive a reload.");
+  assert.equal(reloadedObject.x, originalX + 18, "Saved x edits must survive a reload.");
+  assert.equal(reloadedObject.scaleX, Number((originalScaleX + 0.1).toFixed(2)), "Saved scaleX edits must survive a reload.");
+  assert.equal(reloadedObject.visible, !originalVisible, "Saved visible edits must survive a reload.");
 
   const sliceAfterSave = await loadProjectSlice("project_001");
   const editableProjectAfterSave = sliceAfterSave.editableProject;
   assert(editableProjectAfterSave, "project slice must include the editable project after save.");
-  assert.equal(
-    findEditableObject(editableProjectAfterSave, "node.title").displayName,
-    `${originalDisplayName} (saved)`,
-    "Shell project reload must reflect the saved internal object data."
-  );
+  const sliceObject = findEditableObject(editableProjectAfterSave, "node.title");
+  assert.equal(sliceObject.displayName, `${originalDisplayName} (edited)`, "Shell project reload must reflect the saved object displayName.");
+  assert.equal(sliceObject.x, originalX + 18, "Shell project reload must reflect the saved object position.");
+  assert.equal(sliceObject.scaleX, Number((originalScaleX + 0.1).toFixed(2)), "Shell project reload must reflect the saved object scale.");
+  assert.equal(sliceObject.visible, !originalVisible, "Shell project reload must reflect the saved object visibility.");
 
   const restoreSave = await saveEditableProjectData(projectRoot, restoredSnapshot);
   const restoreSnapshotDir = restoreSave.snapshotDir;
@@ -60,11 +67,11 @@ async function main(): Promise<void> {
 
   const reloadedAfterRestore = await loadEditableProjectData(projectRoot);
   assert(reloadedAfterRestore, "project_001 editable data must still load after restore.");
-  assert.equal(
-    findEditableObject(reloadedAfterRestore, "node.title").displayName,
-    originalDisplayName,
-    "Original object data must be restored after the smoke test."
-  );
+  const restoredObject = findEditableObject(reloadedAfterRestore, "node.title");
+  assert.equal(restoredObject.displayName, originalDisplayName, "Original displayName must be restored after the smoke test.");
+  assert.equal(restoredObject.x, originalX, "Original x must be restored after the smoke test.");
+  assert.equal(restoredObject.scaleX, originalScaleX, "Original scaleX must be restored after the smoke test.");
+  assert.equal(restoredObject.visible, originalVisible, "Original visible state must be restored after the smoke test.");
 
   await Promise.all([
     fs.rm(mutatedSnapshotDir, { recursive: true, force: true }),
@@ -75,17 +82,17 @@ async function main(): Promise<void> {
   const workspace = await loadWorkspaceSlice();
   assert(
     workspace.projects.some((project) => project.projectId === "project_001"),
-    "project_001 must remain discoverable after persistence smoke testing."
+    "project_001 must remain discoverable after edit-project smoke testing."
   );
 
-  console.log("PASS smoke:project-persistence");
-  console.log(`Saved object edit: ${path.relative(workspaceRoot, projectRoot)}/internal/objects.json`);
+  console.log("PASS smoke:edit-project");
+  console.log(`Edited object: ${path.relative(workspaceRoot, projectRoot)}/internal/objects.json`);
   console.log(`Snapshot directories: ${path.relative(workspaceRoot, mutatedSnapshotDir)} and ${path.relative(workspaceRoot, restoreSnapshotDir)}`);
   console.log(`History log: ${path.relative(workspaceRoot, mutatedHistoryPath)}`);
 }
 
 main().catch((error: unknown) => {
   const message = error instanceof Error ? error.message : String(error);
-  console.error(`FAIL smoke:project-persistence - ${message}`);
+  console.error(`FAIL smoke:edit-project - ${message}`);
   process.exitCode = 1;
 });

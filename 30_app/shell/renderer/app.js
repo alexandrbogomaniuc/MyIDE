@@ -1,62 +1,11 @@
 const state = {
   bundle: null,
   selectedProjectId: null,
-  activeStateId: "state.idle",
-  activeFixtureKey: null,
-  currentGrid: [],
-  stickyFrames: new Set(),
-  balance: 1200,
-  bet: 1,
-  overlay: null,
-  freeSpinsText: "",
-  restoreVisible: false,
-  log: [],
-  isRunning: false
+  editorData: null,
+  selectedObjectId: null,
+  dirty: false,
+  activityLog: []
 };
-
-const elements = {
-  projectBrowser: document.getElementById("project-browser"),
-  evidenceBrowser: document.getElementById("evidence-browser"),
-  previewStatus: document.getElementById("preview-status"),
-  sceneLabel: document.getElementById("scene-label"),
-  activeStateChip: document.getElementById("active-state-chip"),
-  sceneTitle: document.getElementById("scene-title"),
-  sideHeading: document.getElementById("side-heading"),
-  sideCopy: document.getElementById("side-copy"),
-  balanceLabel: document.getElementById("balance-label"),
-  betLabel: document.getElementById("bet-label"),
-  reelGrid: document.getElementById("reel-grid"),
-  winBanner: document.getElementById("win-banner"),
-  freeSpinsPill: document.getElementById("free-spins-pill"),
-  restoreChip: document.getElementById("restore-chip"),
-  overlayCard: document.getElementById("overlay-card"),
-  overlayTitle: document.getElementById("overlay-title"),
-  overlayValue: document.getElementById("overlay-value"),
-  replayLog: document.getElementById("replay-log"),
-  inspector: document.getElementById("inspector"),
-  actionIdle: document.getElementById("action-idle"),
-  actionSpin: document.getElementById("action-spin"),
-  actionFreeSpins: document.getElementById("action-free-spins"),
-  actionRestore: document.getElementById("action-restore"),
-  actionDemo: document.getElementById("action-demo"),
-  actionRescan: document.getElementById("action-rescan"),
-  newProjectForm: document.getElementById("new-project-form"),
-  createProjectStatus: document.getElementById("create-project-status"),
-  fieldDisplayName: document.getElementById("field-display-name"),
-  fieldSlug: document.getElementById("field-slug"),
-  fieldGameFamily: document.getElementById("field-game-family"),
-  fieldDonorReference: document.getElementById("field-donor-reference"),
-  fieldTargetDisplayName: document.getElementById("field-target-display-name"),
-  fieldNotes: document.getElementById("field-notes")
-};
-
-const idleGrid = [
-  ["ROSE", "A", "K"],
-  ["BOOK", "ROSE", "A"],
-  ["KEY", "BOOK", "ROSE"],
-  ["A", "ROSE", "BOOK"],
-  ["K", "A", "ROSE"]
-];
 
 const lifecycleStageOrder = [
   "donorEvidence",
@@ -70,6 +19,39 @@ const lifecycleStageOrder = [
   "releasePrep"
 ];
 
+const objectSizePresets = {
+  "object.backdrop": { width: 1280, height: 720 },
+  "object.board-frame": { width: 760, height: 420 },
+  "object.board-center": { width: 220, height: 84 },
+  "object.status-chip": { width: 240, height: 108 },
+  "object.free-spins-card": { width: 260, height: 168 },
+  shape: { width: 220, height: 140 },
+  text: { width: 180, height: 72 },
+  image: { width: 180, height: 110 },
+  container: { width: 240, height: 160 }
+};
+
+const elements = {
+  projectBrowser: document.getElementById("project-browser"),
+  sceneExplorer: document.getElementById("scene-explorer"),
+  projectSummary: document.getElementById("project-summary"),
+  editorCanvas: document.getElementById("editor-canvas"),
+  previewStatus: document.getElementById("preview-status"),
+  inspector: document.getElementById("inspector"),
+  activityLog: document.getElementById("activity-log"),
+  actionRescan: document.getElementById("action-rescan"),
+  actionSave: document.getElementById("action-save"),
+  actionReloadEditor: document.getElementById("action-reload-editor"),
+  newProjectForm: document.getElementById("new-project-form"),
+  createProjectStatus: document.getElementById("create-project-status"),
+  fieldDisplayName: document.getElementById("field-display-name"),
+  fieldSlug: document.getElementById("field-slug"),
+  fieldGameFamily: document.getElementById("field-game-family"),
+  fieldDonorReference: document.getElementById("field-donor-reference"),
+  fieldTargetDisplayName: document.getElementById("field-target-display-name"),
+  fieldNotes: document.getElementById("field-notes")
+};
+
 document.addEventListener("DOMContentLoaded", () => {
   void init();
 });
@@ -80,26 +62,75 @@ async function init() {
   try {
     await reloadWorkspace(true);
   } catch (error) {
-    renderFatal(error instanceof Error ? error.message : "Unknown preview error.");
+    renderFatal(error instanceof Error ? error.message : "Unknown editor load error.");
   }
 }
 
 function bindActions() {
-  elements.actionIdle?.addEventListener("click", () => resetToIdle(false));
-  elements.actionSpin?.addEventListener("click", () => {
-    void runNormalSpin();
-  });
-  elements.actionFreeSpins?.addEventListener("click", () => {
-    void runFreeSpinsTrigger();
-  });
-  elements.actionRestore?.addEventListener("click", () => {
-    void runRestartRestore();
-  });
-  elements.actionDemo?.addEventListener("click", () => {
-    void playFullDemo();
-  });
   elements.actionRescan?.addEventListener("click", () => {
-    void reloadWorkspace(false);
+    void reloadWorkspace(false, state.selectedProjectId);
+  });
+  elements.actionSave?.addEventListener("click", () => {
+    void handleSaveEditor();
+  });
+  elements.actionReloadEditor?.addEventListener("click", () => {
+    void reloadWorkspace(false, state.selectedProjectId);
+  });
+  elements.projectBrowser?.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) {
+      return;
+    }
+
+    const button = target.closest("[data-project-id]");
+    if (!(button instanceof HTMLElement)) {
+      return;
+    }
+
+    const projectId = button.dataset.projectId;
+    if (projectId) {
+      void reloadWorkspace(false, projectId);
+    }
+  });
+  elements.sceneExplorer?.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) {
+      return;
+    }
+
+    const objectButton = target.closest("[data-object-id]");
+    if (!(objectButton instanceof HTMLElement)) {
+      return;
+    }
+
+    const objectId = objectButton.dataset.objectId;
+    if (objectId) {
+      state.selectedObjectId = objectId;
+      renderAll();
+    }
+  });
+  elements.editorCanvas?.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) {
+      return;
+    }
+
+    const objectNode = target.closest("[data-canvas-object-id]");
+    if (!(objectNode instanceof HTMLElement)) {
+      return;
+    }
+
+    const objectId = objectNode.dataset.canvasObjectId;
+    if (objectId) {
+      state.selectedObjectId = objectId;
+      renderAll();
+    }
+  });
+  elements.inspector?.addEventListener("input", (event) => {
+    handleInspectorEvent(event);
+  });
+  elements.inspector?.addEventListener("change", (event) => {
+    handleInspectorEvent(event);
   });
   elements.newProjectForm?.addEventListener("submit", (event) => {
     void handleCreateProject(event);
@@ -116,23 +147,10 @@ function bindActions() {
       elements.fieldSlug.dataset.userEdited = elements.fieldSlug.value.trim().length > 0 ? "true" : "false";
     }
   });
-  elements.projectBrowser?.addEventListener("click", (event) => {
-    const target = event.target;
-    if (!(target instanceof HTMLElement)) {
-      return;
-    }
+}
 
-    const button = target.closest("[data-project-id]");
-    if (!(button instanceof HTMLElement)) {
-      return;
-    }
-
-    const projectId = button.dataset.projectId;
-    if (typeof projectId === "string" && projectId.length > 0) {
-      state.selectedProjectId = projectId;
-      renderAll();
-    }
-  });
+function clone(value) {
+  return value ? JSON.parse(JSON.stringify(value)) : value;
 }
 
 function slugifyValue(value) {
@@ -155,6 +173,12 @@ function labelizeStage(stageId) {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+function setPreviewStatus(text) {
+  if (elements.previewStatus) {
+    elements.previewStatus.textContent = text;
+  }
+}
+
 function setCreateProjectStatus(text, isError = false) {
   if (!elements.createProjectStatus) {
     return;
@@ -162,6 +186,97 @@ function setCreateProjectStatus(text, isError = false) {
 
   elements.createProjectStatus.textContent = text;
   elements.createProjectStatus.dataset.tone = isError ? "error" : "default";
+}
+
+function pushLog(text) {
+  const stamp = new Date().toISOString().slice(11, 19);
+  state.activityLog = [{ stamp, text }, ...state.activityLog].slice(0, 10);
+}
+
+function getWorkspace() {
+  return state.bundle?.workspace ?? null;
+}
+
+function getWorkspaceProjects() {
+  const workspace = getWorkspace();
+  return Array.isArray(workspace?.projects) ? workspace.projects : [];
+}
+
+function getSelectedProject() {
+  const projects = getWorkspaceProjects();
+  if (projects.length === 0) {
+    return null;
+  }
+
+  return projects.find((entry) => entry.projectId === state.selectedProjectId) ?? projects[0];
+}
+
+function getSelectedObject() {
+  if (!state.editorData || !Array.isArray(state.editorData.objects)) {
+    return null;
+  }
+
+  return state.editorData.objects.find((entry) => entry.id === state.selectedObjectId) ?? null;
+}
+
+function isObjectEditable(object) {
+  const layer = getLayerById(object.layerId);
+  return !object.locked && !layer?.locked;
+}
+
+function getLayerMap() {
+  const layerEntries = Array.isArray(state.editorData?.layers) ? state.editorData.layers : [];
+  return new Map(layerEntries.map((layer) => [layer.id, layer]));
+}
+
+function getLayerById(layerId) {
+  return getLayerMap().get(layerId) ?? null;
+}
+
+function sortLayers(layers) {
+  return [...layers].sort((left, right) => left.order - right.order || left.displayName.localeCompare(right.displayName));
+}
+
+function ensureSelectedObject() {
+  const objects = Array.isArray(state.editorData?.objects) ? state.editorData.objects : [];
+  if (objects.length === 0) {
+    state.selectedObjectId = null;
+    return;
+  }
+
+  const selected = objects.find((entry) => entry.id === state.selectedObjectId);
+  if (!selected) {
+    state.selectedObjectId = objects.find((entry) => isObjectEditable(entry))?.id ?? objects[0].id;
+  }
+}
+
+async function reloadWorkspace(isInitialLoad, requestedProjectId = null) {
+  if (!window.myideApi || typeof window.myideApi.loadProjectSlice !== "function") {
+    throw new Error("MyIDE desktop bridge is unavailable.");
+  }
+
+  state.bundle = await window.myideApi.loadProjectSlice(requestedProjectId ?? state.selectedProjectId ?? undefined);
+  state.selectedProjectId = state.bundle.selectedProjectId;
+  state.editorData = state.bundle.editableProject ? clone(state.bundle.editableProject) : null;
+  state.dirty = false;
+  ensureSelectedObject();
+
+  if (isInitialLoad) {
+    pushLog(`Opened ${state.selectedProjectId}.`);
+  } else {
+    pushLog(`Reloaded ${state.selectedProjectId} from disk.`);
+  }
+
+  renderAll();
+
+  if (!state.editorData) {
+    setPreviewStatus(`No editable scene slice is available yet for ${state.selectedProjectId}.`);
+    return;
+  }
+
+  setPreviewStatus(isInitialLoad
+    ? `Loaded ${state.selectedProjectId} editable scene from internal files.`
+    : `Reloaded ${state.selectedProjectId} editable scene from disk.`);
 }
 
 async function handleCreateProject(event) {
@@ -205,293 +320,75 @@ async function handleCreateProject(event) {
 
     await reloadWorkspace(false, created.projectId);
     pushLog(`Created project scaffold ${created.projectId} at ${created.projectRoot}.`);
-    renderAll();
-    setCreateProjectStatus(`Created ${created.displayName}. The new folder is now discoverable in the workspace browser.`);
-    setPreviewStatus(`Created ${created.displayName}. Replay remains bound to project_001 until the new project has an internal slice.`);
+    setCreateProjectStatus(`Created ${created.displayName}. The project is now discoverable in the workspace browser.`);
+    setPreviewStatus(`Created ${created.displayName}. Add internal scene files before editing starts.`);
   } catch (error) {
     setCreateProjectStatus(error instanceof Error ? error.message : "Project creation failed.", true);
   }
 }
 
-async function reloadWorkspace(isInitialLoad, preferredSelectedProjectId = null) {
-  if (!window.myideApi || typeof window.myideApi.loadProjectSlice !== "function") {
-    throw new Error("MyIDE desktop bridge is unavailable.");
-  }
-
-  const previousSelectedProjectId = preferredSelectedProjectId ?? state.selectedProjectId;
-  state.bundle = await window.myideApi.loadProjectSlice();
-
-  const workspaceProjects = getWorkspaceProjects();
-  const selectedProjectId =
-    workspaceProjects.find((project) => project.projectId === previousSelectedProjectId)?.projectId
-    ?? state.bundle.workspace?.selectedProjectId
-    ?? workspaceProjects[0]?.projectId
-    ?? null;
-
-  state.selectedProjectId = selectedProjectId;
-
-  if (isInitialLoad) {
-    resetToIdle(true);
+function handleInspectorEvent(event) {
+  const target = event.target;
+  if (!(target instanceof HTMLInputElement) && !(target instanceof HTMLTextAreaElement) && !(target instanceof HTMLSelectElement)) {
     return;
   }
 
-  renderAll();
-  setPreviewStatus(state.bundle.workspace?.source?.registryFound
-    ? "Workspace rescanned from disk. Any valid project folders can now appear in the browser."
-    : "Workspace reloaded from the validated Mystery Garden slice.");
-  pushLog("Workspace rescan completed.");
-}
-
-function getProject() {
-  return state.bundle.project;
-}
-
-function getWorkspace() {
-  return state.bundle.workspace;
-}
-
-function getWorkspaceProjects() {
-  const workspace = getWorkspace();
-  return Array.isArray(workspace.projects) ? workspace.projects : [];
-}
-
-function getSelectedWorkspaceProject() {
-  const projects = getWorkspaceProjects();
-  if (projects.length === 0) {
-    return null;
+  const selectedObject = getSelectedObject();
+  if (!selectedObject || selectedObject.locked) {
+    return;
   }
 
-  return projects.find((entry) => entry.projectId === state.selectedProjectId) ?? projects[0];
-}
+  const field = target.name;
+  let nextValue;
 
-function getFixture(key) {
-  return state.bundle.fixtures[key];
-}
-
-function getActiveStateRecord() {
-  const states = Array.isArray(getProject().states) ? getProject().states : [];
-  return states.find((entry) => entry.stateId === state.activeStateId) ?? null;
-}
-
-function getStrings() {
-  const localization = getProject().localization;
-  if (!localization || !Array.isArray(localization.locales) || localization.locales.length === 0) {
-    return {};
-  }
-
-  return localization.locales[0].strings ?? {};
-}
-
-function msg(messageId, fallback) {
-  const strings = getStrings();
-  return strings[messageId] ?? fallback;
-}
-
-function autoAdvanceMs() {
-  const overlays = getProject().clientConfig?.overlays;
-  if (!Array.isArray(overlays) || overlays.length === 0) {
-    return 650;
-  }
-
-  return Number(overlays[0].settings?.autoAdvanceMs ?? 650);
-}
-
-function wait(ms) {
-  return new Promise((resolve) => {
-    window.setTimeout(resolve, ms);
-  });
-}
-
-function toFixedAmount(value) {
-  return Number(value).toFixed(2);
-}
-
-function collectEvidenceRefs(value, refs = new Set()) {
-  if (Array.isArray(value)) {
-    value.forEach((item) => collectEvidenceRefs(item, refs));
-    return refs;
-  }
-
-  if (!value || typeof value !== "object") {
-    return refs;
-  }
-
-  Object.entries(value).forEach(([key, entry]) => {
-    if (key === "evidenceRefs" && Array.isArray(entry)) {
-      entry.forEach((ref) => {
-        if (typeof ref === "string") {
-          refs.add(ref);
-        }
-      });
+  if (field === "visible") {
+    nextValue = target instanceof HTMLInputElement ? target.checked : false;
+  } else if (["x", "y", "scaleX", "scaleY"].includes(field)) {
+    const numeric = Number(target.value);
+    if (!Number.isFinite(numeric)) {
       return;
     }
-
-    if (key === "evidenceRef" && typeof entry === "string") {
-      entry.split(",").map((part) => part.trim()).filter(Boolean).forEach((ref) => refs.add(ref));
-      return;
-    }
-
-    collectEvidenceRefs(entry, refs);
-  });
-
-  return refs;
-}
-
-function pushLog(text) {
-  const stamp = new Date().toISOString().slice(11, 19);
-  state.log = [{ stamp, text }, ...state.log].slice(0, 8);
-}
-
-function setPreviewStatus(text) {
-  if (elements.previewStatus) {
-    elements.previewStatus.textContent = text;
+    nextValue = numeric;
+  } else {
+    nextValue = target.value;
   }
-}
 
-function resetToIdle(isInitialLoad) {
-  state.activeStateId = "state.idle";
-  state.activeFixtureKey = null;
-  state.currentGrid = idleGrid;
-  state.stickyFrames = new Set();
-  state.balance = 1200;
-  state.bet = 1;
-  state.overlay = null;
-  state.freeSpinsText = "";
-  state.restoreVisible = false;
-  state.log = [];
-  pushLog(isInitialLoad ? "Loaded project_001 replay slice from internal JSON." : "Returned to idle state.");
+  selectedObject[field] = nextValue;
+  state.dirty = true;
   renderAll();
-  setPreviewStatus("Idle scene ready. Preview is using project_001 internal data only.");
+  setPreviewStatus(`Edited ${selectedObject.displayName}. Save to persist the change.`);
 }
 
-async function runNormalSpin() {
-  if (!state.bundle || state.isRunning) {
+async function handleSaveEditor() {
+  const selectedProject = getSelectedProject();
+
+  if (!selectedProject || !state.editorData) {
+    setPreviewStatus("No editable scene data is available for the selected project.");
     return;
   }
 
-  state.isRunning = true;
-  state.activeStateId = "state.spin";
-  state.activeFixtureKey = null;
-  state.overlay = null;
-  state.restoreVisible = false;
-  state.freeSpinsText = "";
-  state.currentGrid = [
-    ["...", "...", "..."],
-    ["...", "...", "..."],
-    ["...", "...", "..."],
-    ["...", "...", "..."],
-    ["...", "...", "..."]
-  ];
-  pushLog("Spin requested from idle.");
-  renderAll();
-  setPreviewStatus(msg("msg.spin.running", "Running deterministic internal spin replay."));
-
-  await wait(autoAdvanceMs());
-
-  const fixture = getFixture("normalSpin");
-  state.activeStateId = "state.base-win";
-  state.activeFixtureKey = "normalSpin";
-  state.currentGrid = fixture.grid;
-  state.balance = 1203;
-  state.stickyFrames = new Set();
-  state.overlay = null;
-  pushLog(`Base win resolved with ${fixture.win.bannerText}.`);
-  renderAll();
-  setPreviewStatus("Normal spin replay completed. Base win shown from internal fixture.");
-  state.isRunning = false;
-}
-
-async function runFreeSpinsTrigger() {
-  if (!state.bundle || state.isRunning) {
+  if (!window.myideApi || typeof window.myideApi.saveProjectEditor !== "function") {
+    setPreviewStatus("Shell bridge could not save project editor data in this environment.");
     return;
   }
 
-  state.isRunning = true;
-  state.activeStateId = "state.spin";
-  state.activeFixtureKey = null;
-  state.restoreVisible = false;
-  state.overlay = null;
-  state.freeSpinsText = "";
-  state.currentGrid = [
-    ["...", "...", "..."],
-    ["...", "...", "..."],
-    ["...", "...", "..."],
-    ["...", "...", "..."],
-    ["...", "...", "..."]
-  ];
-  pushLog("Scatter trigger replay started.");
-  renderAll();
-  setPreviewStatus(msg("msg.spin.running", "Running deterministic internal spin replay."));
-
-  await wait(autoAdvanceMs());
-
-  const fixture = getFixture("freeSpinsTrigger");
-  state.activeStateId = "state.free-spins-trigger";
-  state.activeFixtureKey = "freeSpinsTrigger";
-  state.currentGrid = fixture.grid;
-  state.overlay = {
-    title: "YOU HAVE WON",
-    value: "10 FREE SPINS"
-  };
-  pushLog("Free spins trigger modal displayed.");
-  renderAll();
-  setPreviewStatus("Free spins trigger reached from the internal fixture.");
-
-  await wait(autoAdvanceMs());
-
-  state.activeStateId = "state.free-spins-active";
-  state.currentGrid = fixture.followUp.grid;
-  state.stickyFrames = new Set(fixture.followUp.stickyFrames);
-  state.freeSpinsText = fixture.followUp.counterText;
-  state.overlay = null;
-  pushLog("Free spins active state restored from the follow-up fixture.");
-  renderAll();
-  setPreviewStatus("Free spins replay active. Sticky frame placeholders are internal only.");
-  state.isRunning = false;
-}
-
-async function runRestartRestore() {
-  if (!state.bundle || state.isRunning) {
+  if (!state.dirty) {
+    setPreviewStatus("No scene changes are waiting to be saved.");
     return;
   }
 
-  state.isRunning = true;
-  const gameState = state.bundle.runtime.mockedGameState;
+  const selectedObjectId = state.selectedObjectId;
+  const saveResult = await window.myideApi.saveProjectEditor(selectedProject.projectId, state.editorData);
+  pushLog(`Saved ${selectedProject.projectId} to internal scene files.`);
 
-  state.activeStateId = "state.restore.free-spins-active";
-  state.activeFixtureKey = "restartRestore";
-  state.currentGrid = gameState.reelWindow;
-  state.stickyFrames = new Set(gameState.freeSpins.stickyFrames);
-  state.balance = gameState.balance;
-  state.bet = gameState.bet;
-  state.freeSpinsText = `Free spins: ${gameState.freeSpins.remaining}/${gameState.freeSpins.awarded}`;
-  state.restoreVisible = true;
-  state.overlay = null;
-  pushLog("Loaded mocked gameState and lastAction for restart recovery.");
+  await reloadWorkspace(false, selectedProject.projectId);
+  state.selectedObjectId = selectedObjectId;
+  ensureSelectedObject();
   renderAll();
-  setPreviewStatus("Mocked restart data loaded. Settling into the active bonus state.");
+  state.dirty = false;
 
-  await wait(Math.max(240, Math.round(autoAdvanceMs() / 2)));
-
-  state.activeStateId = "state.free-spins-active";
-  pushLog("Restart recovery settled into free spins active.");
-  renderAll();
-  setPreviewStatus("Restart recovery completed from mocked gameState.");
-  state.isRunning = false;
-}
-
-async function playFullDemo() {
-  if (state.isRunning) {
-    return;
-  }
-
-  resetToIdle(false);
-  await wait(300);
-  await runNormalSpin();
-  await wait(450);
-  await runFreeSpinsTrigger();
-  await wait(450);
-  await runRestartRestore();
+  const snapshotMessage = saveResult.snapshotDir ? ` Snapshot: ${saveResult.snapshotDir}.` : "";
+  setPreviewStatus(`Saved ${selectedProject.displayName} at ${saveResult.savedAt}.${snapshotMessage}`);
 }
 
 function renderProjectBrowser() {
@@ -500,81 +397,53 @@ function renderProjectBrowser() {
   }
 
   const workspace = getWorkspace();
-  const projects = getWorkspaceProjects();
-  const selectedProject = getSelectedWorkspaceProject();
-  const registryLabel = workspace.source.registryFound
-    ? "Derived from discovered project folders"
-    : "Synthesized from validated project_001";
-  const renderLifecycleChips = (project, compact = false) => lifecycleStageOrder.map((stageId) => {
-    const stage = project?.lifecycle?.stages?.[stageId];
-    const status = stage?.status ?? "planned";
-    const current = project?.lifecycle?.currentStage === stageId;
+  if (!workspace) {
+    elements.projectBrowser.innerHTML = `<div class="tree-row"><strong>Workspace</strong><span>Not loaded.</span></div>`;
+    return;
+  }
 
-    return `<span class="stage-chip stage-${status} ${current ? "is-current" : ""}" title="${stage?.notes ?? labelizeStage(stageId)}">${compact ? labelizeStage(stageId).replace(" ", " ") : `${labelizeStage(stageId)}: ${labelizeStatus(status)}`}</span>`;
-  }).join("");
+  const projects = getWorkspaceProjects();
+  const selectedProject = getSelectedProject();
   const projectCards = projects.map((project) => {
     const isSelected = project.projectId === selectedProject?.projectId;
-    const statusLabel = labelizeStatus(project.status);
-    const verificationLabel = project.verificationStatus === "verified-replay-slice" || project.verificationStatus === "verified-workspace"
-      ? "Verified"
-      : labelizeStatus(project.verificationStatus);
+    const lifecycle = project.lifecycle?.currentStage ? labelizeStage(project.lifecycle.currentStage) : "No lifecycle";
 
     return `
       <button class="project-card ${isSelected ? "is-selected" : ""}" type="button" data-project-id="${project.projectId}">
         <div class="project-card-head">
           <strong>${project.displayName}</strong>
-          <span class="status-chip status-${project.status}">${statusLabel}</span>
+          <span class="status-chip status-${project.status}">${labelizeStatus(project.status)}</span>
         </div>
         <p>${project.donor.donorName} <code>${project.donor.donorId}</code></p>
         <p>${project.targetGame.displayName}</p>
-        <p>${labelizeStage(project.lifecycle.currentStage)} · ${verificationLabel}</p>
+        <p>${lifecycle} · ${labelizeStatus(project.verificationStatus)}</p>
         <p class="project-path"><code>${project.keyPaths.projectRoot}</code></p>
-        <div class="chip-row">
-          <span>${project.phase}</span>
-          <span>${project.gameFamily}</span>
-          <span>${project.implementationScope}</span>
-        </div>
       </button>
     `;
   }).join("");
 
-  const selectedNotes = selectedProject ? `
+  const selectedSummary = selectedProject ? `
     <div class="detail-grid">
+      <div class="detail-card">
+        <span>Selected Project</span>
+        <strong>${selectedProject.displayName}</strong>
+        <small>${selectedProject.phase}</small>
+      </div>
       <div class="detail-card">
         <span>Donor</span>
         <strong>${selectedProject.donor.donorName}</strong>
-        <small>${selectedProject.donor.donorId}</small>
+        <small>${selectedProject.donor.status}</small>
       </div>
       <div class="detail-card">
-        <span>Target / Resulting Game</span>
+        <span>Target</span>
         <strong>${selectedProject.targetGame.displayName}</strong>
-        <small>${selectedProject.targetGame.notes}</small>
+        <small>${selectedProject.targetGame.status}</small>
       </div>
       <div class="detail-card">
-        <span>Phase</span>
-        <strong>${selectedProject.phase}</strong>
-        <small>${selectedProject.gameFamily} / ${selectedProject.implementationScope}</small>
-      </div>
-      <div class="detail-card">
-        <span>Verification</span>
-        <strong>${labelizeStatus(selectedProject.verificationStatus)}</strong>
-        <small>${workspace.source.registryFound ? "Folder-discovery workspace view backed by the derived registry cache." : "Synthesized from validated project_001."}</small>
-      </div>
-      <div class="detail-card">
-        <span>Lifecycle Stage</span>
+        <span>Lifecycle</span>
         <strong>${labelizeStage(selectedProject.lifecycle.currentStage)}</strong>
         <small>${selectedProject.lifecycle.stages[selectedProject.lifecycle.currentStage]?.notes ?? "Stage notes pending."}</small>
       </div>
-      <div class="detail-card">
-        <span>Project Folder</span>
-        <strong>${selectedProject.keyPaths.projectRoot}</strong>
-        <small>${selectedProject.status === "validated" ? "Validated replay metadata exists for this project." : "Scaffold/planned metadata only until verification exists."}</small>
-      </div>
-    </div>
-    <div class="tree-row">
-      <strong>Lifecycle Summary</strong>
-      <span>One project = one donor-to-release cycle.</span>
-      <div class="lifecycle-grid">${renderLifecycleChips(selectedProject)}</div>
     </div>
   ` : `<p class="muted-copy">No projects available.</p>`;
 
@@ -584,218 +453,480 @@ function renderProjectBrowser() {
       <span>${workspace.description}</span>
       <code>${workspace.registryPath}</code>
     </div>
-    <div class="tree-row">
-      <strong>Registry Source</strong>
-      <span>${registryLabel}</span>
-      <p class="muted-copy">${workspace.source.registryFound ? "Rescan reloads the workspace bundle from disk so newly added valid project folders can appear after discovery refreshes the derived registry cache." : workspace.source.note}</p>
-    </div>
-    <div class="project-list">
-      ${projectCards}
-    </div>
-    <div class="tree-row">
-      <strong>Selected Project</strong>
-      <span>${selectedProject ? selectedProject.displayName : "No selection"}</span>
-    </div>
-    ${selectedNotes}
+    <div class="project-list">${projectCards}</div>
+    ${selectedSummary}
   `;
 }
 
-function renderEvidenceBrowser() {
-  if (!elements.evidenceBrowser) {
+function renderSceneExplorer() {
+  if (!elements.sceneExplorer) {
     return;
   }
 
-  const refs = Array.from(collectEvidenceRefs(getProject())).sort();
-  elements.evidenceBrowser.innerHTML = `
+  const selectedProject = getSelectedProject();
+  const editorData = state.editorData;
+
+  if (!selectedProject) {
+    elements.sceneExplorer.innerHTML = `<div class="tree-row"><strong>No Project Selected</strong><span>Choose a project from the browser.</span></div>`;
+    return;
+  }
+
+  if (!editorData) {
+    elements.sceneExplorer.innerHTML = `
+      <div class="tree-row">
+        <strong>${selectedProject.displayName}</strong>
+        <span>No editable scene files are available yet.</span>
+        <p class="muted-copy">This project can stay scaffold-only until a future run adds internal scene data.</p>
+      </div>
+    `;
+    return;
+  }
+
+  const sortedLayers = sortLayers(editorData.layers);
+  const layerMarkup = sortedLayers.map((layer) => {
+    const objects = editorData.objects.filter((entry) => entry.layerId === layer.id);
+    const objectMarkup = objects.length > 0
+      ? objects.map((object) => `
+        <button class="object-row ${object.id === state.selectedObjectId ? "is-selected" : ""}" type="button" data-object-id="${object.id}">
+          <strong>${object.displayName}</strong>
+          <span>${object.type}</span>
+          <small>${object.visible ? "visible" : "hidden"} · ${object.locked ? "locked" : "editable"}</small>
+        </button>
+      `).join("")
+      : `<p class="muted-copy">No objects on this layer.</p>`;
+
+    return `
+      <div class="tree-row">
+        <strong>${layer.displayName}</strong>
+        <span>order ${layer.order} · ${layer.visible ? "visible" : "hidden"} · ${layer.locked ? "locked" : "editable"}</span>
+        <div class="object-list">${objectMarkup}</div>
+      </div>
+    `;
+  }).join("");
+
+  elements.sceneExplorer.innerHTML = `
     <div class="tree-row">
-      <strong>Referenced Evidence IDs</strong>
-      <span>The preview shows these references without loading donor files.</span>
-      <div class="chip-row">${refs.map((ref) => `<span>${ref}</span>`).join("")}</div>
+      <strong>${editorData.scene.displayName}</strong>
+      <span>${editorData.scene.sceneId} · ${editorData.scene.kind}</span>
+      <div class="chip-row">
+        <span>${sortedLayers.length} layers</span>
+        <span>${editorData.objects.length} objects</span>
+        <span>${state.dirty ? "unsaved changes" : "saved"}</span>
+      </div>
+    </div>
+    ${layerMarkup}
+  `;
+}
+
+function renderProjectSummary() {
+  if (!elements.projectSummary) {
+    return;
+  }
+
+  const selectedProject = getSelectedProject();
+  const editorData = state.editorData;
+
+  if (!selectedProject) {
+    elements.projectSummary.innerHTML = `<div class="tree-row"><strong>No Project</strong><span>Select a project to begin.</span></div>`;
+    return;
+  }
+
+  const sceneSummary = editorData
+    ? `${editorData.scene.displayName} · ${editorData.layers.length} layers · ${editorData.objects.length} objects`
+    : "No editable scene slice yet.";
+
+  const lifecycleChips = lifecycleStageOrder.map((stageId) => {
+    const stage = selectedProject.lifecycle?.stages?.[stageId];
+    const status = stage?.status ?? "planned";
+    const current = selectedProject.lifecycle?.currentStage === stageId;
+
+    return `<span class="stage-chip stage-${status} ${current ? "is-current" : ""}" title="${stage?.notes ?? labelizeStage(stageId)}">${labelizeStage(stageId)}</span>`;
+  }).join("");
+
+  elements.projectSummary.innerHTML = `
+    <div class="detail-grid">
+      <div class="detail-card">
+        <span>Project</span>
+        <strong>${selectedProject.displayName}</strong>
+        <small>${selectedProject.keyPaths.projectRoot}</small>
+      </div>
+      <div class="detail-card">
+        <span>Donor</span>
+        <strong>${selectedProject.donor.donorName}</strong>
+        <small>${selectedProject.donor.donorId}</small>
+      </div>
+      <div class="detail-card">
+        <span>Target / Resulting Game</span>
+        <strong>${selectedProject.targetGame.displayName}</strong>
+        <small>${selectedProject.targetGame.relationship}</small>
+      </div>
+      <div class="detail-card">
+        <span>Editor State</span>
+        <strong>${state.dirty ? "Unsaved Changes" : "Saved"}</strong>
+        <small>${sceneSummary}</small>
+      </div>
     </div>
     <div class="tree-row">
-      <strong>Runtime Boundary</strong>
-      <span>Only internal files under <code>40_projects/project_001</code> are read during replay.</span>
+      <strong>Lifecycle Summary</strong>
+      <span>One project = one donor-to-release cycle.</span>
+      <div class="lifecycle-grid">${lifecycleChips}</div>
     </div>
   `;
 }
 
-function renderGrid() {
-  if (!elements.reelGrid) {
+function getObjectDimensions(object) {
+  if (Number.isFinite(object.width) && Number.isFinite(object.height)) {
+    return { width: object.width, height: object.height };
+  }
+
+  return objectSizePresets[object.id]
+    ?? objectSizePresets[object.type]
+    ?? { width: 160, height: 96 };
+}
+
+function getObjectLabel(object) {
+  return object.placeholderRef ?? object.assetRef ?? object.type;
+}
+
+function renderEditorCanvas() {
+  if (!elements.editorCanvas) {
     return;
   }
 
-  const cells = [];
-  state.currentGrid.forEach((column, columnIndex) => {
-    column.forEach((symbol, rowIndex) => {
-      const cellKey = `r${columnIndex + 1}c${rowIndex + 1}`;
-      const classes = ["symbol"];
-
-      if (state.stickyFrames.has(cellKey)) {
-        classes.push("is-sticky");
-      }
-      if (symbol === "KEY") {
-        classes.push("is-key");
-      }
-      if (symbol === "BOOK") {
-        classes.push("is-book");
-      }
-
-      cells.push(`<div class="${classes.join(" ")}">${symbol}</div>`);
-    });
-  });
-
-  elements.reelGrid.innerHTML = cells.join("");
-}
-
-function renderStage() {
-  const activeState = getActiveStateRecord();
-  const fixture = state.activeFixtureKey ? getFixture(state.activeFixtureKey) : null;
-  const selectedProject = getSelectedWorkspaceProject();
-
-  if (elements.sceneLabel) {
-    elements.sceneLabel.textContent = "scene.main";
-  }
-  if (elements.activeStateChip) {
-    elements.activeStateChip.textContent = state.activeStateId;
-  }
-  if (elements.sceneTitle) {
-    elements.sceneTitle.textContent = selectedProject?.targetGame.displayName ?? "MYSTERY GARDEN";
-  }
-  if (elements.sideHeading) {
-    elements.sideHeading.textContent = selectedProject?.displayName ?? (state.activeStateId === "state.free-spins-active" ? "Bonus Active Panel" : "Buy Bonus Panel");
-  }
-  if (elements.sideCopy) {
-    elements.sideCopy.textContent = selectedProject?.notes?.proven?.[0] ?? (state.activeStateId === "state.free-spins-active"
-      ? "Sticky frame placeholders stay highlighted while the local replay remains in bonus mode."
-      : "This bounded replay mirrors the visible donor layout with clean internal placeholders.");
-  }
-  if (elements.balanceLabel) {
-    elements.balanceLabel.textContent = toFixedAmount(state.balance);
-  }
-  if (elements.betLabel) {
-    elements.betLabel.textContent = toFixedAmount(state.bet);
-  }
-
-  renderGrid();
-
-  if (elements.winBanner) {
-    const showWinBanner = state.activeStateId === "state.base-win";
-    elements.winBanner.classList.toggle("is-hidden", !showWinBanner);
-    elements.winBanner.textContent = fixture?.win?.bannerText ?? msg("msg.win.banner", "3.00 EUR");
-  }
-
-  if (elements.freeSpinsPill) {
-    const showFreeSpins = Boolean(state.freeSpinsText);
-    elements.freeSpinsPill.classList.toggle("is-hidden", !showFreeSpins);
-    elements.freeSpinsPill.textContent = state.freeSpinsText;
-  }
-
-  if (elements.restoreChip) {
-    elements.restoreChip.classList.toggle("is-hidden", !state.restoreVisible);
-    elements.restoreChip.textContent = msg("msg.restore.ready", "Recovered from mocked gameState");
-  }
-
-  if (elements.overlayCard && elements.overlayTitle && elements.overlayValue) {
-    const hasOverlay = Boolean(state.overlay);
-    elements.overlayCard.classList.toggle("is-hidden", !hasOverlay);
-    elements.overlayTitle.textContent = state.overlay?.title ?? "";
-    elements.overlayValue.textContent = state.overlay?.value ?? "";
-  }
-
-  if (activeState?.extensions?.classification) {
-    setPreviewStatus(`Active state ${state.activeStateId} (${activeState.extensions.classification}).`);
-  }
-}
-
-function renderLog() {
-  if (!elements.replayLog) {
+  const editorData = state.editorData;
+  if (!editorData) {
+    elements.editorCanvas.innerHTML = `
+      <div class="canvas-empty">
+        <strong>No Editable Scene</strong>
+        <span>This project does not yet have internal scene files under <code>internal/</code>.</span>
+      </div>
+    `;
     return;
   }
 
-  elements.replayLog.innerHTML = state.log.map((entry) => `<li><strong>${entry.stamp}</strong> ${entry.text}</li>`).join("");
+  const sortedLayers = sortLayers(editorData.layers);
+  const visibleLayerIds = new Set(sortedLayers.filter((layer) => layer.visible).map((layer) => layer.id));
+
+  const objectMarkup = editorData.objects.map((object) => {
+    const layer = getLayerById(object.layerId);
+    const visible = object.visible && visibleLayerIds.has(object.layerId);
+    const locked = object.locked || layer?.locked;
+    const dimensions = getObjectDimensions(object);
+    const layerOrder = typeof layer?.order === "number" ? layer.order : 0;
+    const style = [
+      `left:${object.x}px`,
+      `top:${object.y}px`,
+      `width:${dimensions.width}px`,
+      `height:${dimensions.height}px`,
+      `transform:scale(${object.scaleX}, ${object.scaleY})`,
+      `z-index:${layerOrder + 1}`,
+      visible ? "" : "display:none"
+    ].filter(Boolean).join("; ");
+
+    return `
+      <button
+        class="canvas-object object-${object.type} ${object.id === state.selectedObjectId ? "is-selected" : ""} ${locked ? "is-locked" : ""}"
+        type="button"
+        data-canvas-object-id="${object.id}"
+        style="${style}"
+        title="${object.displayName}"
+      >
+        <span class="canvas-object-title">${object.displayName}</span>
+        <small>${getObjectLabel(object)}</small>
+      </button>
+    `;
+  }).join("");
+
+  const viewportWidth = editorData.scene.viewport?.width ?? 1280;
+  const viewportHeight = editorData.scene.viewport?.height ?? 720;
+
+  elements.editorCanvas.innerHTML = `
+    <div class="canvas-meta">
+      <span>${editorData.scene.sceneId}</span>
+      <span>${viewportWidth} × ${viewportHeight}</span>
+      <span>Internal files only</span>
+    </div>
+    <div class="canvas-stage" style="width:${viewportWidth}px; height:${viewportHeight}px;">
+      ${objectMarkup}
+    </div>
+  `;
 }
 
 function renderInspector() {
-  if (!elements.inspector || !state.bundle) {
+  if (!elements.inspector) {
     return;
   }
 
-  const project = getProject();
-  const selectedProject = getSelectedWorkspaceProject();
-  const activeState = getActiveStateRecord();
-  const fixture = state.activeFixtureKey ? getFixture(state.activeFixtureKey) : null;
-  const evidenceRefs = Array.from(new Set([
-    ...(Array.isArray(activeState?.extensions?.evidenceRefs) ? activeState.extensions.evidenceRefs : []),
-    ...(Array.isArray(fixture?.evidenceRefs) ? fixture.evidenceRefs : [])
-  ]));
-  const assumptions = Array.isArray(project.provenance?.assumptions) ? project.provenance.assumptions : [];
-  const unresolved = Array.isArray(project.provenance?.todo) ? project.provenance.todo : [];
-  const lifecycleRows = lifecycleStageOrder.map((stageId) => {
-    const stage = selectedProject?.lifecycle?.stages?.[stageId];
-    return `<li><code>${labelizeStage(stageId)}</code>: ${labelizeStatus(stage?.status ?? "planned")}${stage?.notes ? ` — ${stage.notes}` : ""}</li>`;
+  const selectedProject = getSelectedProject();
+  const selectedObject = getSelectedObject();
+  const editorData = state.editorData;
+
+  if (!selectedProject) {
+    elements.inspector.innerHTML = `<div class="tree-row"><strong>No Project Selected</strong><span>Choose a project to inspect.</span></div>`;
+    return;
+  }
+
+  if (!editorData) {
+    elements.inspector.innerHTML = `
+      <div class="tree-row">
+        <strong>${selectedProject.displayName}</strong>
+        <span>No editable scene data is available for this project yet.</span>
+      </div>
+    `;
+    return;
+  }
+
+  if (!selectedObject) {
+    elements.inspector.innerHTML = `
+      <div class="tree-row">
+        <strong>${selectedProject.displayName}</strong>
+        <span>Select an object from the scene explorer or canvas to edit it.</span>
+      </div>
+    `;
+    return;
+  }
+
+  const layer = getLayerById(selectedObject.layerId);
+  const locked = selectedObject.locked || layer?.locked;
+  const projectNotes = selectedProject.notes ?? {};
+  const inspectorInput = {
+    subjectId: selectedObject.id,
+    subjectKind: "object",
+    title: selectedObject.displayName,
+    subtitle: `${selectedProject.displayName} · ${selectedObject.type}`,
+    mode: locked ? "inspect" : "edit",
+    facts: [
+      `Layer ${layer?.displayName ?? selectedObject.layerId} is ${layer?.visible === false ? "hidden" : "visible"} in the editor.`,
+      `Current project lifecycle stage is ${labelizeStage(selectedProject.lifecycle?.currentStage)}.`,
+      "Preview rendering and save/reload use internal project files only."
+    ],
+    assumptions: projectNotes.assumptions ?? [],
+    unresolved: projectNotes.unresolvedQuestions ?? [],
+    groups: [
+      {
+        groupId: "group.metadata",
+        title: "Metadata",
+        description: "Read-only identity and linkage details for the selected object.",
+        rows: [
+          { key: "id", label: "Object ID", value: selectedObject.id, status: "proven", fieldState: "read-only" },
+          { key: "type", label: "Type", value: selectedObject.type, status: "proven", fieldState: "read-only" },
+          { key: "layerId", label: "Layer", value: selectedObject.layerId, status: "proven", fieldState: "read-only" },
+          {
+            key: "assetRef",
+            label: "Asset / Placeholder",
+            value: selectedObject.assetRef ?? selectedObject.placeholderRef ?? "none",
+            status: "proven",
+            fieldState: "read-only"
+          },
+          { key: "lockState", label: "Lock State", value: locked ? "locked" : "editable", status: "proven", fieldState: "read-only" }
+        ]
+      },
+      {
+        groupId: "group.transform",
+        title: "Editable Properties",
+        description: "Core properties for the first save/reload editor slice.",
+        rows: [
+          {
+            key: "displayName",
+            label: "Display Name",
+            value: selectedObject.displayName,
+            status: "proven",
+            fieldKind: "text",
+            fieldState: locked ? "locked" : "editable",
+            path: ["objects", selectedObject.id, "displayName"]
+          },
+          {
+            key: "x",
+            label: "X",
+            value: selectedObject.x,
+            status: "proven",
+            fieldKind: "number",
+            fieldState: locked ? "locked" : "editable",
+            path: ["objects", selectedObject.id, "x"]
+          },
+          {
+            key: "y",
+            label: "Y",
+            value: selectedObject.y,
+            status: "proven",
+            fieldKind: "number",
+            fieldState: locked ? "locked" : "editable",
+            path: ["objects", selectedObject.id, "y"]
+          },
+          {
+            key: "scaleX",
+            label: "Scale X",
+            value: selectedObject.scaleX,
+            status: "proven",
+            fieldKind: "number",
+            fieldState: locked ? "locked" : "editable",
+            path: ["objects", selectedObject.id, "scaleX"]
+          },
+          {
+            key: "scaleY",
+            label: "Scale Y",
+            value: selectedObject.scaleY,
+            status: "proven",
+            fieldKind: "number",
+            fieldState: locked ? "locked" : "editable",
+            path: ["objects", selectedObject.id, "scaleY"]
+          },
+          {
+            key: "visible",
+            label: "Visible",
+            value: selectedObject.visible,
+            status: "proven",
+            fieldKind: "boolean",
+            fieldState: locked ? "locked" : "editable",
+            path: ["objects", selectedObject.id, "visible"]
+          }
+        ]
+      },
+      {
+        groupId: "group.notes",
+        title: "Notes",
+        description: "Object and project notes that keep the editor workflow honest.",
+        rows: [
+          {
+            key: "objectNotes",
+            label: "Object Notes",
+            value: selectedObject.notes ?? "No object notes yet.",
+            status: "proven",
+            fieldState: "read-only"
+          },
+          {
+            key: "projectFact",
+            label: "Project Fact",
+            value: projectNotes.proven?.[0] ?? "Project metadata loaded from the workspace registry.",
+            status: "proven",
+            fieldState: "read-only"
+          },
+          {
+            key: "projectPlan",
+            label: "Planned Work",
+            value: projectNotes.planned?.[0] ?? "Keep the editor slice bounded and local-first.",
+            status: "todo",
+            fieldState: "read-only"
+          }
+        ]
+      }
+    ]
+  };
+  const propertyPanel = typeof window.myideApi?.buildPropertyPanelViewModel === "function"
+    ? window.myideApi.buildPropertyPanelViewModel(inspectorInput)
+    : inspectorInput;
+
+  const groupsMarkup = propertyPanel.groups.map((group) => {
+    const rowsMarkup = group.rows.map((row) => renderInspectorRow(row)).join("");
+    return `
+      <section>
+        <h4>${group.title}</h4>
+        ${group.description ? `<p class="inspector-purpose">${group.description}</p>` : ""}
+        <div class="inspector-rows">${rowsMarkup}</div>
+      </section>
+    `;
   }).join("");
 
   elements.inspector.innerHTML = `
     <div class="inspector-title">
-      <p>Workspace + Replay State</p>
-      <h3>${selectedProject?.displayName ?? project.projectId}</h3>
+      <p>${propertyPanel.mode === "edit" ? "Selected Object" : "Selected Object (Locked)"}</p>
+      <h3>${propertyPanel.title}</h3>
     </div>
-    <p class="inspector-purpose">${selectedProject?.donor.donorName ?? "Unknown project"} mapped to a bounded local replay.</p>
-    <section>
-      <h4>Project Metadata</h4>
-      <ul>
-        <li>Project ID: <code>${selectedProject?.projectId ?? "unknown"}</code></li>
-        <li>Project folder: <code>${selectedProject?.keyPaths.projectRoot ?? "unknown"}</code></li>
-        <li>Status: <code>${selectedProject?.status ?? "unknown"}</code></li>
-        <li>Target / Resulting game: <code>${selectedProject?.targetGame.displayName ?? "unknown"}</code></li>
-        <li>Phase: <code>${selectedProject?.phase ?? "unknown"}</code></li>
-        <li>Implementation scope: <code>${selectedProject?.implementationScope ?? "unknown"}</code></li>
-        <li>Verification: <code>${selectedProject?.verificationStatus ?? "unknown"}</code></li>
-        <li>Lifecycle current stage: <code>${selectedProject?.lifecycle?.currentStage ?? "unknown"}</code></li>
-        <li>Workspace active project: <code>${state.bundle.workspace.activeProjectId ?? "unknown"}</code></li>
-      </ul>
-    </section>
-    <section>
-      <h4>Lifecycle Stages</h4>
-      <ul>${lifecycleRows}</ul>
-    </section>
-    <section>
-      <h4>Proven Facts</h4>
-      <ul>
-        <li>Preview data is loaded from <code>40_projects/project_001</code> only.</li>
-        <li>Current fixture: <code>${fixture?.fixtureId ?? "idle-only"}</code>.</li>
-        <li>Selected project metadata is registry-backed; replay runtime still uses the validated internal slice only.</li>
-        <li>Evidence refs on the active donor-backed state are shown below.</li>
-      </ul>
-    </section>
-    <section>
-      <h4>Evidence Refs</h4>
-      <div class="chip-row">${evidenceRefs.length > 0 ? evidenceRefs.map((ref) => `<span>${ref}</span>`).join("") : "<span>Internal-only state</span>"}</div>
-    </section>
-    <section>
-      <h4>Assumptions</h4>
-      <ul>${assumptions.map((item) => `<li>${item}</li>`).join("")}</ul>
-    </section>
-    <section>
-      <h4>Unresolved</h4>
-      <ul>${unresolved.map((item) => `<li>${item}</li>`).join("")}</ul>
-    </section>
-    <section>
-      <h4>Notes</h4>
-      <ul>
-        <li>${selectedProject?.notes?.proven?.[0] ?? "Validated slice remains intact."}</li>
-        <li>${selectedProject?.notes?.planned?.[0] ?? "Workspace registry will expand over time."}</li>
-      </ul>
-    </section>
+    <p class="inspector-purpose">${propertyPanel.subtitle ?? (selectedObject.notes ?? "First editor slice object.")}</p>
+    <div class="chip-row">
+      <span>${propertyPanel.editableRowCount} editable</span>
+      <span>${propertyPanel.readOnlyRowCount} read-only</span>
+      <span>${locked ? "locked by object/layer" : "local-first editor"}</span>
+    </div>
+    ${groupsMarkup}
   `;
+}
+
+function renderInspectorRow(row) {
+  const disabled = row.fieldState !== "editable" ? "disabled" : "";
+  const noteMarkup = row.notes ? `<small class="muted-copy">${escapeHtml(row.notes)}</small>` : "";
+  const value = row.value;
+
+  if (row.fieldKind === "boolean") {
+    return `
+      <label class="toggle-field">
+        <input name="${escapeAttribute(row.key)}" type="checkbox" ${value ? "checked" : ""} ${disabled} />
+        <span>${row.label}</span>
+      </label>
+      ${noteMarkup}
+    `;
+  }
+
+  if (row.fieldKind === "multiline") {
+    return `
+      <label class="form-field">
+        <span>${row.label}</span>
+        <textarea name="${escapeAttribute(row.key)}" ${disabled}>${escapeHtml(value)}</textarea>
+      </label>
+      ${noteMarkup}
+    `;
+  }
+
+  if (row.fieldKind === "select" && Array.isArray(row.options)) {
+    const optionsMarkup = row.options.map((option) => `
+      <option value="${escapeAttribute(option.value)}" ${String(option.value) === String(value) ? "selected" : ""}>${option.label}</option>
+    `).join("");
+
+    return `
+      <label class="form-field">
+        <span>${row.label}</span>
+        <select name="${escapeAttribute(row.key)}" ${disabled}>${optionsMarkup}</select>
+      </label>
+      ${noteMarkup}
+    `;
+  }
+
+  if (row.fieldKind === "text" || row.fieldKind === "number") {
+    return `
+      <label class="form-field">
+        <span>${row.label}</span>
+        <input
+          name="${escapeAttribute(row.key)}"
+          type="${row.fieldKind === "number" ? "number" : "text"}"
+          ${row.fieldKind === "number" ? 'step="0.1"' : ""}
+          value="${escapeAttribute(value)}"
+          ${disabled}
+        />
+      </label>
+      ${noteMarkup}
+    `;
+  }
+
+  return `
+    <div class="tree-row">
+      <strong>${row.label}</strong>
+      <span>${escapeHtml(value)}</span>
+    </div>
+    ${noteMarkup}
+  `;
+}
+
+function renderActivityLog() {
+  if (!elements.activityLog) {
+    return;
+  }
+
+  elements.activityLog.innerHTML = state.activityLog
+    .map((entry) => `<li><strong>${entry.stamp}</strong> ${entry.text}</li>`)
+    .join("");
 }
 
 function renderAll() {
   renderProjectBrowser();
-  renderEvidenceBrowser();
-  renderStage();
-  renderLog();
+  renderSceneExplorer();
+  renderProjectSummary();
+  renderEditorCanvas();
   renderInspector();
+  renderActivityLog();
+
+  if (elements.actionSave) {
+    elements.actionSave.disabled = !state.editorData || !state.dirty;
+  }
 }
 
 function renderFatal(message) {
@@ -804,36 +935,51 @@ function renderFatal(message) {
   if (elements.projectBrowser) {
     elements.projectBrowser.innerHTML = `<div class="tree-row"><strong>Load Error</strong><span>${message}</span></div>`;
   }
-  if (elements.evidenceBrowser) {
-    elements.evidenceBrowser.innerHTML = `<div class="tree-row"><strong>Bridge Status</strong><span>Preview could not load project_001.</span></div>`;
+  if (elements.sceneExplorer) {
+    elements.sceneExplorer.innerHTML = `<div class="tree-row"><strong>Scene Explorer</strong><span>Editor data could not be loaded.</span></div>`;
+  }
+  if (elements.projectSummary) {
+    elements.projectSummary.innerHTML = `<div class="tree-row"><strong>Editor Canvas</strong><span>${message}</span></div>`;
   }
   if (elements.inspector) {
-    elements.inspector.innerHTML = `
-      <div class="inspector-title">
-        <p>Preview Error</p>
-        <h3>Load Failed</h3>
-      </div>
-      <p class="inspector-purpose">${message}</p>
-    `;
+    elements.inspector.innerHTML = `<div class="tree-row"><strong>Inspector</strong><span>${message}</span></div>`;
   }
 }
 
+function escapeAttribute(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
 window.render_game_to_text = () => JSON.stringify({
-  activeStateId: state.activeStateId,
-  activeFixtureKey: state.activeFixtureKey,
-  balance: state.balance,
-  bet: state.bet,
-  grid: state.currentGrid,
-  stickyFrames: Array.from(state.stickyFrames),
-  overlay: state.overlay,
-  freeSpinsText: state.freeSpinsText,
-  restoreVisible: state.restoreVisible,
-  log: state.log.slice(0, 4)
+  selectedProjectId: state.selectedProjectId,
+  selectedObjectId: state.selectedObjectId,
+  dirty: state.dirty,
+  editorObjectPositions: Array.isArray(state.editorData?.objects)
+    ? state.editorData.objects.map((entry) => ({
+      id: entry.id,
+      x: entry.x,
+      y: entry.y,
+      scaleX: entry.scaleX,
+      scaleY: entry.scaleY,
+      visible: entry.visible
+    }))
+    : []
 });
 
 window.advanceTime = (ms) => {
   if (typeof ms === "number" && Number.isFinite(ms) && ms > 0) {
-    pushLog(`advanceTime(${Math.round(ms)}) observed in deterministic replay.`);
-    renderAll();
+    pushLog(`advanceTime(${Math.round(ms)}) observed in editor mode.`);
+    renderActivityLog();
   }
 };
