@@ -96,6 +96,10 @@
           <div id="editor-toolbar" class="editor-toolbar">
             <button id="action-undo" type="button">Undo</button>
             <button id="action-redo" type="button">Redo</button>
+            <button id="action-zoom-out" type="button">Zoom Out</button>
+            <button id="action-zoom-in" type="button">Zoom In</button>
+            <button id="action-fit-view" type="button">Fit View</button>
+            <button id="action-reset-view" type="button">Reset View</button>
             <button id="action-toggle-snap" type="button">Snap 10px Off</button>
             <label class="toolbar-select" for="field-placeholder-preset">
               <span>Placeholder Preset</span>
@@ -125,8 +129,9 @@
             <button id="action-save" type="button">Save Scene Changes</button>
             <button id="action-reload-editor" type="button">Reload From Disk</button>
             <span id="dirty-indicator" class="toolbar-indicator">Saved</span>
+            <span id="viewport-indicator" class="toolbar-indicator" data-tone="info">View 100%</span>
             <span id="order-context-indicator" class="toolbar-indicator" data-tone="info">Order n/a</span>
-            <span class="toolbar-hint">Ctrl/Cmd+S save · Ctrl/Cmd+Shift+N new placeholder · Ctrl/Cmd+Shift+G snap · Ctrl/Cmd+[ and ] reorder · Ctrl/Cmd+Shift+[ and ] navigate layer siblings · scene explorer Solo is session-only · Ctrl/Cmd+D duplicate · Delete remove · arrows nudge</span>
+            <span class="toolbar-hint">Ctrl/Cmd+S save · Ctrl/Cmd+= / - zoom · Ctrl/Cmd+0 reset view · Space+drag or middle mouse pan · Ctrl/Cmd+Shift+N new placeholder · Ctrl/Cmd+Shift+G snap · Ctrl/Cmd+[ and ] reorder · Ctrl/Cmd+Shift+[ and ] navigate layer siblings · scene explorer Solo is session-only · Ctrl/Cmd+D duplicate · Delete remove · arrows nudge</span>
           </div>
           <div id="sync-status" class="sync-status-card" aria-live="polite"></div>
           <div id="project-summary" class="project-summary" aria-live="polite"></div>

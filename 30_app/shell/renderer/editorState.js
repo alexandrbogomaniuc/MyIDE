@@ -9,6 +9,9 @@
   const DEFAULT_SNAP_SIZE = 10;
   const MIN_OBJECT_SIZE = 8;
   const MAX_OBJECT_SIZE = 4096;
+  const DEFAULT_VIEW_ZOOM = 1;
+  const MIN_VIEW_ZOOM = 0.25;
+  const MAX_VIEW_ZOOM = 4;
   const PLACEHOLDER_PRESETS = [
     {
       key: "generic-box",
@@ -247,6 +250,171 @@
       x: snapValue(point?.x ?? 0, step),
       y: snapValue(point?.y ?? 0, step)
     };
+  }
+
+  function sanitizeViewZoom(value, fallback = DEFAULT_VIEW_ZOOM) {
+    const normalizedFallback = Number.isFinite(fallback) ? fallback : DEFAULT_VIEW_ZOOM;
+    if (!Number.isFinite(value)) {
+      return Math.min(MAX_VIEW_ZOOM, Math.max(MIN_VIEW_ZOOM, normalizedFallback));
+    }
+
+    return Math.min(MAX_VIEW_ZOOM, Math.max(MIN_VIEW_ZOOM, value));
+  }
+
+  function sanitizeViewOffset(value) {
+    if (!Number.isFinite(value)) {
+      return 0;
+    }
+
+    return Math.round(value * 1000) / 1000;
+  }
+
+  function sanitizeViewportState(viewportState = null) {
+    const candidate = viewportState && typeof viewportState === "object" ? viewportState : {};
+    return {
+      zoom: sanitizeViewZoom(candidate.zoom, DEFAULT_VIEW_ZOOM),
+      panX: sanitizeViewOffset(candidate.panX),
+      panY: sanitizeViewOffset(candidate.panY)
+    };
+  }
+
+  function normalizeAxisLength(value, fallback = 1) {
+    const normalizedFallback = Number.isFinite(fallback) && fallback > 0 ? fallback : 1;
+    if (!Number.isFinite(value) || value <= 0) {
+      return normalizedFallback;
+    }
+
+    return Math.max(1, Math.round(value));
+  }
+
+  function getViewportPanBounds(viewportSize, sceneSize, zoom) {
+    const normalizedZoom = sanitizeViewZoom(zoom, DEFAULT_VIEW_ZOOM);
+    const viewportWidth = normalizeAxisLength(viewportSize?.width, sceneSize?.width ?? 1);
+    const viewportHeight = normalizeAxisLength(viewportSize?.height, sceneSize?.height ?? 1);
+    const sceneWidth = normalizeAxisLength(sceneSize?.width, viewportWidth);
+    const sceneHeight = normalizeAxisLength(sceneSize?.height, viewportHeight);
+    const scaledWidth = sceneWidth * normalizedZoom;
+    const scaledHeight = sceneHeight * normalizedZoom;
+    const centerX = (viewportWidth - scaledWidth) / 2;
+    const centerY = (viewportHeight - scaledHeight) / 2;
+
+    const xBounds = scaledWidth <= viewportWidth
+      ? { min: centerX, max: centerX }
+      : { min: viewportWidth - scaledWidth, max: 0 };
+    const yBounds = scaledHeight <= viewportHeight
+      ? { min: centerY, max: centerY }
+      : { min: viewportHeight - scaledHeight, max: 0 };
+
+    return {
+      zoom: normalizedZoom,
+      viewport: {
+        width: viewportWidth,
+        height: viewportHeight
+      },
+      scene: {
+        width: sceneWidth,
+        height: sceneHeight
+      },
+      x: xBounds,
+      y: yBounds
+    };
+  }
+
+  function clampViewportState(viewportState, viewportSize, sceneSize) {
+    const normalized = sanitizeViewportState(viewportState);
+    const bounds = getViewportPanBounds(viewportSize, sceneSize, normalized.zoom);
+    const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+
+    return {
+      zoom: bounds.zoom,
+      panX: sanitizeViewOffset(clamp(normalized.panX, bounds.x.min, bounds.x.max)),
+      panY: sanitizeViewOffset(clamp(normalized.panY, bounds.y.min, bounds.y.max))
+    };
+  }
+
+  function screenToWorldPoint(screenPoint, viewportState) {
+    const state = sanitizeViewportState(viewportState);
+    const screenX = Number.isFinite(screenPoint?.x) ? screenPoint.x : 0;
+    const screenY = Number.isFinite(screenPoint?.y) ? screenPoint.y : 0;
+
+    return {
+      x: (screenX - state.panX) / state.zoom,
+      y: (screenY - state.panY) / state.zoom
+    };
+  }
+
+  function worldToScreenPoint(worldPoint, viewportState) {
+    const state = sanitizeViewportState(viewportState);
+    const worldX = Number.isFinite(worldPoint?.x) ? worldPoint.x : 0;
+    const worldY = Number.isFinite(worldPoint?.y) ? worldPoint.y : 0;
+
+    return {
+      x: worldX * state.zoom + state.panX,
+      y: worldY * state.zoom + state.panY
+    };
+  }
+
+  function zoomViewportAtPoint(viewportState, options = {}) {
+    const current = sanitizeViewportState(viewportState);
+    const targetZoom = sanitizeViewZoom(
+      options.zoom,
+      Number.isFinite(options.previousZoom) ? options.previousZoom : current.zoom
+    );
+    const anchor = {
+      x: Number.isFinite(options.anchor?.x) ? options.anchor.x : 0,
+      y: Number.isFinite(options.anchor?.y) ? options.anchor.y : 0
+    };
+    const anchorWorld = screenToWorldPoint(anchor, current);
+    const candidate = {
+      zoom: targetZoom,
+      panX: anchor.x - anchorWorld.x * targetZoom,
+      panY: anchor.y - anchorWorld.y * targetZoom
+    };
+
+    return clampViewportState(
+      candidate,
+      options.viewportSize,
+      options.sceneSize
+    );
+  }
+
+  function panViewportByDelta(viewportState, options = {}) {
+    const current = sanitizeViewportState(viewportState);
+    const deltaX = Number.isFinite(options.delta?.x) ? options.delta.x : 0;
+    const deltaY = Number.isFinite(options.delta?.y) ? options.delta.y : 0;
+    const candidate = {
+      zoom: current.zoom,
+      panX: current.panX + deltaX,
+      panY: current.panY + deltaY
+    };
+
+    return clampViewportState(
+      candidate,
+      options.viewportSize,
+      options.sceneSize
+    );
+  }
+
+  function fitViewportToScene(viewportSize, sceneSize, padding = 48) {
+    const viewportWidth = normalizeAxisLength(viewportSize?.width, sceneSize?.width ?? 1);
+    const viewportHeight = normalizeAxisLength(viewportSize?.height, sceneSize?.height ?? 1);
+    const sceneWidth = normalizeAxisLength(sceneSize?.width, viewportWidth);
+    const sceneHeight = normalizeAxisLength(sceneSize?.height, viewportHeight);
+    const safePadding = Math.max(0, Math.round(Number.isFinite(padding) ? padding : 48));
+    const availableWidth = Math.max(1, viewportWidth - safePadding * 2);
+    const availableHeight = Math.max(1, viewportHeight - safePadding * 2);
+    const fitZoom = Math.min(availableWidth / sceneWidth, availableHeight / sceneHeight);
+    const zoom = sanitizeViewZoom(fitZoom, DEFAULT_VIEW_ZOOM);
+
+    return clampViewportState(
+      {
+        zoom,
+        panX: (viewportWidth - sceneWidth * zoom) / 2,
+        panY: (viewportHeight - sceneHeight * zoom) / 2
+      },
+      { width: viewportWidth, height: viewportHeight },
+      { width: sceneWidth, height: sceneHeight }
+    );
   }
 
   function isObjectSizeEditable(object) {
@@ -728,10 +896,22 @@
     undo,
     redo,
     DEFAULT_SNAP_SIZE,
+    DEFAULT_VIEW_ZOOM,
+    MIN_VIEW_ZOOM,
+    MAX_VIEW_ZOOM,
     MIN_OBJECT_SIZE,
     MAX_OBJECT_SIZE,
     snapValue,
     snapPoint,
+    sanitizeViewZoom,
+    sanitizeViewportState,
+    getViewportPanBounds,
+    clampViewportState,
+    screenToWorldPoint,
+    worldToScreenPoint,
+    zoomViewportAtPoint,
+    panViewportByDelta,
+    fitViewportToScene,
     isObjectSizeEditable,
     isObjectAlignable,
     sanitizeObjectDimension,

@@ -125,6 +125,13 @@
 - [x] Add smoke coverage for order cues plus previous/next layer navigation.
 - [ ] Verify the order-cue/navigation workflow interactively in a GUI-capable Electron session.
 
+## PHASE 5J
+- [x] Add bounded viewport zoom in/out controls.
+- [x] Add bounded session-only viewport pan plus fit/reset view controls.
+- [x] Keep viewport state session-only and non-dirty while preserving correct object selection and drag math under transformed view.
+- [x] Add smoke coverage for transformed-view editing plus fit/reset behavior.
+- [ ] Verify the viewport-controls workflow interactively in a GUI-capable Electron session.
+
 ## Deferred
 - [ ] Donor decoding automation.
 - [ ] Full editor interactions.

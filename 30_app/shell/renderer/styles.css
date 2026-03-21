@@ -626,6 +626,19 @@ button:disabled {
   gap: 10px;
 }
 
+.canvas-viewport {
+  position: relative;
+  width: min(100%, var(--scene-width, 1280px));
+  min-height: 320px;
+  margin: 0 auto;
+  overflow: hidden;
+  border-radius: 22px;
+}
+
+.canvas-viewport.is-view-transformed {
+  box-shadow: 0 0 0 1px rgba(110, 169, 216, 0.12);
+}
+
 .canvas-meta {
   display: flex;
   flex-wrap: wrap;
@@ -639,6 +652,8 @@ button:disabled {
 
 .canvas-stage {
   position: relative;
+  width: 100%;
+  height: 100%;
   overflow: hidden;
   border-radius: 22px;
   border: 1px solid rgba(147, 201, 133, 0.2);
@@ -647,6 +662,7 @@ button:disabled {
     radial-gradient(circle at bottom right, rgba(230, 191, 100, 0.12), transparent 26%),
     linear-gradient(180deg, rgba(24, 49, 40, 0.96), rgba(10, 20, 18, 0.98));
   outline: none;
+  touch-action: none;
 }
 
 .canvas-stage.is-snap-enabled::before {
@@ -667,8 +683,24 @@ button:disabled {
   box-shadow: inset 0 0 0 1px rgba(110, 169, 216, 0.14);
 }
 
+.canvas-stage.is-view-transformed {
+  border-color: rgba(110, 169, 216, 0.3);
+}
+
+.canvas-stage.is-panning,
+.canvas-stage.is-panning .canvas-object {
+  cursor: grabbing;
+}
+
 .canvas-stage:focus-visible {
   box-shadow: 0 0 0 2px rgba(230, 191, 100, 0.34), 0 18px 28px rgba(0, 0, 0, 0.26);
+}
+
+.canvas-camera {
+  position: absolute;
+  inset: 0 auto auto 0;
+  transform-origin: top left;
+  will-change: transform;
 }
 
 .canvas-object {

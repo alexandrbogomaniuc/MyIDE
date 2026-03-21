@@ -5,6 +5,14 @@ const state = {
   selectedObjectId: null,
   history: null,
   canvasDrag: null,
+  viewport: {
+    zoom: 1,
+    panX: 0,
+    panY: 0,
+    panDrag: null,
+    spacePressed: false,
+    suppressNextClick: false
+  },
   dirty: false,
   activityLog: [],
   syncStatus: null,
@@ -54,6 +62,10 @@ const elements = {
   actionRescan: document.getElementById("action-rescan"),
   actionUndo: document.getElementById("action-undo"),
   actionRedo: document.getElementById("action-redo"),
+  actionZoomOut: document.getElementById("action-zoom-out"),
+  actionZoomIn: document.getElementById("action-zoom-in"),
+  actionFitView: document.getElementById("action-fit-view"),
+  actionResetView: document.getElementById("action-reset-view"),
   actionToggleSnap: document.getElementById("action-toggle-snap"),
   actionNewObject: document.getElementById("action-new-object"),
   fieldPlaceholderPreset: document.getElementById("field-placeholder-preset"),
@@ -65,6 +77,7 @@ const elements = {
   actionReloadEditor: document.getElementById("action-reload-editor"),
   editorToolbar: document.getElementById("editor-toolbar"),
   dirtyIndicator: document.getElementById("dirty-indicator"),
+  viewportIndicator: document.getElementById("viewport-indicator"),
   orderContextIndicator: document.getElementById("order-context-indicator"),
   syncStatus: document.getElementById("sync-status"),
   newProjectForm: document.getElementById("new-project-form"),
@@ -100,6 +113,18 @@ function bindActions() {
   });
   elements.actionRedo?.addEventListener("click", () => {
     handleRedo();
+  });
+  elements.actionZoomOut?.addEventListener("click", () => {
+    handleViewportZoom("out");
+  });
+  elements.actionZoomIn?.addEventListener("click", () => {
+    handleViewportZoom("in");
+  });
+  elements.actionFitView?.addEventListener("click", () => {
+    handleFitViewport();
+  });
+  elements.actionResetView?.addEventListener("click", () => {
+    handleResetViewport();
   });
   elements.actionToggleSnap?.addEventListener("click", () => {
     handleToggleSnap();
@@ -202,6 +227,11 @@ function bindActions() {
     }
   });
   elements.editorCanvas?.addEventListener("click", (event) => {
+    if (consumeViewportSuppressedClick()) {
+      event.preventDefault();
+      return;
+    }
+
     const target = event.target;
     if (!(target instanceof HTMLElement)) {
       return;
@@ -232,6 +262,12 @@ function bindActions() {
   });
   window.addEventListener("keydown", (event) => {
     handleCanvasKeyboard(event);
+  });
+  window.addEventListener("keyup", (event) => {
+    handleCanvasKeyUp(event);
+  });
+  window.addEventListener("blur", () => {
+    clearViewportInteractionState();
   });
   elements.inspector?.addEventListener("input", (event) => {
     handleInspectorEvent(event);
@@ -879,6 +915,10 @@ function getCanvasStage() {
   return elements.editorCanvas?.querySelector(".canvas-stage") ?? null;
 }
 
+function getCanvasViewportElement() {
+  return elements.editorCanvas?.querySelector(".canvas-viewport") ?? null;
+}
+
 function getCanvasObjectById(objectId) {
   if (!state.editorData || !Array.isArray(state.editorData.objects)) {
     return null;
@@ -891,25 +931,323 @@ function setSelectedObject(objectId) {
   state.selectedObjectId = objectId;
 }
 
+function getViewportTools() {
+  const tools = getEditorStateTools();
+  return {
+    DEFAULT_VIEW_ZOOM: Number.isFinite(tools.DEFAULT_VIEW_ZOOM) ? tools.DEFAULT_VIEW_ZOOM : 1,
+    MIN_VIEW_ZOOM: Number.isFinite(tools.MIN_VIEW_ZOOM) ? tools.MIN_VIEW_ZOOM : 0.25,
+    MAX_VIEW_ZOOM: Number.isFinite(tools.MAX_VIEW_ZOOM) ? tools.MAX_VIEW_ZOOM : 4,
+    sanitizeViewportState: typeof tools.sanitizeViewportState === "function"
+      ? tools.sanitizeViewportState
+      : (viewportState) => ({
+          zoom: Number.isFinite(viewportState?.zoom) ? viewportState.zoom : 1,
+          panX: Number.isFinite(viewportState?.panX) ? viewportState.panX : 0,
+          panY: Number.isFinite(viewportState?.panY) ? viewportState.panY : 0
+        }),
+    clampViewportState: typeof tools.clampViewportState === "function"
+      ? tools.clampViewportState
+      : (viewportState) => viewportState,
+    screenToWorldPoint: typeof tools.screenToWorldPoint === "function"
+      ? tools.screenToWorldPoint
+      : (screenPoint, viewportState) => {
+          const zoom = Number.isFinite(viewportState?.zoom) ? viewportState.zoom : 1;
+          const panX = Number.isFinite(viewportState?.panX) ? viewportState.panX : 0;
+          const panY = Number.isFinite(viewportState?.panY) ? viewportState.panY : 0;
+          return {
+            x: (screenPoint.x - panX) / zoom,
+            y: (screenPoint.y - panY) / zoom
+          };
+        },
+    zoomViewportAtPoint: typeof tools.zoomViewportAtPoint === "function"
+      ? tools.zoomViewportAtPoint
+      : null,
+    panViewportByDelta: typeof tools.panViewportByDelta === "function"
+      ? tools.panViewportByDelta
+      : null,
+    fitViewportToScene: typeof tools.fitViewportToScene === "function"
+      ? tools.fitViewportToScene
+      : null,
+    sanitizeViewZoom: typeof tools.sanitizeViewZoom === "function"
+      ? tools.sanitizeViewZoom
+      : (value, fallback = 1) => Number.isFinite(value) ? value : fallback
+  };
+}
+
+function resetViewportSessionState() {
+  const tools = getViewportTools();
+  state.viewport = {
+    zoom: tools.DEFAULT_VIEW_ZOOM,
+    panX: 0,
+    panY: 0,
+    panDrag: null,
+    spacePressed: false,
+    suppressNextClick: false
+  };
+}
+
+function clearViewportInteractionState() {
+  state.viewport.panDrag = null;
+  state.viewport.spacePressed = false;
+}
+
+function getViewportSceneSize() {
+  const viewport = getSceneViewport();
+  return {
+    width: viewport.width,
+    height: viewport.height
+  };
+}
+
+function getCanvasViewportSize() {
+  const sceneSize = getViewportSceneSize();
+  const viewport = getCanvasViewportElement();
+  const rect = viewport?.getBoundingClientRect();
+
+  return {
+    width: rect?.width && rect.width > 0 ? rect.width : sceneSize.width,
+    height: rect?.height && rect.height > 0 ? rect.height : sceneSize.height
+  };
+}
+
+function applyViewportState(nextViewportState, options = {}) {
+  const tools = getViewportTools();
+  const clamped = tools.clampViewportState(
+    tools.sanitizeViewportState(nextViewportState),
+    getCanvasViewportSize(),
+    getViewportSceneSize()
+  );
+  state.viewport.zoom = clamped.zoom;
+  state.viewport.panX = clamped.panX;
+  state.viewport.panY = clamped.panY;
+
+  if (options.render !== false) {
+    renderAll();
+  }
+
+  return clamped;
+}
+
+function getViewportState() {
+  return applyViewportState(state.viewport, { render: false });
+}
+
+function getViewportZoomPercent() {
+  return Math.round(getViewportState().zoom * 100);
+}
+
+function isViewportTransformed() {
+  const view = getViewportState();
+  return Math.abs(view.zoom - 1) > 0.001 || Math.abs(view.panX) > 0.001 || Math.abs(view.panY) > 0.001;
+}
+
+function consumeViewportSuppressedClick() {
+  if (!state.viewport.suppressNextClick) {
+    return false;
+  }
+
+  state.viewport.suppressNextClick = false;
+  return true;
+}
+
+function getScenePointFromEvent(event) {
+  const viewportElement = getCanvasViewportElement();
+  if (!viewportElement) {
+    return { x: 0, y: 0 };
+  }
+
+  const rect = viewportElement.getBoundingClientRect();
+  const tools = getViewportTools();
+  const screenPoint = {
+    x: event.clientX - rect.left,
+    y: event.clientY - rect.top
+  };
+
+  return tools.screenToWorldPoint(screenPoint, getViewportState());
+}
+
+function getViewportZoomTarget(direction) {
+  const current = getViewportState().zoom;
+  const factor = direction === "in" ? 1.2 : 1 / 1.2;
+  return current * factor;
+}
+
+function handleViewportZoom(direction) {
+  if (!state.editorData || state.canvasDrag || state.viewport.panDrag) {
+    return;
+  }
+
+  const tools = getViewportTools();
+  const viewportSize = getCanvasViewportSize();
+  const sceneSize = getViewportSceneSize();
+  const anchor = {
+    x: viewportSize.width / 2,
+    y: viewportSize.height / 2
+  };
+  const nextZoom = getViewportZoomTarget(direction);
+  const nextState = tools.zoomViewportAtPoint
+    ? tools.zoomViewportAtPoint(getViewportState(), {
+        zoom: nextZoom,
+        anchor,
+        viewportSize,
+        sceneSize
+      })
+    : {
+        ...getViewportState(),
+        zoom: tools.sanitizeViewZoom(nextZoom, getViewportState().zoom)
+      };
+  const applied = applyViewportState(nextState);
+  pushLog(`Viewport ${direction === "in" ? "zoomed in" : "zoomed out"} to ${Math.round(applied.zoom * 100)}%.`);
+  setPreviewStatus(`Viewport ${direction === "in" ? "zoomed in" : "zoomed out"} to ${Math.round(applied.zoom * 100)}%. View state is session-only.`);
+}
+
+function fitViewportToScene(options = {}) {
+  if (!state.editorData) {
+    return getViewportState();
+  }
+
+  const tools = getViewportTools();
+  const viewportSize = getCanvasViewportSize();
+  const sceneSize = getViewportSceneSize();
+  const nextState = tools.fitViewportToScene
+    ? tools.fitViewportToScene(viewportSize, sceneSize, 48)
+    : {
+        zoom: tools.DEFAULT_VIEW_ZOOM,
+        panX: 0,
+        panY: 0
+      };
+  return applyViewportState(nextState, options);
+}
+
+function handleFitViewport() {
+  if (!state.editorData || state.canvasDrag || state.viewport.panDrag) {
+    return;
+  }
+
+  const applied = fitViewportToScene();
+  pushLog(`Viewport fit scene at ${Math.round(applied.zoom * 100)}%.`);
+  setPreviewStatus(`Viewport fit the full scene at ${Math.round(applied.zoom * 100)}%. View state is session-only.`);
+}
+
+function handleResetViewport() {
+  if (!state.editorData || state.canvasDrag || state.viewport.panDrag) {
+    return;
+  }
+
+  const tools = getViewportTools();
+  const applied = applyViewportState({
+    zoom: tools.DEFAULT_VIEW_ZOOM,
+    panX: 0,
+    panY: 0
+  });
+  pushLog(`Viewport reset to ${Math.round(applied.zoom * 100)}% at the default origin.`);
+  setPreviewStatus("Viewport reset to 100% at the default origin. View state is session-only.");
+}
+
+function beginViewportPan(event) {
+  if (!state.editorData || state.canvasDrag || state.viewport.panDrag) {
+    return false;
+  }
+
+  const current = getViewportState();
+  state.viewport.panDrag = {
+    pointerId: event.pointerId,
+    startClientX: event.clientX,
+    startClientY: event.clientY,
+    startPanX: current.panX,
+    startPanY: current.panY,
+    moved: false
+  };
+
+  if (typeof elements.editorCanvas?.setPointerCapture === "function") {
+    try {
+      elements.editorCanvas.setPointerCapture(event.pointerId);
+    } catch {
+      // Pointer capture is best-effort only.
+    }
+  }
+
+  setPreviewStatus("Panning viewport. Release to keep the session-only view.");
+  renderAll();
+  return true;
+}
+
+function updateViewportPan(event) {
+  if (!state.viewport.panDrag || event.pointerId !== state.viewport.panDrag.pointerId) {
+    return false;
+  }
+
+  const tools = getViewportTools();
+  const viewportSize = getCanvasViewportSize();
+  const sceneSize = getViewportSceneSize();
+  const delta = {
+    x: event.clientX - state.viewport.panDrag.startClientX,
+    y: event.clientY - state.viewport.panDrag.startClientY
+  };
+  const nextState = tools.panViewportByDelta
+    ? tools.panViewportByDelta(
+        {
+          zoom: getViewportState().zoom,
+          panX: state.viewport.panDrag.startPanX,
+          panY: state.viewport.panDrag.startPanY
+        },
+        {
+          delta,
+          viewportSize,
+          sceneSize
+        }
+      )
+    : {
+        ...getViewportState(),
+        panX: state.viewport.panDrag.startPanX + delta.x,
+        panY: state.viewport.panDrag.startPanY + delta.y
+      };
+
+  if (Math.abs(delta.x) > 0 || Math.abs(delta.y) > 0) {
+    state.viewport.panDrag.moved = true;
+  }
+
+  applyViewportState(nextState);
+  return true;
+}
+
+function endViewportPan(event) {
+  if (!state.viewport.panDrag || (event?.pointerId !== undefined && event.pointerId !== state.viewport.panDrag.pointerId)) {
+    return false;
+  }
+
+  try {
+    if (typeof elements.editorCanvas?.releasePointerCapture === "function") {
+      elements.editorCanvas.releasePointerCapture(state.viewport.panDrag.pointerId);
+    }
+  } catch {
+    // Pointer capture release is best-effort only.
+  }
+
+  const moved = state.viewport.panDrag.moved;
+  state.viewport.panDrag = null;
+  state.viewport.suppressNextClick = moved;
+  renderAll();
+
+  if (moved) {
+    const view = getViewportState();
+    pushLog(`Viewport panned to (${Math.round(view.panX)}, ${Math.round(view.panY)}) at ${Math.round(view.zoom * 100)}%.`);
+    setPreviewStatus(`Viewport pan updated. Current zoom ${Math.round(view.zoom * 100)}%. View state is session-only.`);
+  }
+
+  return true;
+}
+
 function beginCanvasDrag(object, event) {
   if (!object || !isObjectEditable(object)) {
     return false;
   }
-
-  const stage = getCanvasStage();
-  if (!stage) {
-    return false;
-  }
-
-  const rect = stage.getBoundingClientRect();
-  const pointerX = event.clientX - rect.left;
-  const pointerY = event.clientY - rect.top;
+  const scenePoint = getScenePointFromEvent(event);
 
   state.canvasDrag = {
     objectId: object.id,
     pointerId: event.pointerId,
-    offsetX: pointerX - object.x,
-    offsetY: pointerY - object.y,
+    offsetX: scenePoint.x - object.x,
+    offsetY: scenePoint.y - object.y,
     beforeSnapshot: clone(state.editorData),
     moved: false
   };
@@ -952,7 +1290,7 @@ function nudgeSelectedObject(deltaX, deltaY, sourceLabel) {
 }
 
 function handleCanvasPointerDown(event) {
-  if (!state.editorData || event.button !== 0) {
+  if (!state.editorData) {
     return;
   }
 
@@ -963,8 +1301,20 @@ function handleCanvasPointerDown(event) {
 
   const objectButton = target.closest("[data-canvas-object-id]");
   const canvasStage = target.closest(".canvas-stage");
+  const canvasViewport = target.closest(".canvas-viewport");
 
-  if (!canvasStage) {
+  if (!canvasViewport) {
+    return;
+  }
+
+  const viewportPanGesture = event.button === 1 || (event.button === 0 && state.viewport.spacePressed);
+  if (viewportPanGesture) {
+    beginViewportPan(event);
+    event.preventDefault();
+    return;
+  }
+
+  if (event.button !== 0 || !canvasStage) {
     return;
   }
 
@@ -991,6 +1341,10 @@ function handleCanvasPointerDown(event) {
 }
 
 function handleCanvasPointerMove(event) {
+  if (updateViewportPan(event)) {
+    return;
+  }
+
   if (!state.canvasDrag || event.pointerId !== state.canvasDrag.pointerId || !state.editorData) {
     return;
   }
@@ -1000,16 +1354,9 @@ function handleCanvasPointerMove(event) {
     return;
   }
 
-  const stage = getCanvasStage();
-  if (!stage) {
-    return;
-  }
-
-  const rect = stage.getBoundingClientRect();
-  const pointerX = event.clientX - rect.left;
-  const pointerY = event.clientY - rect.top;
-  const nextX = pointerX - state.canvasDrag.offsetX;
-  const nextY = pointerY - state.canvasDrag.offsetY;
+  const scenePoint = getScenePointFromEvent(event);
+  const nextX = scenePoint.x - state.canvasDrag.offsetX;
+  const nextY = scenePoint.y - state.canvasDrag.offsetY;
   const bounded = normalizeObjectPosition(object, nextX, nextY);
 
   if (bounded.x === object.x && bounded.y === object.y) {
@@ -1024,6 +1371,10 @@ function handleCanvasPointerMove(event) {
 }
 
 function handleCanvasPointerUp(event) {
+  if (endViewportPan(event)) {
+    return;
+  }
+
   if (!state.canvasDrag || (event?.pointerId !== undefined && event.pointerId !== state.canvasDrag.pointerId)) {
     return;
   }
@@ -1057,6 +1408,12 @@ function handleCanvasKeyboard(event) {
 
   const modifierPressed = event.metaKey || event.ctrlKey;
 
+  if (event.code === "Space" && !isTypingTarget(event.target)) {
+    state.viewport.spacePressed = true;
+    event.preventDefault();
+    return;
+  }
+
   if (modifierPressed && event.key.toLowerCase() === "s") {
     event.preventDefault();
     void handleSaveEditor();
@@ -1086,6 +1443,24 @@ function handleCanvasKeyboard(event) {
   if (modifierPressed && event.key.toLowerCase() === "d") {
     event.preventDefault();
     handleDuplicateSelectedObject();
+    return;
+  }
+
+  if (modifierPressed && (event.key === "=" || event.key === "+")) {
+    event.preventDefault();
+    handleViewportZoom("in");
+    return;
+  }
+
+  if (modifierPressed && event.key === "-") {
+    event.preventDefault();
+    handleViewportZoom("out");
+    return;
+  }
+
+  if (modifierPressed && event.key === "0") {
+    event.preventDefault();
+    handleResetViewport();
     return;
   }
 
@@ -1151,6 +1526,12 @@ function handleCanvasKeyboard(event) {
   nudgeSelectedObject(delta[0] * step, delta[1] * step, event.shiftKey ? "Keyboard nudge (fast)" : "Keyboard nudge");
 }
 
+function handleCanvasKeyUp(event) {
+  if (event.code === "Space") {
+    state.viewport.spacePressed = false;
+  }
+}
+
 async function reloadWorkspace(isInitialLoad, requestedProjectId = null) {
   if (!window.myideApi || typeof window.myideApi.loadProjectSlice !== "function") {
     throw new Error("MyIDE desktop bridge is unavailable.");
@@ -1160,6 +1541,7 @@ async function reloadWorkspace(isInitialLoad, requestedProjectId = null) {
   state.selectedProjectId = state.bundle.selectedProjectId;
   state.editorData = state.bundle.editableProject ? clone(state.bundle.editableProject) : null;
   state.canvasDrag = null;
+  resetViewportSessionState();
   resetLayerIsolation();
   resetEditorHistory();
   reconcileSelectedObject();
@@ -1700,7 +2082,9 @@ function renderProjectSummary() {
   const sceneSummary = editorData
     ? `${editorData.scene.displayName} · ${editorData.layers.length} layers · ${editorData.objects.length} objects`
     : "No editable scene slice yet.";
-  const editorStatusSummary = `${sceneSummary} · ${isSnapEnabled() ? `Snap ${getSnapSize()}px` : "Snap off"} · ${getSelectedLayerLabel()} · ${isLayerIsolationActive() ? `Solo ${getIsolatedLayer()?.displayName ?? "layer"}` : "No solo layer"}`;
+  const view = getViewportState();
+  const viewSummary = `View ${Math.round(view.zoom * 100)}%${Math.abs(view.panX) > 0.001 || Math.abs(view.panY) > 0.001 ? ` pan ${Math.round(view.panX)}, ${Math.round(view.panY)}` : " default origin"}`;
+  const editorStatusSummary = `${sceneSummary} · ${isSnapEnabled() ? `Snap ${getSnapSize()}px` : "Snap off"} · ${getSelectedLayerLabel()} · ${isLayerIsolationActive() ? `Solo ${getIsolatedLayer()?.displayName ?? "layer"}` : "No solo layer"} · ${viewSummary}`;
 
   const lifecycleChips = lifecycleStageOrder.map((stageId) => {
     const stage = selectedProject.lifecycle?.stages?.[stageId];
@@ -2222,20 +2606,51 @@ function renderEditorCanvas() {
   const isolationLabel = isLayerIsolationActive()
     ? `Solo ${getIsolatedLayer()?.displayName ?? "layer"}`
     : "No solo layer";
+  const view = getViewportState();
+  const panLabel = `Pan ${Math.round(view.panX)}, ${Math.round(view.panY)}`;
+  const viewLabel = `View ${Math.round(view.zoom * 100)}%`;
+  const viewportInlineStyle = [
+    `--scene-width:${viewportWidth}px`,
+    `--scene-height:${viewportHeight}px`,
+    `aspect-ratio:${viewportWidth} / ${viewportHeight}`
+  ].join("; ");
+  const cameraInlineStyle = [
+    `width:${viewportWidth}px`,
+    `height:${viewportHeight}px`,
+    `transform: translate(${view.panX}px, ${view.panY}px) scale(${view.zoom})`
+  ].join("; ");
+  const stageClassNames = [
+    "canvas-stage",
+    isSnapEnabled() ? "is-snap-enabled" : "",
+    isLayerIsolationActive() ? "is-layer-isolated" : "",
+    isViewportTransformed() ? "is-view-transformed" : "",
+    state.viewport.panDrag ? "is-panning" : ""
+  ].filter(Boolean).join(" ");
+  const viewportClassNames = [
+    "canvas-viewport",
+    isViewportTransformed() ? "is-view-transformed" : "",
+    state.viewport.panDrag ? "is-panning" : ""
+  ].filter(Boolean).join(" ");
 
   elements.editorCanvas.innerHTML = `
     <div class="canvas-meta">
       <span>${editorData.scene.sceneId}</span>
       <span>${viewportWidth} × ${viewportHeight}</span>
       <span>Internal files only</span>
+      <span>${viewLabel}</span>
+      <span>${panLabel}</span>
       <span>${selectedObject ? `Selected: ${selectedObject.displayName}` : "No selection"}</span>
       <span>Layer: ${selectedLayerLabel}</span>
       <span>${snapLabel}</span>
       <span>${isolationLabel}</span>
-      <span>Drag or arrow-nudge to move</span>
+      <span>Space+drag or middle mouse pan</span>
     </div>
-    <div class="canvas-stage ${isSnapEnabled() ? "is-snap-enabled" : ""} ${isLayerIsolationActive() ? "is-layer-isolated" : ""}" tabindex="0" aria-label="Project editor canvas" style="width:${viewportWidth}px; height:${viewportHeight}px;">
-      ${objectMarkup}
+    <div class="${viewportClassNames}" tabindex="0" aria-label="Project editor canvas" style="${viewportInlineStyle}">
+      <div class="${stageClassNames}">
+        <div class="canvas-camera" style="${cameraInlineStyle}">
+          ${objectMarkup}
+        </div>
+      </div>
     </div>
   `;
 }
@@ -2573,6 +2988,21 @@ function renderAll() {
   if (elements.actionRedo) {
     elements.actionRedo.disabled = !state.editorData || !canRedo();
   }
+  const viewportTools = getViewportTools();
+  const currentViewport = getViewportState();
+  const canMutateViewport = Boolean(state.editorData && !state.canvasDrag && !state.viewport.panDrag);
+  if (elements.actionZoomOut) {
+    elements.actionZoomOut.disabled = !canMutateViewport || currentViewport.zoom <= viewportTools.MIN_VIEW_ZOOM + 0.001;
+  }
+  if (elements.actionZoomIn) {
+    elements.actionZoomIn.disabled = !canMutateViewport || currentViewport.zoom >= viewportTools.MAX_VIEW_ZOOM - 0.001;
+  }
+  if (elements.actionFitView) {
+    elements.actionFitView.disabled = !canMutateViewport;
+  }
+  if (elements.actionResetView) {
+    elements.actionResetView.disabled = !canMutateViewport || !isViewportTransformed();
+  }
   if (elements.actionToggleSnap) {
     elements.actionToggleSnap.disabled = !state.editorData;
     elements.actionToggleSnap.textContent = isSnapEnabled()
@@ -2638,6 +3068,13 @@ function renderAll() {
   if (elements.dirtyIndicator) {
     elements.dirtyIndicator.textContent = state.dirty ? "Unsaved changes" : "Saved";
     elements.dirtyIndicator.dataset.tone = state.dirty ? "dirty" : "saved";
+  }
+  if (elements.viewportIndicator) {
+    const panLabel = Math.abs(currentViewport.panX) > 0.001 || Math.abs(currentViewport.panY) > 0.001
+      ? ` · pan ${Math.round(currentViewport.panX)}, ${Math.round(currentViewport.panY)}`
+      : "";
+    elements.viewportIndicator.textContent = `View ${Math.round(currentViewport.zoom * 100)}%${panLabel}`;
+    elements.viewportIndicator.dataset.tone = isViewportTransformed() ? "info" : "default";
   }
   if (elements.orderContextIndicator) {
     if (orderContext) {
