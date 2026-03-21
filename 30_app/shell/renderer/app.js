@@ -104,13 +104,31 @@ document.addEventListener("DOMContentLoaded", () => {
     return;
   }
 
-  void init();
+  void bootRenderer();
 });
 
 function isBridgeSmokeMode() {
   try {
     const search = typeof window.location?.search === "string" ? window.location.search : "";
     return new URLSearchParams(search).get("bridgeSmoke") === "1";
+  } catch {
+    return false;
+  }
+}
+
+function isLivePersistSmokeMode() {
+  try {
+    const search = typeof window.location?.search === "string" ? window.location.search : "";
+    return new URLSearchParams(search).get("livePersistSmoke") === "1";
+  } catch {
+    return false;
+  }
+}
+
+function shouldKeepLivePersistWindowOpen() {
+  try {
+    const search = typeof window.location?.search === "string" ? window.location.search : "";
+    return new URLSearchParams(search).get("livePersistKeepOpen") === "1";
   } catch {
     return false;
   }
@@ -127,6 +145,20 @@ async function emitBridgeSmoke(payload) {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.log(`MYIDE_BRIDGE_SMOKE:${JSON.stringify({ status: "fail", error: `smoke payload serialization failed: ${message}` })}`);
+  }
+}
+
+async function emitLivePersistSmoke(payload) {
+  try {
+    if (window.myideApi && typeof window.myideApi.reportLivePersistSmokeResult === "function") {
+      window.myideApi.reportLivePersistSmokeResult(payload);
+      return;
+    }
+
+    console.log(`MYIDE_LIVE_PERSIST:${JSON.stringify(payload)}`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.log(`MYIDE_LIVE_PERSIST:${JSON.stringify({ status: "fail", error: `live persist payload serialization failed: ${message}` })}`);
   }
 }
 
@@ -222,6 +254,256 @@ async function init() {
     await reloadWorkspace(true);
   } catch (error) {
     renderFatal(error instanceof Error ? error.message : "Unknown editor load error.");
+  }
+}
+
+async function bootRenderer() {
+  await init();
+
+  if (isLivePersistSmokeMode()) {
+    await runLivePersistSmoke();
+  }
+}
+
+function sleep(delayMs) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, delayMs);
+  });
+}
+
+async function waitForRendererCondition(check, description, options = {}) {
+  const timeoutMs = Number.isFinite(options.timeoutMs) ? options.timeoutMs : 15000;
+  const intervalMs = Number.isFinite(options.intervalMs) ? options.intervalMs : 50;
+  const startedAt = Date.now();
+  let lastValue;
+
+  while (Date.now() - startedAt <= timeoutMs) {
+    lastValue = check();
+    if (lastValue) {
+      return lastValue;
+    }
+    await sleep(intervalMs);
+  }
+
+  throw new Error(`Timed out waiting for ${description}.`);
+}
+
+function clickRendererElement(element) {
+  if (!(element instanceof HTMLElement)) {
+    throw new Error("Cannot click a missing renderer element.");
+  }
+
+  element.dispatchEvent(new MouseEvent("click", {
+    bubbles: true,
+    cancelable: true,
+    composed: true,
+    view: window
+  }));
+}
+
+function updateRendererInputValue(field, nextValue) {
+  if (!(field instanceof HTMLInputElement) && !(field instanceof HTMLTextAreaElement) && !(field instanceof HTMLSelectElement)) {
+    throw new Error("Cannot update a non-input renderer field.");
+  }
+
+  field.focus();
+  field.value = String(nextValue);
+  field.dispatchEvent(new Event("input", { bubbles: true, cancelable: true }));
+  field.dispatchEvent(new Event("change", { bubbles: true, cancelable: true }));
+}
+
+function getEditableObjectById(objectId, editorData = state.editorData) {
+  if (!editorData || !Array.isArray(editorData.objects)) {
+    return null;
+  }
+
+  return editorData.objects.find((entry) => entry.id === objectId) ?? null;
+}
+
+function getReplayNodeById(objectId, project = state.bundle?.project) {
+  const scenes = Array.isArray(project?.scenes) ? project.scenes : [];
+
+  for (const scene of scenes) {
+    const layers = Array.isArray(scene?.layers) ? scene.layers : [];
+    for (const layer of layers) {
+      const nodes = Array.isArray(layer?.nodes) ? layer.nodes : [];
+      const match = nodes.find((node) => node?.nodeId === objectId);
+      if (match) {
+        return match;
+      }
+    }
+  }
+
+  return null;
+}
+
+async function runLivePersistSmoke() {
+  const targetProjectId = "project_001";
+  const targetObjectId = "node.title";
+  const targetField = "x";
+  const startedAt = new Date().toISOString();
+  const baseResult = {
+    startedAt,
+    projectId: targetProjectId,
+    objectId: targetObjectId,
+    field: targetField,
+    preloadExecuted: Boolean(window.myideApi),
+    myideApiExposed: Boolean(window.myideApi && typeof window.myideApi.loadProjectSlice === "function"),
+    projectLoaded: false,
+    objectSelected: false,
+    editApplied: false,
+    saveSucceeded: false,
+    reloadSucceeded: false,
+    internalPersistVerified: false,
+    replaySyncVerified: false,
+    repoStatusIntent: "renderer smoke mutates live files temporarily; outer smoke runner must restore them",
+    originalValue: null,
+    editedValue: null,
+    reloadedValue: null,
+    replayValue: null,
+    syncStatus: null,
+    replayPath: null,
+    previewStatus: null
+  };
+
+  try {
+    const api = window.myideApi;
+    if (
+      !api
+      || typeof api.loadProjectSlice !== "function"
+      || typeof api.saveProjectEditor !== "function"
+      || typeof api.reportRendererReady !== "function"
+    ) {
+      throw new Error("Renderer live persist smoke could not access the required desktop bridge helpers.");
+    }
+
+    await waitForRendererCondition(
+      () => Boolean(state.bundle && getWorkspaceProjects().length > 0),
+      "workspace discovery"
+    );
+
+    if (state.selectedProjectId !== targetProjectId) {
+      const projectButton = await waitForRendererCondition(
+        () => elements.projectBrowser?.querySelector(`[data-project-id="${targetProjectId}"]`) ?? null,
+        `project browser entry for ${targetProjectId}`
+      );
+      clickRendererElement(projectButton);
+    }
+
+    await waitForRendererCondition(
+      () => state.selectedProjectId === targetProjectId && Boolean(state.editorData),
+      `${targetProjectId} to load in the renderer`
+    );
+    baseResult.projectLoaded = true;
+
+    const objectButton = await waitForRendererCondition(
+      () => elements.sceneExplorer?.querySelector(`[data-object-id="${targetObjectId}"]`) ?? null,
+      `${targetObjectId} in the scene explorer`
+    );
+    clickRendererElement(objectButton);
+
+    await waitForRendererCondition(
+      () => state.selectedObjectId === targetObjectId && Boolean(getSelectedObject()),
+      `${targetObjectId} to become selected`
+    );
+    baseResult.objectSelected = true;
+
+    const selectedObject = getEditableObjectById(targetObjectId);
+    const originalValue = Number(selectedObject?.[targetField]);
+    if (!Number.isFinite(originalValue)) {
+      throw new Error(`Selected object ${targetObjectId} does not expose numeric ${targetField}.`);
+    }
+
+    const editedValue = Math.round(originalValue + 17);
+    baseResult.originalValue = originalValue;
+    baseResult.editedValue = editedValue;
+
+    const inspectorInput = await waitForRendererCondition(
+      () => elements.inspector?.querySelector(`input[name="${targetField}"]`) ?? null,
+      `inspector input ${targetField}`
+    );
+    updateRendererInputValue(inspectorInput, editedValue);
+
+    await waitForRendererCondition(
+      () => Number(getEditableObjectById(targetObjectId)?.[targetField]) === editedValue && state.dirty,
+      `${targetObjectId}.${targetField} edit to apply`
+    );
+    baseResult.editApplied = true;
+
+    if (!(elements.actionSave instanceof HTMLButtonElement)) {
+      throw new Error("Save button is missing from the renderer toolbar.");
+    }
+
+    clickRendererElement(elements.actionSave);
+    await waitForRendererCondition(
+      () => {
+        const editedObject = getEditableObjectById(targetObjectId);
+        return Boolean(
+          !state.dirty
+          && state.syncStatus?.status === "synced"
+          && Number(editedObject?.[targetField]) === editedValue
+        );
+      },
+      "renderer save and sync completion",
+      { timeoutMs: 25000 }
+    );
+    baseResult.saveSucceeded = true;
+
+    if (!(elements.actionReloadEditor instanceof HTMLButtonElement)) {
+      throw new Error("Reload button is missing from the renderer toolbar.");
+    }
+
+    clickRendererElement(elements.actionReloadEditor);
+    await waitForRendererCondition(
+      () => state.selectedProjectId === targetProjectId && Boolean(state.editorData),
+      `${targetProjectId} reload`
+    );
+    await waitForRendererCondition(
+      () => Number(getEditableObjectById(targetObjectId)?.[targetField]) === editedValue,
+      `${targetObjectId}.${targetField} after reload`
+    );
+    baseResult.reloadSucceeded = true;
+
+    const reloadedObject = getEditableObjectById(targetObjectId);
+    const replayNode = getReplayNodeById(targetObjectId);
+    const replayValue = Number(replayNode?.position?.[targetField]);
+    const reloadedValue = Number(reloadedObject?.[targetField]);
+    baseResult.reloadedValue = Number.isFinite(reloadedValue) ? reloadedValue : null;
+    baseResult.replayValue = Number.isFinite(replayValue) ? replayValue : null;
+    baseResult.syncStatus = state.syncStatus?.status ?? null;
+    baseResult.replayPath = toRepoRelativePath(state.syncStatus?.replayPath ?? getReplayTargetPath() ?? "");
+
+    baseResult.internalPersistVerified = reloadedValue === editedValue;
+    baseResult.replaySyncVerified = replayValue === editedValue;
+
+    if (!baseResult.internalPersistVerified) {
+      throw new Error(`Reloaded internal value was ${reloadedValue}, expected ${editedValue}.`);
+    }
+
+    if (!baseResult.replaySyncVerified) {
+      throw new Error(`Replay-facing value was ${replayValue}, expected ${editedValue}.`);
+    }
+
+    const successMessage = `Live shell persist smoke passed for ${targetObjectId}: ${targetField} ${originalValue} -> ${editedValue}, saved and reloaded through the Electron bridge.`;
+    setPreviewStatus(successMessage);
+    baseResult.previewStatus = successMessage;
+    document.body.dataset.livePersistSmoke = "pass";
+
+    await emitLivePersistSmoke({
+      ...baseResult,
+      status: "pass"
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const failureMessage = `Live shell persist smoke failed: ${message}`;
+    setPreviewStatus(failureMessage);
+    document.body.dataset.livePersistSmoke = "fail";
+    await emitLivePersistSmoke({
+      ...baseResult,
+      status: "fail",
+      error: message,
+      previewStatus: failureMessage
+    });
   }
 }
 

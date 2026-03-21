@@ -16,6 +16,7 @@
 - `npm run build && node dist/50_tests/workspace/layer-navigation-smoke.js`
 - `npm run build && node dist/50_tests/workspace/viewport-controls-smoke.js`
 - `npm run build && node dist/50_tests/workspace/electron-bridge-smoke.js`
+- `npm run build && node dist/50_tests/workspace/electron-live-persist-smoke.js`
 - `npm run verify:persistence`
 - `npm run verify:workspace`
 
@@ -31,5 +32,6 @@
 - The same order-isolate smoke test proves a session-only layer isolation view stays in memory, does not mutate persistent layer visibility, and does not dirty persistent project state.
 - The viewport-controls smoke test proves session-only zoom/pan/fit/reset view operations are non-dirty and non-persistent, then proves transformed-view coordinate edits persist through save/reload and replay sync.
 - The electron-bridge smoke test launches Electron in dedicated smoke mode, asserts main startup, preload bridge exposure, renderer-ready handshake, renderer bridge call success, and `project_001` workspace load over `window.myideApi.loadProjectSlice`, then writes `/tmp/myide-electron-bridge-smoke.json`.
-- The latest demo smoke writes a concise before/after artifact to `50_tests/workspace/project_001-demo.md` with viewport/view-state and persisted position context.
+- The electron-live-persist smoke test launches the real Electron shell, drives the renderer action path for object selection, inspector edit, save, and reload, verifies both internal editable data and replay-facing `project.json`, writes `/tmp/myide-electron-live-persist.json`, and restores the touched project files/logs so the repo status returns to baseline.
+- The latest demo artifact writes a concise before/after note to `50_tests/workspace/project_001-demo.md` with live-shell persisted object context.
 - `project_001` remains the validated replay slice.

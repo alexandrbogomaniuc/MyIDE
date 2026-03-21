@@ -1,14 +1,18 @@
 # project_001 Before/After Demo
 
-## Desktop Bridge Proof
+## Live Shell Persist Proof
 - Project id: project_001.
-- Loaded object example: node.title.
-- View state in the live shell: 100% zoom at the default origin after the renderer-ready bridge handshake.
-- Bridge health proof: preload path `dist/30_app/shell/preload.js`, preload executed `true`, renderer ready `true`, selected project `project_001`, workspace projects `2`.
-- Live GUI proof: the Electron shell showed `Desktop bridge healthy` while the Mystery Garden Replay Slice project browser, canvas, and inspector were all loaded from the live preload bridge path.
-- Replay-facing/generated file referenced by the loaded shell path: 40_projects/project_001/project.json.
+- Object id: node.title.
+- Bridge path: Electron main -> preload `dist/30_app/shell/preload.js` -> renderer `window.myideApi`.
+- Edit path: scene explorer selection -> inspector `x` field edit -> Save Scene Changes -> Reload From Disk.
+- Before: `node.title.x = 640`.
+- After live-shell save/reload: `node.title.x = 657`.
+- Replay-facing/generated file changed during the smoke: `40_projects/project_001/project.json`.
+
+## Proof Artifacts
+- Machine-readable smoke artifact: `/tmp/myide-electron-live-persist.json`.
+- Visible live-shell screenshot: `/tmp/myide-phase5l-live-top.png`.
 
 ## Notes
-- The bridge-health card is session-only UI state and does not dirty project files by itself.
-- The deterministic smoke artifact for this proof is written to `/tmp/myide-electron-bridge-smoke.json`.
-- Live screenshot captured during this run: `/tmp/myide-phase5k-live.png`.
+- The live-shell smoke restores the touched `project_001` internal files, replay-facing `project.json`, and local editor logs after verification so the repository returns to baseline.
+- This proof is bounded to one real shell edit/save/reload loop for the validated `project_001` slice; it does not claim broader GUI automation than what was actually exercised.

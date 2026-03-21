@@ -139,6 +139,13 @@
 - [x] Replace the generic bridge failure with more specific bridge-health messaging.
 - [x] Capture live GUI proof that the desktop shell opens with bridge health and a loaded project.
 
+## PHASE 5L
+- [x] Add a live-shell persistence smoke path that uses the real Electron main/preload/renderer bridge.
+- [x] Prove `project_001` can be loaded, one bounded object selected, one bounded edit applied, saved, and reloaded through the live shell path.
+- [x] Verify the same live-shell edit reaches replay-facing generated `project.json`.
+- [x] Keep the repository clean after the smoke by restoring the touched project files and local logs.
+- [x] Capture a live GUI artifact for the bounded persistence loop.
+
 ## Deferred
 - [ ] Donor decoding automation.
 - [ ] Full editor interactions.

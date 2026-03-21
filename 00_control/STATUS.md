@@ -1,8 +1,8 @@
 # MyIDE Status
 
 ## Current Phase
-- Active scope: PHASE 5K desktop bridge hardening and live GUI proof on top of the existing slot-first implementation slice.
-- Current milestone: keep `project_001` as the validated bounded internal scene editor slice with preset-based placeholder creation -> resize/move/edit -> snap-assisted layout -> viewport alignment aids -> layer reassignment -> layer-local ordering -> order-position cues -> previous/next layer navigation -> quick session-only isolation -> session-only viewport zoom/pan/reset/fit -> duplicate/delete -> undo/redo -> save/reload -> deterministic replay sync -> preload bridge health proof -> live Electron shell project load proof.
+- Active scope: PHASE 5L live shell edit/save/reload proof on top of the existing slot-first implementation slice.
+- Current milestone: keep `project_001` as the validated bounded internal scene editor slice with preset-based placeholder creation -> resize/move/edit -> snap-assisted layout -> viewport alignment aids -> layer reassignment -> layer-local ordering -> order-position cues -> previous/next layer navigation -> quick session-only isolation -> session-only viewport zoom/pan/reset/fit -> duplicate/delete -> undo/redo -> save/reload -> deterministic replay sync -> preload bridge health proof -> live Electron shell project load proof -> live Electron shell edit/save/reload proof.
 
 ## Progress Log
 
@@ -70,6 +70,8 @@
 - Hardened the desktop preload bridge by removing the preload's dependency on the external property-panel adapter module and by exposing explicit ping, bridge-health, and renderer-ready diagnostics.
 - Added a dedicated `smoke:electron-bridge` path plus a machine-readable `/tmp/myide-electron-bridge-smoke.json` artifact that proves main start, preload execution, bridge exposure, bridge calls, and `project_001` load.
 - Captured a live Electron screenshot with the shell loaded, the desktop bridge healthy, and `project_001` open in the real desktop path.
+- Added a dedicated `smoke:electron-live-persist` path that launches the real Electron app, loads `project_001` through the preload bridge, selects `node.title` through the renderer UI, edits `x` through the inspector path, saves, reloads, verifies replay sync, writes `/tmp/myide-electron-live-persist.json`, and restores the touched project files/logs afterward.
+- Captured a visible keep-open Electron proof run showing the loaded shell with the edited object still selected and the persisted `x=657` inspector value in the live desktop path.
 
 ## Proven Facts
 - Local reference repos are available in the developer workspace outside this repository.
@@ -92,6 +94,7 @@
 - The shell now exposes a read-only order-position cue and previous/next selection within the current layer without turning selection navigation into persistent project state.
 - The shell now exposes session-only viewport zoom/pan/reset/fit controls without turning viewport state into persistent project state.
 - The shell now exposes an explicit desktop bridge health card and a deterministic Electron bridge smoke path for the validated `project_001` slice.
+- The shell now proves one bounded edit/save/reload persistence loop inside the real Electron app through the same preload bridge and renderer action flow that the live shell uses.
 - `project_001/internal/*.json` now forms the persistence target for the first editor slice while `project.json` remains the validated replay source.
 - Workspace verification now validates the internal editor scene files in addition to project metadata and replay contracts.
 - The shell now deterministically syncs the replay-facing generated output on save and surfaces that target path in the editor UI.
@@ -114,4 +117,4 @@
 - Placeholder sizing is now bounded to placeholder-backed objects only; asset-backed objects still do not expose a broader resizing workflow.
 - Object ordering remains layer-local, and layer isolation is session-only rather than a persistent project setting.
 - Previous/next layer navigation remains session-only selection state and does not cross layer boundaries.
-- Live GUI proof now exists for the preload bridge plus `project_001` load path, but the shell still does not yet prove richer GUI automation flows such as in-window create/edit/save automation.
+- Live GUI proof now exists for preload bridge health, `project_001` load, and one bounded in-window edit/save/reload loop, but the shell still does not yet prove broader interactive automation flows beyond that constrained persistence path.

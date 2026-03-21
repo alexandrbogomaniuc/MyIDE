@@ -7,6 +7,9 @@ import { saveEditableProjectData, type EditableProjectData } from "../workspace/
 import { loadWorkspaceSlice } from "./workspaceSlice";
 
 const isBridgeSmokeMode = process.env.MYIDE_BRIDGE_SMOKE === "1";
+const isLivePersistSmokeMode = process.env.MYIDE_LIVE_PERSIST_SMOKE === "1";
+const shouldKeepLivePersistWindowOpen = process.env.MYIDE_LIVE_PERSIST_KEEP_OPEN === "1";
+const shouldShowLivePersistWindow = process.env.MYIDE_LIVE_PERSIST_SHOW === "1" || shouldKeepLivePersistWindowOpen;
 
 interface BridgeHealthSnapshot {
   preloadPath: string;
@@ -28,8 +31,14 @@ interface BridgeSmokePayload {
   error?: string;
 }
 
+interface LivePersistSmokePayload {
+  status?: string;
+  error?: string;
+}
+
 const bridgeHealthState: BridgeHealthSnapshot = createBridgeHealthSnapshot(resolvePreloadPath());
 let activeBridgeSmokeReporter: ((payload: BridgeSmokePayload) => void) | null = null;
+let activeLivePersistSmokeReporter: ((payload: LivePersistSmokePayload) => void) | null = null;
 
 function resolvePreloadPath(): string {
   return path.resolve(__dirname, "preload.js");
@@ -66,6 +75,22 @@ function finishBridgeSmoke(exitCode: number, message: string): void {
     console.log(message);
   } else {
     console.error(message);
+  }
+
+  setTimeout(() => {
+    app.exit(exitCode);
+  }, 0);
+}
+
+function finishLivePersistSmoke(exitCode: number, message: string): void {
+  if (exitCode === 0) {
+    console.log(message);
+  } else {
+    console.error(message);
+  }
+
+  if (shouldKeepLivePersistWindowOpen && exitCode === 0) {
+    return;
   }
 
   setTimeout(() => {
@@ -111,6 +136,43 @@ function attachBridgeSmokeHandlers(window: BrowserWindow): void {
 
 }
 
+function attachLivePersistSmokeHandlers(window: BrowserWindow): void {
+  if (!isLivePersistSmokeMode) {
+    return;
+  }
+
+  console.log("MYIDE_LIVE_PERSIST_MAIN_READY");
+  const timeoutMs = Number.parseInt(process.env.MYIDE_LIVE_PERSIST_TIMEOUT_MS ?? "45000", 10);
+  const smokeTimeout = setTimeout(() => {
+    finishLivePersistSmoke(1, "FAIL smoke:electron-live-persist - timeout waiting for renderer persist payload");
+  }, Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 45000);
+
+  const clearSmokeTimeout = () => {
+    clearTimeout(smokeTimeout);
+  };
+
+  window.webContents.on("did-fail-load", (_event, errorCode, errorDescription) => {
+    clearSmokeTimeout();
+    finishLivePersistSmoke(1, `FAIL smoke:electron-live-persist - renderer failed to load (${errorCode} ${errorDescription})`);
+  });
+
+  window.webContents.on("render-process-gone", (_event, details) => {
+    clearSmokeTimeout();
+    finishLivePersistSmoke(1, `FAIL smoke:electron-live-persist - renderer process exited (${details.reason})`);
+  });
+
+  activeLivePersistSmokeReporter = (payload) => {
+    clearSmokeTimeout();
+    console.log(`MYIDE_LIVE_PERSIST_RESULT:${JSON.stringify(payload)}`);
+    if (payload.status === "pass") {
+      finishLivePersistSmoke(0, "PASS smoke:electron-live-persist");
+      return;
+    }
+
+    finishLivePersistSmoke(1, `FAIL smoke:electron-live-persist - ${payload.error ?? "renderer reported failure"}`);
+  };
+}
+
 function createWindow(): void {
   const preloadPath = resolvePreloadPath();
   resetBridgeHealthState(preloadPath);
@@ -120,7 +182,7 @@ function createWindow(): void {
     height: 980,
     minWidth: 1280,
     minHeight: 800,
-    show: !isBridgeSmokeMode,
+    show: isBridgeSmokeMode ? false : (isLivePersistSmokeMode ? shouldShowLivePersistWindow : true),
     backgroundColor: "#0b1017",
     title: "MyIDE",
     webPreferences: {
@@ -133,7 +195,12 @@ function createWindow(): void {
 
   const rendererPath = path.resolve(__dirname, "../../../30_app/shell/renderer/index.html");
   attachBridgeSmokeHandlers(window);
-  const query = isBridgeSmokeMode ? { bridgeSmoke: "1" } : undefined;
+  attachLivePersistSmokeHandlers(window);
+  const query = {
+    ...(isBridgeSmokeMode ? { bridgeSmoke: "1" } : {}),
+    ...(isLivePersistSmokeMode ? { livePersistSmoke: "1" } : {}),
+    ...(shouldKeepLivePersistWindowOpen ? { livePersistKeepOpen: "1" } : {})
+  };
   void window.loadFile(rendererPath, query ? { query } : undefined);
 }
 
@@ -166,6 +233,12 @@ ipcMain.handle("myide:renderer-ready", async () => {
 ipcMain.on("myide:bridge-smoke-result", (_event, payload: BridgeSmokePayload) => {
   if (typeof activeBridgeSmokeReporter === "function") {
     activeBridgeSmokeReporter(payload ?? {});
+  }
+});
+
+ipcMain.on("myide:live-persist-smoke-result", (_event, payload: LivePersistSmokePayload) => {
+  if (typeof activeLivePersistSmokeReporter === "function") {
+    activeLivePersistSmokeReporter(payload ?? {});
   }
 });
 
