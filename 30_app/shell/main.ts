@@ -109,21 +109,6 @@ function attachBridgeSmokeHandlers(window: BrowserWindow): void {
     finishBridgeSmoke(1, `FAIL smoke:electron-bridge - ${payload.error ?? "renderer reported failure"}`);
   };
 
-  window.webContents.on("console-message", (_event, _level, message) => {
-    if (!message.startsWith("MYIDE_BRIDGE_SMOKE:")) {
-      return;
-    }
-
-    const prefix = "MYIDE_BRIDGE_SMOKE:";
-    const payloadRaw = message.slice(prefix.length);
-
-    try {
-      const payload = JSON.parse(payloadRaw) as BridgeSmokePayload;
-      activeBridgeSmokeReporter?.(payload);
-    } catch {
-      finishBridgeSmoke(1, "FAIL smoke:electron-bridge - renderer payload was not valid JSON");
-    }
-  });
 }
 
 function createWindow(): void {
