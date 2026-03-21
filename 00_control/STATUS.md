@@ -1,8 +1,8 @@
 # MyIDE Status
 
 ## Current Phase
-- Active scope: PHASE 5H object ordering and quick layer isolation slice on top of the existing slot-first implementation slice.
-- Current milestone: keep `project_001` as the validated bounded internal scene editor slice with preset-based placeholder creation -> resize/move/edit -> snap-assisted layout -> viewport alignment aids -> layer reassignment -> layer-local ordering -> quick session-only isolation -> duplicate/delete -> undo/redo -> save/reload -> deterministic replay sync.
+- Active scope: PHASE 5I order-position cues and previous/next layer navigation on top of the existing slot-first implementation slice.
+- Current milestone: keep `project_001` as the validated bounded internal scene editor slice with preset-based placeholder creation -> resize/move/edit -> snap-assisted layout -> viewport alignment aids -> layer reassignment -> layer-local ordering -> order-position cues -> previous/next layer navigation -> quick session-only isolation -> duplicate/delete -> undo/redo -> save/reload -> deterministic replay sync.
 
 ## Progress Log
 
@@ -60,6 +60,11 @@
 - Added single-object viewport alignment aids for supported placeholder-backed objects so left/center/right/top/middle/bottom placement persists through save, reload, and deterministic replay sync.
 - Added bounded object ordering controls within the current layer and a quick session-only layer isolation mode for focused layout edits.
 
+### 2026-03-21
+- Added a read-only order-position cue so the selected object now shows its current layer-local stack position directly in the shell toolbar.
+- Added previous/next sibling navigation inside the selected object's current layer, including bounded toolbar actions, shortcuts, and boundary-safe status messaging.
+- Added a dedicated layer-navigation smoke test and folded it into `verify:workspace` so sibling stepping stays session-only, non-dirty, and coherent after duplicate/delete plus layer reassignment.
+
 ## Proven Facts
 - Local reference repos are available in the developer workspace outside this repository.
 - The first Mystery Garden donor evidence pack now contains both official web evidence and one live public runtime session, all hashed.
@@ -78,6 +83,7 @@
 - The shell now exposes snap-assisted layout movement, selected-object layer reassignment, and bounded placeholder width/height editing inside the validated `project_001` editor slice.
 - The shell now exposes placeholder presets and viewport alignment aids inside the validated `project_001` editor slice without widening into a full scene editor.
 - The shell now exposes layer-local draw-order controls and a session-only layer isolate mode inside the validated `project_001` editor slice without widening into a full scene editor.
+- The shell now exposes a read-only order-position cue and previous/next selection within the current layer without turning selection navigation into persistent project state.
 - `project_001/internal/*.json` now forms the persistence target for the first editor slice while `project.json` remains the validated replay source.
 - Workspace verification now validates the internal editor scene files in addition to project metadata and replay contracts.
 - The shell now deterministically syncs the replay-facing generated output on save and surfaces that target path in the editor UI.
@@ -99,3 +105,4 @@
 - The shell can now create a new placeholder object, but there is still no asset picker or richer object-type creation flow yet.
 - Placeholder sizing is now bounded to placeholder-backed objects only; asset-backed objects still do not expose a broader resizing workflow.
 - Object ordering remains layer-local, and layer isolation is session-only rather than a persistent project setting.
+- Previous/next layer navigation remains session-only selection state and does not cross layer boundaries.

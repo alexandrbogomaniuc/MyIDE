@@ -548,6 +548,12 @@ button:disabled {
   background: rgba(147, 201, 133, 0.08);
 }
 
+.toolbar-indicator[data-tone="info"] {
+  color: #d0e5f7;
+  border-color: rgba(110, 169, 216, 0.32);
+  background: rgba(110, 169, 216, 0.08);
+}
+
 .toolbar-hint {
   align-self: center;
   color: var(--muted);

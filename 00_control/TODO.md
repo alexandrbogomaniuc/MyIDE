@@ -118,6 +118,13 @@
 - [x] Add smoke coverage for reorder -> save -> sync -> reload plus isolate on/off behavior.
 - [ ] Verify the ordering/isolation workflow interactively in a GUI-capable Electron session.
 
+## PHASE 5I
+- [x] Add a read-only order-position cue for the selected object within its current layer.
+- [x] Add previous/next selection within the current layer.
+- [x] Keep navigation session-only and non-dirty while staying compatible with reorder, duplicate/delete, and layer reassignment.
+- [x] Add smoke coverage for order cues plus previous/next layer navigation.
+- [ ] Verify the order-cue/navigation workflow interactively in a GUI-capable Electron session.
+
 ## Deferred
 - [ ] Donor decoding automation.
 - [ ] Full editor interactions.

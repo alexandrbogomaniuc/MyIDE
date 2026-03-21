@@ -78,8 +78,47 @@ async function main(): Promise<void> {
     "The test expects the Mystery Garden UI layer to start with the known project_001 order."
   );
 
+  const initialCue = editorState.getObjectOrderContext(mutated, "node.win-banner");
+  assert(initialCue, "Order context should exist for the selected UI object.");
+  assert.equal(initialCue.index, 0, "Initial order cue should report win-banner at index 0 in layer.ui.");
+  assert.equal(initialCue.total, 3, "Initial order cue should report 3 UI objects.");
+  assert.equal(initialCue.canSendBackward, false, "Initial order cue should block send-backward at the top of layer.ui.");
+  assert.equal(initialCue.canBringForward, true, "Initial order cue should allow bring-forward from the top of layer.ui.");
+
+  const oneStepForward = editorState.reorderObjectInLayer(mutated, "node.win-banner", "bring-forward");
+  assert(oneStepForward?.changed, "Bring-forward should move the selected UI object one step within its layer.");
+  assert.equal(oneStepForward.beforeIndex, 0, "Bring-forward should start from index 0.");
+  assert.equal(oneStepForward.afterIndex, 1, "Bring-forward should land at index 1.");
+  assert.deepEqual(
+    mutated.objects
+      .filter((entry: LoadedEditableProject["objects"][number]) => entry.layerId === uiLayerId)
+      .map((entry: LoadedEditableProject["objects"][number]) => entry.id),
+    ["node.bottom-bar", "node.win-banner", "node.free-spins-pill"],
+    "Bring-forward should update the layer-local sequence by one slot."
+  );
+
+  const middleCue = editorState.getObjectOrderContext(mutated, "node.win-banner");
+  assert(middleCue, "Order context should exist after bring-forward.");
+  assert.equal(middleCue.index, 1, "Order cue should report win-banner at index 1 after bring-forward.");
+  assert.equal(middleCue.canSendBackward, true, "Order cue should allow send-backward from the middle.");
+  assert.equal(middleCue.canBringForward, true, "Order cue should allow bring-forward from the middle.");
+
+  const oneStepBackward = editorState.reorderObjectInLayer(mutated, "node.win-banner", "send-backward");
+  assert(oneStepBackward?.changed, "Send-backward should move the selected UI object one step within its layer.");
+  assert.equal(oneStepBackward.beforeIndex, 1, "Send-backward should start from index 1.");
+  assert.equal(oneStepBackward.afterIndex, 0, "Send-backward should land at index 0.");
+  assert.deepEqual(
+    mutated.objects
+      .filter((entry: LoadedEditableProject["objects"][number]) => entry.layerId === uiLayerId)
+      .map((entry: LoadedEditableProject["objects"][number]) => entry.id),
+    sourceOrder,
+    "Send-backward should restore the original layer-local sequence."
+  );
+
   const reorderResult = editorState.reorderObjectInLayer(mutated, "node.win-banner", "bring-to-front");
   assert(reorderResult?.changed, "The selected UI object should reorder within its current layer.");
+  assert.equal(reorderResult.beforeIndex, 0, "Bring-to-front should start from index 0.");
+  assert.equal(reorderResult.afterIndex, 2, "Bring-to-front should land at the last index.");
   mutated.scene.objectIds = mutated.objects.map((entry) => entry.id);
   assert.deepEqual(
     mutated.objects
@@ -88,6 +127,12 @@ async function main(): Promise<void> {
     reorderedOrder,
     "Layer-local reorder helper must keep ordering changes inside layer.ui only."
   );
+
+  const finalCue = editorState.getObjectOrderContext(mutated, "node.win-banner");
+  assert(finalCue, "Order context should exist after bring-to-front.");
+  assert.equal(finalCue.index, 2, "Final order cue should report win-banner at index 2.");
+  assert.equal(finalCue.canSendBackward, true, "Final order cue should allow send-backward from the layer front.");
+  assert.equal(finalCue.canBringForward, false, "Final order cue should block bring-forward from the layer front.");
 
   const history = editorState.createHistory(original);
   const reorderHistory = editorState.pushUndoSnapshot(history, original, "Reorder layer.ui objects");
@@ -131,6 +176,49 @@ async function main(): Promise<void> {
       .map((entry: LoadedEditableProject["objects"][number]) => entry.id),
     reorderedOrder,
     "Layer-local object order must persist in editable files after reload."
+  );
+
+  const navigationFingerprintBefore = editorState.fingerprint(reloadedAfterSave);
+  const navigationHistory = editorState.createHistory(reloadedAfterSave);
+  const navigatePrevious = editorState.getAdjacentObjectInLayer(
+    reloadedAfterSave,
+    "node.win-banner",
+    "previous"
+  );
+  assert.equal(
+    navigatePrevious?.targetObjectId,
+    "node.free-spins-pill",
+    "Layer sibling navigation should resolve the previous object within the same layer."
+  );
+  const navigateNext = editorState.getAdjacentObjectInLayer(
+    reloadedAfterSave,
+    "node.bottom-bar",
+    "next"
+  );
+  assert.equal(
+    navigateNext?.targetObjectId,
+    "node.free-spins-pill",
+    "Layer sibling navigation should resolve the next object within the same layer."
+  );
+  const navigateBoundary = editorState.getAdjacentObjectInLayer(
+    reloadedAfterSave,
+    "node.bottom-bar",
+    "previous"
+  );
+  assert.equal(
+    navigateBoundary?.targetObjectId,
+    null,
+    "Layer sibling navigation should stop at the boundary and stay within the current layer."
+  );
+  assert.equal(
+    editorState.fingerprint(reloadedAfterSave),
+    navigationFingerprintBefore,
+    "Layer sibling navigation lookup must be session-only and never mutate editable project data."
+  );
+  assert.equal(
+    editorState.isDirty(navigationHistory, reloadedAfterSave),
+    false,
+    "Layer sibling navigation lookup must not dirty persistent project state."
   );
 
   const previewScene = buildPreviewSceneFromEditableProject(reloadedAfterSave);
@@ -186,6 +274,9 @@ async function main(): Promise<void> {
 
   const isolationHistory = editorState.createHistory(reloadedAfterSave);
   const beforeIsolationFingerprint = editorState.fingerprint(reloadedAfterDelete);
+  const baselineVisibleLayerIds = editorState.getRenderableLayerIds(reloadedAfterDelete, null);
+  assert(baselineVisibleLayerIds.includes(uiLayerId), "Default renderable layers should include layer.ui when not isolating.");
+  assert(baselineVisibleLayerIds.length >= 2, "Default renderable layers should include more than one visible layer before isolate.");
   const visibleLayerIds = editorState.getRenderableLayerIds(reloadedAfterDelete, uiLayerId);
   const hiddenLayerIds = reloadedAfterDelete.layers
     .map((entry) => entry.id)
@@ -232,10 +323,29 @@ async function main(): Promise<void> {
     "Preview scene must return to the original layer-local order after restore."
   );
 
+  const demoArtifactPath = path.join(workspaceRoot, "50_tests", "workspace", "project_001-demo.md");
+  const demoArtifact = [
+    "# project_001 Before/After Demo",
+    "",
+    "## Order + Isolate / Save / Sync / Reload",
+    "- Object id: node.win-banner.",
+    `- Original layer/order context: ${uiLayerId} index 0 of 3 (${sourceOrder.join(" > ")}).`,
+    `- Final saved layer/order context: ${uiLayerId} index 2 of 3 (${reorderedOrder.join(" > ")}).`,
+    "- Previous / next navigation relation after restore: node.win-banner <- node.bottom-bar -> node.free-spins-pill within layer.ui.",
+    "- Isolate mode used: layer.ui solo view (session-only, non-persistent, non-dirty).",
+    `- Replay-facing/generated file changed: ${path.relative(workspaceRoot, saveResult.replayProjectPath)}.`,
+    "",
+    "## Notes",
+    "- Ordering is layer-local only.",
+    "- Isolate mode is a render-time filter and does not mutate saved layer visibility."
+  ].join("\n");
+  await fs.writeFile(demoArtifactPath, `${demoArtifact}\n`, "utf8");
+
   console.log("PASS smoke:order-isolate");
   console.log(`Layer reorder persisted in: ${path.relative(workspaceRoot, projectRoot)}/internal/objects.json`);
   console.log(`Isolated layer view: ${uiLayerId} only (session-only, non-persistent)`);
   console.log(`Reordered layer order: ${reorderedOrder.join(" > ")}`);
+  console.log(`Demo artifact: ${path.relative(workspaceRoot, demoArtifactPath)}`);
 }
 
 main().catch((error: unknown) => {

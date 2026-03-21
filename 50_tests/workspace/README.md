@@ -13,6 +13,7 @@
 - `npm run build && node dist/50_tests/workspace/duplicate-delete-smoke.js`
 - `npm run build && node dist/50_tests/workspace/create-object-smoke.js`
 - `npm run build && node dist/50_tests/workspace/order-isolate-smoke.js`
+- `npm run build && node dist/50_tests/workspace/layer-navigation-smoke.js`
 - `npm run verify:persistence`
 - `npm run verify:workspace`
 
@@ -23,6 +24,8 @@
 - The drag-edit smoke test simulates a snap-assisted drag-equivalent move, verifies bounded undo/redo around that snapped position, then proves the snapped coordinates persist through both the editable files and generated replay-facing `project.json` before restore.
 - The duplicate-delete smoke test proves a duplicated object persists through save/reload and replay sync, then proves delete persistence plus undo/redo before restoring the original project.
 - The create-object smoke test proves a new placeholder preset object can be created, resized, aligned to the viewport, synced into replay-facing output, then duplicated and deleted cleanly before restore.
-- The order-isolate smoke test proves a layer-local draw-order change persists through save/reload and replay sync, then proves a session-only layer isolation view stays in memory and does not dirty the persistent project data.
-- The latest demo smoke writes a concise before/after artifact to `50_tests/workspace/project_001-demo.md`.
+- The order-isolate smoke test proves layer-local draw-order cues are coherent (`index`, `canSendBackward`, `canBringForward`), validates previous/next sibling navigation lookups within the current layer as session-only and non-dirty, then proves the saved reorder persists through save/reload and replay sync.
+- The layer-navigation smoke test proves previous/next sibling stepping stays within the current layer, respects solo-filtered visibility, stays non-dirty, and remains coherent after duplicate/delete plus layer reassignment.
+- The same order-isolate smoke test proves a session-only layer isolation view stays in memory, does not mutate persistent layer visibility, and does not dirty persistent project state.
+- The latest demo smoke writes a concise before/after artifact to `50_tests/workspace/project_001-demo.md` with layer/order context and isolate usage.
 - `project_001` remains the validated replay slice.

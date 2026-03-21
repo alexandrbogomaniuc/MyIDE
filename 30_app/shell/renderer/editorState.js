@@ -578,6 +578,49 @@
     };
   }
 
+  function getAdjacentObjectInLayer(editorData, selectedObjectId, direction, options = {}) {
+    if (!editorData || !Array.isArray(editorData.objects)) {
+      return null;
+    }
+
+    const selectedObject = editorData.objects.find((entry) => entry.id === selectedObjectId);
+    if (!selectedObject) {
+      return null;
+    }
+
+    const layer = Array.isArray(editorData.layers)
+      ? editorData.layers.find((entry) => entry.id === selectedObject.layerId)
+      : null;
+    const allowedObjectIds = Array.isArray(options.allowedObjectIds)
+      ? new Set(options.allowedObjectIds)
+      : null;
+    const layerObjects = getLayerObjectsInOrder(editorData, selectedObject.layerId)
+      .filter((entry) => !allowedObjectIds || allowedObjectIds.has(entry.id));
+    const index = layerObjects.findIndex((entry) => entry.id === selectedObject.id);
+    if (index < 0) {
+      return null;
+    }
+
+    const targetIndex = direction === "previous"
+      ? index - 1
+      : direction === "next"
+        ? index + 1
+        : index;
+    const targetObject = layerObjects[targetIndex] ?? null;
+
+    return {
+      objectId: selectedObject.id,
+      layerId: selectedObject.layerId,
+      layerName: layer?.displayName ?? selectedObject.layerId,
+      index,
+      total: layerObjects.length,
+      direction,
+      targetObjectId: targetObject?.id ?? null,
+      targetLabel: targetObject?.displayName ?? null,
+      boundary: !targetObject
+    };
+  }
+
   function reorderObjectInLayer(editorData, selectedObjectId, action) {
     if (!editorData || !Array.isArray(editorData.objects)) {
       return null;
@@ -703,6 +746,7 @@
     reassignObjectLayer,
     alignObjectToViewport,
     getObjectOrderContext,
+    getAdjacentObjectInLayer,
     reorderObjectInLayer,
     getRenderableLayerIds,
     resolveSelectedObjectId

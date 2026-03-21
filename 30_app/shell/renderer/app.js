@@ -57,12 +57,15 @@ const elements = {
   actionToggleSnap: document.getElementById("action-toggle-snap"),
   actionNewObject: document.getElementById("action-new-object"),
   fieldPlaceholderPreset: document.getElementById("field-placeholder-preset"),
+  actionSelectPrevious: document.getElementById("action-select-previous"),
+  actionSelectNext: document.getElementById("action-select-next"),
   actionDuplicate: document.getElementById("action-duplicate"),
   actionDelete: document.getElementById("action-delete"),
   actionSave: document.getElementById("action-save"),
   actionReloadEditor: document.getElementById("action-reload-editor"),
   editorToolbar: document.getElementById("editor-toolbar"),
   dirtyIndicator: document.getElementById("dirty-indicator"),
+  orderContextIndicator: document.getElementById("order-context-indicator"),
   syncStatus: document.getElementById("sync-status"),
   newProjectForm: document.getElementById("new-project-form"),
   createProjectStatus: document.getElementById("create-project-status"),
@@ -108,6 +111,12 @@ function bindActions() {
     if (elements.fieldPlaceholderPreset instanceof HTMLSelectElement) {
       state.placeholderPresetKey = elements.fieldPlaceholderPreset.value || "generic-box";
     }
+  });
+  elements.actionSelectPrevious?.addEventListener("click", () => {
+    handleSelectLayerSibling("previous");
+  });
+  elements.actionSelectNext?.addEventListener("click", () => {
+    handleSelectLayerSibling("next");
   });
   if (elements.fieldPlaceholderPreset instanceof HTMLSelectElement) {
     state.placeholderPresetKey = elements.fieldPlaceholderPreset.value || state.placeholderPresetKey;
@@ -732,6 +741,24 @@ function getFirstSelectableObjectIdForLayer(layerId) {
   return editable?.id ?? layerObjects[0]?.id ?? null;
 }
 
+function enforceIsolationSelection() {
+  if (!state.editorData || !isLayerIsolationActive()) {
+    return;
+  }
+
+  const isolatedLayerId = getIsolatedLayerId();
+  if (!isolatedLayerId) {
+    return;
+  }
+
+  const selectedObject = getSelectedObject();
+  if (selectedObject?.layerId === isolatedLayerId) {
+    return;
+  }
+
+  state.selectedObjectId = getFirstSelectableObjectIdForLayer(isolatedLayerId);
+}
+
 function getSelectedObjectOrderContext() {
   const selectedObject = getSelectedObject();
   if (!selectedObject || !state.editorData) {
@@ -757,6 +784,52 @@ function getSelectedObjectOrderContext() {
     total: layerObjects.length,
     canSendBackward: index > 0,
     canBringForward: index < layerObjects.length - 1
+  };
+}
+
+function getLayerNavigableObjectIds(layerId) {
+  const objects = getLayerObjectsInOrder(layerId);
+  if (!isLayerIsolationActive()) {
+    return objects.map((entry) => entry.id);
+  }
+
+  const renderableIds = new Set(getRenderableLayerIds());
+  return renderableIds.has(layerId)
+    ? objects.map((entry) => entry.id)
+    : [];
+}
+
+function getSelectedObjectNavigationContext(direction) {
+  const selectedObject = getSelectedObject();
+  if (!selectedObject || !state.editorData) {
+    return null;
+  }
+
+  const tools = getEditorStateTools();
+  const allowedObjectIds = getLayerNavigableObjectIds(selectedObject.layerId);
+  if (typeof tools.getAdjacentObjectInLayer === "function") {
+    return tools.getAdjacentObjectInLayer(state.editorData, selectedObject.id, direction, { allowedObjectIds });
+  }
+
+  const layerObjects = getLayerObjectsInOrder(selectedObject.layerId).filter((entry) => allowedObjectIds.includes(entry.id));
+  const index = layerObjects.findIndex((entry) => entry.id === selectedObject.id);
+  if (index < 0) {
+    return null;
+  }
+
+  const targetIndex = direction === "previous" ? index - 1 : direction === "next" ? index + 1 : index;
+  const target = layerObjects[targetIndex] ?? null;
+
+  return {
+    objectId: selectedObject.id,
+    layerId: selectedObject.layerId,
+    layerName: getLayerById(selectedObject.layerId)?.displayName ?? selectedObject.layerId,
+    index,
+    total: layerObjects.length,
+    direction,
+    targetObjectId: target?.id ?? null,
+    targetLabel: target?.displayName ?? null,
+    boundary: !target
   };
 }
 
@@ -1013,6 +1086,26 @@ function handleCanvasKeyboard(event) {
   if (modifierPressed && event.key.toLowerCase() === "d") {
     event.preventDefault();
     handleDuplicateSelectedObject();
+    return;
+  }
+
+  if (modifierPressed && event.code === "BracketLeft") {
+    event.preventDefault();
+    if (event.shiftKey) {
+      handleSelectLayerSibling("previous");
+    } else {
+      handleOrderSelectedObject("send-backward");
+    }
+    return;
+  }
+
+  if (modifierPressed && event.code === "BracketRight") {
+    event.preventDefault();
+    if (event.shiftKey) {
+      handleSelectLayerSibling("next");
+    } else {
+      handleOrderSelectedObject("bring-forward");
+    }
     return;
   }
 
@@ -1901,6 +1994,37 @@ function handleOrderSelectedObject(action) {
   setPreviewStatus(`${selectedObject.displayName} was ${getOrderActionLabel(action)} in ${beforeContext?.layerName ?? "the current layer"} (${orderSummary}). Save to persist the order change.`);
 }
 
+function handleSelectLayerSibling(direction) {
+  const selectedObject = getSelectedObject();
+  if (!selectedObject || !state.editorData) {
+    setPreviewStatus("Select an object before navigating within its layer.");
+    return;
+  }
+
+  if (state.canvasDrag) {
+    setPreviewStatus("Finish the current drag before changing layer-local selection.");
+    return;
+  }
+
+  const directionLabel = direction === "previous" ? "previous" : "next";
+  const context = getSelectedObjectNavigationContext(direction);
+  if (!context) {
+    setPreviewStatus(`Unable to inspect the ${directionLabel} object in the current layer.`);
+    return;
+  }
+
+  if (!context.targetObjectId) {
+    setPreviewStatus(`No ${directionLabel} object exists in ${context.layerName}. Selection stayed on ${selectedObject.displayName}.`);
+    return;
+  }
+
+  state.selectedObjectId = context.targetObjectId;
+  renderAll();
+  const orderLabel = `${context.direction === "previous" ? Math.max(1, context.index) : Math.min(context.total, context.index + 2)} of ${context.total}`;
+  pushLog(`Selected ${context.targetLabel ?? context.targetObjectId} via ${directionLabel} in ${context.layerName}.`);
+  setPreviewStatus(`Selected ${context.targetLabel ?? context.targetObjectId} as the ${directionLabel} object in ${context.layerName} (${orderLabel}).`);
+}
+
 function handleCreateNewObject() {
   if (!state.editorData) {
     setPreviewStatus("No editable scene data is available for the selected project.");
@@ -2186,7 +2310,9 @@ function renderInspector() {
           {
             key: "orderIndex",
             label: "Order in Layer",
-            value: orderContext ? `${orderContext.index + 1} of ${orderContext.total}` : "n/a",
+            value: orderContext
+              ? `${orderContext.index + 1} of ${orderContext.total} in ${orderContext.layerId ?? selectedObject.layerId}`
+              : "n/a",
             status: "proven",
             fieldState: "read-only"
           },
@@ -2432,6 +2558,7 @@ function renderActivityLog() {
 }
 
 function renderAll() {
+  enforceIsolationSelection();
   renderProjectBrowser();
   renderSceneExplorer();
   renderSyncStatus();
@@ -2497,12 +2624,29 @@ function renderAll() {
   if (elements.actionDelete) {
     elements.actionDelete.disabled = !canMutateSelectedObject;
   }
+  const previousNavigationContext = getSelectedObjectNavigationContext("previous");
+  const nextNavigationContext = getSelectedObjectNavigationContext("next");
+  if (elements.actionSelectPrevious) {
+    elements.actionSelectPrevious.disabled = !Boolean(previousNavigationContext?.targetObjectId && !state.canvasDrag);
+  }
+  if (elements.actionSelectNext) {
+    elements.actionSelectNext.disabled = !Boolean(nextNavigationContext?.targetObjectId && !state.canvasDrag);
+  }
   if (elements.actionSave) {
     elements.actionSave.disabled = !state.editorData || !state.dirty;
   }
   if (elements.dirtyIndicator) {
     elements.dirtyIndicator.textContent = state.dirty ? "Unsaved changes" : "Saved";
     elements.dirtyIndicator.dataset.tone = state.dirty ? "dirty" : "saved";
+  }
+  if (elements.orderContextIndicator) {
+    if (orderContext) {
+      elements.orderContextIndicator.textContent = `${orderContext.index + 1} of ${orderContext.total} in ${orderContext.layerName}`;
+      elements.orderContextIndicator.dataset.tone = "info";
+    } else {
+      elements.orderContextIndicator.textContent = "Order n/a";
+      elements.orderContextIndicator.dataset.tone = "default";
+    }
   }
 }
 

@@ -118,12 +118,15 @@
             <button type="button" data-order-action="bring-forward" title="Move the selected object one step forward within its current layer">Bring Forward</button>
             <button type="button" data-order-action="send-to-back" title="Move the selected object to the back of its current layer">Send To Back</button>
             <button type="button" data-order-action="bring-to-front" title="Move the selected object to the front of its current layer">Bring To Front</button>
+            <button id="action-select-previous" type="button" title="Select the previous object in the current layer">Select Previous</button>
+            <button id="action-select-next" type="button" title="Select the next object in the current layer">Select Next</button>
             <button id="action-duplicate" type="button">Duplicate Object</button>
             <button id="action-delete" type="button" class="is-danger">Delete Object</button>
             <button id="action-save" type="button">Save Scene Changes</button>
             <button id="action-reload-editor" type="button">Reload From Disk</button>
             <span id="dirty-indicator" class="toolbar-indicator">Saved</span>
-            <span class="toolbar-hint">Ctrl/Cmd+S save · Ctrl/Cmd+Shift+N new placeholder · Ctrl/Cmd+Shift+G snap · viewport align + layer-local order buttons · scene explorer Solo is session-only · Ctrl/Cmd+D duplicate · Delete remove · arrows nudge</span>
+            <span id="order-context-indicator" class="toolbar-indicator" data-tone="info">Order n/a</span>
+            <span class="toolbar-hint">Ctrl/Cmd+S save · Ctrl/Cmd+Shift+N new placeholder · Ctrl/Cmd+Shift+G snap · Ctrl/Cmd+[ and ] reorder · Ctrl/Cmd+Shift+[ and ] navigate layer siblings · scene explorer Solo is session-only · Ctrl/Cmd+D duplicate · Delete remove · arrows nudge</span>
           </div>
           <div id="sync-status" class="sync-status-card" aria-live="polite"></div>
           <div id="project-summary" class="project-summary" aria-live="polite"></div>
