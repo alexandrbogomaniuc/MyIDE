@@ -16,6 +16,13 @@ const state = {
   dirty: false,
   activityLog: [],
   syncStatus: null,
+  bridge: {
+    tone: "warning",
+    heading: "Desktop bridge check pending",
+    message: "Checking preload and renderer bridge handshake.",
+    details: ["Waiting for a live bridge handshake."],
+    snapshot: null
+  },
   placeholderPresetKey: "generic-box",
   snap: {
     enabled: false,
@@ -79,6 +86,7 @@ const elements = {
   dirtyIndicator: document.getElementById("dirty-indicator"),
   viewportIndicator: document.getElementById("viewport-indicator"),
   orderContextIndicator: document.getElementById("order-context-indicator"),
+  bridgeStatus: document.getElementById("bridge-status"),
   syncStatus: document.getElementById("sync-status"),
   newProjectForm: document.getElementById("new-project-form"),
   createProjectStatus: document.getElementById("create-project-status"),
@@ -91,17 +99,267 @@ const elements = {
 };
 
 document.addEventListener("DOMContentLoaded", () => {
+  if (isBridgeSmokeMode()) {
+    void runBridgeSmoke();
+    return;
+  }
+
   void init();
 });
 
-async function init() {
-  bindActions();
+function isBridgeSmokeMode() {
+  try {
+    const search = typeof window.location?.search === "string" ? window.location.search : "";
+    return new URLSearchParams(search).get("bridgeSmoke") === "1";
+  } catch {
+    return false;
+  }
+}
+
+async function emitBridgeSmoke(payload) {
+  try {
+    if (window.myideApi && typeof window.myideApi.reportBridgeSmokeResult === "function") {
+      window.myideApi.reportBridgeSmokeResult(payload);
+      return;
+    }
+
+    console.log(`MYIDE_BRIDGE_SMOKE:${JSON.stringify(payload)}`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.log(`MYIDE_BRIDGE_SMOKE:${JSON.stringify({ status: "fail", error: `smoke payload serialization failed: ${message}` })}`);
+  }
+}
+
+async function runBridgeSmoke() {
+  const api = window.myideApi;
+  const startedAt = new Date().toISOString();
+  const baseResult = {
+    startedAt,
+    preloadExecuted: Boolean(api),
+    myideApiExposed: Boolean(api && typeof api.loadProjectSlice === "function"),
+    pingSucceeded: false,
+    rendererReadyAcknowledged: false,
+    bridgeCallSucceeded: false,
+    workspaceLoadSucceeded: false,
+    project001LoadSucceeded: false,
+    preloadExists: false,
+    preloadPath: null
+  };
 
   try {
+    if (
+      !api
+      || typeof api.loadProjectSlice !== "function"
+      || typeof api.ping !== "function"
+      || typeof api.bridgeHealth !== "function"
+      || typeof api.reportRendererReady !== "function"
+    ) {
+      await emitBridgeSmoke({
+        ...baseResult,
+        status: "fail",
+        error: "myideApi bridge helpers are unavailable in renderer."
+      });
+      return;
+    }
+
+    await api.ping();
+    const rendererHandshake = await api.reportRendererReady();
+    const health = await api.bridgeHealth();
+    const bundle = await api.loadProjectSlice("project_001");
+    const workspaceProjects = Array.isArray(bundle?.workspace?.projects) ? bundle.workspace.projects : [];
+    const selectedProjectId = typeof bundle?.selectedProjectId === "string" ? bundle.selectedProjectId : "";
+    const project001 = workspaceProjects.find((entry) => entry?.projectId === "project_001") ?? null;
+    const projectShapeValid = Boolean(bundle?.project && typeof bundle.project === "object" && !Array.isArray(bundle.project));
+    const propertyPanelApiReady = typeof api.buildPropertyPanelViewModel === "function";
+
+    if (!projectShapeValid) {
+      throw new Error("project slice returned an invalid project object.");
+    }
+
+    if (propertyPanelApiReady) {
+      api.buildPropertyPanelViewModel({
+        mode: "read-only",
+        subjectId: "bridge-smoke",
+        title: "Bridge Smoke",
+        subtitle: "Renderer bridge smoke validation",
+        facts: ["Bridge smoke"],
+        assumptions: [],
+        unresolved: [],
+        groups: []
+      });
+    }
+
+    await emitBridgeSmoke({
+      ...baseResult,
+      status: "pass",
+      preloadExecuted: Boolean(health?.preloadExecuted),
+      pingSucceeded: true,
+      rendererReadyAcknowledged: Boolean(rendererHandshake?.rendererReady),
+      bridgeCallSucceeded: true,
+      workspaceLoadSucceeded: workspaceProjects.length > 0,
+      project001LoadSucceeded: Boolean(project001),
+      selectedProjectId,
+      workspaceProjectCount: workspaceProjects.length,
+      propertyPanelBridgeReady: propertyPanelApiReady,
+      preloadExists: Boolean(health?.preloadExists),
+      preloadPath: health?.preloadPath ?? null
+    });
+  } catch (error) {
+    await emitBridgeSmoke({
+      ...baseResult,
+      status: "fail",
+      error: error instanceof Error ? error.message : String(error)
+    });
+  }
+}
+
+async function init() {
+  bindActions();
+  renderBridgeStatus();
+
+  try {
+    await checkDesktopBridge();
     await reloadWorkspace(true);
   } catch (error) {
     renderFatal(error instanceof Error ? error.message : "Unknown editor load error.");
   }
+}
+
+function setBridgeState(nextState) {
+  state.bridge = {
+    ...state.bridge,
+    ...nextState
+  };
+}
+
+function formatBridgeDetail(value) {
+  return escapeHtml(String(value ?? ""));
+}
+
+function shortenBridgePath(filePath) {
+  const normalized = String(filePath ?? "").replace(/\\/g, "/");
+  const distMarker = "/dist/";
+  const distIndex = normalized.lastIndexOf(distMarker);
+  if (distIndex >= 0) {
+    return normalized.slice(distIndex + 1);
+  }
+
+  return normalized;
+}
+
+async function captureBridgeHealth() {
+  if (!window.myideApi || typeof window.myideApi.bridgeHealth !== "function") {
+    return null;
+  }
+
+  try {
+    return await window.myideApi.bridgeHealth();
+  } catch {
+    return null;
+  }
+}
+
+function summarizeBridgeSnapshot(snapshot, projectMessage = null) {
+  if (!snapshot) {
+    return {
+      tone: "warning",
+      heading: "Desktop bridge pending",
+      message: projectMessage ?? "Checking preload and renderer bridge handshake.",
+      details: ["Bridge health data is not available yet."]
+    };
+  }
+
+  const details = [
+    `Preload ${snapshot.preloadExists ? "found" : "missing"}`,
+    `Preload executed ${snapshot.preloadExecuted ? "yes" : "no"}`,
+    `Renderer ready ${snapshot.rendererReady ? "yes" : "no"}`
+  ];
+
+  if (snapshot.preloadPath) {
+    details.push(`Path ${shortenBridgePath(snapshot.preloadPath)}`);
+  }
+  if (snapshot.lastSelectedProjectId) {
+    details.push(`Selected ${snapshot.lastSelectedProjectId}`);
+  }
+  if (snapshot.workspaceProjectCount > 0) {
+    details.push(`Workspace ${snapshot.workspaceProjectCount} projects`);
+  }
+  if (snapshot.lastProjectLoadError) {
+    details.push(`Load error ${snapshot.lastProjectLoadError}`);
+  }
+
+  let tone = "healthy";
+  let heading = "Desktop bridge healthy";
+  let message = projectMessage ?? "Preload executed and renderer handshake completed.";
+
+  if (!snapshot.preloadExists || !snapshot.preloadExecuted || !snapshot.bridgeExposed) {
+    tone = "error";
+    heading = "Desktop bridge unavailable";
+    message = "Preload did not expose the desktop bridge in this renderer session.";
+  } else if (!snapshot.rendererReady) {
+    tone = "warning";
+    heading = "Desktop bridge waiting on renderer";
+    message = "Preload executed, but the renderer has not completed the bridge handshake yet.";
+  } else if (snapshot.lastProjectLoadError) {
+    tone = "error";
+    heading = "Desktop project load failed";
+    message = snapshot.lastProjectLoadError;
+  }
+
+  return { tone, heading, message, details };
+}
+
+async function checkDesktopBridge() {
+  const api = window.myideApi;
+
+  if (!api) {
+    setBridgeState({
+      tone: "error",
+      heading: "Desktop bridge unavailable",
+      message: "Preload did not expose window.myideApi in this renderer session.",
+      details: ["window.myideApi is missing."]
+    });
+    renderBridgeStatus();
+    throw new Error("Desktop bridge object is missing. Preload may not have executed.");
+  }
+
+  if (typeof api.ping !== "function" || typeof api.bridgeHealth !== "function" || typeof api.reportRendererReady !== "function") {
+    setBridgeState({
+      tone: "error",
+      heading: "Desktop bridge incomplete",
+      message: "The renderer can see window.myideApi, but the bridge health helpers are missing.",
+      details: ["Expected ping, bridgeHealth, and reportRendererReady helpers on window.myideApi."]
+    });
+    renderBridgeStatus();
+    throw new Error("Desktop bridge helpers are missing from window.myideApi.");
+  }
+
+  setBridgeState({
+    tone: "warning",
+    heading: "Desktop bridge checking",
+    message: "Confirming preload execution and renderer handshake.",
+    details: ["Running bridge ping and health checks."]
+  });
+  renderBridgeStatus();
+
+  await api.ping();
+  await api.reportRendererReady();
+  const snapshot = await api.bridgeHealth();
+  const summary = summarizeBridgeSnapshot(snapshot);
+  setBridgeState({
+    ...summary,
+    snapshot
+  });
+  renderBridgeStatus();
+}
+
+async function refreshBridgeProjectStatus(projectMessage = null) {
+  const snapshot = await captureBridgeHealth();
+  const summary = summarizeBridgeSnapshot(snapshot, projectMessage);
+  setBridgeState({
+    ...summary,
+    snapshot
+  });
 }
 
 function bindActions() {
@@ -1534,10 +1792,22 @@ function handleCanvasKeyUp(event) {
 
 async function reloadWorkspace(isInitialLoad, requestedProjectId = null) {
   if (!window.myideApi || typeof window.myideApi.loadProjectSlice !== "function") {
+    setBridgeState({
+      tone: "error",
+      heading: "Desktop bridge unavailable",
+      message: "window.myideApi.loadProjectSlice is not available in this renderer session.",
+      details: ["The preload bridge object is missing or incomplete."]
+    });
     throw new Error("MyIDE desktop bridge is unavailable.");
   }
 
-  state.bundle = await window.myideApi.loadProjectSlice(requestedProjectId ?? state.selectedProjectId ?? undefined);
+  try {
+    state.bundle = await window.myideApi.loadProjectSlice(requestedProjectId ?? state.selectedProjectId ?? undefined);
+  } catch (error) {
+    await refreshBridgeProjectStatus(error instanceof Error ? error.message : "Desktop project load failed.");
+    throw error;
+  }
+
   state.selectedProjectId = state.bundle.selectedProjectId;
   state.editorData = state.bundle.editableProject ? clone(state.bundle.editableProject) : null;
   state.canvasDrag = null;
@@ -1553,6 +1823,7 @@ async function reloadWorkspace(isInitialLoad, requestedProjectId = null) {
     pushLog(`Reloaded ${state.selectedProjectId} from disk.`);
   }
 
+  await refreshBridgeProjectStatus(`Desktop bridge healthy. Loaded ${state.selectedProjectId} through the Electron preload bridge.`);
   renderAll();
 
   if (!state.editorData) {
@@ -1905,6 +2176,31 @@ function renderSyncStatus() {
       <span>Last sync ${lastSyncedAt}</span>
       <span>${bridge}</span>
     </div>
+  `;
+}
+
+function renderBridgeStatus() {
+  if (!elements.bridgeStatus) {
+    return;
+  }
+
+  const bridge = state.bridge ?? {};
+  const details = Array.isArray(bridge.details) ? bridge.details : [];
+  const detailMarkup = details.length > 0
+    ? `
+      <div class="sync-status-meta">
+        ${details.map((detail) => `<span>${formatBridgeDetail(detail)}</span>`).join("")}
+      </div>
+    `
+    : "";
+
+  elements.bridgeStatus.dataset.tone = bridge.tone ?? "warning";
+  elements.bridgeStatus.innerHTML = `
+    <div>
+      <strong>${escapeHtml(bridge.heading ?? "Desktop bridge")}</strong>
+      <p>${escapeHtml(bridge.message ?? "Bridge status is unavailable.")}</p>
+    </div>
+    ${detailMarkup}
   `;
 }
 
@@ -2976,6 +3272,7 @@ function renderAll() {
   enforceIsolationSelection();
   renderProjectBrowser();
   renderSceneExplorer();
+  renderBridgeStatus();
   renderSyncStatus();
   renderProjectSummary();
   renderEditorCanvas();
@@ -3089,6 +3386,7 @@ function renderAll() {
 
 function renderFatal(message) {
   setPreviewStatus(message);
+  renderBridgeStatus();
 
   if (elements.projectBrowser) {
     elements.projectBrowser.innerHTML = `<div class="tree-row"><strong>Load Error</strong><span>${message}</span></div>`;

@@ -3,10 +3,10 @@
 MyIDE is a universal local-first IDE for multiple game projects over time, with a desktop web UI for collecting donor evidence, reconstructing each project into a clean internal model, replaying that model locally, and preparing a project-specific target or resulting game path.
 
 ## Current Phase
-- Current milestone: PHASE 5J viewport zoom/pan and fit-view slice on top of the folder-based multi-project workspace.
+- Current milestone: PHASE 5K desktop bridge hardening and live GUI proof slice on top of the folder-based multi-project workspace.
 - Active validated donor slice: `donor_001_mystery_garden`.
 - Proven replay scope: one bounded Mystery Garden slice driven only by internal project data under `40_projects/project_001`.
-- Proven editor scope: open `project_001`, inspect the internal scene/layer/object list, create placeholder objects from a small preset set, drag/nudge with optional snap, align supported placeholder-backed objects to viewport edges/centers, reassign editable objects between unlocked layers, edit bounded properties including placeholder width/height, reorder editable objects within a layer, read the selected object's order position within its layer, step to the previous/next object within that layer, use quick session-only layer isolation for focused editing, zoom/pan/reset/fit the viewport without dirtying project state, duplicate/delete, undo/redo, save, reload, and confirm deterministic sync updates the replay-facing `project.json`.
+- Proven editor scope: open `project_001`, inspect the internal scene/layer/object list, create placeholder objects from a small preset set, drag/nudge with optional snap, align supported placeholder-backed objects to viewport edges/centers, reassign editable objects between unlocked layers, edit bounded properties including placeholder width/height, reorder editable objects within a layer, read the selected object's order position within its layer, step to the previous/next object within that layer, use quick session-only layer isolation for focused editing, zoom/pan/reset/fit the viewport without dirtying project state, duplicate/delete, undo/redo, save, reload, prove deterministic sync updates the replay-facing `project.json`, and prove the live Electron shell can load `project_001` through a working preload bridge.
 
 ## Core Rules
 - The product architecture is universal and multi-project.
@@ -42,6 +42,7 @@ Public publication rules are defined in [`00_control/PUBLIC_REPO_POLICY.md`](./0
 - `npm run smoke:order-isolate`
 - `npm run smoke:layer-navigation`
 - `npm run smoke:viewport-controls`
+- `npm run smoke:electron-bridge`
 - `npm run import:mystery-garden`
 - `npm run validate:workspace`
 - `npm run verify:workspace`

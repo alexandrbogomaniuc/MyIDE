@@ -130,7 +130,14 @@
 - [x] Add bounded session-only viewport pan plus fit/reset view controls.
 - [x] Keep viewport state session-only and non-dirty while preserving correct object selection and drag math under transformed view.
 - [x] Add smoke coverage for transformed-view editing plus fit/reset behavior.
-- [ ] Verify the viewport-controls workflow interactively in a GUI-capable Electron session.
+- [x] Verify the viewport-controls workflow interactively in a GUI-capable Electron session.
+
+## PHASE 5K
+- [x] Prove whether preload actually loads in the built Electron app.
+- [x] Add a bridge-specific smoke path with a machine-readable health artifact.
+- [x] Prove `window.myideApi` is available in the renderer and can load `project_001`.
+- [x] Replace the generic bridge failure with more specific bridge-health messaging.
+- [x] Capture live GUI proof that the desktop shell opens with bridge health and a loaded project.
 
 ## Deferred
 - [ ] Donor decoding automation.

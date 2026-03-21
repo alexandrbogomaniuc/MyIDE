@@ -1,8 +1,8 @@
 # MyIDE Status
 
 ## Current Phase
-- Active scope: PHASE 5J viewport zoom/pan and fit-view controls on top of the existing slot-first implementation slice.
-- Current milestone: keep `project_001` as the validated bounded internal scene editor slice with preset-based placeholder creation -> resize/move/edit -> snap-assisted layout -> viewport alignment aids -> layer reassignment -> layer-local ordering -> order-position cues -> previous/next layer navigation -> quick session-only isolation -> session-only viewport zoom/pan/reset/fit -> duplicate/delete -> undo/redo -> save/reload -> deterministic replay sync.
+- Active scope: PHASE 5K desktop bridge hardening and live GUI proof on top of the existing slot-first implementation slice.
+- Current milestone: keep `project_001` as the validated bounded internal scene editor slice with preset-based placeholder creation -> resize/move/edit -> snap-assisted layout -> viewport alignment aids -> layer reassignment -> layer-local ordering -> order-position cues -> previous/next layer navigation -> quick session-only isolation -> session-only viewport zoom/pan/reset/fit -> duplicate/delete -> undo/redo -> save/reload -> deterministic replay sync -> preload bridge health proof -> live Electron shell project load proof.
 
 ## Progress Log
 
@@ -67,6 +67,9 @@
 - Added session-only viewport zoom in/out, space-or-middle-mouse pan, reset view, and fit view controls to make layout edits less cramped without mutating project files.
 - Corrected canvas selection and drag math under transformed view so object edits still land in world coordinates, remain snap-compatible, and persist through save/reload plus deterministic replay sync.
 - Added a viewport-controls smoke test and folded it into `verify:workspace` so transformed-view interaction stays non-dirty until an actual object edit is saved.
+- Hardened the desktop preload bridge by removing the preload's dependency on the external property-panel adapter module and by exposing explicit ping, bridge-health, and renderer-ready diagnostics.
+- Added a dedicated `smoke:electron-bridge` path plus a machine-readable `/tmp/myide-electron-bridge-smoke.json` artifact that proves main start, preload execution, bridge exposure, bridge calls, and `project_001` load.
+- Captured a live Electron screenshot with the shell loaded, the desktop bridge healthy, and `project_001` open in the real desktop path.
 
 ## Proven Facts
 - Local reference repos are available in the developer workspace outside this repository.
@@ -88,6 +91,7 @@
 - The shell now exposes layer-local draw-order controls and a session-only layer isolate mode inside the validated `project_001` editor slice without widening into a full scene editor.
 - The shell now exposes a read-only order-position cue and previous/next selection within the current layer without turning selection navigation into persistent project state.
 - The shell now exposes session-only viewport zoom/pan/reset/fit controls without turning viewport state into persistent project state.
+- The shell now exposes an explicit desktop bridge health card and a deterministic Electron bridge smoke path for the validated `project_001` slice.
 - `project_001/internal/*.json` now forms the persistence target for the first editor slice while `project.json` remains the validated replay source.
 - Workspace verification now validates the internal editor scene files in addition to project metadata and replay contracts.
 - The shell now deterministically syncs the replay-facing generated output on save and surfaces that target path in the editor UI.
@@ -110,4 +114,4 @@
 - Placeholder sizing is now bounded to placeholder-backed objects only; asset-backed objects still do not expose a broader resizing workflow.
 - Object ordering remains layer-local, and layer isolation is session-only rather than a persistent project setting.
 - Previous/next layer navigation remains session-only selection state and does not cross layer boundaries.
-- Viewport zoom/pan/reset/fit remains session-only and is not yet proven interactively in a stable Electron GUI session.
+- Live GUI proof now exists for the preload bridge plus `project_001` load path, but the shell still does not yet prove richer GUI automation flows such as in-window create/edit/save automation.

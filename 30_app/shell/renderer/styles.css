@@ -589,6 +589,21 @@ button:disabled {
   background: rgba(232, 138, 93, 0.1);
 }
 
+.bridge-status-card[data-tone="healthy"] {
+  border-color: rgba(110, 205, 160, 0.38);
+  background: rgba(110, 205, 160, 0.1);
+}
+
+.bridge-status-card[data-tone="warning"] {
+  border-color: rgba(230, 191, 100, 0.42);
+  background: rgba(230, 191, 100, 0.12);
+}
+
+.bridge-status-card[data-tone="error"] {
+  border-color: rgba(232, 138, 93, 0.44);
+  background: rgba(232, 138, 93, 0.1);
+}
+
 .sync-status-meta {
   display: flex;
   flex-wrap: wrap;

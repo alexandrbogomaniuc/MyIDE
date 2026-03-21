@@ -1,12 +1,14 @@
 # project_001 Before/After Demo
 
-## Viewport Controls / Save / Sync / Reload
-- Object id: node.win-banner.
-- View state (session-only): zoom 1 -> 1.5, pan (-320, -180) -> (-404, -132), fit (85.333, 48), reset (1, 0, 0).
-- Original world position: (640, 598).
-- Final world position after transformed-view drag projection and save/sync/reload: (670, 578).
-- Replay-facing/generated file changed: 40_projects/project_001/project.json.
+## Desktop Bridge Proof
+- Project id: project_001.
+- Loaded object example: node.title.
+- View state in the live shell: 100% zoom at the default origin after the renderer-ready bridge handshake.
+- Bridge health proof: preload path `dist/30_app/shell/preload.js`, preload executed `true`, renderer ready `true`, selected project `project_001`, workspace projects `2`.
+- Live GUI proof: the Electron shell showed `Desktop bridge healthy` while the Mystery Garden Replay Slice project browser, canvas, and inspector were all loaded from the live preload bridge path.
+- Replay-facing/generated file referenced by the loaded shell path: 40_projects/project_001/project.json.
 
 ## Notes
-- Zoom/pan/fit/reset are session-only view operations and do not dirty persistent project data by themselves.
-- Object position edits derived from transformed view coordinates persist through internal save and replay sync.
+- The bridge-health card is session-only UI state and does not dirty project files by itself.
+- The deterministic smoke artifact for this proof is written to `/tmp/myide-electron-bridge-smoke.json`.
+- Live screenshot captured during this run: `/tmp/myide-phase5k-live.png`.
