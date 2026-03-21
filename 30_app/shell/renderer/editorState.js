@@ -9,6 +9,53 @@
   const DEFAULT_SNAP_SIZE = 10;
   const MIN_OBJECT_SIZE = 8;
   const MAX_OBJECT_SIZE = 4096;
+  const PLACEHOLDER_PRESETS = [
+    {
+      key: "generic-box",
+      label: "Generic Box",
+      type: "shape",
+      width: 220,
+      height: 140,
+      placeholderRef: "placeholder.shape.generic-box",
+      notes: "Generic bounded placeholder for layout blocking and rough composition."
+    },
+    {
+      key: "banner",
+      label: "Banner",
+      type: "text",
+      width: 360,
+      height: 72,
+      placeholderRef: "placeholder.text.banner",
+      notes: "Wide banner placeholder for headline or win callout regions."
+    },
+    {
+      key: "panel",
+      label: "Panel",
+      type: "shape",
+      width: 320,
+      height: 220,
+      placeholderRef: "placeholder.shape.panel",
+      notes: "Panel placeholder for sidebars, info blocks, and grouped UI."
+    },
+    {
+      key: "modal",
+      label: "Modal",
+      type: "container",
+      width: 440,
+      height: 252,
+      placeholderRef: "placeholder.container.modal",
+      notes: "Centered modal placeholder for feature prompts or overlays."
+    },
+    {
+      key: "badge-pill",
+      label: "Badge / Pill",
+      type: "text",
+      width: 180,
+      height: 48,
+      placeholderRef: "placeholder.text.badge-pill",
+      notes: "Compact pill placeholder for counters, chips, and badges."
+    }
+  ];
 
   function clone(value) {
     return value ? JSON.parse(JSON.stringify(value)) : value;
@@ -149,6 +196,20 @@
     }
   }
 
+  function getPlaceholderPresets() {
+    return PLACEHOLDER_PRESETS.map((preset) => ({
+      key: preset.key,
+      label: preset.label,
+      description: preset.notes,
+      type: preset.type
+    }));
+  }
+
+  function getPlaceholderPreset(presetKey) {
+    const normalizedKey = String(presetKey ?? "").trim();
+    return PLACEHOLDER_PRESETS.find((preset) => preset.key === normalizedKey) ?? PLACEHOLDER_PRESETS[0];
+  }
+
   function sortLayers(layers) {
     return [...(Array.isArray(layers) ? layers : [])].sort((left, right) => {
       const orderDiff = (left?.order ?? 0) - (right?.order ?? 0);
@@ -218,10 +279,11 @@
       return null;
     }
 
-    const objectId = createNumberedObjectId(editorData.objects, "node.placeholder");
+    const preset = getPlaceholderPreset(options.presetKey);
+    const objectId = createNumberedObjectId(editorData.objects, `node.placeholder.${preset.key}`);
     const ordinal = Number.parseInt(objectId.split("-").pop() ?? "1", 10) || 1;
-    const width = 180;
-    const height = 110;
+    const width = sanitizeObjectDimension(preset.width);
+    const height = sanitizeObjectDimension(preset.height);
     const viewportWidth = Number.isFinite(options.viewport?.width) ? options.viewport.width : 1280;
     const viewportHeight = Number.isFinite(options.viewport?.height) ? options.viewport.height : 720;
     const offset = ((ordinal - 1) % 6) * 26;
@@ -229,12 +291,12 @@
     const maxY = Math.max(0, viewportHeight - height);
     const x = Math.min(maxX, Math.max(0, Math.round(viewportWidth * 0.5 - width * 0.5 + offset)));
     const y = Math.min(maxY, Math.max(0, Math.round(viewportHeight * 0.32 - height * 0.5 + offset)));
-    const displayName = `Placeholder Object ${String(ordinal).padStart(2, "0")}`;
+    const displayName = `${preset.label} ${String(ordinal).padStart(2, "0")}`;
 
     return {
       id: objectId,
       displayName,
-      type: "shape",
+      type: preset.type,
       layerId: layer.id,
       x,
       y,
@@ -244,8 +306,8 @@
       scaleY: 1,
       visible: true,
       locked: false,
-      placeholderRef: "placeholder.shape.generic-box",
-      notes: "Created inside MyIDE as a local placeholder object."
+      placeholderRef: preset.placeholderRef,
+      notes: preset.notes
     };
   }
 
@@ -371,6 +433,7 @@
     createUniqueObjectId,
     createNumberedObjectId,
     getEditableLayers,
+    getPlaceholderPresets,
     createPlaceholderObject,
     duplicateObject,
     deleteObject,

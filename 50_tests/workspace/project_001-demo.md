@@ -1,12 +1,12 @@
 # project_001 Before/After Demo
 
-## Create / Resize / Snap / Reassign / Save / Sync / Reload
-- Created object id: node.placeholder-01.
-- Default values: displayName = Placeholder Object 01, layerId = layer.gameplay, x = 550, y = 175, width = 180, height = 110, scaleX = 1, visible = true.
-- After save + sync + reload: displayName = Placeholder Object 01 (edited), layerId = layer.ui, x = 580, y = 190, width = 204, height = 122, scaleX = 1.15, visible = false.
+## Preset / Align / Save / Sync / Reload
+- Created preset object id: node.placeholder.generic-box-01.
+- Default values: placeholderRef = placeholder.shape.generic-box, layerId = layer.gameplay, x = 530, y = 160, width = 220, height = 140, scaleX = 1, visible = true.
+- After save + sync + reload: placeholderRef = placeholder.shape.generic-box, layerId = layer.ui, x = 560, y = 180, width = 244, height = 152, scaleX = 1.15, visible = false.
 
 ## Duplicate / Delete After Creation
-- Duplicate id: node.placeholder-01-copy.
+- Duplicate id: node.placeholder.generic-box-01-copy.
 - The duplicate was saved, reloaded, then deleted cleanly while the original created object remained on layer.ui until restore.
 
 ## Sync Contract

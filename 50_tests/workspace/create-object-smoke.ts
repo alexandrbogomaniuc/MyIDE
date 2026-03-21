@@ -72,6 +72,11 @@ async function main(): Promise<void> {
 
   assert(createdObject, "A placeholder object should be creatable on an editable layer.");
   assert.equal(createdObject.type, "shape", "New placeholder object should use the bounded generic shape type.");
+  assert.equal(
+    createdObject.placeholderRef,
+    "placeholder.shape.generic-box",
+    "Preset creation should use the generic box placeholder preset."
+  );
   assert.equal(createdObject.layerId, "layer.gameplay", "New placeholder object should prefer the selected editable layer.");
   assert.equal(createdObject.visible, true, "New placeholder object should default to visible.");
   assert.equal(createdObject.locked, false, "New placeholder object should default to unlocked.");
@@ -94,6 +99,7 @@ async function main(): Promise<void> {
   const defaultX = createdEditableObject.x;
   const defaultY = createdEditableObject.y;
   const defaultLayerId = createdEditableObject.layerId;
+  const defaultPlaceholderRef = createdEditableObject.placeholderRef;
   const defaultWidth = createdEditableObject.width;
   const defaultHeight = createdEditableObject.height;
   assert(typeof defaultWidth === "number" && defaultWidth >= 8, "Created placeholder objects must start with an explicit bounded width.");
@@ -105,6 +111,8 @@ async function main(): Promise<void> {
     x: defaultX + 33,
     y: defaultY + 19
   }, editorState.DEFAULT_SNAP_SIZE);
+  assert.equal(snappedPosition.x % editorState.DEFAULT_SNAP_SIZE, 0, "Preset alignment must snap x to the configured grid.");
+  assert.equal(snappedPosition.y % editorState.DEFAULT_SNAP_SIZE, 0, "Preset alignment must snap y to the configured grid.");
   const resizedWidth = editorState.sanitizeObjectDimension(defaultWidth + 24, defaultWidth);
   const resizedHeight = editorState.sanitizeObjectDimension(defaultHeight + 12, defaultHeight);
   const historyBeforeEdit = editorState.pushUndoSnapshot(redoneCreate.history, redoneCreate.editorData, `Edit ${createdObject.id}`);
@@ -128,6 +136,7 @@ async function main(): Promise<void> {
   assert.equal(undoneCreatedObject.x, defaultX, "Undo should restore the default x for the created object.");
   assert.equal(undoneCreatedObject.y, defaultY, "Undo should restore the default y for the created object.");
   assert.equal(undoneCreatedObject.layerId, defaultLayerId, "Undo should restore the default layer for the created object.");
+  assert.equal(undoneCreatedObject.placeholderRef, defaultPlaceholderRef, "Undo should restore the default preset reference for the created object.");
   assert.equal(undoneCreatedObject.width, defaultWidth, "Undo should restore the default width for the created object.");
   assert.equal(undoneCreatedObject.height, defaultHeight, "Undo should restore the default height for the created object.");
 
@@ -162,6 +171,7 @@ async function main(): Promise<void> {
   assert.equal(reloadedCreatedObject.scaleX, 1.15, "Created object scaleX must persist after reload.");
   assert.equal(reloadedCreatedObject.visible, false, "Created object visibility must persist after reload.");
   assert.equal(reloadedCreatedObject.layerId, targetLayerId, "Created object layer reassignment must persist after reload.");
+  assert.equal(reloadedCreatedObject.placeholderRef, defaultPlaceholderRef, "Created object preset reference must persist after reload.");
 
   const sliceAfterCreate = await loadProjectSlice("project_001");
   const syncedCreatedNode = getSyncedSceneNode(sliceAfterCreate.project as Record<string, unknown>, createdObject.id) as {
@@ -179,6 +189,7 @@ async function main(): Promise<void> {
   assert.equal(syncedCreatedPosition.scaleX, 1.15, "Replay-facing project.json must reflect the created object scaleX.");
   assert.equal(syncedCreatedNode.node.visible, false, "Replay-facing project.json must reflect the created object visibility.");
   assert.equal(syncedCreatedNode.layerId, targetLayerId, "Replay-facing project.json must reflect the created object layer reassignment.");
+  assert.equal(syncedCreatedNode.node.assetRef, defaultPlaceholderRef, "Replay-facing project.json must preserve the created object preset reference.");
 
   const duplicatedSnapshot = cloneEditableProjectData(reloadedAfterCreate);
   const duplicateResult = editorState.duplicateObject(duplicatedSnapshot, createdObject.id);
@@ -258,10 +269,10 @@ async function main(): Promise<void> {
   const demoArtifact = [
     "# project_001 Before/After Demo",
     "",
-    "## Create / Resize / Snap / Reassign / Save / Sync / Reload",
-    `- Created object id: ${createdObject.id}.`,
-    `- Default values: displayName = ${defaultDisplayName}, layerId = ${defaultLayerId}, x = ${defaultX}, y = ${defaultY}, width = ${defaultWidth}, height = ${defaultHeight}, scaleX = ${defaultScaleX}, visible = ${defaultVisible}.`,
-    `- After save + sync + reload: displayName = ${reloadedCreatedObject.displayName}, layerId = ${reloadedCreatedObject.layerId}, x = ${reloadedCreatedObject.x}, y = ${reloadedCreatedObject.y}, width = ${reloadedCreatedObject.width}, height = ${reloadedCreatedObject.height}, scaleX = ${reloadedCreatedObject.scaleX}, visible = ${reloadedCreatedObject.visible}.`,
+    "## Preset / Align / Save / Sync / Reload",
+    `- Created preset object id: ${createdObject.id}.`,
+    `- Default values: placeholderRef = ${defaultPlaceholderRef}, layerId = ${createdObject.layerId}, x = ${defaultX}, y = ${defaultY}, width = ${defaultWidth}, height = ${defaultHeight}, scaleX = ${defaultScaleX}, visible = ${defaultVisible}.`,
+    `- After save + sync + reload: placeholderRef = ${reloadedCreatedObject.placeholderRef}, layerId = ${reloadedCreatedObject.layerId}, x = ${reloadedCreatedObject.x}, y = ${reloadedCreatedObject.y}, width = ${reloadedCreatedObject.width}, height = ${reloadedCreatedObject.height}, scaleX = ${reloadedCreatedObject.scaleX}, visible = ${reloadedCreatedObject.visible}.`,
     "",
     "## Duplicate / Delete After Creation",
     `- Duplicate id: ${duplicateId}.`,
@@ -275,7 +286,7 @@ async function main(): Promise<void> {
   await fs.writeFile(demoArtifactPath, `${demoArtifact}\n`, "utf8");
 
   console.log("PASS smoke:create-object");
-  console.log(`Created object: ${createdObject.id}`);
+  console.log(`Created preset object: ${createdObject.id}`);
   console.log(`Duplicate id: ${duplicateId}`);
   console.log(`Synced replay output: ${path.relative(workspaceRoot, createSave.replayProjectPath)}`);
   console.log(`Demo artifact: ${path.relative(workspaceRoot, demoArtifactPath)}`);
