@@ -371,6 +371,17 @@ button:disabled {
   font-size: 0.78rem;
 }
 
+.layer-toggle.is-active {
+  border-color: rgba(110, 169, 216, 0.44);
+  background: linear-gradient(180deg, rgba(38, 62, 88, 0.96), rgba(18, 34, 52, 0.98));
+  color: #d9ebf7;
+}
+
+.isolate-banner {
+  border-color: rgba(110, 169, 216, 0.34);
+  background: rgba(110, 169, 216, 0.08);
+}
+
 .project-card-head {
   display: flex;
   justify-content: space-between;
@@ -643,6 +654,11 @@ button:disabled {
   background-size: 10px 10px;
   mix-blend-mode: screen;
   opacity: 0.55;
+}
+
+.canvas-stage.is-layer-isolated {
+  border-color: rgba(110, 169, 216, 0.34);
+  box-shadow: inset 0 0 0 1px rgba(110, 169, 216, 0.14);
 }
 
 .canvas-stage:focus-visible {

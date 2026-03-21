@@ -5,7 +5,7 @@
   "displayName": "Mystery Garden Replay Slice",
   "gameFamily": "slot",
   "implementationScope": "slot-first",
-  "phase": "PHASE 5G",
+  "phase": "PHASE 5H",
   "status": "validated",
   "verification": {
     "status": "verified-replay-slice",
@@ -20,7 +20,7 @@
       "assert:replay"
     ],
     "lastVerifiedAt": "2026-03-21T08:12:18Z",
-    "notes": "Internal replay slice plus the bounded editor loop are verified, including preset-based placeholder creation, snap-assisted drag/nudge, viewport alignment aids for supported placeholder-backed objects, layer reassignment, bounded placeholder width/height edits, duplicate/delete, undo/redo, save/reload, and deterministic replay sync; live restart and free-spins capture gaps remain."
+    "notes": "Internal replay slice plus the bounded editor loop are verified, including preset-based placeholder creation, snap-assisted drag/nudge, viewport alignment aids for supported placeholder-backed objects, layer reassignment, bounded placeholder width/height edits, layer-local ordering controls, quick session-only layer isolation, duplicate/delete, undo/redo, save/reload, and deterministic replay sync; live restart and free-spins capture gaps remain."
   },
   "lifecycle": {
     "currentStage": "internalReplay",
@@ -39,7 +39,7 @@
       },
       "internalReplay": {
         "status": "verified",
-        "notes": "Validated internal replay slice exists in project_001, now with a bounded editable shell workflow that can create preset placeholders, resize, move, align to the viewport, edit, duplicate, delete, save, reload, and sync."
+        "notes": "Validated internal replay slice exists in project_001, now with a bounded editable shell workflow that can create preset placeholders, resize, move, align to the viewport, edit, reorder within a layer, isolate a single layer for focused edits, duplicate, delete, save, reload, and sync."
       },
       "targetConcept": {
         "status": "planned",
@@ -129,12 +129,12 @@
     "firstValidatedAt": "2026-03-20T10:32:56Z"
   },
   "notes": {
-    "provenFacts": [
-      "Replay loader uses internal project data only.",
-      "Project_001 is the only validated donor-backed project so far.",
-      "The shell can now create preset placeholders, resize, align, edit, move, duplicate, delete, and persist bounded scene objects from project_001 internal scene files.",
-      "Save deterministically syncs the replay-facing generated project.json output from the editable internal scene files, including placeholder size and alignment changes."
-    ],
+      "provenFacts": [
+        "Replay loader uses internal project data only.",
+        "Project_001 is the only validated donor-backed project so far.",
+        "The shell can now create preset placeholders, resize, align, edit, move, reorder within a layer, isolate a focused layer view, duplicate, delete, and persist bounded scene objects from project_001 internal scene files.",
+        "Save deterministically syncs the replay-facing generated project.json output from the editable internal scene files, including placeholder size and alignment changes."
+      ],
     "plannedWork": [
       "Keep donor links and target game metadata explicit for every project.",
       "Maintain the standard folder-based project lifecycle alongside the validated replay slice.",

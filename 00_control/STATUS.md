@@ -1,8 +1,8 @@
 # MyIDE Status
 
 ## Current Phase
-- Active scope: PHASE 5G alignment aids and placeholder presets slice on top of the existing slot-first implementation slice.
-- Current milestone: keep `project_001` as the validated bounded internal scene editor slice with preset-based placeholder creation -> resize/move/edit -> snap-assisted layout -> viewport alignment aids -> layer reassignment -> duplicate/delete -> undo/redo -> save/reload -> deterministic replay sync.
+- Active scope: PHASE 5H object ordering and quick layer isolation slice on top of the existing slot-first implementation slice.
+- Current milestone: keep `project_001` as the validated bounded internal scene editor slice with preset-based placeholder creation -> resize/move/edit -> snap-assisted layout -> viewport alignment aids -> layer reassignment -> layer-local ordering -> quick session-only isolation -> duplicate/delete -> undo/redo -> save/reload -> deterministic replay sync.
 
 ## Progress Log
 
@@ -58,6 +58,7 @@
 - Added bounded width/height editing for placeholder-backed objects so placeholder layout blocks can be resized inside the shell editor and synced into replay-facing output.
 - Added a bounded placeholder preset picker so the shell can create Generic Box, Banner, Panel, Modal, and Badge / Pill layout blocks directly inside `project_001`.
 - Added single-object viewport alignment aids for supported placeholder-backed objects so left/center/right/top/middle/bottom placement persists through save, reload, and deterministic replay sync.
+- Added bounded object ordering controls within the current layer and a quick session-only layer isolation mode for focused layout edits.
 
 ## Proven Facts
 - Local reference repos are available in the developer workspace outside this repository.
@@ -76,6 +77,7 @@
 - The shell now exposes the first real editor-style workflow for `project_001`, including new object creation, object selection, drag/nudge, bounded property edits, duplicate/delete, save, reload, and visible sync status.
 - The shell now exposes snap-assisted layout movement, selected-object layer reassignment, and bounded placeholder width/height editing inside the validated `project_001` editor slice.
 - The shell now exposes placeholder presets and viewport alignment aids inside the validated `project_001` editor slice without widening into a full scene editor.
+- The shell now exposes layer-local draw-order controls and a session-only layer isolate mode inside the validated `project_001` editor slice without widening into a full scene editor.
 - `project_001/internal/*.json` now forms the persistence target for the first editor slice while `project.json` remains the validated replay source.
 - Workspace verification now validates the internal editor scene files in addition to project metadata and replay contracts.
 - The shell now deterministically syncs the replay-facing generated output on save and surfaces that target path in the editor UI.
@@ -96,3 +98,4 @@
 - Preview hit-selection works in the shell canvas, but this remains a minimal property-edit slice rather than a full drag/drop scene editor.
 - The shell can now create a new placeholder object, but there is still no asset picker or richer object-type creation flow yet.
 - Placeholder sizing is now bounded to placeholder-backed objects only; asset-backed objects still do not expose a broader resizing workflow.
+- Object ordering remains layer-local, and layer isolation is session-only rather than a persistent project setting.

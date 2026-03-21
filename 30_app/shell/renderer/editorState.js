@@ -540,6 +540,141 @@
     };
   }
 
+  function getLayerObjectsInOrder(editorData, layerId) {
+    if (!editorData || !Array.isArray(editorData.objects)) {
+      return [];
+    }
+
+    return editorData.objects.filter((entry) => entry.layerId === layerId);
+  }
+
+  function getObjectOrderContext(editorData, selectedObjectId) {
+    if (!editorData || !Array.isArray(editorData.objects)) {
+      return null;
+    }
+
+    const selectedObject = editorData.objects.find((entry) => entry.id === selectedObjectId);
+    if (!selectedObject) {
+      return null;
+    }
+
+    const layer = Array.isArray(editorData.layers)
+      ? editorData.layers.find((entry) => entry.id === selectedObject.layerId)
+      : null;
+    const layerObjects = getLayerObjectsInOrder(editorData, selectedObject.layerId);
+    const index = layerObjects.findIndex((entry) => entry.id === selectedObject.id);
+    if (index < 0) {
+      return null;
+    }
+
+    return {
+      objectId: selectedObject.id,
+      layerId: selectedObject.layerId,
+      layerName: layer?.displayName ?? selectedObject.layerId,
+      index,
+      total: layerObjects.length,
+      canSendBackward: index > 0,
+      canBringForward: index < layerObjects.length - 1
+    };
+  }
+
+  function reorderObjectInLayer(editorData, selectedObjectId, action) {
+    if (!editorData || !Array.isArray(editorData.objects)) {
+      return null;
+    }
+
+    const selectedObject = editorData.objects.find((entry) => entry.id === selectedObjectId);
+    if (!selectedObject || selectedObject.locked) {
+      return null;
+    }
+
+    const layer = Array.isArray(editorData.layers)
+      ? editorData.layers.find((entry) => entry.id === selectedObject.layerId)
+      : null;
+    if (layer?.locked) {
+      return null;
+    }
+
+    const layerObjects = getLayerObjectsInOrder(editorData, selectedObject.layerId);
+    const relativeIndex = layerObjects.findIndex((entry) => entry.id === selectedObject.id);
+    if (relativeIndex < 0 || layerObjects.length < 2) {
+      return {
+        objectId: selectedObject.id,
+        layerId: selectedObject.layerId,
+        layerName: layer?.displayName ?? selectedObject.layerId,
+        beforeIndex: Math.max(0, relativeIndex),
+        afterIndex: Math.max(0, relativeIndex),
+        total: layerObjects.length,
+        action,
+        changed: false
+      };
+    }
+
+    let targetRelativeIndex = relativeIndex;
+    if (action === "send-backward") {
+      targetRelativeIndex = Math.max(0, relativeIndex - 1);
+    } else if (action === "bring-forward") {
+      targetRelativeIndex = Math.min(layerObjects.length - 1, relativeIndex + 1);
+    } else if (action === "send-to-back") {
+      targetRelativeIndex = 0;
+    } else if (action === "bring-to-front") {
+      targetRelativeIndex = layerObjects.length - 1;
+    } else {
+      return null;
+    }
+
+    if (targetRelativeIndex === relativeIndex) {
+      return {
+        objectId: selectedObject.id,
+        layerId: selectedObject.layerId,
+        layerName: layer?.displayName ?? selectedObject.layerId,
+        beforeIndex: relativeIndex,
+        afterIndex: targetRelativeIndex,
+        total: layerObjects.length,
+        action,
+        changed: false
+      };
+    }
+
+    const absoluteIndices = [];
+    for (let index = 0; index < editorData.objects.length; index += 1) {
+      if (editorData.objects[index]?.layerId === selectedObject.layerId) {
+        absoluteIndices.push(index);
+      }
+    }
+
+    const fromAbsoluteIndex = absoluteIndices[relativeIndex];
+    const toAbsoluteIndex = absoluteIndices[targetRelativeIndex];
+    if (!Number.isInteger(fromAbsoluteIndex) || !Number.isInteger(toAbsoluteIndex)) {
+      return null;
+    }
+
+    const [movedObject] = editorData.objects.splice(fromAbsoluteIndex, 1);
+    editorData.objects.splice(toAbsoluteIndex, 0, movedObject);
+
+    return {
+      objectId: selectedObject.id,
+      layerId: selectedObject.layerId,
+      layerName: layer?.displayName ?? selectedObject.layerId,
+      beforeIndex: relativeIndex,
+      afterIndex: targetRelativeIndex,
+      total: layerObjects.length,
+      action,
+      changed: true
+    };
+  }
+
+  function getRenderableLayerIds(editorData, isolatedLayerId = null) {
+    const sortedLayerIds = sortLayers(Array.isArray(editorData?.layers) ? editorData.layers : []).map((entry) => entry.id);
+    if (typeof isolatedLayerId === "string" && isolatedLayerId.length > 0 && sortedLayerIds.includes(isolatedLayerId)) {
+      return [isolatedLayerId];
+    }
+
+    return sortLayers(Array.isArray(editorData?.layers) ? editorData.layers : [])
+      .filter((entry) => entry.visible !== false)
+      .map((entry) => entry.id);
+  }
+
   return {
     clone,
     fingerprint,
@@ -567,6 +702,9 @@
     deleteObject,
     reassignObjectLayer,
     alignObjectToViewport,
+    getObjectOrderContext,
+    reorderObjectInLayer,
+    getRenderableLayerIds,
     resolveSelectedObjectId
   };
 });

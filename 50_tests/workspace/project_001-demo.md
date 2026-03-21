@@ -14,3 +14,8 @@
 - Authoritative source: 40_projects/project_001/internal/scene.json, layers.json, objects.json.
 - Generated replay output changed: 40_projects/project_001/project.json.
 - Save history: 40_projects/project_001/logs/editor-save-history.jsonl.
+
+## Order / Isolation
+- Layer-local reorder example: node.win-banner, node.bottom-bar, node.free-spins-pill -> node.bottom-bar, node.free-spins-pill, node.win-banner.
+- Session-only isolate example: layer.ui focused alone in memory, with no persistent project-file change and no dirty-state mutation.
+- Replay-facing order preserved in: 40_projects/project_001/project.json.

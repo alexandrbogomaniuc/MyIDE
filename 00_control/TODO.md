@@ -110,13 +110,13 @@
 - [ ] Verify the resize/move/save/reload loop interactively in a GUI-capable Electron session.
 - [x] Decide whether the next bounded editor upgrade is placeholder presets, simple alignment aids, or another small inspector productivity field.
 
-## PHASE 5G
+## PHASE 5H
 - [x] Align public phase/status wording with the actual current editor behavior.
-- [x] Add a bounded set of placeholder presets for faster object creation.
-- [x] Add single-object viewport alignment aids for supported placeholder-backed objects.
-- [x] Keep preset creation and alignment on the same deterministic save/sync/reload path.
-- [x] Add smoke coverage for preset create -> align -> save -> sync -> reload plus duplicate/delete after preset creation.
-- [ ] Verify the preset/alignment workflow interactively in a GUI-capable Electron session.
+- [x] Add bounded object ordering controls within the current layer.
+- [x] Add quick session-only layer isolation for focused editing.
+- [x] Keep ordering and isolation on the same deterministic save/sync/reload path where applicable.
+- [x] Add smoke coverage for reorder -> save -> sync -> reload plus isolate on/off behavior.
+- [ ] Verify the ordering/isolation workflow interactively in a GUI-capable Electron session.
 
 ## Deferred
 - [ ] Donor decoding automation.

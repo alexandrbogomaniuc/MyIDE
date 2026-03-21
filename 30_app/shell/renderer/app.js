@@ -12,6 +12,10 @@ const state = {
   snap: {
     enabled: false,
     size: 10
+  },
+  layerIsolation: {
+    activeLayerId: null,
+    previousSelectedObjectId: null
   }
 };
 
@@ -123,6 +127,15 @@ function bindActions() {
   elements.editorToolbar?.addEventListener("click", (event) => {
     const target = event.target;
     if (!(target instanceof HTMLElement)) {
+      return;
+    }
+
+    const orderButton = target.closest("[data-order-action]");
+    if (orderButton instanceof HTMLElement) {
+      const action = orderButton.dataset.orderAction;
+      if (action) {
+        handleOrderSelectedObject(action);
+      }
       return;
     }
 
@@ -470,10 +483,13 @@ function normalizeObjectPosition(object, x, y) {
 function getSelectedLayerLabel() {
   const selectedObject = getSelectedObject();
   if (!selectedObject) {
-    return "No layer";
+    return isLayerIsolationActive()
+      ? `${getIsolatedLayer()?.displayName ?? "Solo Layer"} · solo`
+      : "No layer";
   }
 
-  return getLayerById(selectedObject.layerId)?.displayName ?? selectedObject.layerId;
+  const label = getLayerById(selectedObject.layerId)?.displayName ?? selectedObject.layerId;
+  return isLayerIsolationActive() ? `${label} · solo` : label;
 }
 
 function slugifyValue(value) {
@@ -661,8 +677,87 @@ function getLayerById(layerId) {
   return getLayerMap().get(layerId) ?? null;
 }
 
+function isLayerIsolationActive() {
+  return typeof state.layerIsolation?.activeLayerId === "string" && state.layerIsolation.activeLayerId.length > 0;
+}
+
+function getIsolatedLayerId() {
+  return isLayerIsolationActive() ? state.layerIsolation.activeLayerId : null;
+}
+
+function getIsolatedLayer() {
+  const isolatedLayerId = getIsolatedLayerId();
+  return isolatedLayerId ? getLayerById(isolatedLayerId) : null;
+}
+
+function resetLayerIsolation() {
+  state.layerIsolation = {
+    activeLayerId: null,
+    previousSelectedObjectId: null
+  };
+}
+
 function sortLayers(layers) {
   return [...layers].sort((left, right) => left.order - right.order || left.displayName.localeCompare(right.displayName));
+}
+
+function getRenderableLayerIds(editorData = state.editorData) {
+  const tools = getEditorStateTools();
+  if (typeof tools.getRenderableLayerIds === "function") {
+    return tools.getRenderableLayerIds(editorData, getIsolatedLayerId());
+  }
+
+  const layers = sortLayers(Array.isArray(editorData?.layers) ? editorData.layers : []);
+  const isolatedLayerId = getIsolatedLayerId();
+  if (isolatedLayerId && layers.some((entry) => entry.id === isolatedLayerId)) {
+    return [isolatedLayerId];
+  }
+
+  return layers.filter((entry) => entry.visible !== false).map((entry) => entry.id);
+}
+
+function isLayerVisibleInEditor(layer) {
+  return getRenderableLayerIds().includes(layer.id);
+}
+
+function getLayerObjectsInOrder(layerId, editorData = state.editorData) {
+  return Array.isArray(editorData?.objects)
+    ? editorData.objects.filter((entry) => entry.layerId === layerId)
+    : [];
+}
+
+function getFirstSelectableObjectIdForLayer(layerId) {
+  const layerObjects = getLayerObjectsInOrder(layerId);
+  const editable = layerObjects.find((entry) => isObjectEditable(entry));
+  return editable?.id ?? layerObjects[0]?.id ?? null;
+}
+
+function getSelectedObjectOrderContext() {
+  const selectedObject = getSelectedObject();
+  if (!selectedObject || !state.editorData) {
+    return null;
+  }
+
+  const tools = getEditorStateTools();
+  if (typeof tools.getObjectOrderContext === "function") {
+    return tools.getObjectOrderContext(state.editorData, selectedObject.id);
+  }
+
+  const layerObjects = getLayerObjectsInOrder(selectedObject.layerId);
+  const index = layerObjects.findIndex((entry) => entry.id === selectedObject.id);
+  if (index < 0) {
+    return null;
+  }
+
+  return {
+    objectId: selectedObject.id,
+    layerId: selectedObject.layerId,
+    layerName: getLayerById(selectedObject.layerId)?.displayName ?? selectedObject.layerId,
+    index,
+    total: layerObjects.length,
+    canSendBackward: index > 0,
+    canBringForward: index < layerObjects.length - 1
+  };
 }
 
 function ensureSelectedObject() {
@@ -972,6 +1067,7 @@ async function reloadWorkspace(isInitialLoad, requestedProjectId = null) {
   state.selectedProjectId = state.bundle.selectedProjectId;
   state.editorData = state.bundle.editableProject ? clone(state.bundle.editableProject) : null;
   state.canvasDrag = null;
+  resetLayerIsolation();
   resetEditorHistory();
   reconcileSelectedObject();
   ensureSyncStatusForSelectedProject();
@@ -1120,8 +1216,16 @@ function handleInspectorEvent(event) {
     if (field === "layerId") {
       const targetLayer = getLayerById(nextValue);
       const targetName = targetLayer?.displayName ?? nextValue;
+      let isolationNote = "";
+      if (isLayerIsolationActive() && getIsolatedLayerId() !== nextValue) {
+        state.layerIsolation = {
+          activeLayerId: nextValue,
+          previousSelectedObjectId: selectedObject.id
+        };
+        isolationNote = " Solo view followed the selected object into the new layer.";
+      }
       const visibilityNote = targetLayer?.visible === false ? " The target layer is currently hidden." : "";
-      setPreviewStatus(`Moved ${selectedObject.displayName} to ${targetName}.${visibilityNote} Save to persist the layer change.`);
+      setPreviewStatus(`Moved ${selectedObject.displayName} to ${targetName}.${visibilityNote}${isolationNote} Save to persist the layer change.`);
     } else if (field === "width" || field === "height") {
       const alignmentNote = sizeAlignedWithinViewport ? " The object was kept within the viewport." : "";
       setPreviewStatus(`Edited ${selectedObject.displayName} size.${alignmentNote} Save to persist the change.`);
@@ -1134,6 +1238,38 @@ function handleInspectorEvent(event) {
 function handleLayerAction(layerId, action) {
   const layer = getLayerById(layerId);
   if (!layer || !state.editorData) {
+    return;
+  }
+
+  if (action === "toggle-isolate" || action === "clear-isolation") {
+    if (state.canvasDrag) {
+      setPreviewStatus("Finish the current drag before changing the solo layer view.");
+      return;
+    }
+
+    if (action === "clear-isolation" || getIsolatedLayerId() === layerId) {
+      const restoreSelectionId = state.layerIsolation.previousSelectedObjectId;
+      resetLayerIsolation();
+      reconcileSelectedObject(restoreSelectionId, state.selectedObjectId);
+      pushLog(`Cleared solo view for ${layer.displayName}.`);
+      renderAll();
+      setPreviewStatus("Solo layer view cleared. Saved layer visibility rules are active again.");
+      return;
+    }
+
+    state.layerIsolation = {
+      activeLayerId: layerId,
+      previousSelectedObjectId: state.selectedObjectId
+    };
+
+    if (getSelectedObject()?.layerId !== layerId) {
+      state.selectedObjectId = getFirstSelectableObjectIdForLayer(layerId);
+    }
+
+    reconcileSelectedObject(state.selectedObjectId, state.layerIsolation.previousSelectedObjectId);
+    pushLog(`Solo view enabled for ${layer.displayName}.`);
+    renderAll();
+    setPreviewStatus(`Solo view enabled for ${layer.displayName}. This is session-only and does not change saved layer visibility.`);
     return;
   }
 
@@ -1389,14 +1525,28 @@ function renderSceneExplorer() {
   }
 
   const sortedLayers = sortLayers(editorData.layers);
-  const layerMarkup = sortedLayers.map((layer) => {
-    const objects = editorData.objects.filter((entry) => entry.layerId === layer.id);
+  const renderableLayerIds = new Set(getRenderableLayerIds(editorData));
+  const isolatedLayer = getIsolatedLayer();
+  const displayedLayers = sortedLayers.filter((layer) => renderableLayerIds.has(layer.id));
+  const isolationBanner = isolatedLayer ? `
+    <div class="tree-row isolate-banner">
+      <strong>Solo Layer View</strong>
+      <span>${isolatedLayer.displayName} is isolated for this session only. Saved visibility flags are unchanged.</span>
+      <div class="layer-actions">
+        <button class="layer-toggle" type="button" data-layer-id="${isolatedLayer.id}" data-layer-action="clear-isolation" ${state.canvasDrag ? "disabled" : ""}>
+          Exit Solo
+        </button>
+      </div>
+    </div>
+  ` : "";
+  const layerMarkup = displayedLayers.map((layer) => {
+    const objects = getLayerObjectsInOrder(layer.id, editorData);
     const objectMarkup = objects.length > 0
-      ? objects.map((object) => `
+      ? objects.map((object, index) => `
         <button class="object-row ${object.id === state.selectedObjectId ? "is-selected" : ""}" type="button" data-object-id="${object.id}">
           <strong>${object.displayName}</strong>
           <span>${object.type}</span>
-          <small>${object.visible ? "visible" : "hidden"} · ${object.locked ? "locked" : "editable"} · ${object.id}</small>
+          <small>${object.visible ? "visible" : "hidden"} · ${object.locked ? "locked" : "editable"} · stack ${index + 1}/${objects.length} · ${object.id}</small>
         </button>
       `).join("")
       : `<p class="muted-copy">No objects on this layer.</p>`;
@@ -1406,14 +1556,17 @@ function renderSceneExplorer() {
         <div class="layer-row">
           <div>
             <strong>${layer.displayName}</strong>
-            <span>order ${layer.order} · ${layer.visible ? "visible" : "hidden"} · ${layer.locked ? "locked" : "editable"}</span>
+            <span>order ${layer.order} · ${layer.visible ? "visible" : "hidden"} · ${layer.locked ? "locked" : "editable"}${isolatedLayer?.id === layer.id ? " · solo view" : ""}</span>
           </div>
           <div class="layer-actions">
-            <button class="layer-toggle" type="button" data-layer-id="${layer.id}" data-layer-action="toggle-visible">
+            <button class="layer-toggle" type="button" data-layer-id="${layer.id}" data-layer-action="toggle-visible" ${state.canvasDrag ? "disabled" : ""}>
               ${layer.visible ? "Hide" : "Show"}
             </button>
-            <button class="layer-toggle" type="button" data-layer-id="${layer.id}" data-layer-action="toggle-locked">
+            <button class="layer-toggle" type="button" data-layer-id="${layer.id}" data-layer-action="toggle-locked" ${state.canvasDrag ? "disabled" : ""}>
               ${layer.locked ? "Unlock" : "Lock"}
+            </button>
+            <button class="layer-toggle ${isolatedLayer?.id === layer.id ? "is-active" : ""}" type="button" data-layer-id="${layer.id}" data-layer-action="toggle-isolate" ${state.canvasDrag ? "disabled" : ""}>
+              ${isolatedLayer?.id === layer.id ? "Solo On" : "Solo"}
             </button>
           </div>
         </div>
@@ -1430,8 +1583,10 @@ function renderSceneExplorer() {
         <span>${sortedLayers.length} layers</span>
         <span>${editorData.objects.length} objects</span>
         <span>${state.dirty ? "unsaved changes" : "saved"}</span>
+        <span>${isolatedLayer ? `solo ${isolatedLayer.displayName}` : "no solo layer"}</span>
       </div>
     </div>
+    ${isolationBanner}
     ${layerMarkup}
   `;
 }
@@ -1452,7 +1607,7 @@ function renderProjectSummary() {
   const sceneSummary = editorData
     ? `${editorData.scene.displayName} · ${editorData.layers.length} layers · ${editorData.objects.length} objects`
     : "No editable scene slice yet.";
-  const editorStatusSummary = `${sceneSummary} · ${isSnapEnabled() ? `Snap ${getSnapSize()}px` : "Snap off"} · ${getSelectedLayerLabel()}`;
+  const editorStatusSummary = `${sceneSummary} · ${isSnapEnabled() ? `Snap ${getSnapSize()}px` : "Snap off"} · ${getSelectedLayerLabel()} · ${isLayerIsolationActive() ? `Solo ${getIsolatedLayer()?.displayName ?? "layer"}` : "No solo layer"}`;
 
   const lifecycleChips = lifecycleStageOrder.map((stageId) => {
     const stage = selectedProject.lifecycle?.stages?.[stageId];
@@ -1698,6 +1853,54 @@ function handleAlignSelectedObject(alignment) {
   }
 }
 
+function getOrderActionLabel(action) {
+  const labels = {
+    "send-backward": "sent backward",
+    "bring-forward": "brought forward",
+    "send-to-back": "sent to the back",
+    "bring-to-front": "brought to the front"
+  };
+
+  return labels[action] ?? action;
+}
+
+function handleOrderSelectedObject(action) {
+  const selectedObject = getSelectedObject();
+  if (!selectedObject) {
+    setPreviewStatus("Select an editable object before changing its order.");
+    return;
+  }
+
+  if (state.canvasDrag) {
+    setPreviewStatus("Finish the current drag before changing object order.");
+    return;
+  }
+
+  if (!isObjectEditable(selectedObject)) {
+    setPreviewStatus("Locked objects cannot be reordered.");
+    return;
+  }
+
+  const beforeContext = getSelectedObjectOrderContext();
+  const didChange = applyEditorMutation(`Reordered ${selectedObject.displayName} within ${beforeContext?.layerName ?? "its layer"}.`, (editorData) => {
+    const tools = getEditorStateTools();
+    if (typeof tools.reorderObjectInLayer === "function") {
+      tools.reorderObjectInLayer(editorData, selectedObject.id, action);
+    }
+  });
+
+  const afterContext = getSelectedObjectOrderContext();
+  if (!didChange) {
+    setPreviewStatus(`${selectedObject.displayName} is already at that ordering boundary within ${beforeContext?.layerName ?? "the current layer"}.`);
+    return;
+  }
+
+  const orderSummary = afterContext
+    ? `${afterContext.index + 1} of ${afterContext.total}`
+    : "updated order";
+  setPreviewStatus(`${selectedObject.displayName} was ${getOrderActionLabel(action)} in ${beforeContext?.layerName ?? "the current layer"} (${orderSummary}). Save to persist the order change.`);
+}
+
 function handleCreateNewObject() {
   if (!state.editorData) {
     setPreviewStatus("No editable scene data is available for the selected project.");
@@ -1841,22 +2044,29 @@ function renderEditorCanvas() {
   }
 
   const sortedLayers = sortLayers(editorData.layers);
-  const visibleLayerIds = new Set(sortedLayers.filter((layer) => layer.visible).map((layer) => layer.id));
+  const renderableLayerIds = new Set(getRenderableLayerIds(editorData));
+  const objectOrderById = new Map();
+  sortedLayers.forEach((layer) => {
+    getLayerObjectsInOrder(layer.id, editorData).forEach((object, index) => {
+      objectOrderById.set(object.id, index);
+    });
+  });
 
-  const objectMarkup = editorData.objects.map((object) => {
+  const objectMarkup = editorData.objects.filter((object) => renderableLayerIds.has(object.layerId)).map((object) => {
     const layer = getLayerById(object.layerId);
-    const visible = object.visible && visibleLayerIds.has(object.layerId);
+    const visible = object.visible;
     const locked = object.locked || layer?.locked;
     const dragging = state.canvasDrag?.objectId === object.id;
     const dimensions = getObjectDimensions(object);
     const layerOrder = typeof layer?.order === "number" ? layer.order : 0;
+    const layerObjectOrder = objectOrderById.get(object.id) ?? 0;
     const style = [
       `left:${object.x}px`,
       `top:${object.y}px`,
       `width:${dimensions.width}px`,
       `height:${dimensions.height}px`,
       `transform:scale(${object.scaleX}, ${object.scaleY})`,
-      `z-index:${layerOrder + 1}`,
+      `z-index:${layerOrder * 100 + layerObjectOrder + 1}`,
       visible ? "" : "display:none"
     ].filter(Boolean).join("; ");
     const selected = object.id === state.selectedObjectId;
@@ -1885,6 +2095,9 @@ function renderEditorCanvas() {
   const selectedObject = getSelectedObject();
   const selectedLayerLabel = getSelectedLayerLabel();
   const snapLabel = isSnapEnabled() ? `Snap ${getSnapSize()}px on` : "Snap off";
+  const isolationLabel = isLayerIsolationActive()
+    ? `Solo ${getIsolatedLayer()?.displayName ?? "layer"}`
+    : "No solo layer";
 
   elements.editorCanvas.innerHTML = `
     <div class="canvas-meta">
@@ -1894,9 +2107,10 @@ function renderEditorCanvas() {
       <span>${selectedObject ? `Selected: ${selectedObject.displayName}` : "No selection"}</span>
       <span>Layer: ${selectedLayerLabel}</span>
       <span>${snapLabel}</span>
+      <span>${isolationLabel}</span>
       <span>Drag or arrow-nudge to move</span>
     </div>
-    <div class="canvas-stage ${isSnapEnabled() ? "is-snap-enabled" : ""}" tabindex="0" aria-label="Project editor canvas" style="width:${viewportWidth}px; height:${viewportHeight}px;">
+    <div class="canvas-stage ${isSnapEnabled() ? "is-snap-enabled" : ""} ${isLayerIsolationActive() ? "is-layer-isolated" : ""}" tabindex="0" aria-label="Project editor canvas" style="width:${viewportWidth}px; height:${viewportHeight}px;">
       ${objectMarkup}
     </div>
   `;
@@ -1940,6 +2154,7 @@ function renderInspector() {
   const locked = selectedObject.locked || layer?.locked;
   const sizeEditable = isObjectSizeEditable(selectedObject);
   const viewportAlignable = isViewportAlignableObject(selectedObject);
+  const orderContext = getSelectedObjectOrderContext();
   const assignableLayers = getAssignableLayers().map((entry) => ({
     value: entry.id,
     label: `${entry.displayName}${entry.visible === false ? " (hidden)" : ""}`
@@ -1953,6 +2168,7 @@ function renderInspector() {
     mode: locked ? "inspect" : "edit",
     facts: [
       `Layer ${layer?.displayName ?? selectedObject.layerId} is ${layer?.visible === false ? "hidden" : "visible"} in the editor.`,
+      isLayerIsolationActive() ? `Solo layer view is active for ${getIsolatedLayer()?.displayName ?? "the current layer"}.` : "Solo layer view is off.",
       `Current project lifecycle stage is ${labelizeStage(selectedProject.lifecycle?.currentStage)}.`,
       "Preview rendering and save/reload use internal project files only."
     ],
@@ -1967,6 +2183,13 @@ function renderInspector() {
           { key: "id", label: "Object ID", value: selectedObject.id, status: "proven", fieldState: "read-only" },
           { key: "type", label: "Type", value: selectedObject.type, status: "proven", fieldState: "read-only" },
           { key: "layerId", label: "Layer ID", value: selectedObject.layerId, status: "proven", fieldState: "read-only" },
+          {
+            key: "orderIndex",
+            label: "Order in Layer",
+            value: orderContext ? `${orderContext.index + 1} of ${orderContext.total}` : "n/a",
+            status: "proven",
+            fieldState: "read-only"
+          },
           {
             key: "assetRef",
             label: "Asset / Placeholder",
@@ -2236,12 +2459,36 @@ function renderAll() {
   }
   const selectedObject = getSelectedObject();
   const canMutateSelectedObject = Boolean(selectedObject && isObjectEditable(selectedObject) && !state.canvasDrag);
+  const orderContext = getSelectedObjectOrderContext();
   if (elements.editorToolbar) {
     const canAlignSelectedObject = Boolean(selectedObject && isViewportAlignableObject(selectedObject) && !state.canvasDrag);
     elements.editorToolbar.querySelectorAll("[data-align-action]").forEach((button) => {
       if (button instanceof HTMLButtonElement) {
         button.disabled = !canAlignSelectedObject;
       }
+    });
+    elements.editorToolbar.querySelectorAll("[data-order-action]").forEach((button) => {
+      if (!(button instanceof HTMLButtonElement)) {
+        return;
+      }
+
+      const action = button.dataset.orderAction;
+      const enabled = Boolean(
+        canMutateSelectedObject
+        && orderContext
+        && (
+          action === "send-backward"
+            ? orderContext.canSendBackward
+            : action === "bring-forward"
+              ? orderContext.canBringForward
+              : action === "send-to-back"
+                ? orderContext.canSendBackward
+                : action === "bring-to-front"
+                  ? orderContext.canBringForward
+                  : false
+        )
+      );
+      button.disabled = !enabled;
     });
   }
   if (elements.actionDuplicate) {
@@ -2309,6 +2556,10 @@ window.render_game_to_text = () => JSON.stringify({
       locked: entry.locked
     }))
     : [],
+  layerIsolation: {
+    activeLayerId: getIsolatedLayerId(),
+    sessionOnly: true
+  },
   editorObjectPositions: Array.isArray(state.editorData?.objects)
     ? state.editorData.objects.map((entry) => ({
       id: entry.id,
@@ -2320,6 +2571,12 @@ window.render_game_to_text = () => JSON.stringify({
       scaleX: entry.scaleX,
       scaleY: entry.scaleY,
       visible: entry.visible
+    }))
+    : [],
+  layerObjectOrder: Array.isArray(state.editorData?.layers)
+    ? sortLayers(state.editorData.layers).map((layer) => ({
+      layerId: layer.id,
+      objectIds: getLayerObjectsInOrder(layer.id).map((entry) => entry.id)
     }))
     : []
 });

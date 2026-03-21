@@ -12,6 +12,7 @@
 - `npm run build && node dist/50_tests/workspace/drag-edit-smoke.js`
 - `npm run build && node dist/50_tests/workspace/duplicate-delete-smoke.js`
 - `npm run build && node dist/50_tests/workspace/create-object-smoke.js`
+- `npm run build && node dist/50_tests/workspace/order-isolate-smoke.js`
 - `npm run verify:persistence`
 - `npm run verify:workspace`
 
@@ -22,5 +23,6 @@
 - The drag-edit smoke test simulates a snap-assisted drag-equivalent move, verifies bounded undo/redo around that snapped position, then proves the snapped coordinates persist through both the editable files and generated replay-facing `project.json` before restore.
 - The duplicate-delete smoke test proves a duplicated object persists through save/reload and replay sync, then proves delete persistence plus undo/redo before restoring the original project.
 - The create-object smoke test proves a new placeholder preset object can be created, resized, aligned to the viewport, synced into replay-facing output, then duplicated and deleted cleanly before restore.
+- The order-isolate smoke test proves a layer-local draw-order change persists through save/reload and replay sync, then proves a session-only layer isolation view stays in memory and does not dirty the persistent project data.
 - The latest demo smoke writes a concise before/after artifact to `50_tests/workspace/project_001-demo.md`.
 - `project_001` remains the validated replay slice.

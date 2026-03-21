@@ -114,12 +114,16 @@
             <button type="button" data-align-action="top" title="Align the selected placeholder-backed object to the top edge of the viewport">Top</button>
             <button type="button" data-align-action="middle-v" title="Align the selected placeholder-backed object vertically to the viewport middle">Middle V</button>
             <button type="button" data-align-action="bottom" title="Align the selected placeholder-backed object to the bottom edge of the viewport">Bottom</button>
+            <button type="button" data-order-action="send-backward" title="Move the selected object one step backward within its current layer">Send Backward</button>
+            <button type="button" data-order-action="bring-forward" title="Move the selected object one step forward within its current layer">Bring Forward</button>
+            <button type="button" data-order-action="send-to-back" title="Move the selected object to the back of its current layer">Send To Back</button>
+            <button type="button" data-order-action="bring-to-front" title="Move the selected object to the front of its current layer">Bring To Front</button>
             <button id="action-duplicate" type="button">Duplicate Object</button>
             <button id="action-delete" type="button" class="is-danger">Delete Object</button>
             <button id="action-save" type="button">Save Scene Changes</button>
             <button id="action-reload-editor" type="button">Reload From Disk</button>
             <span id="dirty-indicator" class="toolbar-indicator">Saved</span>
-            <span class="toolbar-hint">Ctrl/Cmd+S save · Ctrl/Cmd+Shift+N new placeholder · Ctrl/Cmd+Shift+G snap · viewport align buttons for selected placeholder-backed objects · Ctrl/Cmd+D duplicate · Delete remove · arrows nudge</span>
+            <span class="toolbar-hint">Ctrl/Cmd+S save · Ctrl/Cmd+Shift+N new placeholder · Ctrl/Cmd+Shift+G snap · viewport align + layer-local order buttons · scene explorer Solo is session-only · Ctrl/Cmd+D duplicate · Delete remove · arrows nudge</span>
           </div>
           <div id="sync-status" class="sync-status-card" aria-live="polite"></div>
           <div id="project-summary" class="project-summary" aria-live="polite"></div>
