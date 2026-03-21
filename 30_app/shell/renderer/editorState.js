@@ -16,16 +16,18 @@
       type: "shape",
       width: 220,
       height: 140,
+      suggestedLayerId: "layer.gameplay",
       placeholderRef: "placeholder.shape.generic-box",
       notes: "Generic bounded placeholder for layout blocking and rough composition."
     },
     {
       key: "banner",
       label: "Banner",
-      type: "text",
-      width: 360,
-      height: 72,
-      placeholderRef: "placeholder.text.banner",
+      type: "shape",
+      width: 540,
+      height: 120,
+      suggestedLayerId: "layer.ui",
+      placeholderRef: "placeholder.shape.banner",
       notes: "Wide banner placeholder for headline or win callout regions."
     },
     {
@@ -34,25 +36,28 @@
       type: "shape",
       width: 320,
       height: 220,
+      suggestedLayerId: "layer.gameplay",
       placeholderRef: "placeholder.shape.panel",
       notes: "Panel placeholder for sidebars, info blocks, and grouped UI."
     },
     {
       key: "modal",
       label: "Modal",
-      type: "container",
-      width: 440,
-      height: 252,
-      placeholderRef: "placeholder.container.modal",
+      type: "shape",
+      width: 460,
+      height: 280,
+      suggestedLayerId: "layer.overlay",
+      placeholderRef: "placeholder.shape.modal",
       notes: "Centered modal placeholder for feature prompts or overlays."
     },
     {
       key: "badge-pill",
       label: "Badge / Pill",
-      type: "text",
-      width: 180,
-      height: 48,
-      placeholderRef: "placeholder.text.badge-pill",
+      type: "shape",
+      width: 192,
+      height: 64,
+      suggestedLayerId: "layer.ui",
+      placeholderRef: "placeholder.shape.badge-pill",
       notes: "Compact pill placeholder for counters, chips, and badges."
     }
   ];
@@ -201,7 +206,10 @@
       key: preset.key,
       label: preset.label,
       description: preset.notes,
-      type: preset.type
+      type: preset.type,
+      width: preset.width,
+      height: preset.height,
+      suggestedLayerId: preset.suggestedLayerId
     }));
   }
 
@@ -269,28 +277,63 @@
     return sortedLayers.find((entry) => !entry.locked) ?? null;
   }
 
+  function resolvePresetPosition(preset, viewportWidth, viewportHeight, width, height, ordinal) {
+    const maxX = Math.max(0, viewportWidth - width);
+    const maxY = Math.max(0, viewportHeight - height);
+    const offset = ((ordinal - 1) % 6) * 20;
+
+    if (preset.key === "banner") {
+      return {
+        x: Math.min(maxX, Math.max(0, Math.round(viewportWidth * 0.5 - width * 0.5))),
+        y: Math.min(maxY, Math.max(0, 72 + offset))
+      };
+    }
+
+    if (preset.key === "panel") {
+      return {
+        x: Math.min(maxX, Math.max(0, 72 + offset)),
+        y: Math.min(maxY, Math.max(0, Math.round(viewportHeight * 0.5 - height * 0.5 + offset * 0.5)))
+      };
+    }
+
+    if (preset.key === "modal") {
+      return {
+        x: Math.min(maxX, Math.max(0, Math.round(viewportWidth * 0.5 - width * 0.5 + offset * 0.5))),
+        y: Math.min(maxY, Math.max(0, Math.round(viewportHeight * 0.5 - height * 0.5 + offset * 0.5)))
+      };
+    }
+
+    if (preset.key === "badge-pill") {
+      return {
+        x: Math.min(maxX, Math.max(0, Math.round(viewportWidth - width - 88 - offset))),
+        y: Math.min(maxY, Math.max(0, 72 + offset))
+      };
+    }
+
+    return {
+      x: Math.min(maxX, Math.max(0, Math.round(viewportWidth * 0.5 - width * 0.5 + offset))),
+      y: Math.min(maxY, Math.max(0, Math.round(viewportHeight * 0.32 - height * 0.5 + offset)))
+    };
+  }
+
   function createPlaceholderObject(editorData, options = {}) {
     if (!editorData || !Array.isArray(editorData.objects)) {
       return null;
     }
 
-    const layer = resolveCreationLayer(editorData.layers, options.selectedLayerId);
+    const preset = getPlaceholderPreset(options.presetKey);
+    const layer = resolveCreationLayer(editorData.layers, options.selectedLayerId ?? preset.suggestedLayerId);
     if (!layer) {
       return null;
     }
 
-    const preset = getPlaceholderPreset(options.presetKey);
     const objectId = createNumberedObjectId(editorData.objects, `node.placeholder.${preset.key}`);
     const ordinal = Number.parseInt(objectId.split("-").pop() ?? "1", 10) || 1;
     const width = sanitizeObjectDimension(preset.width);
     const height = sanitizeObjectDimension(preset.height);
     const viewportWidth = Number.isFinite(options.viewport?.width) ? options.viewport.width : 1280;
     const viewportHeight = Number.isFinite(options.viewport?.height) ? options.viewport.height : 720;
-    const offset = ((ordinal - 1) % 6) * 26;
-    const maxX = Math.max(0, viewportWidth - width);
-    const maxY = Math.max(0, viewportHeight - height);
-    const x = Math.min(maxX, Math.max(0, Math.round(viewportWidth * 0.5 - width * 0.5 + offset)));
-    const y = Math.min(maxY, Math.max(0, Math.round(viewportHeight * 0.32 - height * 0.5 + offset)));
+    const position = resolvePresetPosition(preset, viewportWidth, viewportHeight, width, height, ordinal);
     const displayName = `${preset.label} ${String(ordinal).padStart(2, "0")}`;
 
     return {
@@ -298,8 +341,8 @@
       displayName,
       type: preset.type,
       layerId: layer.id,
-      x,
-      y,
+      x: position.x,
+      y: position.y,
       width,
       height,
       scaleX: 1,
@@ -307,7 +350,7 @@
       visible: true,
       locked: false,
       placeholderRef: preset.placeholderRef,
-      notes: preset.notes
+      notes: `${preset.notes} Created inside MyIDE from the ${preset.label} preset.`
     };
   }
 
@@ -414,6 +457,89 @@
     return objectList[0]?.id ?? null;
   }
 
+  function isObjectAlignable(object) {
+    return Boolean(
+      object
+      && isObjectSizeEditable(object)
+      && Number.isFinite(object.width)
+      && Number.isFinite(object.height)
+    );
+  }
+
+  function alignObjectToViewport(editorData, selectedObjectId, action, viewport = null) {
+    if (!editorData || !Array.isArray(editorData.objects)) {
+      return null;
+    }
+
+    const selectedObject = editorData.objects.find((entry) => entry.id === selectedObjectId);
+    if (!selectedObject || selectedObject.locked || !isObjectAlignable(selectedObject)) {
+      return null;
+    }
+
+    const layer = Array.isArray(editorData.layers)
+      ? editorData.layers.find((entry) => entry.id === selectedObject.layerId)
+      : null;
+    if (layer?.locked) {
+      return null;
+    }
+
+    const viewportWidth = Number.isFinite(viewport?.width)
+      ? Math.max(1, Math.round(viewport.width))
+      : Math.max(1, Math.round(editorData.scene?.viewport?.width ?? 1280));
+    const viewportHeight = Number.isFinite(viewport?.height)
+      ? Math.max(1, Math.round(viewport.height))
+      : Math.max(1, Math.round(editorData.scene?.viewport?.height ?? 720));
+    const width = sanitizeObjectDimension(selectedObject.width, MIN_OBJECT_SIZE);
+    const height = sanitizeObjectDimension(selectedObject.height, MIN_OBJECT_SIZE);
+    const scaleX = Number.isFinite(selectedObject.scaleX) ? Math.abs(selectedObject.scaleX) : 1;
+    const scaleY = Number.isFinite(selectedObject.scaleY) ? Math.abs(selectedObject.scaleY) : 1;
+    const extentWidth = Math.max(1, Math.round(width * scaleX));
+    const extentHeight = Math.max(1, Math.round(height * scaleY));
+    const maxX = Math.max(0, viewportWidth - extentWidth);
+    const maxY = Math.max(0, viewportHeight - extentHeight);
+    const nextPosition = {
+      x: selectedObject.x,
+      y: selectedObject.y
+    };
+
+    if (action === "left") {
+      nextPosition.x = 0;
+    } else if (action === "center-horizontal" || action === "center-h") {
+      nextPosition.x = Math.round(maxX / 2);
+    } else if (action === "right") {
+      nextPosition.x = maxX;
+    } else if (action === "top") {
+      nextPosition.y = 0;
+    } else if (action === "middle-vertical" || action === "middle-v") {
+      nextPosition.y = Math.round(maxY / 2);
+    } else if (action === "bottom") {
+      nextPosition.y = maxY;
+    } else {
+      return null;
+    }
+
+    if (nextPosition.x === selectedObject.x && nextPosition.y === selectedObject.y) {
+      return {
+        objectId: selectedObject.id,
+        action,
+        changed: false,
+        x: selectedObject.x,
+        y: selectedObject.y
+      };
+    }
+
+    selectedObject.x = nextPosition.x;
+    selectedObject.y = nextPosition.y;
+
+    return {
+      objectId: selectedObject.id,
+      action,
+      changed: true,
+      x: selectedObject.x,
+      y: selectedObject.y
+    };
+  }
+
   return {
     clone,
     fingerprint,
@@ -429,15 +555,18 @@
     snapValue,
     snapPoint,
     isObjectSizeEditable,
+    isObjectAlignable,
     sanitizeObjectDimension,
     createUniqueObjectId,
     createNumberedObjectId,
     getEditableLayers,
     getPlaceholderPresets,
+    getPlaceholderPreset,
     createPlaceholderObject,
     duplicateObject,
     deleteObject,
     reassignObjectLayer,
+    alignObjectToViewport,
     resolveSelectedObjectId
   };
 });

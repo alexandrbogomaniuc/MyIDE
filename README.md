@@ -3,10 +3,10 @@
 MyIDE is a universal local-first IDE for multiple game projects over time, with a desktop web UI for collecting donor evidence, reconstructing each project into a clean internal model, replaying that model locally, and preparing a project-specific target or resulting game path.
 
 ## Current Phase
-- Current milestone: PHASE 5F public alignment and placeholder sizing slice on top of the folder-based multi-project workspace.
+- Current milestone: PHASE 5G alignment aids and placeholder presets slice on top of the folder-based multi-project workspace.
 - Active validated donor slice: `donor_001_mystery_garden`.
 - Proven replay scope: one bounded Mystery Garden slice driven only by internal project data under `40_projects/project_001`.
-- Proven editor scope: open `project_001`, inspect the internal scene/layer/object list, create a placeholder object, drag/nudge with optional snap, reassign editable objects between unlocked layers, edit bounded properties including placeholder width/height, duplicate/delete, undo/redo, save, reload, and confirm deterministic sync updates the replay-facing `project.json`.
+- Proven editor scope: open `project_001`, inspect the internal scene/layer/object list, create placeholder objects from a small preset set, drag/nudge with optional snap, align supported placeholder-backed objects to viewport edges/centers, reassign editable objects between unlocked layers, edit bounded properties including placeholder width/height, duplicate/delete, undo/redo, save, reload, and confirm deterministic sync updates the replay-facing `project.json`.
 
 ## Core Rules
 - The product architecture is universal and multi-project.

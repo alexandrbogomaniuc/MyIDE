@@ -8,6 +8,7 @@ const state = {
   dirty: false,
   activityLog: [],
   syncStatus: null,
+  placeholderPresetKey: "generic-box",
   snap: {
     enabled: false,
     size: 10
@@ -51,10 +52,12 @@ const elements = {
   actionRedo: document.getElementById("action-redo"),
   actionToggleSnap: document.getElementById("action-toggle-snap"),
   actionNewObject: document.getElementById("action-new-object"),
+  fieldPlaceholderPreset: document.getElementById("field-placeholder-preset"),
   actionDuplicate: document.getElementById("action-duplicate"),
   actionDelete: document.getElementById("action-delete"),
   actionSave: document.getElementById("action-save"),
   actionReloadEditor: document.getElementById("action-reload-editor"),
+  editorToolbar: document.getElementById("editor-toolbar"),
   dirtyIndicator: document.getElementById("dirty-indicator"),
   syncStatus: document.getElementById("sync-status"),
   newProjectForm: document.getElementById("new-project-form"),
@@ -97,6 +100,14 @@ function bindActions() {
   elements.actionNewObject?.addEventListener("click", () => {
     handleCreateNewObject();
   });
+  elements.fieldPlaceholderPreset?.addEventListener("change", () => {
+    if (elements.fieldPlaceholderPreset instanceof HTMLSelectElement) {
+      state.placeholderPresetKey = elements.fieldPlaceholderPreset.value || "generic-box";
+    }
+  });
+  if (elements.fieldPlaceholderPreset instanceof HTMLSelectElement) {
+    state.placeholderPresetKey = elements.fieldPlaceholderPreset.value || state.placeholderPresetKey;
+  }
   elements.actionDuplicate?.addEventListener("click", () => {
     handleDuplicateSelectedObject();
   });
@@ -108,6 +119,22 @@ function bindActions() {
   });
   elements.actionReloadEditor?.addEventListener("click", () => {
     void reloadWorkspace(false, state.selectedProjectId);
+  });
+  elements.editorToolbar?.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) {
+      return;
+    }
+
+    const alignButton = target.closest("[data-align-action]");
+    if (!(alignButton instanceof HTMLElement)) {
+      return;
+    }
+
+    const alignment = alignButton.dataset.alignAction;
+    if (alignment) {
+      handleAlignSelectedObject(alignment);
+    }
   });
   elements.projectBrowser?.addEventListener("click", (event) => {
     const target = event.target;
@@ -608,6 +635,16 @@ function isObjectSizeEditable(object) {
   );
 }
 
+function isViewportAlignableObject(object) {
+  const tools = getEditorStateTools();
+  return Boolean(
+    object
+    && isObjectEditable(object)
+    && typeof tools.isObjectAlignable === "function"
+    && tools.isObjectAlignable(object)
+  );
+}
+
 function isTypingTarget(target) {
   return target instanceof HTMLInputElement
     || target instanceof HTMLTextAreaElement
@@ -1045,6 +1082,7 @@ function handleInspectorEvent(event) {
     nextValue = target.value;
   }
 
+  let sizeAlignedWithinViewport = false;
   const didChange = applyEditorMutation(
     field === "layerId"
       ? `Moved ${selectedObject.displayName} to a different layer.`
@@ -1067,6 +1105,14 @@ function handleInspectorEvent(event) {
       }
 
       editableObject[field] = nextValue;
+      if (field === "width" || field === "height") {
+        const boundedPosition = clampObjectPosition(editableObject, editableObject.x, editableObject.y);
+        if (boundedPosition.x !== editableObject.x || boundedPosition.y !== editableObject.y) {
+          editableObject.x = boundedPosition.x;
+          editableObject.y = boundedPosition.y;
+          sizeAlignedWithinViewport = true;
+        }
+      }
     }
   );
 
@@ -1076,6 +1122,9 @@ function handleInspectorEvent(event) {
       const targetName = targetLayer?.displayName ?? nextValue;
       const visibilityNote = targetLayer?.visible === false ? " The target layer is currently hidden." : "";
       setPreviewStatus(`Moved ${selectedObject.displayName} to ${targetName}.${visibilityNote} Save to persist the layer change.`);
+    } else if (field === "width" || field === "height") {
+      const alignmentNote = sizeAlignedWithinViewport ? " The object was kept within the viewport." : "";
+      setPreviewStatus(`Edited ${selectedObject.displayName} size.${alignmentNote} Save to persist the change.`);
     } else {
       setPreviewStatus(`Edited ${selectedObject.displayName}. Save to persist the change.`);
     }
@@ -1459,6 +1508,18 @@ function getObjectDimensions(object) {
     ?? { width: 160, height: 96 };
 }
 
+function getSelectedPlaceholderPreset() {
+  const tools = getEditorStateTools();
+  const available = typeof tools.getPlaceholderPresets === "function"
+    ? tools.getPlaceholderPresets()
+    : [];
+  const selectedValue = elements.fieldPlaceholderPreset instanceof HTMLSelectElement
+    ? elements.fieldPlaceholderPreset.value
+    : state.placeholderPresetKey;
+  const preset = available.find((entry) => entry.key === selectedValue) ?? available[0] ?? null;
+  return preset;
+}
+
 function getObjectLabel(object) {
   return object.placeholderRef ?? object.assetRef ?? object.type;
 }
@@ -1535,7 +1596,7 @@ function getPreferredCreationLayerId() {
 }
 
 function canCreateObject() {
-  return Boolean(state.editorData && getPreferredCreationLayerId());
+  return Boolean(state.editorData && getAssignableLayers().length > 0);
 }
 
 function getAssignableLayers() {
@@ -1560,27 +1621,104 @@ function handleToggleSnap() {
     : "Snap disabled. Movement is now freeform again.");
 }
 
+function getViewportAlignmentTarget(object, alignment) {
+  if (!isViewportAlignableObject(object)) {
+    return null;
+  }
+
+  const viewport = getSceneViewport();
+  const extent = getObjectExtent(object);
+  const maxX = Math.max(0, viewport.width - extent.width);
+  const maxY = Math.max(0, viewport.height - extent.height);
+  const alignments = {
+    left: { x: 0, y: object.y },
+    "center-h": { x: Math.round(maxX / 2), y: object.y },
+    right: { x: maxX, y: object.y },
+    top: { x: object.x, y: 0 },
+    "middle-v": { x: object.x, y: Math.round(maxY / 2) },
+    bottom: { x: object.x, y: maxY }
+  };
+
+  const target = alignments[alignment];
+  if (!target) {
+    return null;
+  }
+
+  return clampObjectPosition(object, target.x, target.y);
+}
+
+function getAlignmentLabel(alignment) {
+  const labels = {
+    left: "left",
+    "center-h": "center horizontally",
+    right: "right",
+    top: "top",
+    "middle-v": "middle vertically",
+    bottom: "bottom"
+  };
+
+  return labels[alignment] ?? alignment;
+}
+
+function handleAlignSelectedObject(alignment) {
+  const selectedObject = getSelectedObject();
+  if (!selectedObject) {
+    setPreviewStatus("Select a placeholder-backed object before using viewport alignment.");
+    return;
+  }
+
+  if (!isViewportAlignableObject(selectedObject)) {
+    setPreviewStatus("Viewport alignment is available only for editable placeholder-backed objects with explicit width and height.");
+    return;
+  }
+
+  const target = getViewportAlignmentTarget(selectedObject, alignment);
+  if (!target) {
+    setPreviewStatus("That viewport alignment action is not available.");
+    return;
+  }
+
+  if (target.x === selectedObject.x && target.y === selectedObject.y) {
+    setPreviewStatus(`${selectedObject.displayName} is already aligned to the viewport ${getAlignmentLabel(alignment)}.`);
+    return;
+  }
+
+  const didChange = applyEditorMutation(`Aligned ${selectedObject.displayName} to the viewport ${getAlignmentLabel(alignment)}.`, (editorData) => {
+    const editableObject = editorData.objects.find((entry) => entry.id === selectedObject.id);
+    if (!editableObject) {
+      return;
+    }
+
+    editableObject.x = target.x;
+    editableObject.y = target.y;
+  });
+
+  if (didChange) {
+    setPreviewStatus(`Aligned ${selectedObject.displayName} to the viewport ${getAlignmentLabel(alignment)}. Save to persist the change.`);
+  }
+}
+
 function handleCreateNewObject() {
   if (!state.editorData) {
     setPreviewStatus("No editable scene data is available for the selected project.");
     return;
   }
 
-  const preferredLayerId = getPreferredCreationLayerId();
-  if (!preferredLayerId) {
+  if (getAssignableLayers().length === 0) {
     setPreviewStatus("Every layer is locked, so a new object cannot be created yet.");
     return;
   }
 
+  const selectedPreset = getSelectedPlaceholderPreset();
   let createdObjectId = null;
   let createdDisplayName = null;
-  let createdLayerName = preferredLayerId;
+  let createdLayerName = "unassigned";
   const didChange = applyEditorMutation("Created a new placeholder object.", (editorData) => {
     const tools = getEditorStateTools();
     const nextObject = typeof tools.createPlaceholderObject === "function"
       ? tools.createPlaceholderObject(editorData, {
-        selectedLayerId: preferredLayerId,
-        viewport: getSceneViewport()
+        viewport: getSceneViewport(),
+        presetKey: selectedPreset?.key ?? state.placeholderPresetKey
       })
       : null;
 
@@ -1599,10 +1737,14 @@ function handleCreateNewObject() {
     return;
   }
 
+  state.placeholderPresetKey = selectedPreset?.key ?? state.placeholderPresetKey;
+  if (elements.fieldPlaceholderPreset instanceof HTMLSelectElement) {
+    elements.fieldPlaceholderPreset.value = state.placeholderPresetKey;
+  }
   state.selectedObjectId = createdObjectId;
   ensureSelectedObject();
   renderAll();
-  setPreviewStatus(`Created ${createdDisplayName}. It is selected on ${createdLayerName} and ready to edit.`);
+  setPreviewStatus(`Created ${createdDisplayName} from the ${selectedPreset?.label ?? "Generic Box"} preset. It is selected on ${createdLayerName} and ready to edit.`);
 }
 
 function handleDuplicateSelectedObject() {
@@ -1797,6 +1939,7 @@ function renderInspector() {
   const layer = getLayerById(selectedObject.layerId);
   const locked = selectedObject.locked || layer?.locked;
   const sizeEditable = isObjectSizeEditable(selectedObject);
+  const viewportAlignable = isViewportAlignableObject(selectedObject);
   const assignableLayers = getAssignableLayers().map((entry) => ({
     value: entry.id,
     label: `${entry.displayName}${entry.visible === false ? " (hidden)" : ""}`
@@ -1985,6 +2128,7 @@ function renderInspector() {
       <span>${propertyPanel.editableRowCount} editable</span>
       <span>${propertyPanel.readOnlyRowCount} read-only</span>
       <span>${locked ? "locked by object/layer" : "local-first editor"}</span>
+      <span>${viewportAlignable ? "viewport alignable" : "alignment locked"}</span>
     </div>
     ${groupsMarkup}
   `;
@@ -2088,9 +2232,18 @@ function renderAll() {
   }
   if (elements.actionNewObject) {
     elements.actionNewObject.disabled = !canCreateObject() || Boolean(state.canvasDrag);
+    elements.actionNewObject.textContent = `New ${getSelectedPlaceholderPreset()?.label ?? "Placeholder"}`;
   }
   const selectedObject = getSelectedObject();
   const canMutateSelectedObject = Boolean(selectedObject && isObjectEditable(selectedObject) && !state.canvasDrag);
+  if (elements.editorToolbar) {
+    const canAlignSelectedObject = Boolean(selectedObject && isViewportAlignableObject(selectedObject) && !state.canvasDrag);
+    elements.editorToolbar.querySelectorAll("[data-align-action]").forEach((button) => {
+      if (button instanceof HTMLButtonElement) {
+        button.disabled = !canAlignSelectedObject;
+      }
+    });
+  }
   if (elements.actionDuplicate) {
     elements.actionDuplicate.disabled = !canMutateSelectedObject;
   }
@@ -2159,8 +2312,11 @@ window.render_game_to_text = () => JSON.stringify({
   editorObjectPositions: Array.isArray(state.editorData?.objects)
     ? state.editorData.objects.map((entry) => ({
       id: entry.id,
+      layerId: entry.layerId,
       x: entry.x,
       y: entry.y,
+      width: entry.width,
+      height: entry.height,
       scaleX: entry.scaleX,
       scaleY: entry.scaleY,
       visible: entry.visible

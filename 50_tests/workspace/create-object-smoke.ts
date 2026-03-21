@@ -65,8 +65,9 @@ async function main(): Promise<void> {
   const restoredSnapshot = cloneEditableProjectData(original);
   const createdSnapshot = cloneEditableProjectData(original);
   const createHistory = editorState.createHistory(original);
+  const presetKey = "banner";
   const createdObject = editorState.createPlaceholderObject(createdSnapshot, {
-    selectedLayerId: "layer.gameplay",
+    presetKey,
     viewport: createdSnapshot.scene.viewport
   });
 
@@ -74,10 +75,10 @@ async function main(): Promise<void> {
   assert.equal(createdObject.type, "shape", "New placeholder object should use the bounded generic shape type.");
   assert.equal(
     createdObject.placeholderRef,
-    "placeholder.shape.generic-box",
-    "Preset creation should use the generic box placeholder preset."
+    "placeholder.shape.banner",
+    "Preset creation should use the banner placeholder preset."
   );
-  assert.equal(createdObject.layerId, "layer.gameplay", "New placeholder object should prefer the selected editable layer.");
+  assert.equal(createdObject.layerId, "layer.ui", "Banner preset should default to the UI layer.");
   assert.equal(createdObject.visible, true, "New placeholder object should default to visible.");
   assert.equal(createdObject.locked, false, "New placeholder object should default to unlocked.");
 
@@ -106,28 +107,21 @@ async function main(): Promise<void> {
   assert(typeof defaultHeight === "number" && defaultHeight >= 8, "Created placeholder objects must start with an explicit bounded height.");
   const defaultScaleX = createdEditableObject.scaleX;
   const defaultVisible = createdEditableObject.visible;
-  const targetLayerId = "layer.ui";
-  const snappedPosition = editorState.snapPoint({
-    x: defaultX + 33,
-    y: defaultY + 19
-  }, editorState.DEFAULT_SNAP_SIZE);
-  assert.equal(snappedPosition.x % editorState.DEFAULT_SNAP_SIZE, 0, "Preset alignment must snap x to the configured grid.");
-  assert.equal(snappedPosition.y % editorState.DEFAULT_SNAP_SIZE, 0, "Preset alignment must snap y to the configured grid.");
   const resizedWidth = editorState.sanitizeObjectDimension(defaultWidth + 24, defaultWidth);
   const resizedHeight = editorState.sanitizeObjectDimension(defaultHeight + 12, defaultHeight);
   const historyBeforeEdit = editorState.pushUndoSnapshot(redoneCreate.history, redoneCreate.editorData, `Edit ${createdObject.id}`);
 
   createdEditableObject.displayName = `${defaultDisplayName} (edited)`;
-  createdEditableObject.x = snappedPosition.x;
-  createdEditableObject.y = snappedPosition.y;
   createdEditableObject.width = resizedWidth;
   createdEditableObject.height = resizedHeight;
   createdEditableObject.scaleX = 1.15;
-  createdEditableObject.visible = false;
+  createdEditableObject.visible = true;
   createdEditableObject.notes = `${createdEditableObject.notes ?? "Created in MyIDE"} | create-object smoke`;
-  const reassignResult = editorState.reassignObjectLayer(editedSnapshot, createdObject.id, targetLayerId);
-  assert(reassignResult?.changed, "Created object should be reassignable to another unlocked layer.");
-  assert.equal(reassignResult.targetLayerId, targetLayerId, "Created object should move to the requested target layer.");
+  const alignedRight = editorState.alignObjectToViewport(editedSnapshot, createdObject.id, "right", editedSnapshot.scene.viewport);
+  assert(alignedRight?.changed, "Created preset object should align to the viewport right edge.");
+  const alignedBottom = editorState.alignObjectToViewport(editedSnapshot, createdObject.id, "bottom", editedSnapshot.scene.viewport);
+  assert(alignedBottom?.changed, "Created preset object should align to the viewport bottom edge.");
+  const alignedPosition = { x: alignedBottom.x, y: alignedBottom.y };
 
   const undoneEdit = editorState.undo(historyBeforeEdit, editedSnapshot);
   assert(undoneEdit, "Undo should exist for created-object edits.");
@@ -144,9 +138,9 @@ async function main(): Promise<void> {
   assert(redoneEdit, "Redo should exist for created-object edits.");
   const redoneCreatedObject = findEditableObject(redoneEdit.editorData, createdObject.id);
   assert.equal(redoneCreatedObject.displayName, `${defaultDisplayName} (edited)`, "Redo should restore the edited display name for the created object.");
-  assert.equal(redoneCreatedObject.x, snappedPosition.x, "Redo should restore the snapped x for the created object.");
-  assert.equal(redoneCreatedObject.y, snappedPosition.y, "Redo should restore the snapped y for the created object.");
-  assert.equal(redoneCreatedObject.layerId, targetLayerId, "Redo should restore the reassigned layer for the created object.");
+  assert.equal(redoneCreatedObject.x, alignedPosition.x, "Redo should restore the aligned x for the created object.");
+  assert.equal(redoneCreatedObject.y, alignedPosition.y, "Redo should restore the aligned y for the created object.");
+  assert.equal(redoneCreatedObject.layerId, defaultLayerId, "Redo should keep the created preset object on the preset layer.");
   assert.equal(redoneCreatedObject.width, resizedWidth, "Redo should restore the resized width for the created object.");
   assert.equal(redoneCreatedObject.height, resizedHeight, "Redo should restore the resized height for the created object.");
 
@@ -164,13 +158,13 @@ async function main(): Promise<void> {
   assert(reloadedAfterCreate, "Editable project data must reload after create-object save.");
   const reloadedCreatedObject = findEditableObject(reloadedAfterCreate, createdObject.id);
   assert.equal(reloadedCreatedObject.displayName, `${defaultDisplayName} (edited)`, "Created object display name must persist after reload.");
-  assert.equal(reloadedCreatedObject.x, snappedPosition.x, "Created object snapped x must persist after reload.");
-  assert.equal(reloadedCreatedObject.y, snappedPosition.y, "Created object snapped y must persist after reload.");
+  assert.equal(reloadedCreatedObject.x, alignedPosition.x, "Created object aligned x must persist after reload.");
+  assert.equal(reloadedCreatedObject.y, alignedPosition.y, "Created object aligned y must persist after reload.");
   assert.equal(reloadedCreatedObject.width, resizedWidth, "Created object width must persist after reload.");
   assert.equal(reloadedCreatedObject.height, resizedHeight, "Created object height must persist after reload.");
   assert.equal(reloadedCreatedObject.scaleX, 1.15, "Created object scaleX must persist after reload.");
-  assert.equal(reloadedCreatedObject.visible, false, "Created object visibility must persist after reload.");
-  assert.equal(reloadedCreatedObject.layerId, targetLayerId, "Created object layer reassignment must persist after reload.");
+  assert.equal(reloadedCreatedObject.visible, true, "Created object visibility must persist after reload.");
+  assert.equal(reloadedCreatedObject.layerId, defaultLayerId, "Created preset object layer must persist after reload.");
   assert.equal(reloadedCreatedObject.placeholderRef, defaultPlaceholderRef, "Created object preset reference must persist after reload.");
 
   const sliceAfterCreate = await loadProjectSlice("project_001");
@@ -182,13 +176,13 @@ async function main(): Promise<void> {
   assert(syncedCreatedNode, "Replay-facing project.json must contain the created object after save/sync.");
   const syncedCreatedPosition = syncedCreatedNode.node.position as Record<string, unknown>;
   assert.equal(syncedCreatedNode.node.name, `${defaultDisplayName} (edited)`, "Replay-facing project.json must reflect the created object display name.");
-  assert.equal(syncedCreatedPosition.x, snappedPosition.x, "Replay-facing project.json must reflect the created object snapped x.");
-  assert.equal(syncedCreatedPosition.y, snappedPosition.y, "Replay-facing project.json must reflect the created object snapped y.");
+  assert.equal(syncedCreatedPosition.x, alignedPosition.x, "Replay-facing project.json must reflect the created object aligned x.");
+  assert.equal(syncedCreatedPosition.y, alignedPosition.y, "Replay-facing project.json must reflect the created object aligned y.");
   assert.equal(syncedCreatedPosition.width, resizedWidth, "Replay-facing project.json must reflect the created object width.");
   assert.equal(syncedCreatedPosition.height, resizedHeight, "Replay-facing project.json must reflect the created object height.");
   assert.equal(syncedCreatedPosition.scaleX, 1.15, "Replay-facing project.json must reflect the created object scaleX.");
-  assert.equal(syncedCreatedNode.node.visible, false, "Replay-facing project.json must reflect the created object visibility.");
-  assert.equal(syncedCreatedNode.layerId, targetLayerId, "Replay-facing project.json must reflect the created object layer reassignment.");
+  assert.equal(syncedCreatedNode.node.visible, true, "Replay-facing project.json must reflect the created object visibility.");
+  assert.equal(syncedCreatedNode.layerId, defaultLayerId, "Replay-facing project.json must reflect the created preset object layer.");
   assert.equal(syncedCreatedNode.node.assetRef, defaultPlaceholderRef, "Replay-facing project.json must preserve the created object preset reference.");
 
   const duplicatedSnapshot = cloneEditableProjectData(reloadedAfterCreate);
@@ -208,7 +202,7 @@ async function main(): Promise<void> {
   const reloadedAfterDuplicate = await loadEditableProjectData(projectRoot);
   assert(reloadedAfterDuplicate, "Editable project data must reload after duplicate save.");
   const duplicatedObject = findEditableObject(reloadedAfterDuplicate, duplicateId);
-  assert.equal(duplicatedObject.layerId, targetLayerId, "Duplicate of created object must remain on the reassigned layer.");
+  assert.equal(duplicatedObject.layerId, defaultLayerId, "Duplicate of created preset object must remain on the preset layer.");
 
   const deletedSnapshot = cloneEditableProjectData(reloadedAfterDuplicate);
   const deleteHistory = editorState.pushUndoSnapshot(
@@ -271,12 +265,13 @@ async function main(): Promise<void> {
     "",
     "## Preset / Align / Save / Sync / Reload",
     `- Created preset object id: ${createdObject.id}.`,
+    `- Preset: ${presetKey}.`,
     `- Default values: placeholderRef = ${defaultPlaceholderRef}, layerId = ${createdObject.layerId}, x = ${defaultX}, y = ${defaultY}, width = ${defaultWidth}, height = ${defaultHeight}, scaleX = ${defaultScaleX}, visible = ${defaultVisible}.`,
     `- After save + sync + reload: placeholderRef = ${reloadedCreatedObject.placeholderRef}, layerId = ${reloadedCreatedObject.layerId}, x = ${reloadedCreatedObject.x}, y = ${reloadedCreatedObject.y}, width = ${reloadedCreatedObject.width}, height = ${reloadedCreatedObject.height}, scaleX = ${reloadedCreatedObject.scaleX}, visible = ${reloadedCreatedObject.visible}.`,
     "",
     "## Duplicate / Delete After Creation",
     `- Duplicate id: ${duplicateId}.`,
-    `- The duplicate was saved, reloaded, then deleted cleanly while the original created object remained on ${targetLayerId} until restore.`,
+    `- The duplicate was saved, reloaded, then deleted cleanly while the original created preset object remained on ${defaultLayerId} until restore.`,
     "",
     "## Sync Contract",
     `- Authoritative source: ${path.relative(workspaceRoot, projectRoot)}/internal/scene.json, layers.json, objects.json.`,
