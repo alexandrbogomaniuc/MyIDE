@@ -11,6 +11,7 @@ const isLivePersistSmokeMode = process.env.MYIDE_LIVE_PERSIST_SMOKE === "1";
 const isLiveDragSmokeMode = process.env.MYIDE_LIVE_DRAG_SMOKE === "1";
 const isLiveCreateDragSmokeMode = process.env.MYIDE_LIVE_CREATE_DRAG_SMOKE === "1";
 const isLiveDuplicateDeleteSmokeMode = process.env.MYIDE_LIVE_DUPLICATE_DELETE_SMOKE === "1";
+const isLiveReorderSmokeMode = process.env.MYIDE_LIVE_REORDER_SMOKE === "1";
 const shouldKeepLivePersistWindowOpen = process.env.MYIDE_LIVE_PERSIST_KEEP_OPEN === "1";
 const shouldShowLivePersistWindow = process.env.MYIDE_LIVE_PERSIST_SHOW === "1" || shouldKeepLivePersistWindowOpen;
 const shouldKeepLiveDragWindowOpen = process.env.MYIDE_LIVE_DRAG_KEEP_OPEN === "1";
@@ -19,6 +20,8 @@ const shouldKeepLiveCreateDragWindowOpen = process.env.MYIDE_LIVE_CREATE_DRAG_KE
 const shouldShowLiveCreateDragWindow = process.env.MYIDE_LIVE_CREATE_DRAG_SHOW === "1" || shouldKeepLiveCreateDragWindowOpen;
 const shouldKeepLiveDuplicateDeleteWindowOpen = process.env.MYIDE_LIVE_DUPLICATE_DELETE_KEEP_OPEN === "1";
 const shouldShowLiveDuplicateDeleteWindow = process.env.MYIDE_LIVE_DUPLICATE_DELETE_SHOW === "1" || shouldKeepLiveDuplicateDeleteWindowOpen;
+const shouldKeepLiveReorderWindowOpen = process.env.MYIDE_LIVE_REORDER_KEEP_OPEN === "1";
+const shouldShowLiveReorderWindow = process.env.MYIDE_LIVE_REORDER_SHOW === "1" || shouldKeepLiveReorderWindowOpen;
 
 interface BridgeHealthSnapshot {
   preloadPath: string;
@@ -60,12 +63,18 @@ interface LiveDuplicateDeleteSmokePayload {
   error?: string;
 }
 
+interface LiveReorderSmokePayload {
+  status?: string;
+  error?: string;
+}
+
 const bridgeHealthState: BridgeHealthSnapshot = createBridgeHealthSnapshot(resolvePreloadPath());
 let activeBridgeSmokeReporter: ((payload: BridgeSmokePayload) => void) | null = null;
 let activeLivePersistSmokeReporter: ((payload: LivePersistSmokePayload) => void) | null = null;
 let activeLiveDragSmokeReporter: ((payload: LiveDragSmokePayload) => void) | null = null;
 let activeLiveCreateDragSmokeReporter: ((payload: LiveCreateDragSmokePayload) => void) | null = null;
 let activeLiveDuplicateDeleteSmokeReporter: ((payload: LiveDuplicateDeleteSmokePayload) => void) | null = null;
+let activeLiveReorderSmokeReporter: ((payload: LiveReorderSmokePayload) => void) | null = null;
 
 function resolvePreloadPath(): string {
   return path.resolve(__dirname, "preload.js");
@@ -165,6 +174,22 @@ function finishLiveDuplicateDeleteSmoke(exitCode: number, message: string): void
   }
 
   if (shouldKeepLiveDuplicateDeleteWindowOpen && exitCode === 0) {
+    return;
+  }
+
+  setTimeout(() => {
+    app.exit(exitCode);
+  }, 0);
+}
+
+function finishLiveReorderSmoke(exitCode: number, message: string): void {
+  if (exitCode === 0) {
+    console.log(message);
+  } else {
+    console.error(message);
+  }
+
+  if (shouldKeepLiveReorderWindowOpen && exitCode === 0) {
     return;
   }
 
@@ -359,6 +384,43 @@ function attachLiveDuplicateDeleteSmokeHandlers(window: BrowserWindow): void {
   };
 }
 
+function attachLiveReorderSmokeHandlers(window: BrowserWindow): void {
+  if (!isLiveReorderSmokeMode) {
+    return;
+  }
+
+  console.log("MYIDE_LIVE_REORDER_MAIN_READY");
+  const timeoutMs = Number.parseInt(process.env.MYIDE_LIVE_REORDER_TIMEOUT_MS ?? "45000", 10);
+  const smokeTimeout = setTimeout(() => {
+    finishLiveReorderSmoke(1, "FAIL smoke:electron-live-reorder - timeout waiting for renderer reorder payload");
+  }, Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 45000);
+
+  const clearSmokeTimeout = () => {
+    clearTimeout(smokeTimeout);
+  };
+
+  window.webContents.on("did-fail-load", (_event, errorCode, errorDescription) => {
+    clearSmokeTimeout();
+    finishLiveReorderSmoke(1, `FAIL smoke:electron-live-reorder - renderer failed to load (${errorCode} ${errorDescription})`);
+  });
+
+  window.webContents.on("render-process-gone", (_event, details) => {
+    clearSmokeTimeout();
+    finishLiveReorderSmoke(1, `FAIL smoke:electron-live-reorder - renderer process exited (${details.reason})`);
+  });
+
+  activeLiveReorderSmokeReporter = (payload) => {
+    clearSmokeTimeout();
+    console.log(`MYIDE_LIVE_REORDER_RESULT:${JSON.stringify(payload)}`);
+    if (payload.status === "pass") {
+      finishLiveReorderSmoke(0, "PASS smoke:electron-live-reorder");
+      return;
+    }
+
+    finishLiveReorderSmoke(1, `FAIL smoke:electron-live-reorder - ${payload.error ?? "renderer reported failure"}`);
+  };
+}
+
 function createWindow(): void {
   const preloadPath = resolvePreloadPath();
   resetBridgeHealthState(preloadPath);
@@ -376,7 +438,9 @@ function createWindow(): void {
               ? shouldShowLiveDragWindow
               : (isLiveCreateDragSmokeMode
                   ? shouldShowLiveCreateDragWindow
-                  : (isLiveDuplicateDeleteSmokeMode ? shouldShowLiveDuplicateDeleteWindow : true)))),
+                  : (isLiveDuplicateDeleteSmokeMode
+                      ? shouldShowLiveDuplicateDeleteWindow
+                      : (isLiveReorderSmokeMode ? shouldShowLiveReorderWindow : true))))),
     backgroundColor: "#0b1017",
     title: "MyIDE",
     webPreferences: {
@@ -393,6 +457,7 @@ function createWindow(): void {
   attachLiveDragSmokeHandlers(window);
   attachLiveCreateDragSmokeHandlers(window);
   attachLiveDuplicateDeleteSmokeHandlers(window);
+  attachLiveReorderSmokeHandlers(window);
   const query = {
     ...(isBridgeSmokeMode ? { bridgeSmoke: "1" } : {}),
     ...(isLivePersistSmokeMode ? { livePersistSmoke: "1" } : {}),
@@ -402,7 +467,9 @@ function createWindow(): void {
     ...(isLiveCreateDragSmokeMode ? { liveCreateDragSmoke: "1" } : {}),
     ...(shouldKeepLiveCreateDragWindowOpen ? { liveCreateDragKeepOpen: "1" } : {}),
     ...(isLiveDuplicateDeleteSmokeMode ? { liveDuplicateDeleteSmoke: "1" } : {}),
-    ...(shouldKeepLiveDuplicateDeleteWindowOpen ? { liveDuplicateDeleteKeepOpen: "1" } : {})
+    ...(shouldKeepLiveDuplicateDeleteWindowOpen ? { liveDuplicateDeleteKeepOpen: "1" } : {}),
+    ...(isLiveReorderSmokeMode ? { liveReorderSmoke: "1" } : {}),
+    ...(shouldKeepLiveReorderWindowOpen ? { liveReorderKeepOpen: "1" } : {})
   };
   void window.loadFile(rendererPath, query ? { query } : undefined);
 }
@@ -460,6 +527,12 @@ ipcMain.on("myide:live-create-drag-smoke-result", (_event, payload: LiveCreateDr
 ipcMain.on("myide:live-duplicate-delete-smoke-result", (_event, payload: LiveDuplicateDeleteSmokePayload) => {
   if (typeof activeLiveDuplicateDeleteSmokeReporter === "function") {
     activeLiveDuplicateDeleteSmokeReporter(payload ?? {});
+  }
+});
+
+ipcMain.on("myide:live-reorder-smoke-result", (_event, payload: LiveReorderSmokePayload) => {
+  if (typeof activeLiveReorderSmokeReporter === "function") {
+    activeLiveReorderSmokeReporter(payload ?? {});
   }
 });
 

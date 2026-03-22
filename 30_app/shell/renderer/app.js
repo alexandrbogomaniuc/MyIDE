@@ -152,6 +152,15 @@ function isLiveDuplicateDeleteSmokeMode() {
   }
 }
 
+function isLiveReorderSmokeMode() {
+  try {
+    const search = typeof window.location?.search === "string" ? window.location.search : "";
+    return new URLSearchParams(search).get("liveReorderSmoke") === "1";
+  } catch {
+    return false;
+  }
+}
+
 function shouldKeepLivePersistWindowOpen() {
   try {
     const search = typeof window.location?.search === "string" ? window.location.search : "";
@@ -183,6 +192,15 @@ function shouldKeepLiveDuplicateDeleteWindowOpen() {
   try {
     const search = typeof window.location?.search === "string" ? window.location.search : "";
     return new URLSearchParams(search).get("liveDuplicateDeleteKeepOpen") === "1";
+  } catch {
+    return false;
+  }
+}
+
+function shouldKeepLiveReorderWindowOpen() {
+  try {
+    const search = typeof window.location?.search === "string" ? window.location.search : "";
+    return new URLSearchParams(search).get("liveReorderKeepOpen") === "1";
   } catch {
     return false;
   }
@@ -255,6 +273,20 @@ async function emitLiveDuplicateDeleteSmoke(payload) {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.log(`MYIDE_LIVE_DUPLICATE_DELETE:${JSON.stringify({ status: "fail", error: `live duplicate-delete payload serialization failed: ${message}` })}`);
+  }
+}
+
+async function emitLiveReorderSmoke(payload) {
+  try {
+    if (window.myideApi && typeof window.myideApi.reportLiveReorderSmokeResult === "function") {
+      window.myideApi.reportLiveReorderSmokeResult(payload);
+      return;
+    }
+
+    console.log(`MYIDE_LIVE_REORDER:${JSON.stringify(payload)}`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.log(`MYIDE_LIVE_REORDER:${JSON.stringify({ status: "fail", error: `live reorder payload serialization failed: ${message}` })}`);
   }
 }
 
@@ -375,6 +407,11 @@ async function bootRenderer() {
     await runLiveDuplicateDeleteSmoke();
     return;
   }
+
+  if (isLiveReorderSmokeMode()) {
+    await runLiveReorderSmoke();
+    return;
+  }
 }
 
 function sleep(delayMs) {
@@ -476,6 +513,22 @@ function getReplayNodeById(objectId, project = state.bundle?.project) {
   }
 
   return null;
+}
+
+function getReplayLayerNodeOrder(layerId, project = state.bundle?.project) {
+  const scenes = Array.isArray(project?.scenes) ? project.scenes : [];
+
+  for (const scene of scenes) {
+    const layers = Array.isArray(scene?.layers) ? scene.layers : [];
+    const layer = layers.find((entry) => entry?.layerId === layerId);
+    if (layer) {
+      return Array.isArray(layer.nodes)
+        ? layer.nodes.map((node) => node?.nodeId).filter((nodeId) => typeof nodeId === "string")
+        : [];
+    }
+  }
+
+  return [];
 }
 
 function getCanvasObjectElementById(objectId) {
@@ -1503,6 +1556,272 @@ async function runLiveDuplicateDeleteSmoke() {
     setPreviewStatus(failureMessage);
     document.body.dataset.liveDuplicateDeleteSmoke = "fail";
     await emitLiveDuplicateDeleteSmoke({
+      ...baseResult,
+      status: "fail",
+      error: message,
+      previewStatus: failureMessage
+    });
+  }
+}
+
+async function runLiveReorderSmoke() {
+  const targetProjectId = "project_001";
+  const presetKey = "banner";
+  const presetLabel = "Banner";
+  const objectIdPrefix = "node.placeholder.banner-";
+  const reorderAction = "send-backward";
+  const startedAt = new Date().toISOString();
+  const baseResult = {
+    startedAt,
+    projectId: targetProjectId,
+    presetKey,
+    presetLabel,
+    objectId: null,
+    layerId: null,
+    layerName: null,
+    reorderAction,
+    preloadExecuted: Boolean(window.myideApi),
+    myideApiExposed: Boolean(window.myideApi && typeof window.myideApi.loadProjectSlice === "function"),
+    projectLoaded: false,
+    objectCreated: false,
+    objectSelected: false,
+    reorderApplied: false,
+    saveSucceeded: false,
+    reloadSucceeded: false,
+    internalPersistVerified: false,
+    replaySyncVerified: false,
+    repoStatusIntent: "renderer smoke mutates live files temporarily; outer smoke runner must restore them",
+    objectCountBefore: null,
+    objectCountAfterCreate: null,
+    objectCountAfterReload: null,
+    createdOrderIndex: null,
+    createdOrderTotal: null,
+    reorderedIndex: null,
+    reorderedTotal: null,
+    reloadedIndex: null,
+    reloadedTotal: null,
+    createdOrderIds: [],
+    reorderedOrderIds: [],
+    reloadedOrderIds: [],
+    replayOrderIds: [],
+    syncStatus: null,
+    replayPath: null,
+    previewStatus: null
+  };
+
+  try {
+    const api = window.myideApi;
+    if (
+      !api
+      || typeof api.loadProjectSlice !== "function"
+      || typeof api.saveProjectEditor !== "function"
+      || typeof api.reportRendererReady !== "function"
+    ) {
+      throw new Error("Renderer live reorder smoke could not access the required desktop bridge helpers.");
+    }
+
+    await waitForRendererCondition(
+      () => Boolean(state.bundle && getWorkspaceProjects().length > 0),
+      "workspace discovery"
+    );
+
+    if (state.selectedProjectId !== targetProjectId) {
+      const projectButton = await waitForRendererCondition(
+        () => elements.projectBrowser?.querySelector(`[data-project-id="${targetProjectId}"]`) ?? null,
+        `project browser entry for ${targetProjectId}`
+      );
+      clickRendererElement(projectButton);
+    }
+
+    await waitForRendererCondition(
+      () => state.selectedProjectId === targetProjectId && Boolean(state.editorData),
+      `${targetProjectId} to load in the renderer`
+    );
+    baseResult.projectLoaded = true;
+    baseResult.objectCountBefore = Array.isArray(state.editorData?.objects) ? state.editorData.objects.length : null;
+
+    if (isSnapEnabled()) {
+      if (!(elements.actionToggleSnap instanceof HTMLButtonElement)) {
+        throw new Error("Snap toggle button is missing from the renderer toolbar.");
+      }
+      clickRendererElement(elements.actionToggleSnap);
+      await waitForRendererCondition(() => !isSnapEnabled(), "snap toggle to switch off");
+    }
+
+    if (isViewportTransformed()) {
+      if (!(elements.actionResetView instanceof HTMLButtonElement)) {
+        throw new Error("Reset View button is missing from the renderer toolbar.");
+      }
+      clickRendererElement(elements.actionResetView);
+    }
+
+    await waitForRendererCondition(
+      () => {
+        const view = getViewportState();
+        return Math.abs(view.zoom - 1) < 0.001 && Math.abs(view.panX) < 0.001 && Math.abs(view.panY) < 0.001;
+      },
+      "default viewport state"
+    );
+
+    if (!(elements.fieldPlaceholderPreset instanceof HTMLSelectElement)) {
+      throw new Error("Placeholder preset selector is missing from the renderer toolbar.");
+    }
+    updateRendererInputValue(elements.fieldPlaceholderPreset, presetKey);
+    await waitForRendererCondition(
+      () => state.placeholderPresetKey === presetKey && elements.fieldPlaceholderPreset?.value === presetKey,
+      `${presetKey} preset selection`
+    );
+
+    if (!(elements.actionNewObject instanceof HTMLButtonElement)) {
+      throw new Error("New Placeholder button is missing from the renderer toolbar.");
+    }
+    clickRendererElement(elements.actionNewObject);
+
+    const createdObject = await waitForRendererCondition(
+      () => {
+        const selectedObject = getSelectedObject();
+        if (!selectedObject || !selectedObject.id.startsWith(objectIdPrefix)) {
+          return null;
+        }
+        return selectedObject;
+      },
+      `new ${presetLabel} placeholder creation`
+    );
+    baseResult.objectCreated = true;
+    baseResult.objectSelected = true;
+    baseResult.objectId = createdObject.id;
+    baseResult.objectCountAfterCreate = Array.isArray(state.editorData?.objects) ? state.editorData.objects.length : null;
+
+    const createdOrderContext = await waitForRendererCondition(
+      () => {
+        const context = getSelectedObjectOrderContext();
+        return context?.objectId === createdObject.id ? context : null;
+      },
+      `${createdObject.id} order context after creation`
+    );
+    baseResult.layerId = createdOrderContext.layerId;
+    baseResult.layerName = createdOrderContext.layerName;
+    baseResult.createdOrderIndex = createdOrderContext.index;
+    baseResult.createdOrderTotal = createdOrderContext.total;
+    baseResult.createdOrderIds = getLayerObjectsInOrder(createdOrderContext.layerId).map((entry) => entry.id);
+
+    if (!createdOrderContext.canSendBackward) {
+      throw new Error(`${createdObject.id} could not move backward within ${createdOrderContext.layerName}.`);
+    }
+
+    const orderButton = elements.editorToolbar?.querySelector(`[data-order-action="${reorderAction}"]`) ?? null;
+    if (!(orderButton instanceof HTMLButtonElement)) {
+      throw new Error(`Order action button for ${reorderAction} is missing from the renderer toolbar.`);
+    }
+    clickRendererElement(orderButton);
+
+    const reorderedContext = await waitForRendererCondition(
+      () => {
+        const context = getSelectedObjectOrderContext();
+        if (!context || context.objectId !== createdObject.id || !state.dirty) {
+          return null;
+        }
+        return context.index === createdOrderContext.index - 1 ? context : null;
+      },
+      `${createdObject.id} to move backward within ${createdOrderContext.layerName}`
+    );
+    baseResult.reorderApplied = true;
+    baseResult.reorderedIndex = reorderedContext.index;
+    baseResult.reorderedTotal = reorderedContext.total;
+    baseResult.reorderedOrderIds = getLayerObjectsInOrder(reorderedContext.layerId).map((entry) => entry.id);
+
+    if (!(elements.actionSave instanceof HTMLButtonElement)) {
+      throw new Error("Save button is missing from the renderer toolbar.");
+    }
+    clickRendererElement(elements.actionSave);
+    await waitForRendererCondition(
+      () => {
+        const currentContext = getSelectedObjectOrderContext();
+        if (!currentContext || currentContext.objectId !== createdObject.id) {
+          return false;
+        }
+
+        const currentOrderIds = getLayerObjectsInOrder(reorderedContext.layerId).map((entry) => entry.id);
+        return !state.dirty
+          && state.syncStatus?.status === "synced"
+          && currentContext.index === reorderedContext.index
+          && JSON.stringify(currentOrderIds) === JSON.stringify(baseResult.reorderedOrderIds);
+      },
+      "renderer save and sync completion after live reorder",
+      { timeoutMs: 25000 }
+    );
+    baseResult.saveSucceeded = true;
+
+    if (!(elements.actionReloadEditor instanceof HTMLButtonElement)) {
+      throw new Error("Reload button is missing from the renderer toolbar.");
+    }
+    clickRendererElement(elements.actionReloadEditor);
+    await waitForRendererCondition(
+      () => state.selectedProjectId === targetProjectId && Boolean(state.editorData),
+      `${targetProjectId} reload after live reorder save`
+    );
+
+    if (state.selectedObjectId !== createdObject.id) {
+      const sceneExplorerButton = await waitForRendererCondition(
+        () => elements.sceneExplorer?.querySelector(`[data-object-id="${createdObject.id}"]`) ?? null,
+        `${createdObject.id} in the scene explorer after reorder reload`
+      );
+      clickRendererElement(sceneExplorerButton);
+      await waitForRendererCondition(
+        () => state.selectedObjectId === createdObject.id,
+        `${createdObject.id} to be selected after reorder reload`
+      );
+    }
+
+    const reloadedContext = await waitForRendererCondition(
+      () => {
+        const context = getSelectedObjectOrderContext();
+        if (!context || context.objectId !== createdObject.id) {
+          return null;
+        }
+        return context.index === reorderedContext.index ? context : null;
+      },
+      `${createdObject.id} persisted order context after reload`
+    );
+    baseResult.reloadSucceeded = true;
+    baseResult.objectCountAfterReload = Array.isArray(state.editorData?.objects) ? state.editorData.objects.length : null;
+    baseResult.reloadedIndex = reloadedContext.index;
+    baseResult.reloadedTotal = reloadedContext.total;
+    baseResult.reloadedOrderIds = getLayerObjectsInOrder(reloadedContext.layerId).map((entry) => entry.id);
+    baseResult.replayOrderIds = getReplayLayerNodeOrder(reloadedContext.layerId);
+    baseResult.syncStatus = state.syncStatus?.status ?? null;
+    baseResult.replayPath = toRepoRelativePath(state.syncStatus?.replayPath ?? getReplayTargetPath() ?? "");
+
+    baseResult.internalPersistVerified = JSON.stringify(baseResult.reloadedOrderIds) === JSON.stringify(baseResult.reorderedOrderIds);
+    baseResult.replaySyncVerified = JSON.stringify(baseResult.replayOrderIds) === JSON.stringify(baseResult.reorderedOrderIds);
+
+    if (!baseResult.internalPersistVerified) {
+      throw new Error(`Reloaded internal order for ${createdObject.id} did not match the saved layer order.`);
+    }
+
+    if (!baseResult.replaySyncVerified) {
+      throw new Error(`Replay-facing order for ${createdObject.id} did not match the saved layer order.`);
+    }
+
+    const successMessage = `Live shell reorder smoke passed for ${createdObject.id}: moved from ${createdOrderContext.index + 1} of ${createdOrderContext.total} to ${reorderedContext.index + 1} of ${reorderedContext.total} in ${reorderedContext.layerName}, saved, and reloaded through the Electron bridge.`;
+    setPreviewStatus(successMessage);
+    baseResult.previewStatus = successMessage;
+    document.body.dataset.liveReorderSmoke = "pass";
+
+    if (shouldKeepLiveReorderWindowOpen()) {
+      pushLog("Live reorder smoke keep-open mode is active for visible proof capture.");
+    }
+
+    await emitLiveReorderSmoke({
+      ...baseResult,
+      status: "pass"
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const failureMessage = `Live shell reorder smoke failed: ${message}`;
+    setPreviewStatus(failureMessage);
+    document.body.dataset.liveReorderSmoke = "fail";
+    await emitLiveReorderSmoke({
       ...baseResult,
       status: "fail",
       error: message,

@@ -40,6 +40,16 @@
 - Deleted object after reload: `node.placeholder.banner-01-copy-01` absent from both internal editable data and replay-facing output.
 - Replay-facing/generated file changed during the smoke: `40_projects/project_001/project.json`.
 
+## Live Shell Create -> Reorder Proof
+- Project id: project_001.
+- Preset: `Banner`.
+- Object id: `node.placeholder.banner-01`.
+- Bridge path: Electron main -> preload `dist/30_app/shell/preload.js` -> renderer `window.myideApi`.
+- UI path: placeholder preset selector -> `New Banner` -> `Send Backward` -> `Save Scene Changes` -> `Reload From Disk`.
+- Layer order before reorder: `node.win-banner`, `node.bottom-bar`, `node.free-spins-pill`, `node.placeholder.banner-01` (`4 of 4` in `layer.ui`).
+- Layer order after save/reload: `node.win-banner`, `node.bottom-bar`, `node.placeholder.banner-01`, `node.free-spins-pill` (`3 of 4` in `layer.ui`).
+- Replay-facing/generated file changed during the smoke: `40_projects/project_001/project.json`.
+
 ## Proof Artifacts
 - Machine-readable smoke artifact: `/tmp/myide-electron-live-persist.json`.
 - Visible live-shell screenshot: `/tmp/myide-phase5l-live-top.png`.
@@ -49,7 +59,9 @@
 - Visible live-shell create-drag screenshot: `/tmp/myide-phase5n-live.png`.
 - Machine-readable duplicate-delete smoke artifact: `/tmp/myide-electron-live-duplicate-delete.json`.
 - Visible live-shell duplicate-delete screenshot: `/tmp/myide-phase5o-live.png`.
+- Machine-readable reorder smoke artifact: `/tmp/myide-electron-live-reorder.json`.
+- Visible live-shell reorder screenshot: `/tmp/myide-phase5p-live.png`.
 
 ## Notes
 - The live-shell smokes restore the touched `project_001` internal files, replay-facing `project.json`, and local editor logs after verification so the repository returns to baseline.
-- This proof set is bounded to one real shell inspector edit/save/reload loop, one real shell existing-object canvas drag/save/reload loop, one real shell create->drag->save->reload loop for a new placeholder, and one real shell create->duplicate/delete->save->reload loop for a new placeholder; it does not claim broader GUI automation than what was actually exercised.
+- This proof set is bounded to one real shell inspector edit/save/reload loop, one real shell existing-object canvas drag/save/reload loop, one real shell create->drag->save->reload loop for a new placeholder, one real shell create->duplicate/delete->save->reload loop for a new placeholder, and one real shell create->reorder->save->reload loop for a new placeholder; it does not claim broader GUI automation than what was actually exercised.

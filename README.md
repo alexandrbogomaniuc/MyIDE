@@ -3,10 +3,10 @@
 MyIDE is a universal local-first IDE for multiple game projects over time, with a desktop web UI for collecting donor evidence, reconstructing each project into a clean internal model, replaying that model locally, and preparing a project-specific target or resulting game path.
 
 ## Current Phase
-- Current milestone: PHASE 5O live shell create -> duplicate/delete -> save -> reload proof slice on top of the folder-based multi-project workspace.
+- Current milestone: PHASE 5P live shell create -> reorder -> save -> reload proof slice on top of the folder-based multi-project workspace.
 - Active validated donor slice: `donor_001_mystery_garden`.
 - Proven replay scope: one bounded Mystery Garden slice driven only by internal project data under `40_projects/project_001`.
-- Proven editor scope: open `project_001`, inspect the internal scene/layer/object list, create placeholder objects from a small preset set, drag/nudge with optional snap, align supported placeholder-backed objects to viewport edges/centers, reassign editable objects between unlocked layers, edit bounded properties including placeholder width/height, reorder editable objects within a layer, read the selected object's order position within its layer, step to the previous/next object within that layer, use quick session-only layer isolation for focused editing, zoom/pan/reset/fit the viewport without dirtying project state, duplicate/delete, undo/redo, save, reload, prove deterministic sync updates the replay-facing `project.json`, prove the live Electron shell can load `project_001` through a working preload bridge, prove one bounded renderer-driven inspector edit/save/reload cycle through the real Electron shell path, prove one bounded live-shell canvas drag/save/reload cycle for an existing object, prove one bounded live-shell create -> drag -> save -> reload cycle for a newly created placeholder object, and prove one bounded live-shell create -> duplicate/delete -> save -> reload cycle for a newly created placeholder object through the same real shell path.
+- Proven editor scope: open `project_001`, inspect the internal scene/layer/object list, create placeholder objects from a small preset set, drag/nudge with optional snap, align supported placeholder-backed objects to viewport edges/centers, reassign editable objects between unlocked layers, edit bounded properties including placeholder width/height, reorder editable objects within a layer, read the selected object's order position within its layer, step to the previous/next object within that layer, use quick session-only layer isolation for focused editing, zoom/pan/reset/fit the viewport without dirtying project state, duplicate/delete, undo/redo, save, reload, prove deterministic sync updates the replay-facing `project.json`, prove the live Electron shell can load `project_001` through a working preload bridge, prove one bounded renderer-driven inspector edit/save/reload cycle through the real Electron shell path, prove one bounded live-shell canvas drag/save/reload cycle for an existing object, prove one bounded live-shell create -> drag -> save -> reload cycle for a newly created placeholder object, prove one bounded live-shell create -> duplicate/delete -> save -> reload cycle for a newly created placeholder object, and prove one bounded live-shell create -> reorder -> save -> reload cycle for a newly created placeholder object through the same real shell path.
 
 ## Core Rules
 - The product architecture is universal and multi-project.
@@ -47,6 +47,7 @@ Public publication rules are defined in [`00_control/PUBLIC_REPO_POLICY.md`](./0
 - `npm run smoke:electron-live-drag`
 - `npm run smoke:electron-live-create-drag`
 - `npm run smoke:electron-live-duplicate-delete`
+- `npm run smoke:electron-live-reorder`
 - `npm run import:mystery-garden`
 - `npm run validate:workspace`
 - `npm run verify:workspace`
