@@ -146,6 +146,13 @@
 - [x] Keep the repository clean after the smoke by restoring the touched project files and local logs.
 - [x] Capture a live GUI artifact for the bounded persistence loop.
 
+## PHASE 5M
+- [x] Add a live-shell canvas-drag persistence smoke path that uses the real Electron main/preload/renderer bridge.
+- [x] Prove `project_001` can be loaded, one bounded editable object selected from the canvas, one real pointer drag applied, saved, and reloaded through the live shell path.
+- [x] Verify the same live-shell drag reaches replay-facing generated `project.json`.
+- [x] Keep the repository clean after the smoke by restoring the touched project files and local logs.
+- [x] Capture a live GUI artifact for the bounded canvas drag persistence loop.
+
 ## Deferred
 - [ ] Donor decoding automation.
 - [ ] Full editor interactions.

@@ -125,10 +125,28 @@ function isLivePersistSmokeMode() {
   }
 }
 
+function isLiveDragSmokeMode() {
+  try {
+    const search = typeof window.location?.search === "string" ? window.location.search : "";
+    return new URLSearchParams(search).get("liveDragSmoke") === "1";
+  } catch {
+    return false;
+  }
+}
+
 function shouldKeepLivePersistWindowOpen() {
   try {
     const search = typeof window.location?.search === "string" ? window.location.search : "";
     return new URLSearchParams(search).get("livePersistKeepOpen") === "1";
+  } catch {
+    return false;
+  }
+}
+
+function shouldKeepLiveDragWindowOpen() {
+  try {
+    const search = typeof window.location?.search === "string" ? window.location.search : "";
+    return new URLSearchParams(search).get("liveDragKeepOpen") === "1";
   } catch {
     return false;
   }
@@ -159,6 +177,20 @@ async function emitLivePersistSmoke(payload) {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.log(`MYIDE_LIVE_PERSIST:${JSON.stringify({ status: "fail", error: `live persist payload serialization failed: ${message}` })}`);
+  }
+}
+
+async function emitLiveDragSmoke(payload) {
+  try {
+    if (window.myideApi && typeof window.myideApi.reportLiveDragSmokeResult === "function") {
+      window.myideApi.reportLiveDragSmokeResult(payload);
+      return;
+    }
+
+    console.log(`MYIDE_LIVE_DRAG:${JSON.stringify(payload)}`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.log(`MYIDE_LIVE_DRAG:${JSON.stringify({ status: "fail", error: `live drag payload serialization failed: ${message}` })}`);
   }
 }
 
@@ -262,6 +294,11 @@ async function bootRenderer() {
 
   if (isLivePersistSmokeMode()) {
     await runLivePersistSmoke();
+    return;
+  }
+
+  if (isLiveDragSmokeMode()) {
+    await runLiveDragSmoke();
   }
 }
 
@@ -301,6 +338,35 @@ function clickRendererElement(element) {
   }));
 }
 
+function dispatchRendererPointerEvent(target, type, init = {}) {
+  if (!target || typeof target.dispatchEvent !== "function") {
+    throw new Error(`Cannot dispatch ${type} without a valid renderer event target.`);
+  }
+
+  if (typeof PointerEvent !== "function") {
+    throw new Error("PointerEvent is unavailable in this renderer session.");
+  }
+
+  const event = new PointerEvent(type, {
+    bubbles: true,
+    cancelable: true,
+    composed: true,
+    pointerId: Number.isFinite(init.pointerId) ? init.pointerId : 1,
+    pointerType: init.pointerType ?? "mouse",
+    isPrimary: init.isPrimary ?? true,
+    button: Number.isFinite(init.button) ? init.button : (type === "pointerup" ? 0 : 0),
+    buttons: Number.isFinite(init.buttons) ? init.buttons : (type === "pointerup" ? 0 : 1),
+    clientX: Number.isFinite(init.clientX) ? init.clientX : 0,
+    clientY: Number.isFinite(init.clientY) ? init.clientY : 0,
+    movementX: Number.isFinite(init.movementX) ? init.movementX : 0,
+    movementY: Number.isFinite(init.movementY) ? init.movementY : 0,
+    pressure: type === "pointerup" ? 0 : 0.5,
+    view: window
+  });
+
+  target.dispatchEvent(event);
+}
+
 function updateRendererInputValue(field, nextValue) {
   if (!(field instanceof HTMLInputElement) && !(field instanceof HTMLTextAreaElement) && !(field instanceof HTMLSelectElement)) {
     throw new Error("Cannot update a non-input renderer field.");
@@ -335,6 +401,10 @@ function getReplayNodeById(objectId, project = state.bundle?.project) {
   }
 
   return null;
+}
+
+function getCanvasObjectElementById(objectId) {
+  return elements.editorCanvas?.querySelector(`[data-canvas-object-id="${objectId}"]`) ?? null;
 }
 
 async function runLivePersistSmoke() {
@@ -499,6 +569,277 @@ async function runLivePersistSmoke() {
     setPreviewStatus(failureMessage);
     document.body.dataset.livePersistSmoke = "fail";
     await emitLivePersistSmoke({
+      ...baseResult,
+      status: "fail",
+      error: message,
+      previewStatus: failureMessage
+    });
+  }
+}
+
+async function runLiveDragSmoke() {
+  const targetProjectId = "project_001";
+  const targetObjectId = "node.bottom-bar";
+  const dragDelta = {
+    x: 20,
+    y: -12
+  };
+  const pointerId = 7;
+  const startedAt = new Date().toISOString();
+  const baseResult = {
+    startedAt,
+    projectId: targetProjectId,
+    objectId: targetObjectId,
+    preloadExecuted: Boolean(window.myideApi),
+    myideApiExposed: Boolean(window.myideApi && typeof window.myideApi.loadProjectSlice === "function"),
+    projectLoaded: false,
+    canvasSelectionSucceeded: false,
+    dragStarted: false,
+    dragMoved: false,
+    dragCompleted: false,
+    saveSucceeded: false,
+    reloadSucceeded: false,
+    internalPersistVerified: false,
+    replaySyncVerified: false,
+    repoStatusIntent: "renderer smoke mutates live files temporarily; outer smoke runner must restore them",
+    snapEnabled: null,
+    viewportZoom: null,
+    viewportPanX: null,
+    viewportPanY: null,
+    originalX: null,
+    originalY: null,
+    draggedX: null,
+    draggedY: null,
+    reloadedX: null,
+    reloadedY: null,
+    replayX: null,
+    replayY: null,
+    syncStatus: null,
+    replayPath: null,
+    previewStatus: null
+  };
+
+  try {
+    const api = window.myideApi;
+    if (
+      !api
+      || typeof api.loadProjectSlice !== "function"
+      || typeof api.saveProjectEditor !== "function"
+      || typeof api.reportRendererReady !== "function"
+    ) {
+      throw new Error("Renderer live drag smoke could not access the required desktop bridge helpers.");
+    }
+
+    await waitForRendererCondition(
+      () => Boolean(state.bundle && getWorkspaceProjects().length > 0),
+      "workspace discovery"
+    );
+
+    if (state.selectedProjectId !== targetProjectId) {
+      const projectButton = await waitForRendererCondition(
+        () => elements.projectBrowser?.querySelector(`[data-project-id="${targetProjectId}"]`) ?? null,
+        `project browser entry for ${targetProjectId}`
+      );
+      clickRendererElement(projectButton);
+    }
+
+    await waitForRendererCondition(
+      () => state.selectedProjectId === targetProjectId && Boolean(state.editorData),
+      `${targetProjectId} to load in the renderer`
+    );
+    baseResult.projectLoaded = true;
+
+    if (isSnapEnabled()) {
+      if (!(elements.actionToggleSnap instanceof HTMLButtonElement)) {
+        throw new Error("Snap toggle button is missing from the renderer toolbar.");
+      }
+      clickRendererElement(elements.actionToggleSnap);
+      await waitForRendererCondition(() => !isSnapEnabled(), "snap toggle to switch off");
+    }
+
+    if (isViewportTransformed()) {
+      if (!(elements.actionResetView instanceof HTMLButtonElement)) {
+        throw new Error("Reset View button is missing from the renderer toolbar.");
+      }
+      clickRendererElement(elements.actionResetView);
+    }
+
+    await waitForRendererCondition(
+      () => {
+        const view = getViewportState();
+        return Math.abs(view.zoom - 1) < 0.001 && Math.abs(view.panX) < 0.001 && Math.abs(view.panY) < 0.001;
+      },
+      "default viewport state"
+    );
+
+    baseResult.snapEnabled = isSnapEnabled();
+    baseResult.viewportZoom = getViewportState().zoom;
+    baseResult.viewportPanX = getViewportState().panX;
+    baseResult.viewportPanY = getViewportState().panY;
+
+    const originalObject = getEditableObjectById(targetObjectId);
+    const originalX = Number(originalObject?.x);
+    const originalY = Number(originalObject?.y);
+    if (!Number.isFinite(originalX) || !Number.isFinite(originalY)) {
+      throw new Error(`Selected drag object ${targetObjectId} does not expose numeric x/y.`);
+    }
+    baseResult.originalX = originalX;
+    baseResult.originalY = originalY;
+
+    const objectButton = await waitForRendererCondition(
+      () => getCanvasObjectElementById(targetObjectId),
+      `${targetObjectId} on the editor canvas`
+    );
+    const rect = objectButton.getBoundingClientRect();
+    const startPoint = {
+      x: rect.left + rect.width / 2,
+      y: rect.top + rect.height / 2
+    };
+    const endPoint = {
+      x: startPoint.x + dragDelta.x,
+      y: startPoint.y + dragDelta.y
+    };
+
+    dispatchRendererPointerEvent(objectButton, "pointerdown", {
+      pointerId,
+      button: 0,
+      buttons: 1,
+      clientX: startPoint.x,
+      clientY: startPoint.y
+    });
+
+    await waitForRendererCondition(
+      () => state.selectedObjectId === targetObjectId && state.canvasDrag?.objectId === targetObjectId,
+      `${targetObjectId} to start a canvas drag`
+    );
+    baseResult.canvasSelectionSucceeded = true;
+    baseResult.dragStarted = true;
+
+    dispatchRendererPointerEvent(window, "pointermove", {
+      pointerId,
+      buttons: 1,
+      clientX: endPoint.x,
+      clientY: endPoint.y,
+      movementX: dragDelta.x,
+      movementY: dragDelta.y
+    });
+
+    const movedObject = await waitForRendererCondition(
+      () => {
+        const currentObject = getEditableObjectById(targetObjectId);
+        if (!currentObject || !state.canvasDrag?.moved) {
+          return null;
+        }
+        if (Number(currentObject.x) === originalX && Number(currentObject.y) === originalY) {
+          return null;
+        }
+        return currentObject;
+      },
+      `${targetObjectId} to move through the canvas drag path`
+    );
+    baseResult.dragMoved = true;
+    baseResult.draggedX = Number(movedObject.x);
+    baseResult.draggedY = Number(movedObject.y);
+
+    dispatchRendererPointerEvent(window, "pointerup", {
+      pointerId,
+      button: 0,
+      buttons: 0,
+      clientX: endPoint.x,
+      clientY: endPoint.y,
+      movementX: dragDelta.x,
+      movementY: dragDelta.y
+    });
+
+    await waitForRendererCondition(
+      () => state.canvasDrag === null && state.dirty,
+      "canvas drag to commit its moved position"
+    );
+    baseResult.dragCompleted = true;
+
+    if (!(elements.actionSave instanceof HTMLButtonElement)) {
+      throw new Error("Save button is missing from the renderer toolbar.");
+    }
+
+    clickRendererElement(elements.actionSave);
+    await waitForRendererCondition(
+      () => {
+        const draggedObject = getEditableObjectById(targetObjectId);
+        return Boolean(
+          !state.dirty
+          && state.syncStatus?.status === "synced"
+          && Number(draggedObject?.x) === baseResult.draggedX
+          && Number(draggedObject?.y) === baseResult.draggedY
+        );
+      },
+      "renderer save and sync completion after live drag",
+      { timeoutMs: 25000 }
+    );
+    baseResult.saveSucceeded = true;
+
+    if (!(elements.actionReloadEditor instanceof HTMLButtonElement)) {
+      throw new Error("Reload button is missing from the renderer toolbar.");
+    }
+
+    clickRendererElement(elements.actionReloadEditor);
+    await waitForRendererCondition(
+      () => state.selectedProjectId === targetProjectId && Boolean(state.editorData),
+      `${targetProjectId} reload after drag save`
+    );
+    const reloadedObject = await waitForRendererCondition(
+      () => {
+        const currentObject = getEditableObjectById(targetObjectId);
+        if (!currentObject) {
+          return null;
+        }
+        return Number(currentObject.x) === baseResult.draggedX && Number(currentObject.y) === baseResult.draggedY
+          ? currentObject
+          : null;
+      },
+      `${targetObjectId} drag coordinates after reload`
+    );
+    baseResult.reloadSucceeded = true;
+    baseResult.reloadedX = Number(reloadedObject.x);
+    baseResult.reloadedY = Number(reloadedObject.y);
+
+    const replayNode = getReplayNodeById(targetObjectId);
+    const replayX = Number(replayNode?.position?.x);
+    const replayY = Number(replayNode?.position?.y);
+    baseResult.replayX = Number.isFinite(replayX) ? replayX : null;
+    baseResult.replayY = Number.isFinite(replayY) ? replayY : null;
+    baseResult.syncStatus = state.syncStatus?.status ?? null;
+    baseResult.replayPath = toRepoRelativePath(state.syncStatus?.replayPath ?? getReplayTargetPath() ?? "");
+
+    baseResult.internalPersistVerified = baseResult.reloadedX === baseResult.draggedX && baseResult.reloadedY === baseResult.draggedY;
+    baseResult.replaySyncVerified = baseResult.replayX === baseResult.draggedX && baseResult.replayY === baseResult.draggedY;
+
+    if (!baseResult.internalPersistVerified) {
+      throw new Error(`Reloaded internal drag position was (${baseResult.reloadedX}, ${baseResult.reloadedY}), expected (${baseResult.draggedX}, ${baseResult.draggedY}).`);
+    }
+
+    if (!baseResult.replaySyncVerified) {
+      throw new Error(`Replay-facing drag position was (${baseResult.replayX}, ${baseResult.replayY}), expected (${baseResult.draggedX}, ${baseResult.draggedY}).`);
+    }
+
+    const successMessage = `Live shell drag smoke passed for ${targetObjectId}: (${originalX}, ${originalY}) -> (${baseResult.draggedX}, ${baseResult.draggedY}), saved and reloaded through the Electron bridge.`;
+    setPreviewStatus(successMessage);
+    baseResult.previewStatus = successMessage;
+    document.body.dataset.liveDragSmoke = "pass";
+
+    if (shouldKeepLiveDragWindowOpen()) {
+      pushLog("Live drag smoke keep-open mode is active for visible proof capture.");
+    }
+
+    await emitLiveDragSmoke({
+      ...baseResult,
+      status: "pass"
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const failureMessage = `Live shell drag smoke failed: ${message}`;
+    setPreviewStatus(failureMessage);
+    document.body.dataset.liveDragSmoke = "fail";
+    await emitLiveDragSmoke({
       ...baseResult,
       status: "fail",
       error: message,

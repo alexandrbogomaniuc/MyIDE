@@ -1,8 +1,8 @@
 # MyIDE Status
 
 ## Current Phase
-- Active scope: PHASE 5L live shell edit/save/reload proof on top of the existing slot-first implementation slice.
-- Current milestone: keep `project_001` as the validated bounded internal scene editor slice with preset-based placeholder creation -> resize/move/edit -> snap-assisted layout -> viewport alignment aids -> layer reassignment -> layer-local ordering -> order-position cues -> previous/next layer navigation -> quick session-only isolation -> session-only viewport zoom/pan/reset/fit -> duplicate/delete -> undo/redo -> save/reload -> deterministic replay sync -> preload bridge health proof -> live Electron shell project load proof -> live Electron shell edit/save/reload proof.
+- Active scope: PHASE 5M live shell canvas drag/save/reload proof on top of the existing slot-first implementation slice.
+- Current milestone: keep `project_001` as the validated bounded internal scene editor slice with preset-based placeholder creation -> resize/move/edit -> snap-assisted layout -> viewport alignment aids -> layer reassignment -> layer-local ordering -> order-position cues -> previous/next layer navigation -> quick session-only isolation -> session-only viewport zoom/pan/reset/fit -> duplicate/delete -> undo/redo -> save/reload -> deterministic replay sync -> preload bridge health proof -> live Electron shell project load proof -> live Electron shell inspector edit/save/reload proof -> live Electron shell canvas drag/save/reload proof.
 
 ## Progress Log
 
@@ -73,6 +73,10 @@
 - Added a dedicated `smoke:electron-live-persist` path that launches the real Electron app, loads `project_001` through the preload bridge, selects `node.title` through the renderer UI, edits `x` through the inspector path, saves, reloads, verifies replay sync, writes `/tmp/myide-electron-live-persist.json`, and restores the touched project files/logs afterward.
 - Captured a visible keep-open Electron proof run showing the loaded shell with the edited object still selected and the persisted `x=657` inspector value in the live desktop path.
 
+### 2026-03-22
+- Added a dedicated `smoke:electron-live-drag` path that launches the real Electron app, loads `project_001` through the preload bridge, selects `node.bottom-bar` from the real canvas, dispatches a real pointer drag, saves, reloads, verifies replay sync, writes `/tmp/myide-electron-live-drag.json`, and restores the touched project files/logs afterward.
+- Captured a visible keep-open Electron drag proof run and screenshot artifact after the same bounded drag/save/reload loop completed through the live shell path.
+
 ## Proven Facts
 - Local reference repos are available in the developer workspace outside this repository.
 - The first Mystery Garden donor evidence pack now contains both official web evidence and one live public runtime session, all hashed.
@@ -94,7 +98,7 @@
 - The shell now exposes a read-only order-position cue and previous/next selection within the current layer without turning selection navigation into persistent project state.
 - The shell now exposes session-only viewport zoom/pan/reset/fit controls without turning viewport state into persistent project state.
 - The shell now exposes an explicit desktop bridge health card and a deterministic Electron bridge smoke path for the validated `project_001` slice.
-- The shell now proves one bounded edit/save/reload persistence loop inside the real Electron app through the same preload bridge and renderer action flow that the live shell uses.
+- The shell now proves one bounded inspector edit/save/reload persistence loop and one bounded canvas drag/save/reload persistence loop inside the real Electron app through the same preload bridge and renderer action flow that the live shell uses.
 - `project_001/internal/*.json` now forms the persistence target for the first editor slice while `project.json` remains the validated replay source.
 - Workspace verification now validates the internal editor scene files in addition to project metadata and replay contracts.
 - The shell now deterministically syncs the replay-facing generated output on save and surfaces that target path in the editor UI.
@@ -117,4 +121,4 @@
 - Placeholder sizing is now bounded to placeholder-backed objects only; asset-backed objects still do not expose a broader resizing workflow.
 - Object ordering remains layer-local, and layer isolation is session-only rather than a persistent project setting.
 - Previous/next layer navigation remains session-only selection state and does not cross layer boundaries.
-- Live GUI proof now exists for preload bridge health, `project_001` load, and one bounded in-window edit/save/reload loop, but the shell still does not yet prove broader interactive automation flows beyond that constrained persistence path.
+- Live GUI proof now exists for preload bridge health, `project_001` load, one bounded in-window inspector edit/save/reload loop, and one bounded in-window canvas drag/save/reload loop, but the shell still does not yet prove broader interactive automation flows beyond those constrained persistence paths.

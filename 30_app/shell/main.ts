@@ -8,8 +8,11 @@ import { loadWorkspaceSlice } from "./workspaceSlice";
 
 const isBridgeSmokeMode = process.env.MYIDE_BRIDGE_SMOKE === "1";
 const isLivePersistSmokeMode = process.env.MYIDE_LIVE_PERSIST_SMOKE === "1";
+const isLiveDragSmokeMode = process.env.MYIDE_LIVE_DRAG_SMOKE === "1";
 const shouldKeepLivePersistWindowOpen = process.env.MYIDE_LIVE_PERSIST_KEEP_OPEN === "1";
 const shouldShowLivePersistWindow = process.env.MYIDE_LIVE_PERSIST_SHOW === "1" || shouldKeepLivePersistWindowOpen;
+const shouldKeepLiveDragWindowOpen = process.env.MYIDE_LIVE_DRAG_KEEP_OPEN === "1";
+const shouldShowLiveDragWindow = process.env.MYIDE_LIVE_DRAG_SHOW === "1" || shouldKeepLiveDragWindowOpen;
 
 interface BridgeHealthSnapshot {
   preloadPath: string;
@@ -36,9 +39,15 @@ interface LivePersistSmokePayload {
   error?: string;
 }
 
+interface LiveDragSmokePayload {
+  status?: string;
+  error?: string;
+}
+
 const bridgeHealthState: BridgeHealthSnapshot = createBridgeHealthSnapshot(resolvePreloadPath());
 let activeBridgeSmokeReporter: ((payload: BridgeSmokePayload) => void) | null = null;
 let activeLivePersistSmokeReporter: ((payload: LivePersistSmokePayload) => void) | null = null;
+let activeLiveDragSmokeReporter: ((payload: LiveDragSmokePayload) => void) | null = null;
 
 function resolvePreloadPath(): string {
   return path.resolve(__dirname, "preload.js");
@@ -90,6 +99,22 @@ function finishLivePersistSmoke(exitCode: number, message: string): void {
   }
 
   if (shouldKeepLivePersistWindowOpen && exitCode === 0) {
+    return;
+  }
+
+  setTimeout(() => {
+    app.exit(exitCode);
+  }, 0);
+}
+
+function finishLiveDragSmoke(exitCode: number, message: string): void {
+  if (exitCode === 0) {
+    console.log(message);
+  } else {
+    console.error(message);
+  }
+
+  if (shouldKeepLiveDragWindowOpen && exitCode === 0) {
     return;
   }
 
@@ -173,6 +198,43 @@ function attachLivePersistSmokeHandlers(window: BrowserWindow): void {
   };
 }
 
+function attachLiveDragSmokeHandlers(window: BrowserWindow): void {
+  if (!isLiveDragSmokeMode) {
+    return;
+  }
+
+  console.log("MYIDE_LIVE_DRAG_MAIN_READY");
+  const timeoutMs = Number.parseInt(process.env.MYIDE_LIVE_DRAG_TIMEOUT_MS ?? "45000", 10);
+  const smokeTimeout = setTimeout(() => {
+    finishLiveDragSmoke(1, "FAIL smoke:electron-live-drag - timeout waiting for renderer drag payload");
+  }, Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 45000);
+
+  const clearSmokeTimeout = () => {
+    clearTimeout(smokeTimeout);
+  };
+
+  window.webContents.on("did-fail-load", (_event, errorCode, errorDescription) => {
+    clearSmokeTimeout();
+    finishLiveDragSmoke(1, `FAIL smoke:electron-live-drag - renderer failed to load (${errorCode} ${errorDescription})`);
+  });
+
+  window.webContents.on("render-process-gone", (_event, details) => {
+    clearSmokeTimeout();
+    finishLiveDragSmoke(1, `FAIL smoke:electron-live-drag - renderer process exited (${details.reason})`);
+  });
+
+  activeLiveDragSmokeReporter = (payload) => {
+    clearSmokeTimeout();
+    console.log(`MYIDE_LIVE_DRAG_RESULT:${JSON.stringify(payload)}`);
+    if (payload.status === "pass") {
+      finishLiveDragSmoke(0, "PASS smoke:electron-live-drag");
+      return;
+    }
+
+    finishLiveDragSmoke(1, `FAIL smoke:electron-live-drag - ${payload.error ?? "renderer reported failure"}`);
+  };
+}
+
 function createWindow(): void {
   const preloadPath = resolvePreloadPath();
   resetBridgeHealthState(preloadPath);
@@ -182,7 +244,11 @@ function createWindow(): void {
     height: 980,
     minWidth: 1280,
     minHeight: 800,
-    show: isBridgeSmokeMode ? false : (isLivePersistSmokeMode ? shouldShowLivePersistWindow : true),
+    show: isBridgeSmokeMode
+      ? false
+      : (isLivePersistSmokeMode
+          ? shouldShowLivePersistWindow
+          : (isLiveDragSmokeMode ? shouldShowLiveDragWindow : true)),
     backgroundColor: "#0b1017",
     title: "MyIDE",
     webPreferences: {
@@ -196,10 +262,13 @@ function createWindow(): void {
   const rendererPath = path.resolve(__dirname, "../../../30_app/shell/renderer/index.html");
   attachBridgeSmokeHandlers(window);
   attachLivePersistSmokeHandlers(window);
+  attachLiveDragSmokeHandlers(window);
   const query = {
     ...(isBridgeSmokeMode ? { bridgeSmoke: "1" } : {}),
     ...(isLivePersistSmokeMode ? { livePersistSmoke: "1" } : {}),
-    ...(shouldKeepLivePersistWindowOpen ? { livePersistKeepOpen: "1" } : {})
+    ...(shouldKeepLivePersistWindowOpen ? { livePersistKeepOpen: "1" } : {}),
+    ...(isLiveDragSmokeMode ? { liveDragSmoke: "1" } : {}),
+    ...(shouldKeepLiveDragWindowOpen ? { liveDragKeepOpen: "1" } : {})
   };
   void window.loadFile(rendererPath, query ? { query } : undefined);
 }
@@ -239,6 +308,12 @@ ipcMain.on("myide:bridge-smoke-result", (_event, payload: BridgeSmokePayload) =>
 ipcMain.on("myide:live-persist-smoke-result", (_event, payload: LivePersistSmokePayload) => {
   if (typeof activeLivePersistSmokeReporter === "function") {
     activeLivePersistSmokeReporter(payload ?? {});
+  }
+});
+
+ipcMain.on("myide:live-drag-smoke-result", (_event, payload: LiveDragSmokePayload) => {
+  if (typeof activeLiveDragSmokeReporter === "function") {
+    activeLiveDragSmokeReporter(payload ?? {});
   }
 });
 

@@ -115,6 +115,9 @@ contextBridge.exposeInMainWorld("myideApi", {
   reportLivePersistSmokeResult: (payload: unknown): void => {
     ipcRenderer.send("myide:live-persist-smoke-result", payload);
   },
+  reportLiveDragSmokeResult: (payload: unknown): void => {
+    ipcRenderer.send("myide:live-drag-smoke-result", payload);
+  },
   loadProjectSlice: (selectedProjectId?: string): Promise<ProjectSliceBundle> => ipcRenderer.invoke("myide:load-project-slice", selectedProjectId),
   createProject: (input: ShellCreateProjectInput): Promise<ShellCreateProjectResult> => ipcRenderer.invoke("myide:create-project", input),
   saveProjectEditor: (projectId: string, data: EditableProjectData): Promise<SaveEditableProjectResult> => ipcRenderer.invoke("myide:save-project-editor", projectId, data),
