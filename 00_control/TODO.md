@@ -181,6 +181,13 @@
 - [x] Keep the repository clean after the smoke by restoring the touched project files and local logs.
 - [x] Capture a live GUI artifact for the bounded create->layer-reassign persistence loop.
 
+## PHASE 5R
+- [x] Add a live-shell create->resize persistence smoke path that uses the real Electron main/preload/renderer bridge.
+- [x] Prove `project_001` can be loaded, one placeholder preset object created through the real shell action path, resized through the real inspector width/height UI, saved, and reloaded through the live shell path.
+- [x] Verify the same live-shell create->resize loop reaches replay-facing generated `project.json`.
+- [x] Keep the repository clean after the smoke by restoring the touched project files and local logs.
+- [x] Capture a live GUI artifact for the bounded create->resize persistence loop.
+
 ## Deferred
 - [ ] Donor decoding automation.
 - [ ] Full editor interactions.

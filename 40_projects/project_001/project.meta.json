@@ -5,7 +5,7 @@
   "displayName": "Mystery Garden Replay Slice",
   "gameFamily": "slot",
   "implementationScope": "slot-first",
-  "phase": "PHASE 5Q",
+  "phase": "PHASE 5R",
   "status": "validated",
   "verification": {
     "status": "verified-replay-slice",
@@ -25,12 +25,13 @@
       "smoke:electron-live-duplicate-delete",
       "smoke:electron-live-reorder",
       "smoke:electron-live-layer-reassign",
+      "smoke:electron-live-resize",
       "import:mystery-garden",
       "validate:project_001",
       "assert:replay"
     ],
-    "lastVerifiedAt": "2026-03-22T13:23:52Z",
-    "notes": "Internal replay slice plus the bounded editor loop are verified, including preset-based placeholder creation, snap-assisted drag/nudge, viewport alignment aids for supported placeholder-backed objects, layer reassignment, bounded placeholder width/height edits, layer-local ordering controls, read-only order-position cues, previous/next selection within the current layer, quick session-only layer isolation, session-only viewport zoom/pan/reset/fit controls with transformed-view-safe drag math, duplicate/delete, undo/redo, save/reload, deterministic replay sync, explicit desktop bridge health diagnostics, deterministic Electron bridge smoke, live Electron project load proof, one bounded live-shell inspector edit/save/reload proof, one bounded live-shell canvas drag/save/reload proof for an existing object, one bounded live-shell create->drag->save->reload proof for a newly created placeholder object, one bounded live-shell create->duplicate/delete->save->reload proof for a newly created placeholder object, one bounded live-shell create->reorder->save->reload proof for a newly created placeholder object, and one bounded live-shell create->layer-reassign->save->reload proof for a newly created placeholder object in project_001; live restart and free-spins capture gaps remain."
+    "lastVerifiedAt": "2026-03-22T18:12:04Z",
+    "notes": "Internal replay slice plus the bounded editor loop are verified, including preset-based placeholder creation, snap-assisted drag/nudge, viewport alignment aids for supported placeholder-backed objects, layer reassignment, bounded placeholder width/height edits, layer-local ordering controls, read-only order-position cues, previous/next selection within the current layer, quick session-only layer isolation, session-only viewport zoom/pan/reset/fit controls with transformed-view-safe drag math, duplicate/delete, undo/redo, save/reload, deterministic replay sync, explicit desktop bridge health diagnostics, deterministic Electron bridge smoke, live Electron project load proof, one bounded live-shell inspector edit/save/reload proof, one bounded live-shell canvas drag/save/reload proof for an existing object, one bounded live-shell create->drag->save->reload proof for a newly created placeholder object, one bounded live-shell create->duplicate/delete->save->reload proof for a newly created placeholder object, one bounded live-shell create->reorder->save->reload proof for a newly created placeholder object, one bounded live-shell create->layer-reassign->save->reload proof for a newly created placeholder object, and one bounded live-shell create->resize->save->reload proof for a newly created placeholder object in project_001; live restart and free-spins capture gaps remain."
   },
   "lifecycle": {
     "currentStage": "internalReplay",
@@ -49,7 +50,7 @@
       },
       "internalReplay": {
         "status": "verified",
-        "notes": "Validated internal replay slice exists in project_001, now with a bounded editable shell workflow that can create preset placeholders, resize, move, align to the viewport, edit, reorder within a layer, read order position, step to previous/next siblings inside the current layer, isolate a single layer for focused edits, zoom/pan/reset/fit the viewport session-only, duplicate, delete, save, reload, sync, load through a proven Electron preload bridge, and prove one bounded live-shell inspector edit/save/reload loop, one bounded existing-object canvas drag/save/reload loop, one bounded create->drag->save->reload loop for a new placeholder object, one bounded create->duplicate/delete->save->reload loop for a new placeholder object, one bounded create->reorder->save->reload loop for a new placeholder object, and one bounded create->layer-reassign->save->reload loop for a new placeholder object through the real renderer action path."
+        "notes": "Validated internal replay slice exists in project_001, now with a bounded editable shell workflow that can create preset placeholders, resize, move, align to the viewport, edit, reorder within a layer, read order position, step to previous/next siblings inside the current layer, isolate a single layer for focused edits, zoom/pan/reset/fit the viewport session-only, duplicate, delete, save, reload, sync, load through a proven Electron preload bridge, and prove one bounded live-shell inspector edit/save/reload loop, one bounded existing-object canvas drag/save/reload loop, one bounded create->drag->save->reload loop for a new placeholder object, one bounded create->duplicate/delete->save->reload loop for a new placeholder object, one bounded create->reorder->save->reload loop for a new placeholder object, one bounded create->layer-reassign->save->reload loop for a new placeholder object, and one bounded create->resize->save->reload loop for a new placeholder object through the real renderer action path."
       },
       "targetConcept": {
         "status": "planned",
@@ -135,7 +136,7 @@
   },
   "timestamps": {
     "createdAt": "2026-03-20T00:00:00Z",
-    "updatedAt": "2026-03-22T13:23:52Z",
+    "updatedAt": "2026-03-22T18:12:04Z",
     "firstValidatedAt": "2026-03-20T10:32:56Z"
   },
   "notes": {
@@ -143,8 +144,8 @@
       "Replay loader uses internal project data only.",
       "Project_001 is the only validated donor-backed project so far.",
       "The shell can now create preset placeholders, resize, align, edit, move, reorder within a layer, show layer-local order position, step previous/next within the current layer, isolate a focused layer view, zoom/pan/reset/fit the viewport session-only, duplicate, delete, and persist bounded scene objects from project_001 internal scene files.",
-      "Save deterministically syncs the replay-facing generated project.json output from the editable internal scene files, including placeholder size, ordering, layer-local navigation-compatible edits, the bounded live-shell persist proof edit, the bounded live-shell canvas drag proof movement, the bounded live-shell create->drag proof movement for a newly created placeholder, the bounded live-shell create->duplicate/delete proof lifecycle result for a newly created placeholder, the bounded live-shell create->reorder proof layer-order result for a newly created placeholder, and the bounded live-shell create->layer-reassign proof layer reassignment result for a newly created placeholder.",
-      "The live Electron shell now proves one bounded inspector edit/save/reload loop, one bounded existing-object canvas drag/save/reload loop, one bounded create->drag->save->reload loop, one bounded create->duplicate/delete->save->reload loop, one bounded create->reorder->save->reload loop, and one bounded create->layer-reassign->save->reload loop through the real preload bridge and renderer workflow."
+      "Save deterministically syncs the replay-facing generated project.json output from the editable internal scene files, including placeholder size, ordering, layer-local navigation-compatible edits, the bounded live-shell persist proof edit, the bounded live-shell canvas drag proof movement, the bounded live-shell create->drag proof movement for a newly created placeholder, the bounded live-shell create->duplicate/delete proof lifecycle result for a newly created placeholder, the bounded live-shell create->reorder proof layer-order result for a newly created placeholder, the bounded live-shell create->layer-reassign proof layer reassignment result for a newly created placeholder, and the bounded live-shell create->resize proof size result for a newly created placeholder.",
+      "The live Electron shell now proves one bounded inspector edit/save/reload loop, one bounded existing-object canvas drag/save/reload loop, one bounded create->drag->save->reload loop, one bounded create->duplicate/delete->save->reload loop, one bounded create->reorder->save->reload loop, one bounded create->layer-reassign->save->reload loop, and one bounded create->resize->save->reload loop through the real preload bridge and renderer workflow."
     ],
     "plannedWork": [
       "Keep donor links and target game metadata explicit for every project.",
@@ -157,7 +158,7 @@
     ],
     "unresolvedQuestions": [
       "How quickly the project registry will grow beyond a single validated entry.",
-      "Which next bounded live-shell proof or editor hardening slice should come after the first real live-shell create->layer-reassign->save->reload proof."
+      "Which next bounded live-shell proof or editor hardening slice should come after the first real live-shell create->resize->save->reload proof."
     ]
   }
 }

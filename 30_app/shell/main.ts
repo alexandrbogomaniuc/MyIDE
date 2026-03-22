@@ -13,6 +13,7 @@ const isLiveCreateDragSmokeMode = process.env.MYIDE_LIVE_CREATE_DRAG_SMOKE === "
 const isLiveDuplicateDeleteSmokeMode = process.env.MYIDE_LIVE_DUPLICATE_DELETE_SMOKE === "1";
 const isLiveReorderSmokeMode = process.env.MYIDE_LIVE_REORDER_SMOKE === "1";
 const isLiveLayerReassignSmokeMode = process.env.MYIDE_LIVE_LAYER_REASSIGN_SMOKE === "1";
+const isLiveResizeSmokeMode = process.env.MYIDE_LIVE_RESIZE_SMOKE === "1";
 const shouldKeepLivePersistWindowOpen = process.env.MYIDE_LIVE_PERSIST_KEEP_OPEN === "1";
 const shouldShowLivePersistWindow = process.env.MYIDE_LIVE_PERSIST_SHOW === "1" || shouldKeepLivePersistWindowOpen;
 const shouldKeepLiveDragWindowOpen = process.env.MYIDE_LIVE_DRAG_KEEP_OPEN === "1";
@@ -25,6 +26,8 @@ const shouldKeepLiveReorderWindowOpen = process.env.MYIDE_LIVE_REORDER_KEEP_OPEN
 const shouldShowLiveReorderWindow = process.env.MYIDE_LIVE_REORDER_SHOW === "1" || shouldKeepLiveReorderWindowOpen;
 const shouldKeepLiveLayerReassignWindowOpen = process.env.MYIDE_LIVE_LAYER_REASSIGN_KEEP_OPEN === "1";
 const shouldShowLiveLayerReassignWindow = process.env.MYIDE_LIVE_LAYER_REASSIGN_SHOW === "1" || shouldKeepLiveLayerReassignWindowOpen;
+const shouldKeepLiveResizeWindowOpen = process.env.MYIDE_LIVE_RESIZE_KEEP_OPEN === "1";
+const shouldShowLiveResizeWindow = process.env.MYIDE_LIVE_RESIZE_SHOW === "1" || shouldKeepLiveResizeWindowOpen;
 
 interface BridgeHealthSnapshot {
   preloadPath: string;
@@ -76,6 +79,11 @@ interface LiveLayerReassignSmokePayload {
   error?: string;
 }
 
+interface LiveResizeSmokePayload {
+  status?: string;
+  error?: string;
+}
+
 const bridgeHealthState: BridgeHealthSnapshot = createBridgeHealthSnapshot(resolvePreloadPath());
 let activeBridgeSmokeReporter: ((payload: BridgeSmokePayload) => void) | null = null;
 let activeLivePersistSmokeReporter: ((payload: LivePersistSmokePayload) => void) | null = null;
@@ -84,6 +92,7 @@ let activeLiveCreateDragSmokeReporter: ((payload: LiveCreateDragSmokePayload) =>
 let activeLiveDuplicateDeleteSmokeReporter: ((payload: LiveDuplicateDeleteSmokePayload) => void) | null = null;
 let activeLiveReorderSmokeReporter: ((payload: LiveReorderSmokePayload) => void) | null = null;
 let activeLiveLayerReassignSmokeReporter: ((payload: LiveLayerReassignSmokePayload) => void) | null = null;
+let activeLiveResizeSmokeReporter: ((payload: LiveResizeSmokePayload) => void) | null = null;
 
 function resolvePreloadPath(): string {
   return path.resolve(__dirname, "preload.js");
@@ -215,6 +224,22 @@ function finishLiveLayerReassignSmoke(exitCode: number, message: string): void {
   }
 
   if (shouldKeepLiveLayerReassignWindowOpen && exitCode === 0) {
+    return;
+  }
+
+  setTimeout(() => {
+    app.exit(exitCode);
+  }, 0);
+}
+
+function finishLiveResizeSmoke(exitCode: number, message: string): void {
+  if (exitCode === 0) {
+    console.log(message);
+  } else {
+    console.error(message);
+  }
+
+  if (shouldKeepLiveResizeWindowOpen && exitCode === 0) {
     return;
   }
 
@@ -483,6 +508,43 @@ function attachLiveLayerReassignSmokeHandlers(window: BrowserWindow): void {
   };
 }
 
+function attachLiveResizeSmokeHandlers(window: BrowserWindow): void {
+  if (!isLiveResizeSmokeMode) {
+    return;
+  }
+
+  console.log("MYIDE_LIVE_RESIZE_MAIN_READY");
+  const timeoutMs = Number.parseInt(process.env.MYIDE_LIVE_RESIZE_TIMEOUT_MS ?? "45000", 10);
+  const smokeTimeout = setTimeout(() => {
+    finishLiveResizeSmoke(1, "FAIL smoke:electron-live-resize - timeout waiting for renderer resize payload");
+  }, Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 45000);
+
+  const clearSmokeTimeout = () => {
+    clearTimeout(smokeTimeout);
+  };
+
+  window.webContents.on("did-fail-load", (_event, errorCode, errorDescription) => {
+    clearSmokeTimeout();
+    finishLiveResizeSmoke(1, `FAIL smoke:electron-live-resize - renderer failed to load (${errorCode} ${errorDescription})`);
+  });
+
+  window.webContents.on("render-process-gone", (_event, details) => {
+    clearSmokeTimeout();
+    finishLiveResizeSmoke(1, `FAIL smoke:electron-live-resize - renderer process exited (${details.reason})`);
+  });
+
+  activeLiveResizeSmokeReporter = (payload) => {
+    clearSmokeTimeout();
+    console.log(`MYIDE_LIVE_RESIZE_RESULT:${JSON.stringify(payload)}`);
+    if (payload.status === "pass") {
+      finishLiveResizeSmoke(0, "PASS smoke:electron-live-resize");
+      return;
+    }
+
+    finishLiveResizeSmoke(1, `FAIL smoke:electron-live-resize - ${payload.error ?? "renderer reported failure"}`);
+  };
+}
+
 function createWindow(): void {
   const preloadPath = resolvePreloadPath();
   resetBridgeHealthState(preloadPath);
@@ -504,7 +566,9 @@ function createWindow(): void {
                       ? shouldShowLiveDuplicateDeleteWindow
                       : (isLiveReorderSmokeMode
                           ? shouldShowLiveReorderWindow
-                          : (isLiveLayerReassignSmokeMode ? shouldShowLiveLayerReassignWindow : true)))))),
+                          : (isLiveLayerReassignSmokeMode
+                              ? shouldShowLiveLayerReassignWindow
+                              : (isLiveResizeSmokeMode ? shouldShowLiveResizeWindow : true))))))),
     backgroundColor: "#0b1017",
     title: "MyIDE",
     webPreferences: {
@@ -523,6 +587,7 @@ function createWindow(): void {
   attachLiveDuplicateDeleteSmokeHandlers(window);
   attachLiveReorderSmokeHandlers(window);
   attachLiveLayerReassignSmokeHandlers(window);
+  attachLiveResizeSmokeHandlers(window);
   const query = {
     ...(isBridgeSmokeMode ? { bridgeSmoke: "1" } : {}),
     ...(isLivePersistSmokeMode ? { livePersistSmoke: "1" } : {}),
@@ -536,7 +601,9 @@ function createWindow(): void {
     ...(isLiveReorderSmokeMode ? { liveReorderSmoke: "1" } : {}),
     ...(shouldKeepLiveReorderWindowOpen ? { liveReorderKeepOpen: "1" } : {}),
     ...(isLiveLayerReassignSmokeMode ? { liveLayerReassignSmoke: "1" } : {}),
-    ...(shouldKeepLiveLayerReassignWindowOpen ? { liveLayerReassignKeepOpen: "1" } : {})
+    ...(shouldKeepLiveLayerReassignWindowOpen ? { liveLayerReassignKeepOpen: "1" } : {}),
+    ...(isLiveResizeSmokeMode ? { liveResizeSmoke: "1" } : {}),
+    ...(shouldKeepLiveResizeWindowOpen ? { liveResizeKeepOpen: "1" } : {})
   };
   void window.loadFile(rendererPath, query ? { query } : undefined);
 }
@@ -606,6 +673,12 @@ ipcMain.on("myide:live-reorder-smoke-result", (_event, payload: LiveReorderSmoke
 ipcMain.on("myide:live-layer-reassign-smoke-result", (_event, payload: LiveLayerReassignSmokePayload) => {
   if (typeof activeLiveLayerReassignSmokeReporter === "function") {
     activeLiveLayerReassignSmokeReporter(payload ?? {});
+  }
+});
+
+ipcMain.on("myide:live-resize-smoke-result", (_event, payload: LiveResizeSmokePayload) => {
+  if (typeof activeLiveResizeSmokeReporter === "function") {
+    activeLiveResizeSmokeReporter(payload ?? {});
   }
 });
 
