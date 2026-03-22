@@ -188,6 +188,15 @@ function isLiveAlignSmokeMode() {
   }
 }
 
+function isLiveUndoRedoSmokeMode() {
+  try {
+    const search = typeof window.location?.search === "string" ? window.location.search : "";
+    return new URLSearchParams(search).get("liveUndoRedoSmoke") === "1";
+  } catch {
+    return false;
+  }
+}
+
 function shouldKeepLivePersistWindowOpen() {
   try {
     const search = typeof window.location?.search === "string" ? window.location.search : "";
@@ -255,6 +264,15 @@ function shouldKeepLiveAlignWindowOpen() {
   try {
     const search = typeof window.location?.search === "string" ? window.location.search : "";
     return new URLSearchParams(search).get("liveAlignKeepOpen") === "1";
+  } catch {
+    return false;
+  }
+}
+
+function shouldKeepLiveUndoRedoWindowOpen() {
+  try {
+    const search = typeof window.location?.search === "string" ? window.location.search : "";
+    return new URLSearchParams(search).get("liveUndoRedoKeepOpen") === "1";
   } catch {
     return false;
   }
@@ -383,6 +401,20 @@ async function emitLiveAlignSmoke(payload) {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.log(`MYIDE_LIVE_ALIGN:${JSON.stringify({ status: "fail", error: `live align payload serialization failed: ${message}` })}`);
+  }
+}
+
+async function emitLiveUndoRedoSmoke(payload) {
+  try {
+    if (window.myideApi && typeof window.myideApi.reportLiveUndoRedoSmokeResult === "function") {
+      window.myideApi.reportLiveUndoRedoSmokeResult(payload);
+      return;
+    }
+
+    console.log(`MYIDE_LIVE_UNDO_REDO:${JSON.stringify(payload)}`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.log(`MYIDE_LIVE_UNDO_REDO:${JSON.stringify({ status: "fail", error: `live undo-redo payload serialization failed: ${message}` })}`);
   }
 }
 
@@ -521,6 +553,11 @@ async function bootRenderer() {
 
   if (isLiveAlignSmokeMode()) {
     await runLiveAlignSmoke();
+    return;
+  }
+
+  if (isLiveUndoRedoSmokeMode()) {
+    await runLiveUndoRedoSmoke();
     return;
   }
 }
@@ -1400,6 +1437,394 @@ async function runLiveCreateDragSmoke() {
     setPreviewStatus(failureMessage);
     document.body.dataset.liveCreateDragSmoke = "fail";
     await emitLiveCreateDragSmoke({
+      ...baseResult,
+      status: "fail",
+      error: message,
+      previewStatus: failureMessage
+    });
+  }
+}
+
+async function runLiveUndoRedoSmoke() {
+  const targetProjectId = "project_001";
+  const presetKey = "banner";
+  const presetLabel = "Banner";
+  const objectIdPrefix = "node.placeholder.banner-";
+  const dragDelta = {
+    x: 36,
+    y: 24
+  };
+  const pointerId = 19;
+  const startedAt = new Date().toISOString();
+  const baseResult = {
+    startedAt,
+    projectId: targetProjectId,
+    presetKey,
+    presetLabel,
+    dragDeltaX: dragDelta.x,
+    dragDeltaY: dragDelta.y,
+    objectId: null,
+    preloadExecuted: Boolean(window.myideApi),
+    myideApiExposed: Boolean(window.myideApi && typeof window.myideApi.loadProjectSlice === "function"),
+    projectLoaded: false,
+    objectCreated: false,
+    objectSelected: false,
+    dragStarted: false,
+    dragMoved: false,
+    dragCompleted: false,
+    undoSucceeded: false,
+    redoSucceeded: false,
+    saveSucceeded: false,
+    reloadSucceeded: false,
+    internalPersistVerified: false,
+    replaySyncVerified: false,
+    repoStatusIntent: "renderer smoke mutates live files temporarily; outer smoke runner must restore them",
+    objectCountBefore: null,
+    objectCountAfterCreate: null,
+    objectCountAfterReload: null,
+    snapEnabled: null,
+    viewportZoom: null,
+    viewportPanX: null,
+    viewportPanY: null,
+    createdX: null,
+    createdY: null,
+    draggedX: null,
+    draggedY: null,
+    undoneX: null,
+    undoneY: null,
+    redoneX: null,
+    redoneY: null,
+    reloadedX: null,
+    reloadedY: null,
+    replayX: null,
+    replayY: null,
+    undoDepthAfterDrag: null,
+    redoDepthAfterDrag: null,
+    undoDepthAfterUndo: null,
+    redoDepthAfterUndo: null,
+    undoDepthAfterRedo: null,
+    redoDepthAfterRedo: null,
+    syncStatus: null,
+    replayPath: null,
+    previewStatus: null
+  };
+
+  try {
+    const api = window.myideApi;
+    if (
+      !api
+      || typeof api.loadProjectSlice !== "function"
+      || typeof api.saveProjectEditor !== "function"
+      || typeof api.reportRendererReady !== "function"
+    ) {
+      throw new Error("Renderer live undo-redo smoke could not access the required desktop bridge helpers.");
+    }
+
+    await waitForRendererCondition(
+      () => Boolean(state.bundle && getWorkspaceProjects().length > 0),
+      "workspace discovery"
+    );
+
+    if (state.selectedProjectId !== targetProjectId) {
+      const projectButton = await waitForRendererCondition(
+        () => elements.projectBrowser?.querySelector(`[data-project-id="${targetProjectId}"]`) ?? null,
+        `project browser entry for ${targetProjectId}`
+      );
+      clickRendererElement(projectButton);
+    }
+
+    await waitForRendererCondition(
+      () => state.selectedProjectId === targetProjectId && Boolean(state.editorData),
+      `${targetProjectId} to load in the renderer`
+    );
+    baseResult.projectLoaded = true;
+    baseResult.objectCountBefore = Array.isArray(state.editorData?.objects) ? state.editorData.objects.length : null;
+
+    if (isSnapEnabled()) {
+      if (!(elements.actionToggleSnap instanceof HTMLButtonElement)) {
+        throw new Error("Snap toggle button is missing from the renderer toolbar.");
+      }
+      clickRendererElement(elements.actionToggleSnap);
+      await waitForRendererCondition(() => !isSnapEnabled(), "snap toggle to switch off");
+    }
+
+    if (isViewportTransformed()) {
+      if (!(elements.actionResetView instanceof HTMLButtonElement)) {
+        throw new Error("Reset View button is missing from the renderer toolbar.");
+      }
+      clickRendererElement(elements.actionResetView);
+    }
+
+    await waitForRendererCondition(
+      () => {
+        const view = getViewportState();
+        return Math.abs(view.zoom - 1) < 0.001 && Math.abs(view.panX) < 0.001 && Math.abs(view.panY) < 0.001;
+      },
+      "default viewport state"
+    );
+
+    baseResult.snapEnabled = isSnapEnabled();
+    baseResult.viewportZoom = getViewportState().zoom;
+    baseResult.viewportPanX = getViewportState().panX;
+    baseResult.viewportPanY = getViewportState().panY;
+
+    if (!(elements.fieldPlaceholderPreset instanceof HTMLSelectElement)) {
+      throw new Error("Placeholder preset selector is missing from the renderer toolbar.");
+    }
+
+    updateRendererInputValue(elements.fieldPlaceholderPreset, presetKey);
+    await waitForRendererCondition(
+      () => state.placeholderPresetKey === presetKey && elements.fieldPlaceholderPreset?.value === presetKey,
+      `${presetKey} preset selection`
+    );
+
+    if (!(elements.actionNewObject instanceof HTMLButtonElement)) {
+      throw new Error("New Placeholder button is missing from the renderer toolbar.");
+    }
+
+    clickRendererElement(elements.actionNewObject);
+
+    const createdObject = await waitForRendererCondition(
+      () => {
+        const selectedObject = getSelectedObject();
+        if (!selectedObject || !selectedObject.id.startsWith(objectIdPrefix)) {
+          return null;
+        }
+        return selectedObject;
+      },
+      `new ${presetLabel} placeholder creation`
+    );
+    baseResult.objectCreated = true;
+    baseResult.objectSelected = true;
+    baseResult.objectId = createdObject.id;
+    baseResult.objectCountAfterCreate = Array.isArray(state.editorData?.objects) ? state.editorData.objects.length : null;
+    baseResult.createdX = Number(createdObject.x);
+    baseResult.createdY = Number(createdObject.y);
+
+    const objectButton = await waitForRendererCondition(
+      () => getCanvasObjectElementById(createdObject.id),
+      `${createdObject.id} on the editor canvas`
+    );
+    const rect = objectButton.getBoundingClientRect();
+    const startPoint = {
+      x: rect.left + rect.width / 2,
+      y: rect.top + rect.height / 2
+    };
+    const endPoint = {
+      x: startPoint.x + dragDelta.x,
+      y: startPoint.y + dragDelta.y
+    };
+
+    dispatchRendererPointerEvent(objectButton, "pointerdown", {
+      pointerId,
+      button: 0,
+      buttons: 1,
+      clientX: startPoint.x,
+      clientY: startPoint.y
+    });
+
+    await waitForRendererCondition(
+      () => state.selectedObjectId === createdObject.id && state.canvasDrag?.objectId === createdObject.id,
+      `${createdObject.id} to start a canvas drag`
+    );
+    baseResult.dragStarted = true;
+
+    dispatchRendererPointerEvent(window, "pointermove", {
+      pointerId,
+      buttons: 1,
+      clientX: endPoint.x,
+      clientY: endPoint.y,
+      movementX: dragDelta.x,
+      movementY: dragDelta.y
+    });
+
+    const movedObject = await waitForRendererCondition(
+      () => {
+        const currentObject = getEditableObjectById(createdObject.id);
+        if (!currentObject || !state.canvasDrag?.moved) {
+          return null;
+        }
+        if (Number(currentObject.x) === baseResult.createdX && Number(currentObject.y) === baseResult.createdY) {
+          return null;
+        }
+        return currentObject;
+      },
+      `${createdObject.id} to move through the live undo-redo drag path`
+    );
+    baseResult.dragMoved = true;
+    baseResult.draggedX = Number(movedObject.x);
+    baseResult.draggedY = Number(movedObject.y);
+
+    dispatchRendererPointerEvent(window, "pointerup", {
+      pointerId,
+      button: 0,
+      buttons: 0,
+      clientX: endPoint.x,
+      clientY: endPoint.y,
+      movementX: dragDelta.x,
+      movementY: dragDelta.y
+    });
+
+    await waitForRendererCondition(
+      () => state.canvasDrag === null && state.dirty && canUndo(),
+      "drag move to commit and become undoable"
+    );
+    baseResult.dragCompleted = true;
+    baseResult.undoDepthAfterDrag = state.history?.undoStack?.length ?? 0;
+    baseResult.redoDepthAfterDrag = state.history?.redoStack?.length ?? 0;
+
+    if (!(elements.actionUndo instanceof HTMLButtonElement)) {
+      throw new Error("Undo button is missing from the renderer toolbar.");
+    }
+
+    clickRendererElement(elements.actionUndo);
+    const undoneObject = await waitForRendererCondition(
+      () => {
+        const currentObject = getEditableObjectById(createdObject.id);
+        if (!currentObject || !canRedo()) {
+          return null;
+        }
+        return Number(currentObject.x) === baseResult.createdX && Number(currentObject.y) === baseResult.createdY
+          ? currentObject
+          : null;
+      },
+      `${createdObject.id} to return to its created position after undo`
+    );
+    baseResult.undoSucceeded = true;
+    baseResult.undoneX = Number(undoneObject.x);
+    baseResult.undoneY = Number(undoneObject.y);
+    baseResult.undoDepthAfterUndo = state.history?.undoStack?.length ?? 0;
+    baseResult.redoDepthAfterUndo = state.history?.redoStack?.length ?? 0;
+
+    if (!(elements.actionRedo instanceof HTMLButtonElement)) {
+      throw new Error("Redo button is missing from the renderer toolbar.");
+    }
+
+    clickRendererElement(elements.actionRedo);
+    const redoneObject = await waitForRendererCondition(
+      () => {
+        const currentObject = getEditableObjectById(createdObject.id);
+        if (!currentObject) {
+          return null;
+        }
+        return Number(currentObject.x) === baseResult.draggedX && Number(currentObject.y) === baseResult.draggedY
+          ? currentObject
+          : null;
+      },
+      `${createdObject.id} to return to its dragged position after redo`
+    );
+    baseResult.redoSucceeded = true;
+    baseResult.redoneX = Number(redoneObject.x);
+    baseResult.redoneY = Number(redoneObject.y);
+    baseResult.undoDepthAfterRedo = state.history?.undoStack?.length ?? 0;
+    baseResult.redoDepthAfterRedo = state.history?.redoStack?.length ?? 0;
+
+    if (baseResult.undoneX !== baseResult.createdX || baseResult.undoneY !== baseResult.createdY) {
+      throw new Error(`Undo landed at (${baseResult.undoneX}, ${baseResult.undoneY}), expected (${baseResult.createdX}, ${baseResult.createdY}).`);
+    }
+
+    if (baseResult.redoneX !== baseResult.draggedX || baseResult.redoneY !== baseResult.draggedY) {
+      throw new Error(`Redo landed at (${baseResult.redoneX}, ${baseResult.redoneY}), expected (${baseResult.draggedX}, ${baseResult.draggedY}).`);
+    }
+
+    if (!(elements.actionSave instanceof HTMLButtonElement)) {
+      throw new Error("Save button is missing from the renderer toolbar.");
+    }
+
+    clickRendererElement(elements.actionSave);
+    await waitForRendererCondition(
+      () => {
+        const currentObject = getEditableObjectById(createdObject.id);
+        return Boolean(
+          !state.dirty
+          && state.syncStatus?.status === "synced"
+          && currentObject
+          && Number(currentObject.x) === baseResult.redoneX
+          && Number(currentObject.y) === baseResult.redoneY
+        );
+      },
+      "renderer save and sync completion after live undo-redo",
+      { timeoutMs: 25000 }
+    );
+    baseResult.saveSucceeded = true;
+
+    if (!(elements.actionReloadEditor instanceof HTMLButtonElement)) {
+      throw new Error("Reload button is missing from the renderer toolbar.");
+    }
+
+    clickRendererElement(elements.actionReloadEditor);
+    await waitForRendererCondition(
+      () => state.selectedProjectId === targetProjectId && Boolean(state.editorData),
+      `${targetProjectId} reload after live undo-redo save`
+    );
+
+    if (state.selectedObjectId !== createdObject.id) {
+      const sceneExplorerButton = await waitForRendererCondition(
+        () => elements.sceneExplorer?.querySelector(`[data-object-id="${createdObject.id}"]`) ?? null,
+        `${createdObject.id} in the scene explorer after live undo-redo reload`
+      );
+      clickRendererElement(sceneExplorerButton);
+      await waitForRendererCondition(
+        () => state.selectedObjectId === createdObject.id,
+        `${createdObject.id} to be selected after live undo-redo reload`
+      );
+    }
+
+    const reloadedObject = await waitForRendererCondition(
+      () => {
+        const currentObject = getEditableObjectById(createdObject.id);
+        if (!currentObject) {
+          return null;
+        }
+        return Number(currentObject.x) === baseResult.redoneX && Number(currentObject.y) === baseResult.redoneY
+          ? currentObject
+          : null;
+      },
+      `${createdObject.id} persisted coordinates after undo-redo reload`
+    );
+    baseResult.reloadSucceeded = true;
+    baseResult.objectCountAfterReload = Array.isArray(state.editorData?.objects) ? state.editorData.objects.length : null;
+    baseResult.reloadedX = Number(reloadedObject.x);
+    baseResult.reloadedY = Number(reloadedObject.y);
+
+    const replayNode = getReplayNodeById(createdObject.id);
+    const replayX = Number(replayNode?.position?.x);
+    const replayY = Number(replayNode?.position?.y);
+    baseResult.replayX = Number.isFinite(replayX) ? replayX : null;
+    baseResult.replayY = Number.isFinite(replayY) ? replayY : null;
+    baseResult.syncStatus = state.syncStatus?.status ?? null;
+    baseResult.replayPath = toRepoRelativePath(state.syncStatus?.replayPath ?? getReplayTargetPath() ?? "");
+
+    baseResult.internalPersistVerified = baseResult.reloadedX === baseResult.redoneX && baseResult.reloadedY === baseResult.redoneY;
+    baseResult.replaySyncVerified = baseResult.replayX === baseResult.redoneX && baseResult.replayY === baseResult.redoneY;
+
+    if (!baseResult.internalPersistVerified) {
+      throw new Error(`Reloaded object position was (${baseResult.reloadedX}, ${baseResult.reloadedY}), expected (${baseResult.redoneX}, ${baseResult.redoneY}).`);
+    }
+
+    if (!baseResult.replaySyncVerified) {
+      throw new Error(`Replay-facing object position was (${baseResult.replayX}, ${baseResult.replayY}), expected (${baseResult.redoneX}, ${baseResult.redoneY}).`);
+    }
+
+    const successMessage = `Live shell undo-redo smoke passed for ${createdObject.id}: created at (${baseResult.createdX}, ${baseResult.createdY}), redone to (${baseResult.redoneX}, ${baseResult.redoneY}), and reloaded successfully.`;
+    setPreviewStatus(successMessage);
+    baseResult.previewStatus = successMessage;
+    document.body.dataset.liveUndoRedoSmoke = "pass";
+
+    if (shouldKeepLiveUndoRedoWindowOpen()) {
+      pushLog("Live undo-redo smoke keep-open mode is active for visible proof capture.");
+    }
+
+    await emitLiveUndoRedoSmoke({
+      ...baseResult,
+      status: "pass"
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const failureMessage = `Live shell undo-redo smoke failed: ${message}`;
+    setPreviewStatus(failureMessage);
+    document.body.dataset.liveUndoRedoSmoke = "fail";
+    await emitLiveUndoRedoSmoke({
       ...baseResult,
       status: "fail",
       error: message,

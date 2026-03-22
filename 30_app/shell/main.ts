@@ -15,6 +15,7 @@ const isLiveReorderSmokeMode = process.env.MYIDE_LIVE_REORDER_SMOKE === "1";
 const isLiveLayerReassignSmokeMode = process.env.MYIDE_LIVE_LAYER_REASSIGN_SMOKE === "1";
 const isLiveResizeSmokeMode = process.env.MYIDE_LIVE_RESIZE_SMOKE === "1";
 const isLiveAlignSmokeMode = process.env.MYIDE_LIVE_ALIGN_SMOKE === "1";
+const isLiveUndoRedoSmokeMode = process.env.MYIDE_LIVE_UNDO_REDO_SMOKE === "1";
 const shouldKeepLivePersistWindowOpen = process.env.MYIDE_LIVE_PERSIST_KEEP_OPEN === "1";
 const shouldShowLivePersistWindow = process.env.MYIDE_LIVE_PERSIST_SHOW === "1" || shouldKeepLivePersistWindowOpen;
 const shouldKeepLiveDragWindowOpen = process.env.MYIDE_LIVE_DRAG_KEEP_OPEN === "1";
@@ -31,6 +32,8 @@ const shouldKeepLiveResizeWindowOpen = process.env.MYIDE_LIVE_RESIZE_KEEP_OPEN =
 const shouldShowLiveResizeWindow = process.env.MYIDE_LIVE_RESIZE_SHOW === "1" || shouldKeepLiveResizeWindowOpen;
 const shouldKeepLiveAlignWindowOpen = process.env.MYIDE_LIVE_ALIGN_KEEP_OPEN === "1";
 const shouldShowLiveAlignWindow = process.env.MYIDE_LIVE_ALIGN_SHOW === "1" || shouldKeepLiveAlignWindowOpen;
+const shouldKeepLiveUndoRedoWindowOpen = process.env.MYIDE_LIVE_UNDO_REDO_KEEP_OPEN === "1";
+const shouldShowLiveUndoRedoWindow = process.env.MYIDE_LIVE_UNDO_REDO_SHOW === "1" || shouldKeepLiveUndoRedoWindowOpen;
 
 interface BridgeHealthSnapshot {
   preloadPath: string;
@@ -92,6 +95,11 @@ interface LiveAlignSmokePayload {
   error?: string;
 }
 
+interface LiveUndoRedoSmokePayload {
+  status?: string;
+  error?: string;
+}
+
 const bridgeHealthState: BridgeHealthSnapshot = createBridgeHealthSnapshot(resolvePreloadPath());
 let activeBridgeSmokeReporter: ((payload: BridgeSmokePayload) => void) | null = null;
 let activeLivePersistSmokeReporter: ((payload: LivePersistSmokePayload) => void) | null = null;
@@ -102,6 +110,7 @@ let activeLiveReorderSmokeReporter: ((payload: LiveReorderSmokePayload) => void)
 let activeLiveLayerReassignSmokeReporter: ((payload: LiveLayerReassignSmokePayload) => void) | null = null;
 let activeLiveResizeSmokeReporter: ((payload: LiveResizeSmokePayload) => void) | null = null;
 let activeLiveAlignSmokeReporter: ((payload: LiveAlignSmokePayload) => void) | null = null;
+let activeLiveUndoRedoSmokeReporter: ((payload: LiveUndoRedoSmokePayload) => void) | null = null;
 
 function resolvePreloadPath(): string {
   return path.resolve(__dirname, "preload.js");
@@ -265,6 +274,22 @@ function finishLiveAlignSmoke(exitCode: number, message: string): void {
   }
 
   if (shouldKeepLiveAlignWindowOpen && exitCode === 0) {
+    return;
+  }
+
+  setTimeout(() => {
+    app.exit(exitCode);
+  }, 0);
+}
+
+function finishLiveUndoRedoSmoke(exitCode: number, message: string): void {
+  if (exitCode === 0) {
+    console.log(message);
+  } else {
+    console.error(message);
+  }
+
+  if (shouldKeepLiveUndoRedoWindowOpen && exitCode === 0) {
     return;
   }
 
@@ -607,6 +632,43 @@ function attachLiveAlignSmokeHandlers(window: BrowserWindow): void {
   };
 }
 
+function attachLiveUndoRedoSmokeHandlers(window: BrowserWindow): void {
+  if (!isLiveUndoRedoSmokeMode) {
+    return;
+  }
+
+  console.log("MYIDE_LIVE_UNDO_REDO_MAIN_READY");
+  const timeoutMs = Number.parseInt(process.env.MYIDE_LIVE_UNDO_REDO_TIMEOUT_MS ?? "45000", 10);
+  const smokeTimeout = setTimeout(() => {
+    finishLiveUndoRedoSmoke(1, "FAIL smoke:electron-live-undo-redo - timeout waiting for renderer undo/redo payload");
+  }, Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 45000);
+
+  const clearSmokeTimeout = () => {
+    clearTimeout(smokeTimeout);
+  };
+
+  window.webContents.on("did-fail-load", (_event, errorCode, errorDescription) => {
+    clearSmokeTimeout();
+    finishLiveUndoRedoSmoke(1, `FAIL smoke:electron-live-undo-redo - renderer failed to load (${errorCode} ${errorDescription})`);
+  });
+
+  window.webContents.on("render-process-gone", (_event, details) => {
+    clearSmokeTimeout();
+    finishLiveUndoRedoSmoke(1, `FAIL smoke:electron-live-undo-redo - renderer process exited (${details.reason})`);
+  });
+
+  activeLiveUndoRedoSmokeReporter = (payload) => {
+    clearSmokeTimeout();
+    console.log(`MYIDE_LIVE_UNDO_REDO_RESULT:${JSON.stringify(payload)}`);
+    if (payload.status === "pass") {
+      finishLiveUndoRedoSmoke(0, "PASS smoke:electron-live-undo-redo");
+      return;
+    }
+
+    finishLiveUndoRedoSmoke(1, `FAIL smoke:electron-live-undo-redo - ${payload.error ?? "renderer reported failure"}`);
+  };
+}
+
 function createWindow(): void {
   const preloadPath = resolvePreloadPath();
   resetBridgeHealthState(preloadPath);
@@ -632,7 +694,9 @@ function createWindow(): void {
                               ? shouldShowLiveLayerReassignWindow
                               : (isLiveResizeSmokeMode
                                   ? shouldShowLiveResizeWindow
-                                  : (isLiveAlignSmokeMode ? shouldShowLiveAlignWindow : true)))))))),
+                                  : (isLiveAlignSmokeMode
+                                      ? shouldShowLiveAlignWindow
+                                      : (isLiveUndoRedoSmokeMode ? shouldShowLiveUndoRedoWindow : true))))))))),
     backgroundColor: "#0b1017",
     title: "MyIDE",
     webPreferences: {
@@ -653,6 +717,7 @@ function createWindow(): void {
   attachLiveLayerReassignSmokeHandlers(window);
   attachLiveResizeSmokeHandlers(window);
   attachLiveAlignSmokeHandlers(window);
+  attachLiveUndoRedoSmokeHandlers(window);
   const query = {
     ...(isBridgeSmokeMode ? { bridgeSmoke: "1" } : {}),
     ...(isLivePersistSmokeMode ? { livePersistSmoke: "1" } : {}),
@@ -670,7 +735,9 @@ function createWindow(): void {
     ...(isLiveResizeSmokeMode ? { liveResizeSmoke: "1" } : {}),
     ...(shouldKeepLiveResizeWindowOpen ? { liveResizeKeepOpen: "1" } : {}),
     ...(isLiveAlignSmokeMode ? { liveAlignSmoke: "1" } : {}),
-    ...(shouldKeepLiveAlignWindowOpen ? { liveAlignKeepOpen: "1" } : {})
+    ...(shouldKeepLiveAlignWindowOpen ? { liveAlignKeepOpen: "1" } : {}),
+    ...(isLiveUndoRedoSmokeMode ? { liveUndoRedoSmoke: "1" } : {}),
+    ...(shouldKeepLiveUndoRedoWindowOpen ? { liveUndoRedoKeepOpen: "1" } : {})
   };
   void window.loadFile(rendererPath, query ? { query } : undefined);
 }
@@ -752,6 +819,12 @@ ipcMain.on("myide:live-resize-smoke-result", (_event, payload: LiveResizeSmokePa
 ipcMain.on("myide:live-align-smoke-result", (_event, payload: LiveAlignSmokePayload) => {
   if (typeof activeLiveAlignSmokeReporter === "function") {
     activeLiveAlignSmokeReporter(payload ?? {});
+  }
+});
+
+ipcMain.on("myide:live-undo-redo-smoke-result", (_event, payload: LiveUndoRedoSmokePayload) => {
+  if (typeof activeLiveUndoRedoSmokeReporter === "function") {
+    activeLiveUndoRedoSmokeReporter(payload ?? {});
   }
 });
 
