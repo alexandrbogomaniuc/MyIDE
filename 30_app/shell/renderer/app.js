@@ -161,6 +161,15 @@ function isLiveReorderSmokeMode() {
   }
 }
 
+function isLiveLayerReassignSmokeMode() {
+  try {
+    const search = typeof window.location?.search === "string" ? window.location.search : "";
+    return new URLSearchParams(search).get("liveLayerReassignSmoke") === "1";
+  } catch {
+    return false;
+  }
+}
+
 function shouldKeepLivePersistWindowOpen() {
   try {
     const search = typeof window.location?.search === "string" ? window.location.search : "";
@@ -201,6 +210,15 @@ function shouldKeepLiveReorderWindowOpen() {
   try {
     const search = typeof window.location?.search === "string" ? window.location.search : "";
     return new URLSearchParams(search).get("liveReorderKeepOpen") === "1";
+  } catch {
+    return false;
+  }
+}
+
+function shouldKeepLiveLayerReassignWindowOpen() {
+  try {
+    const search = typeof window.location?.search === "string" ? window.location.search : "";
+    return new URLSearchParams(search).get("liveLayerReassignKeepOpen") === "1";
   } catch {
     return false;
   }
@@ -287,6 +305,20 @@ async function emitLiveReorderSmoke(payload) {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.log(`MYIDE_LIVE_REORDER:${JSON.stringify({ status: "fail", error: `live reorder payload serialization failed: ${message}` })}`);
+  }
+}
+
+async function emitLiveLayerReassignSmoke(payload) {
+  try {
+    if (window.myideApi && typeof window.myideApi.reportLiveLayerReassignSmokeResult === "function") {
+      window.myideApi.reportLiveLayerReassignSmokeResult(payload);
+      return;
+    }
+
+    console.log(`MYIDE_LIVE_LAYER_REASSIGN:${JSON.stringify(payload)}`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.log(`MYIDE_LIVE_LAYER_REASSIGN:${JSON.stringify({ status: "fail", error: `live layer-reassign payload serialization failed: ${message}` })}`);
   }
 }
 
@@ -410,6 +442,11 @@ async function bootRenderer() {
 
   if (isLiveReorderSmokeMode()) {
     await runLiveReorderSmoke();
+    return;
+  }
+
+  if (isLiveLayerReassignSmokeMode()) {
+    await runLiveLayerReassignSmoke();
     return;
   }
 }
@@ -1822,6 +1859,313 @@ async function runLiveReorderSmoke() {
     setPreviewStatus(failureMessage);
     document.body.dataset.liveReorderSmoke = "fail";
     await emitLiveReorderSmoke({
+      ...baseResult,
+      status: "fail",
+      error: message,
+      previewStatus: failureMessage
+    });
+  }
+}
+
+async function runLiveLayerReassignSmoke() {
+  const targetProjectId = "project_001";
+  const presetKey = "banner";
+  const presetLabel = "Banner";
+  const objectIdPrefix = "node.placeholder.banner-";
+  const targetLayerId = "layer.overlay";
+  const startedAt = new Date().toISOString();
+  const baseResult = {
+    startedAt,
+    projectId: targetProjectId,
+    presetKey,
+    presetLabel,
+    objectId: null,
+    sourceLayerId: null,
+    sourceLayerName: null,
+    targetLayerId,
+    targetLayerName: null,
+    preloadExecuted: Boolean(window.myideApi),
+    myideApiExposed: Boolean(window.myideApi && typeof window.myideApi.loadProjectSlice === "function"),
+    projectLoaded: false,
+    objectCreated: false,
+    objectSelected: false,
+    layerReassigned: false,
+    saveSucceeded: false,
+    reloadSucceeded: false,
+    internalPersistVerified: false,
+    replaySyncVerified: false,
+    repoStatusIntent: "renderer smoke mutates live files temporarily; outer smoke runner must restore them",
+    objectCountBefore: null,
+    objectCountAfterCreate: null,
+    objectCountAfterReload: null,
+    createdOrderIndex: null,
+    createdOrderTotal: null,
+    reassignedOrderIndex: null,
+    reassignedOrderTotal: null,
+    reloadedOrderIndex: null,
+    reloadedOrderTotal: null,
+    createdOrderIds: [],
+    sourceLayerOrderIdsAfterReassign: [],
+    sourceLayerOrderIdsAfterReload: [],
+    reassignedOrderIds: [],
+    reloadedOrderIds: [],
+    replayOrderIds: [],
+    sourceReplayOrderIds: [],
+    syncStatus: null,
+    replayPath: null,
+    previewStatus: null
+  };
+
+  try {
+    const api = window.myideApi;
+    if (
+      !api
+      || typeof api.loadProjectSlice !== "function"
+      || typeof api.saveProjectEditor !== "function"
+      || typeof api.reportRendererReady !== "function"
+    ) {
+      throw new Error("Renderer live layer-reassign smoke could not access the required desktop bridge helpers.");
+    }
+
+    await waitForRendererCondition(
+      () => Boolean(state.bundle && getWorkspaceProjects().length > 0),
+      "workspace discovery"
+    );
+
+    if (state.selectedProjectId !== targetProjectId) {
+      const projectButton = await waitForRendererCondition(
+        () => elements.projectBrowser?.querySelector(`[data-project-id="${targetProjectId}"]`) ?? null,
+        `project browser entry for ${targetProjectId}`
+      );
+      clickRendererElement(projectButton);
+    }
+
+    await waitForRendererCondition(
+      () => state.selectedProjectId === targetProjectId && Boolean(state.editorData),
+      `${targetProjectId} to load in the renderer`
+    );
+    baseResult.projectLoaded = true;
+    baseResult.objectCountBefore = Array.isArray(state.editorData?.objects) ? state.editorData.objects.length : null;
+
+    if (isSnapEnabled()) {
+      if (!(elements.actionToggleSnap instanceof HTMLButtonElement)) {
+        throw new Error("Snap toggle button is missing from the renderer toolbar.");
+      }
+      clickRendererElement(elements.actionToggleSnap);
+      await waitForRendererCondition(() => !isSnapEnabled(), "snap toggle to switch off");
+    }
+
+    if (isViewportTransformed()) {
+      if (!(elements.actionResetView instanceof HTMLButtonElement)) {
+        throw new Error("Reset View button is missing from the renderer toolbar.");
+      }
+      clickRendererElement(elements.actionResetView);
+    }
+
+    await waitForRendererCondition(
+      () => {
+        const view = getViewportState();
+        return Math.abs(view.zoom - 1) < 0.001 && Math.abs(view.panX) < 0.001 && Math.abs(view.panY) < 0.001;
+      },
+      "default viewport state"
+    );
+
+    if (!(elements.fieldPlaceholderPreset instanceof HTMLSelectElement)) {
+      throw new Error("Placeholder preset selector is missing from the renderer toolbar.");
+    }
+    updateRendererInputValue(elements.fieldPlaceholderPreset, presetKey);
+    await waitForRendererCondition(
+      () => state.placeholderPresetKey === presetKey && elements.fieldPlaceholderPreset?.value === presetKey,
+      `${presetKey} preset selection`
+    );
+
+    if (!(elements.actionNewObject instanceof HTMLButtonElement)) {
+      throw new Error("New Placeholder button is missing from the renderer toolbar.");
+    }
+    clickRendererElement(elements.actionNewObject);
+
+    const createdObject = await waitForRendererCondition(
+      () => {
+        const selectedObject = getSelectedObject();
+        if (!selectedObject || !selectedObject.id.startsWith(objectIdPrefix)) {
+          return null;
+        }
+        return selectedObject;
+      },
+      `new ${presetLabel} placeholder creation`
+    );
+    baseResult.objectCreated = true;
+    baseResult.objectSelected = true;
+    baseResult.objectId = createdObject.id;
+    baseResult.objectCountAfterCreate = Array.isArray(state.editorData?.objects) ? state.editorData.objects.length : null;
+
+    const createdOrderContext = await waitForRendererCondition(
+      () => {
+        const context = getSelectedObjectOrderContext();
+        return context?.objectId === createdObject.id ? context : null;
+      },
+      `${createdObject.id} order context after creation`
+    );
+    baseResult.sourceLayerId = createdOrderContext.layerId;
+    baseResult.sourceLayerName = createdOrderContext.layerName;
+    baseResult.createdOrderIndex = createdOrderContext.index;
+    baseResult.createdOrderTotal = createdOrderContext.total;
+    baseResult.createdOrderIds = getLayerObjectsInOrder(createdOrderContext.layerId).map((entry) => entry.id);
+
+    if (createdOrderContext.layerId === targetLayerId) {
+      throw new Error(`${createdObject.id} was already created on ${targetLayerId}, so the layer reassignment proof would not be meaningful.`);
+    }
+
+    const targetLayer = getLayerById(targetLayerId);
+    if (!targetLayer || targetLayer.locked || targetLayer.visible === false) {
+      throw new Error(`Target layer ${targetLayerId} is unavailable for live reassignment.`);
+    }
+    baseResult.targetLayerName = targetLayer.displayName ?? targetLayerId;
+
+    const layerField = await waitForRendererCondition(
+      () => elements.inspector?.querySelector('select[name="layerId"]') ?? null,
+      "inspector assigned-layer control"
+    );
+    updateRendererInputValue(layerField, targetLayerId);
+
+    const reassignedContext = await waitForRendererCondition(
+      () => {
+        const selectedObject = getSelectedObject();
+        const context = getSelectedObjectOrderContext();
+        if (
+          !selectedObject
+          || selectedObject.id !== createdObject.id
+          || selectedObject.layerId !== targetLayerId
+          || !context
+          || context.objectId !== createdObject.id
+          || context.layerId !== targetLayerId
+          || !state.dirty
+        ) {
+          return null;
+        }
+
+        return context;
+      },
+      `${createdObject.id} reassignment into ${baseResult.targetLayerName}`
+    );
+    baseResult.layerReassigned = true;
+    baseResult.reassignedOrderIndex = reassignedContext.index;
+    baseResult.reassignedOrderTotal = reassignedContext.total;
+    baseResult.reassignedOrderIds = getLayerObjectsInOrder(reassignedContext.layerId).map((entry) => entry.id);
+    baseResult.sourceLayerOrderIdsAfterReassign = getLayerObjectsInOrder(createdOrderContext.layerId).map((entry) => entry.id);
+
+    if (baseResult.sourceLayerOrderIdsAfterReassign.includes(createdObject.id)) {
+      throw new Error(`${createdObject.id} still appeared in ${createdOrderContext.layerName} after reassignment.`);
+    }
+
+    if (!baseResult.reassignedOrderIds.includes(createdObject.id)) {
+      throw new Error(`${createdObject.id} was missing from ${baseResult.targetLayerName} after reassignment.`);
+    }
+
+    if (!(elements.actionSave instanceof HTMLButtonElement)) {
+      throw new Error("Save button is missing from the renderer toolbar.");
+    }
+    clickRendererElement(elements.actionSave);
+    await waitForRendererCondition(
+      () => {
+        const selectedObject = getSelectedObject();
+        const currentOrderIds = getLayerObjectsInOrder(targetLayerId).map((entry) => entry.id);
+        const currentSourceOrderIds = getLayerObjectsInOrder(createdOrderContext.layerId).map((entry) => entry.id);
+        return Boolean(
+          !state.dirty
+          && state.syncStatus?.status === "synced"
+          && selectedObject?.id === createdObject.id
+          && selectedObject?.layerId === targetLayerId
+          && JSON.stringify(currentOrderIds) === JSON.stringify(baseResult.reassignedOrderIds)
+          && !currentSourceOrderIds.includes(createdObject.id)
+        );
+      },
+      "renderer save and sync completion after live layer reassignment",
+      { timeoutMs: 25000 }
+    );
+    baseResult.saveSucceeded = true;
+
+    if (!(elements.actionReloadEditor instanceof HTMLButtonElement)) {
+      throw new Error("Reload button is missing from the renderer toolbar.");
+    }
+    clickRendererElement(elements.actionReloadEditor);
+    await waitForRendererCondition(
+      () => state.selectedProjectId === targetProjectId && Boolean(state.editorData),
+      `${targetProjectId} reload after live layer reassignment save`
+    );
+
+    if (state.selectedObjectId !== createdObject.id) {
+      const sceneExplorerButton = await waitForRendererCondition(
+        () => elements.sceneExplorer?.querySelector(`[data-object-id="${createdObject.id}"]`) ?? null,
+        `${createdObject.id} in the scene explorer after layer reassignment reload`
+      );
+      clickRendererElement(sceneExplorerButton);
+      await waitForRendererCondition(
+        () => state.selectedObjectId === createdObject.id,
+        `${createdObject.id} to be selected after layer reassignment reload`
+      );
+    }
+
+    const reloadedContext = await waitForRendererCondition(
+      () => {
+        const context = getSelectedObjectOrderContext();
+        const selectedObject = getSelectedObject();
+        if (
+          !context
+          || context.objectId !== createdObject.id
+          || context.layerId !== targetLayerId
+          || selectedObject?.layerId !== targetLayerId
+        ) {
+          return null;
+        }
+
+        return context;
+      },
+      `${createdObject.id} persisted layer assignment after reload`
+    );
+    baseResult.reloadSucceeded = true;
+    baseResult.objectCountAfterReload = Array.isArray(state.editorData?.objects) ? state.editorData.objects.length : null;
+    baseResult.reloadedOrderIndex = reloadedContext.index;
+    baseResult.reloadedOrderTotal = reloadedContext.total;
+    baseResult.reloadedOrderIds = getLayerObjectsInOrder(reloadedContext.layerId).map((entry) => entry.id);
+    baseResult.sourceLayerOrderIdsAfterReload = getLayerObjectsInOrder(createdOrderContext.layerId).map((entry) => entry.id);
+    baseResult.replayOrderIds = getReplayLayerNodeOrder(targetLayerId);
+    baseResult.sourceReplayOrderIds = getReplayLayerNodeOrder(createdOrderContext.layerId);
+    baseResult.syncStatus = state.syncStatus?.status ?? null;
+    baseResult.replayPath = toRepoRelativePath(state.syncStatus?.replayPath ?? getReplayTargetPath() ?? "");
+
+    baseResult.internalPersistVerified = JSON.stringify(baseResult.reloadedOrderIds) === JSON.stringify(baseResult.reassignedOrderIds)
+      && !baseResult.sourceLayerOrderIdsAfterReload.includes(createdObject.id);
+    baseResult.replaySyncVerified = JSON.stringify(baseResult.replayOrderIds) === JSON.stringify(baseResult.reassignedOrderIds)
+      && !baseResult.sourceReplayOrderIds.includes(createdObject.id);
+
+    if (!baseResult.internalPersistVerified) {
+      throw new Error(`Reloaded internal layer assignment for ${createdObject.id} did not match the saved ${baseResult.targetLayerName} state.`);
+    }
+
+    if (!baseResult.replaySyncVerified) {
+      throw new Error(`Replay-facing layer assignment for ${createdObject.id} did not match the saved ${baseResult.targetLayerName} state.`);
+    }
+
+    const successMessage = `Live shell layer-reassign smoke passed for ${createdObject.id}: moved from ${createdOrderContext.layerName} to ${baseResult.targetLayerName}, saved, and reloaded through the Electron bridge.`;
+    setPreviewStatus(successMessage);
+    baseResult.previewStatus = successMessage;
+    document.body.dataset.liveLayerReassignSmoke = "pass";
+
+    if (shouldKeepLiveLayerReassignWindowOpen()) {
+      pushLog("Live layer-reassign smoke keep-open mode is active for visible proof capture.");
+    }
+
+    await emitLiveLayerReassignSmoke({
+      ...baseResult,
+      status: "pass"
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const failureMessage = `Live shell layer-reassign smoke failed: ${message}`;
+    setPreviewStatus(failureMessage);
+    document.body.dataset.liveLayerReassignSmoke = "fail";
+    await emitLiveLayerReassignSmoke({
       ...baseResult,
       status: "fail",
       error: message,
