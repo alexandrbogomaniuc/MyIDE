@@ -23,6 +23,7 @@
 - `npm run build && node dist/50_tests/workspace/electron-live-reorder-smoke.js`
 - `npm run build && node dist/50_tests/workspace/electron-live-layer-reassign-smoke.js`
 - `npm run build && node dist/50_tests/workspace/electron-live-resize-smoke.js`
+- `npm run build && node dist/50_tests/workspace/electron-live-align-smoke.js`
 - `npm run verify:persistence`
 - `npm run verify:workspace`
 
@@ -45,5 +46,6 @@
 - The electron-live-reorder smoke test launches the real Electron shell, drives the renderer preset selection + new-placeholder action + layer-order toolbar path, verifies the reordered created object persists through save/reload in both internal editable data and replay-facing `project.json`, writes `/tmp/myide-electron-live-reorder.json`, and restores the touched project files/logs so the repo status returns to baseline.
 - The electron-live-layer-reassign smoke test launches the real Electron shell, drives the renderer preset selection + new-placeholder action + Assigned Layer inspector path, verifies the created object persists after moving from `layer.ui` to `layer.overlay` through save/reload in both internal editable data and replay-facing `project.json`, writes `/tmp/myide-electron-live-layer-reassign.json`, and restores the touched project files/logs so the repo status returns to baseline.
 - The electron-live-resize smoke test launches the real Electron shell, drives the renderer preset selection + new-placeholder action + inspector width/height path, verifies the created object persists after resizing from `540x120` to `564x132` through save/reload in both internal editable data and replay-facing `project.json`, writes `/tmp/myide-electron-live-resize.json`, and restores the touched project files/logs so the repo status returns to baseline.
+- The electron-live-align smoke test launches the real Electron shell, drives the renderer preset selection + new-placeholder action + alignment toolbar path, verifies the created object persists after a right-edge viewport alignment through save/reload in both internal editable data and replay-facing `project.json`, writes `/tmp/myide-electron-live-align.json`, and restores the touched project files/logs so the repo status returns to baseline.
 - The latest demo artifact writes a concise before/after note to `50_tests/workspace/project_001-demo.md` with live-shell persisted object context.
 - `project_001` remains the validated replay slice.

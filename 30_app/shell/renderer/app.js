@@ -179,6 +179,15 @@ function isLiveResizeSmokeMode() {
   }
 }
 
+function isLiveAlignSmokeMode() {
+  try {
+    const search = typeof window.location?.search === "string" ? window.location.search : "";
+    return new URLSearchParams(search).get("liveAlignSmoke") === "1";
+  } catch {
+    return false;
+  }
+}
+
 function shouldKeepLivePersistWindowOpen() {
   try {
     const search = typeof window.location?.search === "string" ? window.location.search : "";
@@ -237,6 +246,15 @@ function shouldKeepLiveResizeWindowOpen() {
   try {
     const search = typeof window.location?.search === "string" ? window.location.search : "";
     return new URLSearchParams(search).get("liveResizeKeepOpen") === "1";
+  } catch {
+    return false;
+  }
+}
+
+function shouldKeepLiveAlignWindowOpen() {
+  try {
+    const search = typeof window.location?.search === "string" ? window.location.search : "";
+    return new URLSearchParams(search).get("liveAlignKeepOpen") === "1";
   } catch {
     return false;
   }
@@ -351,6 +369,20 @@ async function emitLiveResizeSmoke(payload) {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.log(`MYIDE_LIVE_RESIZE:${JSON.stringify({ status: "fail", error: `live resize payload serialization failed: ${message}` })}`);
+  }
+}
+
+async function emitLiveAlignSmoke(payload) {
+  try {
+    if (window.myideApi && typeof window.myideApi.reportLiveAlignSmokeResult === "function") {
+      window.myideApi.reportLiveAlignSmokeResult(payload);
+      return;
+    }
+
+    console.log(`MYIDE_LIVE_ALIGN:${JSON.stringify(payload)}`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.log(`MYIDE_LIVE_ALIGN:${JSON.stringify({ status: "fail", error: `live align payload serialization failed: ${message}` })}`);
   }
 }
 
@@ -484,6 +516,11 @@ async function bootRenderer() {
 
   if (isLiveResizeSmokeMode()) {
     await runLiveResizeSmoke();
+    return;
+  }
+
+  if (isLiveAlignSmokeMode()) {
+    await runLiveAlignSmoke();
     return;
   }
 }
@@ -2517,6 +2554,300 @@ async function runLiveResizeSmoke() {
     setPreviewStatus(failureMessage);
     document.body.dataset.liveResizeSmoke = "fail";
     await emitLiveResizeSmoke({
+      ...baseResult,
+      status: "fail",
+      error: message,
+      previewStatus: failureMessage
+    });
+  }
+}
+
+async function runLiveAlignSmoke() {
+  const targetProjectId = "project_001";
+  const presetKey = "banner";
+  const presetLabel = "Banner";
+  const objectIdPrefix = "node.placeholder.banner-";
+  const alignmentAction = "right";
+  const startedAt = new Date().toISOString();
+  const baseResult = {
+    startedAt,
+    projectId: targetProjectId,
+    presetKey,
+    presetLabel,
+    alignmentAction,
+    alignmentLabel: getAlignmentLabel(alignmentAction),
+    objectId: null,
+    preloadExecuted: Boolean(window.myideApi),
+    myideApiExposed: Boolean(window.myideApi && typeof window.myideApi.loadProjectSlice === "function"),
+    projectLoaded: false,
+    objectCreated: false,
+    objectSelected: false,
+    aligned: false,
+    saveSucceeded: false,
+    reloadSucceeded: false,
+    internalPersistVerified: false,
+    replaySyncVerified: false,
+    repoStatusIntent: "renderer smoke mutates live files temporarily; outer smoke runner must restore them",
+    objectCountBefore: null,
+    objectCountAfterCreate: null,
+    objectCountAfterReload: null,
+    createdLayerId: null,
+    reloadedLayerId: null,
+    replayLayerId: null,
+    createdX: null,
+    createdY: null,
+    alignedX: null,
+    alignedY: null,
+    reloadedX: null,
+    reloadedY: null,
+    replayX: null,
+    replayY: null,
+    createdWidth: null,
+    createdHeight: null,
+    reloadedWidth: null,
+    reloadedHeight: null,
+    replayWidth: null,
+    replayHeight: null,
+    syncStatus: null,
+    replayPath: null,
+    previewStatus: null
+  };
+
+  try {
+    const api = window.myideApi;
+    if (
+      !api
+      || typeof api.loadProjectSlice !== "function"
+      || typeof api.saveProjectEditor !== "function"
+      || typeof api.reportRendererReady !== "function"
+    ) {
+      throw new Error("Renderer live align smoke could not access the required desktop bridge helpers.");
+    }
+
+    await waitForRendererCondition(
+      () => Boolean(state.bundle && getWorkspaceProjects().length > 0),
+      "workspace discovery"
+    );
+
+    if (state.selectedProjectId !== targetProjectId) {
+      const projectButton = await waitForRendererCondition(
+        () => elements.projectBrowser?.querySelector(`[data-project-id="${targetProjectId}"]`) ?? null,
+        `project browser entry for ${targetProjectId}`
+      );
+      clickRendererElement(projectButton);
+    }
+
+    await waitForRendererCondition(
+      () => state.selectedProjectId === targetProjectId && Boolean(state.editorData),
+      `${targetProjectId} to load in the renderer`
+    );
+    baseResult.projectLoaded = true;
+    baseResult.objectCountBefore = Array.isArray(state.editorData?.objects) ? state.editorData.objects.length : null;
+
+    if (isSnapEnabled()) {
+      if (!(elements.actionToggleSnap instanceof HTMLButtonElement)) {
+        throw new Error("Snap toggle button is missing from the renderer toolbar.");
+      }
+      clickRendererElement(elements.actionToggleSnap);
+      await waitForRendererCondition(() => !isSnapEnabled(), "snap toggle to switch off");
+    }
+
+    if (isViewportTransformed()) {
+      if (!(elements.actionResetView instanceof HTMLButtonElement)) {
+        throw new Error("Reset View button is missing from the renderer toolbar.");
+      }
+      clickRendererElement(elements.actionResetView);
+    }
+
+    await waitForRendererCondition(
+      () => {
+        const view = getViewportState();
+        return Math.abs(view.zoom - 1) < 0.001 && Math.abs(view.panX) < 0.001 && Math.abs(view.panY) < 0.001;
+      },
+      "default viewport state"
+    );
+
+    if (!(elements.fieldPlaceholderPreset instanceof HTMLSelectElement)) {
+      throw new Error("Placeholder preset selector is missing from the renderer toolbar.");
+    }
+    updateRendererInputValue(elements.fieldPlaceholderPreset, presetKey);
+    await waitForRendererCondition(
+      () => state.placeholderPresetKey === presetKey && elements.fieldPlaceholderPreset?.value === presetKey,
+      `${presetKey} preset selection`
+    );
+
+    if (!(elements.actionNewObject instanceof HTMLButtonElement)) {
+      throw new Error("New Placeholder button is missing from the renderer toolbar.");
+    }
+    clickRendererElement(elements.actionNewObject);
+
+    const createdObject = await waitForRendererCondition(
+      () => {
+        const selectedObject = getSelectedObject();
+        if (!selectedObject || !selectedObject.id.startsWith(objectIdPrefix)) {
+          return null;
+        }
+        return selectedObject;
+      },
+      `new ${presetLabel} placeholder creation`
+    );
+    baseResult.objectCreated = true;
+    baseResult.objectSelected = true;
+    baseResult.objectId = createdObject.id;
+    baseResult.objectCountAfterCreate = Array.isArray(state.editorData?.objects) ? state.editorData.objects.length : null;
+    baseResult.createdLayerId = createdObject.layerId ?? null;
+    baseResult.createdX = Number(createdObject.x);
+    baseResult.createdY = Number(createdObject.y);
+    baseResult.createdWidth = Number(createdObject.width);
+    baseResult.createdHeight = Number(createdObject.height);
+
+    const targetPosition = getViewportAlignmentTarget(createdObject, alignmentAction);
+    if (!targetPosition) {
+      throw new Error(`Created ${createdObject.id} did not expose a valid viewport alignment target for ${alignmentAction}.`);
+    }
+
+    const alignButton = await waitForRendererCondition(
+      () => elements.editorToolbar?.querySelector(`[data-align-action="${alignmentAction}"]`) ?? null,
+      `${alignmentAction} viewport alignment control`
+    );
+    clickRendererElement(alignButton);
+
+    const alignedObject = await waitForRendererCondition(
+      () => {
+        const currentObject = getEditableObjectById(createdObject.id);
+        if (
+          !currentObject
+          || !state.dirty
+          || Number(currentObject.x) !== Number(targetPosition.x)
+          || Number(currentObject.y) !== Number(targetPosition.y)
+        ) {
+          return null;
+        }
+
+        return currentObject;
+      },
+      `${createdObject.id} to align through the live toolbar path`
+    );
+    baseResult.aligned = true;
+    baseResult.alignedX = Number(alignedObject.x);
+    baseResult.alignedY = Number(alignedObject.y);
+
+    if (!(elements.actionSave instanceof HTMLButtonElement)) {
+      throw new Error("Save button is missing from the renderer toolbar.");
+    }
+    clickRendererElement(elements.actionSave);
+    await waitForRendererCondition(
+      () => {
+        const currentObject = getEditableObjectById(createdObject.id);
+        return Boolean(
+          !state.dirty
+          && state.syncStatus?.status === "synced"
+          && currentObject
+          && Number(currentObject.x) === baseResult.alignedX
+          && Number(currentObject.y) === baseResult.alignedY
+        );
+      },
+      "renderer save and sync completion after live alignment",
+      { timeoutMs: 25000 }
+    );
+    baseResult.saveSucceeded = true;
+
+    if (!(elements.actionReloadEditor instanceof HTMLButtonElement)) {
+      throw new Error("Reload button is missing from the renderer toolbar.");
+    }
+    clickRendererElement(elements.actionReloadEditor);
+    await waitForRendererCondition(
+      () => state.selectedProjectId === targetProjectId && Boolean(state.editorData),
+      `${targetProjectId} reload after live alignment save`
+    );
+
+    if (state.selectedObjectId !== createdObject.id) {
+      const sceneExplorerButton = await waitForRendererCondition(
+        () => elements.sceneExplorer?.querySelector(`[data-object-id="${createdObject.id}"]`) ?? null,
+        `${createdObject.id} in the scene explorer after live alignment reload`
+      );
+      clickRendererElement(sceneExplorerButton);
+      await waitForRendererCondition(
+        () => state.selectedObjectId === createdObject.id,
+        `${createdObject.id} to be selected after live alignment reload`
+      );
+    }
+
+    const reloadedObject = await waitForRendererCondition(
+      () => {
+        const currentObject = getEditableObjectById(createdObject.id);
+        if (
+          !currentObject
+          || Number(currentObject.x) !== baseResult.alignedX
+          || Number(currentObject.y) !== baseResult.alignedY
+        ) {
+          return null;
+        }
+
+        return currentObject;
+      },
+      `${createdObject.id} persisted alignment after reload`
+    );
+    baseResult.reloadSucceeded = true;
+    baseResult.objectCountAfterReload = Array.isArray(state.editorData?.objects) ? state.editorData.objects.length : null;
+    baseResult.reloadedLayerId = reloadedObject.layerId ?? null;
+    baseResult.reloadedX = Number(reloadedObject.x);
+    baseResult.reloadedY = Number(reloadedObject.y);
+    baseResult.reloadedWidth = Number(reloadedObject.width);
+    baseResult.reloadedHeight = Number(reloadedObject.height);
+
+    const replayNode = getReplayNodeById(createdObject.id);
+    const replayPosition = replayNode?.position ?? {};
+    const replayX = Number(replayPosition.x);
+    const replayY = Number(replayPosition.y);
+    const replayWidth = Number(replayPosition.width);
+    const replayHeight = Number(replayPosition.height);
+    baseResult.replayX = Number.isFinite(replayX) ? replayX : null;
+    baseResult.replayY = Number.isFinite(replayY) ? replayY : null;
+    baseResult.replayWidth = Number.isFinite(replayWidth) ? replayWidth : null;
+    baseResult.replayHeight = Number.isFinite(replayHeight) ? replayHeight : null;
+    baseResult.replayLayerId = getReplayLayerIdByNodeId(createdObject.id);
+    baseResult.syncStatus = state.syncStatus?.status ?? null;
+    baseResult.replayPath = toRepoRelativePath(state.syncStatus?.replayPath ?? getReplayTargetPath() ?? "");
+
+    baseResult.internalPersistVerified = baseResult.reloadedX === baseResult.alignedX
+      && baseResult.reloadedY === baseResult.alignedY
+      && baseResult.reloadedWidth === baseResult.createdWidth
+      && baseResult.reloadedHeight === baseResult.createdHeight
+      && baseResult.reloadedLayerId === baseResult.createdLayerId;
+    baseResult.replaySyncVerified = baseResult.replayX === baseResult.alignedX
+      && baseResult.replayY === baseResult.alignedY
+      && baseResult.replayWidth === baseResult.createdWidth
+      && baseResult.replayHeight === baseResult.createdHeight
+      && baseResult.replayLayerId === baseResult.createdLayerId;
+
+    if (!baseResult.internalPersistVerified) {
+      throw new Error(`Reloaded created object alignment/state for ${createdObject.id} did not match the saved alignment result.`);
+    }
+
+    if (!baseResult.replaySyncVerified) {
+      throw new Error(`Replay-facing alignment/state for ${createdObject.id} did not match the saved alignment result.`);
+    }
+
+    const successMessage = `Live shell align smoke passed for ${createdObject.id}: aligned to the viewport ${baseResult.alignmentLabel} at (${baseResult.alignedX}, ${baseResult.alignedY}), saved, and reloaded through the Electron bridge.`;
+    setPreviewStatus(successMessage);
+    baseResult.previewStatus = successMessage;
+    document.body.dataset.liveAlignSmoke = "pass";
+
+    if (shouldKeepLiveAlignWindowOpen()) {
+      pushLog("Live align smoke keep-open mode is active for visible proof capture.");
+    }
+
+    await emitLiveAlignSmoke({
+      ...baseResult,
+      status: "pass"
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const failureMessage = `Live shell align smoke failed: ${message}`;
+    setPreviewStatus(failureMessage);
+    document.body.dataset.liveAlignSmoke = "fail";
+    await emitLiveAlignSmoke({
       ...baseResult,
       status: "fail",
       error: message,

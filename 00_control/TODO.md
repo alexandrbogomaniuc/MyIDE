@@ -188,6 +188,13 @@
 - [x] Keep the repository clean after the smoke by restoring the touched project files and local logs.
 - [x] Capture a live GUI artifact for the bounded create->resize persistence loop.
 
+## PHASE 5S
+- [x] Add a live-shell create->align persistence smoke path that uses the real Electron main/preload/renderer bridge.
+- [x] Prove `project_001` can be loaded, one placeholder preset object created through the real shell action path, aligned through the real toolbar alignment UI, saved, and reloaded through the live shell path.
+- [x] Verify the same live-shell create->align loop reaches replay-facing generated `project.json`.
+- [x] Keep the repository clean after the smoke by restoring the touched project files and local logs.
+- [x] Capture a live GUI artifact for the bounded create->align persistence loop.
+
 ## Deferred
 - [ ] Donor decoding automation.
 - [ ] Full editor interactions.

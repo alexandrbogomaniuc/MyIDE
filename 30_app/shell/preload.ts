@@ -133,6 +133,9 @@ contextBridge.exposeInMainWorld("myideApi", {
   reportLiveResizeSmokeResult: (payload: unknown): void => {
     ipcRenderer.send("myide:live-resize-smoke-result", payload);
   },
+  reportLiveAlignSmokeResult: (payload: unknown): void => {
+    ipcRenderer.send("myide:live-align-smoke-result", payload);
+  },
   loadProjectSlice: (selectedProjectId?: string): Promise<ProjectSliceBundle> => ipcRenderer.invoke("myide:load-project-slice", selectedProjectId),
   createProject: (input: ShellCreateProjectInput): Promise<ShellCreateProjectResult> => ipcRenderer.invoke("myide:create-project", input),
   saveProjectEditor: (projectId: string, data: EditableProjectData): Promise<SaveEditableProjectResult> => ipcRenderer.invoke("myide:save-project-editor", projectId, data),
