@@ -160,6 +160,13 @@
 - [x] Keep the repository clean after the smoke by restoring the touched project files and local logs.
 - [x] Capture a live GUI artifact for the bounded create->drag persistence loop.
 
+## PHASE 5O
+- [x] Add a live-shell create->duplicate/delete persistence smoke path that uses the real Electron main/preload/renderer bridge.
+- [x] Prove `project_001` can be loaded, one placeholder preset object created through the real shell action path, duplicated through the real shell UI, one of the two deleted, saved, and reloaded through the live shell path.
+- [x] Verify the same live-shell create->duplicate/delete loop reaches replay-facing generated `project.json`.
+- [x] Keep the repository clean after the smoke by restoring the touched project files and local logs.
+- [x] Capture a live GUI artifact for the bounded create->duplicate/delete persistence loop.
+
 ## Deferred
 - [ ] Donor decoding automation.
 - [ ] Full editor interactions.

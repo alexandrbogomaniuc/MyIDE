@@ -10,12 +10,15 @@ const isBridgeSmokeMode = process.env.MYIDE_BRIDGE_SMOKE === "1";
 const isLivePersistSmokeMode = process.env.MYIDE_LIVE_PERSIST_SMOKE === "1";
 const isLiveDragSmokeMode = process.env.MYIDE_LIVE_DRAG_SMOKE === "1";
 const isLiveCreateDragSmokeMode = process.env.MYIDE_LIVE_CREATE_DRAG_SMOKE === "1";
+const isLiveDuplicateDeleteSmokeMode = process.env.MYIDE_LIVE_DUPLICATE_DELETE_SMOKE === "1";
 const shouldKeepLivePersistWindowOpen = process.env.MYIDE_LIVE_PERSIST_KEEP_OPEN === "1";
 const shouldShowLivePersistWindow = process.env.MYIDE_LIVE_PERSIST_SHOW === "1" || shouldKeepLivePersistWindowOpen;
 const shouldKeepLiveDragWindowOpen = process.env.MYIDE_LIVE_DRAG_KEEP_OPEN === "1";
 const shouldShowLiveDragWindow = process.env.MYIDE_LIVE_DRAG_SHOW === "1" || shouldKeepLiveDragWindowOpen;
 const shouldKeepLiveCreateDragWindowOpen = process.env.MYIDE_LIVE_CREATE_DRAG_KEEP_OPEN === "1";
 const shouldShowLiveCreateDragWindow = process.env.MYIDE_LIVE_CREATE_DRAG_SHOW === "1" || shouldKeepLiveCreateDragWindowOpen;
+const shouldKeepLiveDuplicateDeleteWindowOpen = process.env.MYIDE_LIVE_DUPLICATE_DELETE_KEEP_OPEN === "1";
+const shouldShowLiveDuplicateDeleteWindow = process.env.MYIDE_LIVE_DUPLICATE_DELETE_SHOW === "1" || shouldKeepLiveDuplicateDeleteWindowOpen;
 
 interface BridgeHealthSnapshot {
   preloadPath: string;
@@ -52,11 +55,17 @@ interface LiveCreateDragSmokePayload {
   error?: string;
 }
 
+interface LiveDuplicateDeleteSmokePayload {
+  status?: string;
+  error?: string;
+}
+
 const bridgeHealthState: BridgeHealthSnapshot = createBridgeHealthSnapshot(resolvePreloadPath());
 let activeBridgeSmokeReporter: ((payload: BridgeSmokePayload) => void) | null = null;
 let activeLivePersistSmokeReporter: ((payload: LivePersistSmokePayload) => void) | null = null;
 let activeLiveDragSmokeReporter: ((payload: LiveDragSmokePayload) => void) | null = null;
 let activeLiveCreateDragSmokeReporter: ((payload: LiveCreateDragSmokePayload) => void) | null = null;
+let activeLiveDuplicateDeleteSmokeReporter: ((payload: LiveDuplicateDeleteSmokePayload) => void) | null = null;
 
 function resolvePreloadPath(): string {
   return path.resolve(__dirname, "preload.js");
@@ -140,6 +149,22 @@ function finishLiveCreateDragSmoke(exitCode: number, message: string): void {
   }
 
   if (shouldKeepLiveCreateDragWindowOpen && exitCode === 0) {
+    return;
+  }
+
+  setTimeout(() => {
+    app.exit(exitCode);
+  }, 0);
+}
+
+function finishLiveDuplicateDeleteSmoke(exitCode: number, message: string): void {
+  if (exitCode === 0) {
+    console.log(message);
+  } else {
+    console.error(message);
+  }
+
+  if (shouldKeepLiveDuplicateDeleteWindowOpen && exitCode === 0) {
     return;
   }
 
@@ -297,6 +322,43 @@ function attachLiveCreateDragSmokeHandlers(window: BrowserWindow): void {
   };
 }
 
+function attachLiveDuplicateDeleteSmokeHandlers(window: BrowserWindow): void {
+  if (!isLiveDuplicateDeleteSmokeMode) {
+    return;
+  }
+
+  console.log("MYIDE_LIVE_DUPLICATE_DELETE_MAIN_READY");
+  const timeoutMs = Number.parseInt(process.env.MYIDE_LIVE_DUPLICATE_DELETE_TIMEOUT_MS ?? "45000", 10);
+  const smokeTimeout = setTimeout(() => {
+    finishLiveDuplicateDeleteSmoke(1, "FAIL smoke:electron-live-duplicate-delete - timeout waiting for renderer duplicate-delete payload");
+  }, Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 45000);
+
+  const clearSmokeTimeout = () => {
+    clearTimeout(smokeTimeout);
+  };
+
+  window.webContents.on("did-fail-load", (_event, errorCode, errorDescription) => {
+    clearSmokeTimeout();
+    finishLiveDuplicateDeleteSmoke(1, `FAIL smoke:electron-live-duplicate-delete - renderer failed to load (${errorCode} ${errorDescription})`);
+  });
+
+  window.webContents.on("render-process-gone", (_event, details) => {
+    clearSmokeTimeout();
+    finishLiveDuplicateDeleteSmoke(1, `FAIL smoke:electron-live-duplicate-delete - renderer process exited (${details.reason})`);
+  });
+
+  activeLiveDuplicateDeleteSmokeReporter = (payload) => {
+    clearSmokeTimeout();
+    console.log(`MYIDE_LIVE_DUPLICATE_DELETE_RESULT:${JSON.stringify(payload)}`);
+    if (payload.status === "pass") {
+      finishLiveDuplicateDeleteSmoke(0, "PASS smoke:electron-live-duplicate-delete");
+      return;
+    }
+
+    finishLiveDuplicateDeleteSmoke(1, `FAIL smoke:electron-live-duplicate-delete - ${payload.error ?? "renderer reported failure"}`);
+  };
+}
+
 function createWindow(): void {
   const preloadPath = resolvePreloadPath();
   resetBridgeHealthState(preloadPath);
@@ -312,7 +374,9 @@ function createWindow(): void {
           ? shouldShowLivePersistWindow
           : (isLiveDragSmokeMode
               ? shouldShowLiveDragWindow
-              : (isLiveCreateDragSmokeMode ? shouldShowLiveCreateDragWindow : true))),
+              : (isLiveCreateDragSmokeMode
+                  ? shouldShowLiveCreateDragWindow
+                  : (isLiveDuplicateDeleteSmokeMode ? shouldShowLiveDuplicateDeleteWindow : true)))),
     backgroundColor: "#0b1017",
     title: "MyIDE",
     webPreferences: {
@@ -328,6 +392,7 @@ function createWindow(): void {
   attachLivePersistSmokeHandlers(window);
   attachLiveDragSmokeHandlers(window);
   attachLiveCreateDragSmokeHandlers(window);
+  attachLiveDuplicateDeleteSmokeHandlers(window);
   const query = {
     ...(isBridgeSmokeMode ? { bridgeSmoke: "1" } : {}),
     ...(isLivePersistSmokeMode ? { livePersistSmoke: "1" } : {}),
@@ -335,7 +400,9 @@ function createWindow(): void {
     ...(isLiveDragSmokeMode ? { liveDragSmoke: "1" } : {}),
     ...(shouldKeepLiveDragWindowOpen ? { liveDragKeepOpen: "1" } : {}),
     ...(isLiveCreateDragSmokeMode ? { liveCreateDragSmoke: "1" } : {}),
-    ...(shouldKeepLiveCreateDragWindowOpen ? { liveCreateDragKeepOpen: "1" } : {})
+    ...(shouldKeepLiveCreateDragWindowOpen ? { liveCreateDragKeepOpen: "1" } : {}),
+    ...(isLiveDuplicateDeleteSmokeMode ? { liveDuplicateDeleteSmoke: "1" } : {}),
+    ...(shouldKeepLiveDuplicateDeleteWindowOpen ? { liveDuplicateDeleteKeepOpen: "1" } : {})
   };
   void window.loadFile(rendererPath, query ? { query } : undefined);
 }
@@ -387,6 +454,12 @@ ipcMain.on("myide:live-drag-smoke-result", (_event, payload: LiveDragSmokePayloa
 ipcMain.on("myide:live-create-drag-smoke-result", (_event, payload: LiveCreateDragSmokePayload) => {
   if (typeof activeLiveCreateDragSmokeReporter === "function") {
     activeLiveCreateDragSmokeReporter(payload ?? {});
+  }
+});
+
+ipcMain.on("myide:live-duplicate-delete-smoke-result", (_event, payload: LiveDuplicateDeleteSmokePayload) => {
+  if (typeof activeLiveDuplicateDeleteSmokeReporter === "function") {
+    activeLiveDuplicateDeleteSmokeReporter(payload ?? {});
   }
 });
 

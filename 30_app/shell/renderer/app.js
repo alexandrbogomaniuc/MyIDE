@@ -143,6 +143,15 @@ function isLiveCreateDragSmokeMode() {
   }
 }
 
+function isLiveDuplicateDeleteSmokeMode() {
+  try {
+    const search = typeof window.location?.search === "string" ? window.location.search : "";
+    return new URLSearchParams(search).get("liveDuplicateDeleteSmoke") === "1";
+  } catch {
+    return false;
+  }
+}
+
 function shouldKeepLivePersistWindowOpen() {
   try {
     const search = typeof window.location?.search === "string" ? window.location.search : "";
@@ -165,6 +174,15 @@ function shouldKeepLiveCreateDragWindowOpen() {
   try {
     const search = typeof window.location?.search === "string" ? window.location.search : "";
     return new URLSearchParams(search).get("liveCreateDragKeepOpen") === "1";
+  } catch {
+    return false;
+  }
+}
+
+function shouldKeepLiveDuplicateDeleteWindowOpen() {
+  try {
+    const search = typeof window.location?.search === "string" ? window.location.search : "";
+    return new URLSearchParams(search).get("liveDuplicateDeleteKeepOpen") === "1";
   } catch {
     return false;
   }
@@ -223,6 +241,20 @@ async function emitLiveCreateDragSmoke(payload) {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.log(`MYIDE_LIVE_CREATE_DRAG:${JSON.stringify({ status: "fail", error: `live create-drag payload serialization failed: ${message}` })}`);
+  }
+}
+
+async function emitLiveDuplicateDeleteSmoke(payload) {
+  try {
+    if (window.myideApi && typeof window.myideApi.reportLiveDuplicateDeleteSmokeResult === "function") {
+      window.myideApi.reportLiveDuplicateDeleteSmokeResult(payload);
+      return;
+    }
+
+    console.log(`MYIDE_LIVE_DUPLICATE_DELETE:${JSON.stringify(payload)}`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.log(`MYIDE_LIVE_DUPLICATE_DELETE:${JSON.stringify({ status: "fail", error: `live duplicate-delete payload serialization failed: ${message}` })}`);
   }
 }
 
@@ -336,6 +368,12 @@ async function bootRenderer() {
 
   if (isLiveCreateDragSmokeMode()) {
     await runLiveCreateDragSmoke();
+    return;
+  }
+
+  if (isLiveDuplicateDeleteSmokeMode()) {
+    await runLiveDuplicateDeleteSmoke();
+    return;
   }
 }
 
@@ -1182,6 +1220,289 @@ async function runLiveCreateDragSmoke() {
     setPreviewStatus(failureMessage);
     document.body.dataset.liveCreateDragSmoke = "fail";
     await emitLiveCreateDragSmoke({
+      ...baseResult,
+      status: "fail",
+      error: message,
+      previewStatus: failureMessage
+    });
+  }
+}
+
+async function runLiveDuplicateDeleteSmoke() {
+  const targetProjectId = "project_001";
+  const presetKey = "banner";
+  const presetLabel = "Banner";
+  const objectIdPrefix = "node.placeholder.banner-";
+  const startedAt = new Date().toISOString();
+  const baseResult = {
+    startedAt,
+    projectId: targetProjectId,
+    presetKey,
+    presetLabel,
+    createdObjectId: null,
+    duplicateObjectId: null,
+    deletedObjectId: null,
+    survivingObjectId: null,
+    preloadExecuted: Boolean(window.myideApi),
+    myideApiExposed: Boolean(window.myideApi && typeof window.myideApi.loadProjectSlice === "function"),
+    projectLoaded: false,
+    objectCreated: false,
+    duplicateCreated: false,
+    deleteCompleted: false,
+    survivingObjectSelected: false,
+    saveSucceeded: false,
+    reloadSucceeded: false,
+    internalPersistVerified: false,
+    replaySyncVerified: false,
+    repoStatusIntent: "renderer smoke mutates live files temporarily; outer smoke runner must restore them",
+    objectCountBefore: null,
+    objectCountAfterCreate: null,
+    objectCountAfterDuplicate: null,
+    objectCountAfterDelete: null,
+    objectCountAfterReload: null,
+    createdX: null,
+    createdY: null,
+    duplicateX: null,
+    duplicateY: null,
+    reloadedX: null,
+    reloadedY: null,
+    replayX: null,
+    replayY: null,
+    syncStatus: null,
+    replayPath: null,
+    previewStatus: null
+  };
+
+  try {
+    const api = window.myideApi;
+    if (
+      !api
+      || typeof api.loadProjectSlice !== "function"
+      || typeof api.saveProjectEditor !== "function"
+      || typeof api.reportRendererReady !== "function"
+    ) {
+      throw new Error("Renderer live duplicate-delete smoke could not access the required desktop bridge helpers.");
+    }
+
+    await waitForRendererCondition(
+      () => Boolean(state.bundle && getWorkspaceProjects().length > 0),
+      "workspace discovery"
+    );
+
+    if (state.selectedProjectId !== targetProjectId) {
+      const projectButton = await waitForRendererCondition(
+        () => elements.projectBrowser?.querySelector(`[data-project-id="${targetProjectId}"]`) ?? null,
+        `project browser entry for ${targetProjectId}`
+      );
+      clickRendererElement(projectButton);
+    }
+
+    await waitForRendererCondition(
+      () => state.selectedProjectId === targetProjectId && Boolean(state.editorData),
+      `${targetProjectId} to load in the renderer`
+    );
+    baseResult.projectLoaded = true;
+    baseResult.objectCountBefore = Array.isArray(state.editorData?.objects) ? state.editorData.objects.length : null;
+
+    if (isSnapEnabled()) {
+      if (!(elements.actionToggleSnap instanceof HTMLButtonElement)) {
+        throw new Error("Snap toggle button is missing from the renderer toolbar.");
+      }
+      clickRendererElement(elements.actionToggleSnap);
+      await waitForRendererCondition(() => !isSnapEnabled(), "snap toggle to switch off");
+    }
+
+    if (isViewportTransformed()) {
+      if (!(elements.actionResetView instanceof HTMLButtonElement)) {
+        throw new Error("Reset View button is missing from the renderer toolbar.");
+      }
+      clickRendererElement(elements.actionResetView);
+    }
+
+    await waitForRendererCondition(
+      () => {
+        const view = getViewportState();
+        return Math.abs(view.zoom - 1) < 0.001 && Math.abs(view.panX) < 0.001 && Math.abs(view.panY) < 0.001;
+      },
+      "default viewport state"
+    );
+
+    if (!(elements.fieldPlaceholderPreset instanceof HTMLSelectElement)) {
+      throw new Error("Placeholder preset selector is missing from the renderer toolbar.");
+    }
+    updateRendererInputValue(elements.fieldPlaceholderPreset, presetKey);
+    await waitForRendererCondition(
+      () => state.placeholderPresetKey === presetKey && elements.fieldPlaceholderPreset?.value === presetKey,
+      `${presetKey} preset selection`
+    );
+
+    if (!(elements.actionNewObject instanceof HTMLButtonElement)) {
+      throw new Error("New Placeholder button is missing from the renderer toolbar.");
+    }
+    clickRendererElement(elements.actionNewObject);
+
+    const createdObject = await waitForRendererCondition(
+      () => {
+        const selectedObject = getSelectedObject();
+        if (!selectedObject || !selectedObject.id.startsWith(objectIdPrefix)) {
+          return null;
+        }
+        return selectedObject;
+      },
+      `new ${presetLabel} placeholder creation`
+    );
+    baseResult.objectCreated = true;
+    baseResult.createdObjectId = createdObject.id;
+    baseResult.survivingObjectId = createdObject.id;
+    baseResult.createdX = Number(createdObject.x);
+    baseResult.createdY = Number(createdObject.y);
+    baseResult.objectCountAfterCreate = Array.isArray(state.editorData?.objects) ? state.editorData.objects.length : null;
+
+    if (!(elements.actionDuplicate instanceof HTMLButtonElement)) {
+      throw new Error("Duplicate button is missing from the renderer toolbar.");
+    }
+    clickRendererElement(elements.actionDuplicate);
+
+    const duplicateObject = await waitForRendererCondition(
+      () => {
+        const selectedObject = getSelectedObject();
+        if (!selectedObject || selectedObject.id === createdObject.id || !selectedObject.id.startsWith(`${createdObject.id}-copy`)) {
+          return null;
+        }
+        return selectedObject;
+      },
+      `${createdObject.id} duplicate creation`
+    );
+    baseResult.duplicateCreated = true;
+    baseResult.duplicateObjectId = duplicateObject.id;
+    baseResult.duplicateX = Number(duplicateObject.x);
+    baseResult.duplicateY = Number(duplicateObject.y);
+    baseResult.objectCountAfterDuplicate = Array.isArray(state.editorData?.objects) ? state.editorData.objects.length : null;
+
+    if (!(elements.actionDelete instanceof HTMLButtonElement)) {
+      throw new Error("Delete button is missing from the renderer toolbar.");
+    }
+    clickRendererElement(elements.actionDelete);
+
+    await waitForRendererCondition(
+      () => {
+        const survivingObject = getEditableObjectById(createdObject.id);
+        const deletedObject = getEditableObjectById(duplicateObject.id);
+        return Boolean(
+          survivingObject
+          && !deletedObject
+          && state.dirty
+        );
+      },
+      `${duplicateObject.id} to be deleted while ${createdObject.id} remains`
+    );
+    baseResult.deleteCompleted = true;
+    baseResult.deletedObjectId = duplicateObject.id;
+    baseResult.objectCountAfterDelete = Array.isArray(state.editorData?.objects) ? state.editorData.objects.length : null;
+
+    if (state.selectedObjectId !== createdObject.id) {
+      const survivingObjectButton = await waitForRendererCondition(
+        () => elements.sceneExplorer?.querySelector(`[data-object-id="${createdObject.id}"]`) ?? null,
+        `${createdObject.id} in the scene explorer after duplicate delete`
+      );
+      clickRendererElement(survivingObjectButton);
+      await waitForRendererCondition(
+        () => state.selectedObjectId === createdObject.id,
+        `${createdObject.id} to be selected after duplicate delete`
+      );
+    }
+    baseResult.survivingObjectSelected = state.selectedObjectId === createdObject.id;
+
+    if (!(elements.actionSave instanceof HTMLButtonElement)) {
+      throw new Error("Save button is missing from the renderer toolbar.");
+    }
+    clickRendererElement(elements.actionSave);
+    await waitForRendererCondition(
+      () => {
+        const survivingObject = getEditableObjectById(createdObject.id);
+        return Boolean(
+          !state.dirty
+          && state.syncStatus?.status === "synced"
+          && survivingObject
+          && !getEditableObjectById(duplicateObject.id)
+          && Number(survivingObject.x) === baseResult.createdX
+          && Number(survivingObject.y) === baseResult.createdY
+        );
+      },
+      "renderer save and sync completion after live duplicate-delete",
+      { timeoutMs: 25000 }
+    );
+    baseResult.saveSucceeded = true;
+
+    if (!(elements.actionReloadEditor instanceof HTMLButtonElement)) {
+      throw new Error("Reload button is missing from the renderer toolbar.");
+    }
+    clickRendererElement(elements.actionReloadEditor);
+    await waitForRendererCondition(
+      () => state.selectedProjectId === targetProjectId && Boolean(state.editorData),
+      `${targetProjectId} reload after live duplicate-delete save`
+    );
+
+    const reloadedObject = await waitForRendererCondition(
+      () => {
+        const survivingObject = getEditableObjectById(createdObject.id);
+        if (!survivingObject || getEditableObjectById(duplicateObject.id)) {
+          return null;
+        }
+        return Number(survivingObject.x) === baseResult.createdX && Number(survivingObject.y) === baseResult.createdY
+          ? survivingObject
+          : null;
+      },
+      `${createdObject.id} surviving duplicate-delete reload state`
+    );
+    baseResult.reloadSucceeded = true;
+    baseResult.objectCountAfterReload = Array.isArray(state.editorData?.objects) ? state.editorData.objects.length : null;
+    baseResult.reloadedX = Number(reloadedObject.x);
+    baseResult.reloadedY = Number(reloadedObject.y);
+
+    const replayNode = getReplayNodeById(createdObject.id);
+    const deletedReplayNode = getReplayNodeById(duplicateObject.id);
+    const replayX = Number(replayNode?.position?.x);
+    const replayY = Number(replayNode?.position?.y);
+    baseResult.replayX = Number.isFinite(replayX) ? replayX : null;
+    baseResult.replayY = Number.isFinite(replayY) ? replayY : null;
+    baseResult.syncStatus = state.syncStatus?.status ?? null;
+    baseResult.replayPath = toRepoRelativePath(state.syncStatus?.replayPath ?? getReplayTargetPath() ?? "");
+
+    baseResult.internalPersistVerified = baseResult.reloadedX === baseResult.createdX
+      && baseResult.reloadedY === baseResult.createdY
+      && !getEditableObjectById(duplicateObject.id);
+    baseResult.replaySyncVerified = baseResult.replayX === baseResult.createdX
+      && baseResult.replayY === baseResult.createdY
+      && !deletedReplayNode;
+
+    if (!baseResult.internalPersistVerified) {
+      throw new Error(`Reloaded duplicate-delete state for ${createdObject.id} did not match the expected surviving created-object coordinates.`);
+    }
+
+    if (!baseResult.replaySyncVerified) {
+      throw new Error(`Replay-facing duplicate-delete state for ${createdObject.id} did not match the expected surviving created-object coordinates.`);
+    }
+
+    const successMessage = `Live shell duplicate-delete smoke passed for ${createdObject.id}: duplicated to ${duplicateObject.id}, deleted the copy, and reloaded the surviving object at (${baseResult.createdX}, ${baseResult.createdY}).`;
+    setPreviewStatus(successMessage);
+    baseResult.previewStatus = successMessage;
+    document.body.dataset.liveDuplicateDeleteSmoke = "pass";
+
+    if (shouldKeepLiveDuplicateDeleteWindowOpen()) {
+      pushLog("Live duplicate-delete smoke keep-open mode is active for visible proof capture.");
+    }
+
+    await emitLiveDuplicateDeleteSmoke({
+      ...baseResult,
+      status: "pass"
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const failureMessage = `Live shell duplicate-delete smoke failed: ${message}`;
+    setPreviewStatus(failureMessage);
+    document.body.dataset.liveDuplicateDeleteSmoke = "fail";
+    await emitLiveDuplicateDeleteSmoke({
       ...baseResult,
       status: "fail",
       error: message,

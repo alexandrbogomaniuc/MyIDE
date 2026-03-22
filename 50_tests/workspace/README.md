@@ -19,6 +19,7 @@
 - `npm run build && node dist/50_tests/workspace/electron-live-persist-smoke.js`
 - `npm run build && node dist/50_tests/workspace/electron-live-drag-smoke.js`
 - `npm run build && node dist/50_tests/workspace/electron-live-create-drag-smoke.js`
+- `npm run build && node dist/50_tests/workspace/electron-live-duplicate-delete-smoke.js`
 - `npm run verify:persistence`
 - `npm run verify:workspace`
 
@@ -37,5 +38,6 @@
 - The electron-live-persist smoke test launches the real Electron shell, drives the renderer action path for object selection, inspector edit, save, and reload, verifies both internal editable data and replay-facing `project.json`, writes `/tmp/myide-electron-live-persist.json`, and restores the touched project files/logs so the repo status returns to baseline.
 - The electron-live-drag smoke test launches the real Electron shell, drives the renderer canvas pointer path for object selection, drag, save, and reload, verifies both internal editable data and replay-facing `project.json`, writes `/tmp/myide-electron-live-drag.json`, and restores the touched project files/logs so the repo status returns to baseline.
 - The electron-live-create-drag smoke test launches the real Electron shell, drives the renderer preset selection + new-placeholder action + canvas pointer path, verifies the newly created object persists through save/reload in both internal editable data and replay-facing `project.json`, writes `/tmp/myide-electron-live-create-drag.json`, and restores the touched project files/logs so the repo status returns to baseline.
+- The electron-live-duplicate-delete smoke test launches the real Electron shell, drives the renderer preset selection + new-placeholder action + duplicate/delete toolbar path, verifies the surviving created object persists through save/reload in both internal editable data and replay-facing `project.json` while the deleted duplicate stays absent, writes `/tmp/myide-electron-live-duplicate-delete.json`, and restores the touched project files/logs so the repo status returns to baseline.
 - The latest demo artifact writes a concise before/after note to `50_tests/workspace/project_001-demo.md` with live-shell persisted object context.
 - `project_001` remains the validated replay slice.
