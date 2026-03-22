@@ -9,10 +9,13 @@ import { loadWorkspaceSlice } from "./workspaceSlice";
 const isBridgeSmokeMode = process.env.MYIDE_BRIDGE_SMOKE === "1";
 const isLivePersistSmokeMode = process.env.MYIDE_LIVE_PERSIST_SMOKE === "1";
 const isLiveDragSmokeMode = process.env.MYIDE_LIVE_DRAG_SMOKE === "1";
+const isLiveCreateDragSmokeMode = process.env.MYIDE_LIVE_CREATE_DRAG_SMOKE === "1";
 const shouldKeepLivePersistWindowOpen = process.env.MYIDE_LIVE_PERSIST_KEEP_OPEN === "1";
 const shouldShowLivePersistWindow = process.env.MYIDE_LIVE_PERSIST_SHOW === "1" || shouldKeepLivePersistWindowOpen;
 const shouldKeepLiveDragWindowOpen = process.env.MYIDE_LIVE_DRAG_KEEP_OPEN === "1";
 const shouldShowLiveDragWindow = process.env.MYIDE_LIVE_DRAG_SHOW === "1" || shouldKeepLiveDragWindowOpen;
+const shouldKeepLiveCreateDragWindowOpen = process.env.MYIDE_LIVE_CREATE_DRAG_KEEP_OPEN === "1";
+const shouldShowLiveCreateDragWindow = process.env.MYIDE_LIVE_CREATE_DRAG_SHOW === "1" || shouldKeepLiveCreateDragWindowOpen;
 
 interface BridgeHealthSnapshot {
   preloadPath: string;
@@ -44,10 +47,16 @@ interface LiveDragSmokePayload {
   error?: string;
 }
 
+interface LiveCreateDragSmokePayload {
+  status?: string;
+  error?: string;
+}
+
 const bridgeHealthState: BridgeHealthSnapshot = createBridgeHealthSnapshot(resolvePreloadPath());
 let activeBridgeSmokeReporter: ((payload: BridgeSmokePayload) => void) | null = null;
 let activeLivePersistSmokeReporter: ((payload: LivePersistSmokePayload) => void) | null = null;
 let activeLiveDragSmokeReporter: ((payload: LiveDragSmokePayload) => void) | null = null;
+let activeLiveCreateDragSmokeReporter: ((payload: LiveCreateDragSmokePayload) => void) | null = null;
 
 function resolvePreloadPath(): string {
   return path.resolve(__dirname, "preload.js");
@@ -115,6 +124,22 @@ function finishLiveDragSmoke(exitCode: number, message: string): void {
   }
 
   if (shouldKeepLiveDragWindowOpen && exitCode === 0) {
+    return;
+  }
+
+  setTimeout(() => {
+    app.exit(exitCode);
+  }, 0);
+}
+
+function finishLiveCreateDragSmoke(exitCode: number, message: string): void {
+  if (exitCode === 0) {
+    console.log(message);
+  } else {
+    console.error(message);
+  }
+
+  if (shouldKeepLiveCreateDragWindowOpen && exitCode === 0) {
     return;
   }
 
@@ -235,6 +260,43 @@ function attachLiveDragSmokeHandlers(window: BrowserWindow): void {
   };
 }
 
+function attachLiveCreateDragSmokeHandlers(window: BrowserWindow): void {
+  if (!isLiveCreateDragSmokeMode) {
+    return;
+  }
+
+  console.log("MYIDE_LIVE_CREATE_DRAG_MAIN_READY");
+  const timeoutMs = Number.parseInt(process.env.MYIDE_LIVE_CREATE_DRAG_TIMEOUT_MS ?? "45000", 10);
+  const smokeTimeout = setTimeout(() => {
+    finishLiveCreateDragSmoke(1, "FAIL smoke:electron-live-create-drag - timeout waiting for renderer create-drag payload");
+  }, Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 45000);
+
+  const clearSmokeTimeout = () => {
+    clearTimeout(smokeTimeout);
+  };
+
+  window.webContents.on("did-fail-load", (_event, errorCode, errorDescription) => {
+    clearSmokeTimeout();
+    finishLiveCreateDragSmoke(1, `FAIL smoke:electron-live-create-drag - renderer failed to load (${errorCode} ${errorDescription})`);
+  });
+
+  window.webContents.on("render-process-gone", (_event, details) => {
+    clearSmokeTimeout();
+    finishLiveCreateDragSmoke(1, `FAIL smoke:electron-live-create-drag - renderer process exited (${details.reason})`);
+  });
+
+  activeLiveCreateDragSmokeReporter = (payload) => {
+    clearSmokeTimeout();
+    console.log(`MYIDE_LIVE_CREATE_DRAG_RESULT:${JSON.stringify(payload)}`);
+    if (payload.status === "pass") {
+      finishLiveCreateDragSmoke(0, "PASS smoke:electron-live-create-drag");
+      return;
+    }
+
+    finishLiveCreateDragSmoke(1, `FAIL smoke:electron-live-create-drag - ${payload.error ?? "renderer reported failure"}`);
+  };
+}
+
 function createWindow(): void {
   const preloadPath = resolvePreloadPath();
   resetBridgeHealthState(preloadPath);
@@ -248,7 +310,9 @@ function createWindow(): void {
       ? false
       : (isLivePersistSmokeMode
           ? shouldShowLivePersistWindow
-          : (isLiveDragSmokeMode ? shouldShowLiveDragWindow : true)),
+          : (isLiveDragSmokeMode
+              ? shouldShowLiveDragWindow
+              : (isLiveCreateDragSmokeMode ? shouldShowLiveCreateDragWindow : true))),
     backgroundColor: "#0b1017",
     title: "MyIDE",
     webPreferences: {
@@ -263,12 +327,15 @@ function createWindow(): void {
   attachBridgeSmokeHandlers(window);
   attachLivePersistSmokeHandlers(window);
   attachLiveDragSmokeHandlers(window);
+  attachLiveCreateDragSmokeHandlers(window);
   const query = {
     ...(isBridgeSmokeMode ? { bridgeSmoke: "1" } : {}),
     ...(isLivePersistSmokeMode ? { livePersistSmoke: "1" } : {}),
     ...(shouldKeepLivePersistWindowOpen ? { livePersistKeepOpen: "1" } : {}),
     ...(isLiveDragSmokeMode ? { liveDragSmoke: "1" } : {}),
-    ...(shouldKeepLiveDragWindowOpen ? { liveDragKeepOpen: "1" } : {})
+    ...(shouldKeepLiveDragWindowOpen ? { liveDragKeepOpen: "1" } : {}),
+    ...(isLiveCreateDragSmokeMode ? { liveCreateDragSmoke: "1" } : {}),
+    ...(shouldKeepLiveCreateDragWindowOpen ? { liveCreateDragKeepOpen: "1" } : {})
   };
   void window.loadFile(rendererPath, query ? { query } : undefined);
 }
@@ -314,6 +381,12 @@ ipcMain.on("myide:live-persist-smoke-result", (_event, payload: LivePersistSmoke
 ipcMain.on("myide:live-drag-smoke-result", (_event, payload: LiveDragSmokePayload) => {
   if (typeof activeLiveDragSmokeReporter === "function") {
     activeLiveDragSmokeReporter(payload ?? {});
+  }
+});
+
+ipcMain.on("myide:live-create-drag-smoke-result", (_event, payload: LiveCreateDragSmokePayload) => {
+  if (typeof activeLiveCreateDragSmokeReporter === "function") {
+    activeLiveCreateDragSmokeReporter(payload ?? {});
   }
 });
 

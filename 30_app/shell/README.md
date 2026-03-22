@@ -17,6 +17,7 @@ Electron desktop shell for MyIDE.
 - Support a dedicated Electron bridge smoke mode that verifies main start, preload execution, `window.myideApi`, bridge calls, and `project_001` load while writing a machine-readable artifact to `/tmp/myide-electron-bridge-smoke.json`.
 - Support a dedicated Electron live-persist smoke mode that uses the real renderer action flow to load `project_001`, select an editable object, edit it through the inspector path, save, reload, verify replay-facing sync, and write `/tmp/myide-electron-live-persist.json` while the outer smoke harness restores the touched project files and logs.
 - Support a dedicated Electron live-drag smoke mode that uses the real renderer pointer path to load `project_001`, select an editable canvas object, drag it, save, reload, verify replay-facing sync, and write `/tmp/myide-electron-live-drag.json` while the outer smoke harness restores the touched project files and logs.
+- Support a dedicated Electron live-create-drag smoke mode that uses the real renderer preset selection + new-placeholder action + pointer drag path to load `project_001`, create a placeholder object, drag it, save, reload, verify replay-facing sync, and write `/tmp/myide-electron-live-create-drag.json` while the outer smoke harness restores the touched project files and logs.
 - Keep the validated `project_001` replay slice intact.
 - Keep donor decoding and server integration out of this phase.
 

@@ -18,6 +18,7 @@
 - `npm run build && node dist/50_tests/workspace/electron-bridge-smoke.js`
 - `npm run build && node dist/50_tests/workspace/electron-live-persist-smoke.js`
 - `npm run build && node dist/50_tests/workspace/electron-live-drag-smoke.js`
+- `npm run build && node dist/50_tests/workspace/electron-live-create-drag-smoke.js`
 - `npm run verify:persistence`
 - `npm run verify:workspace`
 
@@ -35,5 +36,6 @@
 - The electron-bridge smoke test launches Electron in dedicated smoke mode, asserts main startup, preload bridge exposure, renderer-ready handshake, renderer bridge call success, and `project_001` workspace load over `window.myideApi.loadProjectSlice`, then writes `/tmp/myide-electron-bridge-smoke.json`.
 - The electron-live-persist smoke test launches the real Electron shell, drives the renderer action path for object selection, inspector edit, save, and reload, verifies both internal editable data and replay-facing `project.json`, writes `/tmp/myide-electron-live-persist.json`, and restores the touched project files/logs so the repo status returns to baseline.
 - The electron-live-drag smoke test launches the real Electron shell, drives the renderer canvas pointer path for object selection, drag, save, and reload, verifies both internal editable data and replay-facing `project.json`, writes `/tmp/myide-electron-live-drag.json`, and restores the touched project files/logs so the repo status returns to baseline.
+- The electron-live-create-drag smoke test launches the real Electron shell, drives the renderer preset selection + new-placeholder action + canvas pointer path, verifies the newly created object persists through save/reload in both internal editable data and replay-facing `project.json`, writes `/tmp/myide-electron-live-create-drag.json`, and restores the touched project files/logs so the repo status returns to baseline.
 - The latest demo artifact writes a concise before/after note to `50_tests/workspace/project_001-demo.md` with live-shell persisted object context.
 - `project_001` remains the validated replay slice.
