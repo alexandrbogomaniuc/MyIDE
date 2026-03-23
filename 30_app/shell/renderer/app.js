@@ -3542,6 +3542,11 @@ function bindActions() {
       renderAll();
     }
   });
+  elements.evidenceBrowser?.addEventListener("click", (event) => {
+    if (handleCopyEvent(event)) {
+      return;
+    }
+  });
   elements.editorCanvas?.addEventListener("click", (event) => {
     if (consumeViewportSuppressedClick()) {
       event.preventDefault();
@@ -3587,6 +3592,11 @@ function bindActions() {
   });
   elements.inspector?.addEventListener("input", (event) => {
     handleInspectorEvent(event);
+  });
+  elements.inspector?.addEventListener("click", (event) => {
+    if (handleCopyEvent(event)) {
+      return;
+    }
   });
   elements.inspector?.addEventListener("change", (event) => {
     handleInspectorEvent(event);
@@ -3892,6 +3902,73 @@ function toRepoRelativePath(filePath) {
   return normalized.replace(/^\/+/, "");
 }
 
+function copyTextWithLegacyFallback(text) {
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "true");
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  textarea.style.pointerEvents = "none";
+  textarea.style.inset = "0 auto auto -9999px";
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+  textarea.setSelectionRange(0, textarea.value.length);
+
+  try {
+    return document.execCommand("copy");
+  } finally {
+    textarea.remove();
+  }
+}
+
+async function writeTextToClipboard(text) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return true;
+  }
+
+  return copyTextWithLegacyFallback(text);
+}
+
+async function handleCopyValue(copyValue, copyLabel = "value") {
+  if (typeof copyValue !== "string" || copyValue.trim().length === 0) {
+    return;
+  }
+
+  try {
+    const copied = await writeTextToClipboard(copyValue);
+    if (!copied) {
+      throw new Error("Clipboard write was unavailable.");
+    }
+
+    pushLog(`Copied ${copyLabel}.`);
+    setPreviewStatus(`Copied ${copyLabel} to the clipboard.`);
+  } catch (error) {
+    console.warn("Failed to copy value from donor evidence panel.", error);
+    pushLog(`Copy failed for ${copyLabel}.`);
+    setPreviewStatus(`Could not copy ${copyLabel}.`);
+  }
+}
+
+function handleCopyEvent(event) {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+
+  const copyButton = target.closest("[data-copy-value]");
+  if (!(copyButton instanceof HTMLElement)) {
+    return false;
+  }
+
+  event.preventDefault();
+  const copyValue = copyButton.dataset.copyValue ?? "";
+  const copyLabel = copyButton.dataset.copyLabel ?? "value";
+  void handleCopyValue(copyValue, copyLabel);
+  return true;
+}
+
 function setPreviewStatus(text) {
   if (elements.previewStatus) {
     elements.previewStatus.textContent = text;
@@ -4077,6 +4154,41 @@ function findProjectAssetByRef(projectLike, assetRef) {
   return getProjectAssets(projectLike).find((asset) => asset.assetId === assetRef) ?? null;
 }
 
+function collectImportNodeEvidenceEntries(projectLike) {
+  return collectProjectNodes(projectLike).flatMap((node) => {
+    const extensions = asJsonObject(node.extensions);
+    const evidenceRefs = normalizeEvidenceRefs(extensions?.evidenceRefs);
+    if (evidenceRefs.length === 0) {
+      return [];
+    }
+
+    return [{
+      nodeId: typeof node.nodeId === "string" ? node.nodeId : "unknown-node",
+      evidenceRefs,
+      notes: typeof extensions?.notes === "string" ? extensions.notes : null
+    }];
+  });
+}
+
+function collectImportAssetEvidenceEntries(projectLike) {
+  return getProjectAssets(projectLike).flatMap((asset) => {
+    const provenance = asJsonObject(asset.provenance);
+    const evidenceRefs = normalizeEvidenceRefs(provenance?.evidenceRef);
+    if (evidenceRefs.length === 0) {
+      return [];
+    }
+
+    return [{
+      assetId: typeof asset.assetId === "string" ? asset.assetId : null,
+      name: typeof asset.name === "string" ? asset.name : "Unnamed asset",
+      origin: typeof provenance?.origin === "string" ? provenance.origin : null,
+      donorId: typeof provenance?.donorId === "string" ? provenance.donorId : null,
+      evidenceRefs,
+      notes: typeof provenance?.notes === "string" ? provenance.notes : null
+    }];
+  });
+}
+
 function getProjectPathSummary(selectedProject) {
   return uniqueStrings([
     selectedProject?.keyPaths?.evidenceRoot,
@@ -4125,12 +4237,17 @@ function getSelectedProjectEvidenceSummary() {
     return null;
   }
 
+  const replayProject = getReplayProject();
   const importArtifact = getImportArtifact();
   const importProject = getImportProject();
   const importEvidenceRefs = normalizeEvidenceRefs(importArtifact?.sourceEvidenceRefs);
   const captureSessions = asStringList(selectedProject.donor?.captureSessions);
   const donorEvidenceRefs = asStringList(selectedProject.donor?.evidenceRefs);
   const projectPaths = getProjectPathSummary(selectedProject);
+  const replaySources = asJsonObject(replayProject?.sources);
+  const rawDonorRoots = asStringList(replaySources?.rawDonorRoots);
+  const importNodeEntries = collectImportNodeEvidenceEntries(importProject);
+  const importAssetEntries = collectImportAssetEvidenceEntries(importProject);
 
   return {
     donorName: selectedProject.donor?.donorName ?? "Unknown donor",
@@ -4144,9 +4261,14 @@ function getSelectedProjectEvidenceSummary() {
     importId: typeof importArtifact?.importId === "string" ? importArtifact.importId : null,
     importSourceDonorId: typeof importArtifact?.sourceDonorId === "string" ? importArtifact.sourceDonorId : null,
     importEvidenceRefs,
+    importNodeEntries,
+    importAssetEntries,
     donorReportsRoot: selectedProject.keyPaths?.reportsRoot ?? null,
     projectPaths,
-    replayDonorEvidenceRoot: asJsonObject(importProject?.sources)?.donorEvidenceRoot ?? asJsonObject(getReplayProject()?.sources)?.donorEvidenceRoot ?? null
+    replayDonorEvidenceRoot: asJsonObject(importProject?.sources)?.donorEvidenceRoot ?? replaySources?.donorEvidenceRoot ?? null,
+    rawDonorRoots,
+    donorStatus: selectedProject.donor?.status ?? "unknown",
+    donorNotes: typeof selectedProject.donor?.notes === "string" ? selectedProject.donor.notes : null
   };
 }
 
@@ -4165,13 +4287,17 @@ function getSelectedObjectEvidenceLinkage() {
   const importAsset = findProjectAssetByRef(importProject, selectedObject.assetRef ?? selectedObject.placeholderRef);
   const stateLinks = collectObjectStateLinkage(replayProject, selectedObject.id);
   const animationLinks = collectObjectAnimationLinkage(replayProject, selectedObject.id);
+  const replayNodeEvidenceRefs = normalizeEvidenceRefs(asJsonObject(replayNode?.extensions)?.evidenceRefs);
+  const importNodeEvidenceRefs = normalizeEvidenceRefs(asJsonObject(importNode?.extensions)?.evidenceRefs);
+  const replayAssetEvidenceRefs = normalizeEvidenceRefs(asJsonObject(replayAsset?.provenance)?.evidenceRef);
+  const importAssetEvidenceRefs = normalizeEvidenceRefs(asJsonObject(importAsset?.provenance)?.evidenceRef);
   const directEvidenceRefs = uniqueStrings([
-    ...normalizeEvidenceRefs(asJsonObject(replayNode?.extensions)?.evidenceRefs),
-    ...normalizeEvidenceRefs(asJsonObject(importNode?.extensions)?.evidenceRefs)
+    ...replayNodeEvidenceRefs,
+    ...importNodeEvidenceRefs
   ]);
   const assetEvidenceRefs = uniqueStrings([
-    ...normalizeEvidenceRefs(asJsonObject(replayAsset?.provenance)?.evidenceRef),
-    ...normalizeEvidenceRefs(asJsonObject(importAsset?.provenance)?.evidenceRef)
+    ...replayAssetEvidenceRefs,
+    ...importAssetEvidenceRefs
   ]);
   const stateEvidenceRefs = uniqueStrings(stateLinks.flatMap((entry) => entry.evidenceRefs));
   const animationEvidenceRefs = uniqueStrings(animationLinks.flatMap((entry) => entry.evidenceRefs));
@@ -4197,16 +4323,35 @@ function getSelectedObjectEvidenceLinkage() {
     statusLabel = "Structural linkage exists for this object, but grounded evidence refs are not recorded yet.";
   }
 
+  const linkageSummary = [
+    `Importer node refs ${importNodeEvidenceRefs.length}`,
+    `Replay asset refs ${replayAssetEvidenceRefs.length}`,
+    `Importer asset refs ${importAssetEvidenceRefs.length}`,
+    `State refs ${stateEvidenceRefs.length}`,
+    `Animation refs ${animationEvidenceRefs.length}`
+  ].join(" · ");
+
   return {
     statusLabel,
+    linkageSummary,
     replayNodeId: typeof replayNode?.nodeId === "string" ? replayNode.nodeId : selectedObject.id,
     importNodeId: typeof importNode?.nodeId === "string" ? importNode.nodeId : null,
     assetRef: selectedObject.assetRef ?? selectedObject.placeholderRef ?? "none",
+    replayAssetLabel: typeof replayAsset?.name === "string"
+      ? replayAsset.name
+      : null,
+    importAssetLabel: typeof importAsset?.name === "string"
+      ? importAsset.name
+      : null,
     assetLabel: typeof replayAsset?.name === "string"
       ? replayAsset.name
       : typeof importAsset?.name === "string"
         ? importAsset.name
         : null,
+    replayNodeEvidenceRefs,
+    importNodeEvidenceRefs,
+    replayAssetEvidenceRefs,
+    importAssetEvidenceRefs,
     directEvidenceRefs,
     assetEvidenceRefs,
     stateLinks,
@@ -4216,6 +4361,133 @@ function getSelectedObjectEvidenceLinkage() {
     allEvidenceRefs,
     notes
   };
+}
+
+function renderCopyButton(copyValue, copyLabel, buttonText = "Copy") {
+  if (typeof copyValue !== "string" || copyValue.trim().length === 0) {
+    return "";
+  }
+
+  return `
+    <button
+      type="button"
+      class="copy-button"
+      data-copy-value="${escapeAttribute(copyValue)}"
+      data-copy-label="${escapeAttribute(copyLabel)}"
+      title="Copy ${escapeAttribute(copyLabel)}"
+    >${buttonText}</button>
+  `;
+}
+
+function renderEvidenceRefChips(refs, copyLabelPrefix = "evidence ref") {
+  if (!Array.isArray(refs) || refs.length === 0) {
+    return "";
+  }
+
+  return `
+    <div class="chip-row evidence-chip-row">
+      ${refs.map((refId, index) => `
+        <span>
+          <code>${escapeHtml(refId)}</code>
+          ${renderCopyButton(refId, `${copyLabelPrefix} ${index + 1}`)}
+        </span>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderCopyableList(values, {
+  labelPrefix,
+  emptyMessage,
+  displayValue = (value) => value,
+  buttonText = "Copy"
+}) {
+  if (!Array.isArray(values) || values.length === 0) {
+    return `<p class="muted-copy">${escapeHtml(emptyMessage)}</p>`;
+  }
+
+  return `
+    <ul class="evidence-copy-list">
+      ${values.map((value, index) => `
+        <li class="evidence-copy-item">
+          <code>${escapeHtml(displayValue(value))}</code>
+          ${renderCopyButton(String(value), `${labelPrefix} ${index + 1}`, buttonText)}
+        </li>
+      `).join("")}
+    </ul>
+  `;
+}
+
+function renderPathEntries(entries) {
+  const usableEntries = Array.isArray(entries)
+    ? entries.filter((entry) => typeof entry?.value === "string" && entry.value.length > 0)
+    : [];
+  if (usableEntries.length === 0) {
+    return `<p class="muted-copy">No donor/report paths are recorded yet.</p>`;
+  }
+
+  return `
+    <div class="evidence-card-list">
+      ${usableEntries.map((entry) => `
+        <div class="detail-card evidence-detail-card">
+          <span>${escapeHtml(entry.label)}</span>
+          <strong><code>${escapeHtml(toRepoRelativePath(entry.value))}</code></strong>
+          <small>${escapeHtml(entry.note)}</small>
+          <div class="evidence-actions">
+            ${renderCopyButton(entry.value, entry.label.toLowerCase())}
+          </div>
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderImporterNodeEntries(entries) {
+  if (!Array.isArray(entries) || entries.length === 0) {
+    return `<p class="muted-copy">No importer node evidence refs are recorded yet.</p>`;
+  }
+
+  return `
+    <ul class="evidence-record-list">
+      ${entries.map((entry, index) => `
+        <li class="evidence-record-card">
+          <div class="evidence-record-head">
+            <strong><code>${escapeHtml(entry.nodeId)}</code></strong>
+            ${renderCopyButton(entry.nodeId, `importer node id ${index + 1}`)}
+          </div>
+          <small class="muted-copy">${entry.evidenceRefs.length} grounded importer node refs.</small>
+          ${renderEvidenceRefChips(entry.evidenceRefs, `importer node ref ${entry.nodeId}`)}
+          ${entry.notes ? `<small class="muted-copy">${escapeHtml(entry.notes)}</small>` : ""}
+        </li>
+      `).join("")}
+    </ul>
+  `;
+}
+
+function renderImporterAssetEntries(entries) {
+  if (!Array.isArray(entries) || entries.length === 0) {
+    return `<p class="muted-copy">No importer asset provenance refs are recorded yet.</p>`;
+  }
+
+  return `
+    <ul class="evidence-record-list">
+      ${entries.map((entry, index) => `
+        <li class="evidence-record-card">
+          <div class="evidence-record-head">
+            <strong>${escapeHtml(entry.name)}</strong>
+            ${entry.assetId ? renderCopyButton(entry.assetId, `importer asset id ${index + 1}`) : ""}
+          </div>
+          <small class="muted-copy">
+            ${entry.assetId ? `<code>${escapeHtml(entry.assetId)}</code>` : "No stable importer asset id recorded."}
+            ${entry.origin ? ` · ${escapeHtml(entry.origin)}` : ""}
+            ${entry.donorId ? ` · ${escapeHtml(entry.donorId)}` : ""}
+          </small>
+          ${renderEvidenceRefChips(entry.evidenceRefs, `importer asset ref ${entry.name}`)}
+          ${entry.notes ? `<small class="muted-copy">${escapeHtml(entry.notes)}</small>` : ""}
+        </li>
+      `).join("")}
+    </ul>
+  `;
 }
 
 function isObjectEditable(object) {
@@ -5613,18 +5885,55 @@ function renderEvidenceBrowser() {
     return;
   }
 
-  const captureSessionsMarkup = summary.captureSessions.length > 0
-    ? summary.captureSessions.map((sessionId) => `<li><code>${escapeHtml(sessionId)}</code></li>`).join("")
-    : `<li>No capture sessions indexed yet.</li>`;
-  const donorEvidenceRefsMarkup = summary.donorEvidenceRefs.length > 0
-    ? summary.donorEvidenceRefs.map((refId) => `<li><code>${escapeHtml(refId)}</code></li>`).join("")
-    : `<li>No donor evidence refs indexed yet.</li>`;
-  const importEvidenceRefsMarkup = summary.importEvidenceRefs.length > 0
-    ? summary.importEvidenceRefs.map((refId) => `<li><code>${escapeHtml(refId)}</code></li>`).join("")
-    : `<li>No importer evidence refs indexed yet.</li>`;
-  const projectPathsMarkup = summary.projectPaths.length > 0
-    ? summary.projectPaths.map((entry) => `<li><code>${escapeHtml(toRepoRelativePath(entry))}</code></li>`).join("")
-    : `<li>No project evidence/report paths recorded yet.</li>`;
+  const pathEntries = [
+    {
+      label: "Evidence root",
+      value: summary.evidenceRoot,
+      note: "Read-only donor capture source indexed for this project."
+    },
+    {
+      label: "Replay donor evidence root",
+      value: summary.replayDonorEvidenceRoot,
+      note: "Replay-facing provenance root carried forward for context only."
+    },
+    {
+      label: "Reports root",
+      value: summary.reportsRoot,
+      note: "Derived report/doc root tied to this donor-to-project slice."
+    },
+    {
+      label: "Imports root",
+      value: summary.importsRoot,
+      note: "Importer manifests and related normalized import outputs."
+    },
+    {
+      label: "Import artifact",
+      value: summary.importArtifactPath,
+      note: "Read-only importer manifest used to reconstruct the internal model."
+    },
+    ...summary.rawDonorRoots.map((value, index) => ({
+      label: `Raw donor root ${index + 1}`,
+      value,
+      note: "Raw donor material stays outside the live editable scene model in this build."
+    })),
+    ...summary.projectPaths
+      .filter((value) => ![summary.evidenceRoot, summary.reportsRoot, summary.importsRoot, summary.importArtifactPath].includes(value))
+      .map((value, index) => ({
+        label: `Known path ${index + 1}`,
+        value,
+        note: "Additional path discovered through project metadata."
+      }))
+  ];
+  const donorSummaryCopyText = [
+    `Donor: ${summary.donorName}`,
+    `Donor ID: ${summary.donorId}`,
+    `Status: ${summary.donorStatus}`,
+    `Evidence Root: ${summary.evidenceRoot}`,
+    `Capture Sessions: ${summary.captureSessions.join(", ") || "none"}`,
+    `Donor Evidence Refs: ${summary.donorEvidenceRefs.join(", ") || "none"}`,
+    `Importer Evidence Refs: ${summary.importEvidenceRefs.join(", ") || "none"}`
+  ].join("\n");
+  const importerEntryCount = summary.importNodeEntries.length + summary.importAssetEntries.length;
 
   elements.evidenceBrowser.innerHTML = `
     <div class="tree-row scope-summary">
@@ -5636,63 +5945,108 @@ function renderEvidenceBrowser() {
         <span>${summary.donorEvidenceRefs.length} donor evidence refs</span>
         <span>${summary.importEvidenceRefs.length} importer evidence refs</span>
       </div>
+      <div class="evidence-actions">
+        ${renderCopyButton(summary.donorId, "donor id")}
+        ${renderCopyButton(summary.evidenceRoot, "evidence root path")}
+        ${renderCopyButton(donorSummaryCopyText, "donor evidence summary", "Copy Summary")}
+      </div>
     </div>
     <details class="evidence-section" open>
-      <summary>Overview</summary>
+      <summary>Donor Summary <span class="summary-count">${summary.donorEvidenceRefs.length + summary.importEvidenceRefs.length}</span></summary>
       <div class="evidence-section-body detail-grid">
         <div class="detail-card">
           <span>Donor</span>
           <strong>${escapeHtml(summary.donorName)}</strong>
           <small><code>${escapeHtml(summary.donorId)}</code></small>
+          <div class="evidence-actions">
+            ${renderCopyButton(summary.donorId, "donor id")}
+          </div>
         </div>
         <div class="detail-card">
           <span>Evidence Root</span>
           <strong><code>${escapeHtml(toRepoRelativePath(summary.evidenceRoot))}</code></strong>
           <small>Read-only donor capture source for this project.</small>
+          <div class="evidence-actions">
+            ${renderCopyButton(summary.evidenceRoot, "evidence root path")}
+          </div>
         </div>
         <div class="detail-card">
           <span>Importer Manifest</span>
           <strong>${summary.importId ? escapeHtml(summary.importId) : "Not indexed"}</strong>
           <small>${summary.importSourceDonorId ? `Source donor ${escapeHtml(summary.importSourceDonorId)}.` : "Importer linkage is not recorded."}</small>
+          <div class="evidence-actions">
+            ${summary.importId ? renderCopyButton(summary.importId, "import id") : ""}
+            ${summary.importSourceDonorId ? renderCopyButton(summary.importSourceDonorId, "import source donor id") : ""}
+          </div>
         </div>
         <div class="detail-card">
           <span>Editing Boundary</span>
           <strong>Internal Scene Files</strong>
           <small>Donor evidence is visible here as context only. It is not directly editable or draggable in this build.</small>
+          <div class="chip-row">
+            <span>${escapeHtml(summary.donorStatus)}</span>
+            <span>${summary.donorNotes ? escapeHtml(summary.donorNotes) : "No extra donor note recorded."}</span>
+          </div>
         </div>
       </div>
     </details>
     <details class="evidence-section">
-      <summary>Capture Sessions</summary>
+      <summary>Capture Sessions <span class="summary-count">${summary.captureSessions.length}</span></summary>
       <div class="evidence-section-body">
-        <ul class="evidence-list">${captureSessionsMarkup}</ul>
+        ${renderCopyableList(summary.captureSessions, {
+          labelPrefix: "capture session id",
+          emptyMessage: "No capture sessions indexed yet."
+        })}
       </div>
     </details>
     <details class="evidence-section">
-      <summary>Evidence References</summary>
+      <summary>Evidence References <span class="summary-count">${summary.donorEvidenceRefs.length + summary.importEvidenceRefs.length}</span></summary>
       <div class="evidence-section-body evidence-grid">
-        <div>
-          <strong>Project metadata refs</strong>
-          <ul class="evidence-list">${donorEvidenceRefsMarkup}</ul>
+        <div class="evidence-subsection">
+          <div class="evidence-subsection-head">
+            <strong>Donor metadata refs</strong>
+            ${summary.donorEvidenceRefs.length > 0 ? renderCopyButton(summary.donorEvidenceRefs.join("\n"), "all donor evidence refs", "Copy All") : ""}
+          </div>
+          ${renderCopyableList(summary.donorEvidenceRefs, {
+            labelPrefix: "donor evidence ref",
+            emptyMessage: "No donor evidence refs indexed yet."
+          })}
         </div>
-        <div>
-          <strong>Importer refs</strong>
-          <ul class="evidence-list">${importEvidenceRefsMarkup}</ul>
+        <div class="evidence-subsection">
+          <div class="evidence-subsection-head">
+            <strong>Importer refs</strong>
+            ${summary.importEvidenceRefs.length > 0 ? renderCopyButton(summary.importEvidenceRefs.join("\n"), "all importer evidence refs", "Copy All") : ""}
+          </div>
+          ${renderCopyableList(summary.importEvidenceRefs, {
+            labelPrefix: "importer evidence ref",
+            emptyMessage: "No importer evidence refs indexed yet."
+          })}
         </div>
       </div>
     </details>
     <details class="evidence-section">
-      <summary>Reports And Local Paths</summary>
+      <summary>Importer Evidence <span class="summary-count">${importerEntryCount}</span></summary>
       <div class="evidence-section-body evidence-grid">
-        <div>
-          <strong>Known project paths</strong>
-          <ul class="evidence-list">${projectPathsMarkup}</ul>
+        <div class="evidence-subsection">
+          <div class="evidence-subsection-head">
+            <strong>Importer node refs</strong>
+            <span class="muted-copy">${summary.importNodeEntries.length} nodes</span>
+          </div>
+          ${renderImporterNodeEntries(summary.importNodeEntries)}
         </div>
-        <div class="tree-row">
-          <strong>Replay / importer linkage roots</strong>
-          <span>${summary.replayDonorEvidenceRoot ? `<code>${escapeHtml(toRepoRelativePath(summary.replayDonorEvidenceRoot))}</code>` : "Replay donor evidence root is not recorded."}</span>
-          <span>${summary.importArtifactPath ? `<code>${escapeHtml(toRepoRelativePath(summary.importArtifactPath))}</code>` : "Import artifact path is not recorded."}</span>
+        <div class="evidence-subsection">
+          <div class="evidence-subsection-head">
+            <strong>Importer asset provenance</strong>
+            <span class="muted-copy">${summary.importAssetEntries.length} assets</span>
+          </div>
+          ${renderImporterAssetEntries(summary.importAssetEntries)}
         </div>
+      </div>
+    </details>
+    <details class="evidence-section">
+      <summary>Reports / Paths <span class="summary-count">${pathEntries.filter((entry) => entry.value).length}</span></summary>
+      <div class="evidence-section-body">
+        ${renderPathEntries(pathEntries)}
       </div>
     </details>
   `;
@@ -6523,6 +6877,13 @@ function renderInspector() {
         description: "Read-only donor linkage for the selected object. This build surfaces provenance context but does not edit donor assets directly.",
         rows: [
           {
+            key: "linkageSummary",
+            label: "Linkage Summary",
+            value: evidenceLinkage?.linkageSummary ?? "No grouped linkage counts are recorded for this object yet.",
+            status: evidenceLinkage?.allEvidenceRefs?.length ? "proven" : "todo",
+            fieldState: "read-only"
+          },
+          {
             key: "linkageStatus",
             label: "Linkage Status",
             value: evidenceLinkage?.statusLabel ?? "No grounded evidence linkage is recorded for this object yet.",
@@ -6534,29 +6895,72 @@ function renderInspector() {
             label: "Replay Node",
             value: evidenceLinkage?.replayNodeId ?? selectedObject.id,
             status: "proven",
-            fieldState: "read-only"
+            fieldState: "read-only",
+            copyValue: evidenceLinkage?.replayNodeId ?? selectedObject.id,
+            copyLabel: "replay node id"
           },
           {
             key: "importNode",
             label: "Importer Node",
             value: evidenceLinkage?.importNodeId ?? "No importer node linkage recorded.",
             status: evidenceLinkage?.importNodeId ? "proven" : "todo",
+            fieldState: "read-only",
+            copyValue: evidenceLinkage?.importNodeId ?? "",
+            copyLabel: "importer node id"
+          },
+          {
+            key: "replayAssetLinkage",
+            label: "Replay Asset Provenance",
+            value: evidenceLinkage?.replayAssetLabel
+              ? `${evidenceLinkage.assetRef} · ${evidenceLinkage.replayAssetLabel}`
+              : evidenceLinkage?.assetRef ?? "No replay asset provenance recorded.",
+            status: evidenceLinkage?.replayAssetLabel ? "proven" : "todo",
             fieldState: "read-only"
           },
           {
-            key: "assetLinkage",
-            label: "Asset / Source Hint",
-            value: evidenceLinkage?.assetLabel
-              ? `${evidenceLinkage.assetRef} · ${evidenceLinkage.assetLabel}`
-              : evidenceLinkage?.assetRef ?? "No asset provenance recorded.",
-            status: evidenceLinkage?.assetLabel ? "proven" : "todo",
+            key: "importAssetLinkage",
+            label: "Importer Asset Provenance",
+            value: evidenceLinkage?.importAssetLabel
+              ? `${evidenceLinkage.assetRef} · ${evidenceLinkage.importAssetLabel}`
+              : evidenceLinkage?.assetRef ?? "No importer asset provenance recorded.",
+            status: evidenceLinkage?.importAssetLabel ? "proven" : "todo",
             fieldState: "read-only"
+          },
+          {
+            key: "importNodeEvidenceRefs",
+            label: "Importer Node Refs",
+            value: evidenceLinkage?.importNodeEvidenceRefs?.length
+              ? `${evidenceLinkage.importNodeEvidenceRefs.length} grounded importer node refs`
+              : "No importer node refs recorded.",
+            status: evidenceLinkage?.importNodeEvidenceRefs?.length ? "proven" : "todo",
+            fieldState: "read-only",
+            evidenceRefs: evidenceLinkage?.importNodeEvidenceRefs ?? []
+          },
+          {
+            key: "replayAssetEvidenceRefs",
+            label: "Replay Asset Refs",
+            value: evidenceLinkage?.replayAssetEvidenceRefs?.length
+              ? `${evidenceLinkage.replayAssetEvidenceRefs.length} grounded replay asset refs`
+              : "No replay asset refs recorded.",
+            status: evidenceLinkage?.replayAssetEvidenceRefs?.length ? "proven" : "todo",
+            fieldState: "read-only",
+            evidenceRefs: evidenceLinkage?.replayAssetEvidenceRefs ?? []
+          },
+          {
+            key: "importAssetEvidenceRefs",
+            label: "Importer Asset Refs",
+            value: evidenceLinkage?.importAssetEvidenceRefs?.length
+              ? `${evidenceLinkage.importAssetEvidenceRefs.length} grounded importer asset refs`
+              : "No importer asset refs recorded.",
+            status: evidenceLinkage?.importAssetEvidenceRefs?.length ? "proven" : "todo",
+            fieldState: "read-only",
+            evidenceRefs: evidenceLinkage?.importAssetEvidenceRefs ?? []
           },
           {
             key: "directEvidenceRefs",
-            label: "Direct Node Evidence",
+            label: "Any Direct Node Evidence",
             value: evidenceLinkage?.directEvidenceRefs?.length
-              ? `${evidenceLinkage.directEvidenceRefs.length} grounded node refs`
+              ? `${evidenceLinkage.directEvidenceRefs.length} grounded node refs across replay/import metadata`
               : "No direct node evidence refs recorded.",
             status: evidenceLinkage?.directEvidenceRefs?.length ? "proven" : "todo",
             fieldState: "read-only",
@@ -6564,9 +6968,9 @@ function renderInspector() {
           },
           {
             key: "assetEvidenceRefs",
-            label: "Asset Evidence",
+            label: "Any Asset Evidence",
             value: evidenceLinkage?.assetEvidenceRefs?.length
-              ? `${evidenceLinkage.assetEvidenceRefs.length} grounded asset refs`
+              ? `${evidenceLinkage.assetEvidenceRefs.length} grounded asset refs across replay/import metadata`
               : "No asset evidence refs recorded.",
             status: evidenceLinkage?.assetEvidenceRefs?.length ? "proven" : "todo",
             fieldState: "read-only",
@@ -6736,7 +7140,7 @@ function renderInspector() {
     ? `
       <div class="inspector-evidence-summary">
         <strong>Grounded Evidence Refs</strong>
-        <div class="chip-row evidence-chip-row">${propertyPanel.evidenceRefs.map((refId) => `<span><code>${escapeHtml(refId)}</code></span>`).join("")}</div>
+        ${renderEvidenceRefChips(propertyPanel.evidenceRefs, "selected object grounded ref")}
       </div>
     `
     : `
@@ -6778,9 +7182,10 @@ function renderInspectorRow(row) {
   const disabled = row.fieldState !== "editable" ? "disabled" : "";
   const noteMarkup = row.notes ? `<small class="muted-copy">${escapeHtml(row.notes)}</small>` : "";
   const evidenceMarkup = Array.isArray(row.evidenceRefs) && row.evidenceRefs.length > 0
-    ? `<div class="chip-row evidence-chip-row">${row.evidenceRefs.map((refId) => `<span><code>${escapeHtml(refId)}</code></span>`).join("")}</div>`
+    ? renderEvidenceRefChips(row.evidenceRefs, row.label.toLowerCase())
     : "";
   const value = row.value;
+  const copyButtonMarkup = row.copyValue ? renderCopyButton(String(row.copyValue), row.copyLabel ?? row.label) : "";
 
   if (row.fieldKind === "boolean") {
     return `
@@ -6837,9 +7242,12 @@ function renderInspectorRow(row) {
   }
 
   return `
-    <div class="tree-row">
-      <strong>${row.label}</strong>
-      <span>${escapeHtml(value)}</span>
+    <div class="tree-row copyable-tree-row">
+      <div class="copyable-tree-content">
+        <strong>${row.label}</strong>
+        <span>${escapeHtml(value)}</span>
+      </div>
+      ${copyButtonMarkup}
     </div>
     ${evidenceMarkup}
     ${noteMarkup}

@@ -1,7 +1,7 @@
 # Manual QA Tooling
 
 Manual QA helpers are for local testing against the current tracked `project_001` baseline.
-The current shell edits reconstructed internal scene data under `40_projects/project_001/internal`; donor evidence stays read-only, is visible through the in-app donor evidence browser and object linkage summary, and is not a drag/drop asset browser in this build.
+The current shell edits reconstructed internal scene data under `40_projects/project_001/internal`; donor evidence stays read-only, is visible through the in-app donor evidence browser drill-down and object linkage summary, and is not a drag/drop asset browser in this build.
 
 ## Recommended Tester Flow
 1. Run `npm run manual:status` for a quick LOCAL vs PUBLIC vs HANDOFF check.
