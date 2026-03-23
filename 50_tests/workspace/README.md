@@ -7,6 +7,8 @@
 
 ## Commands
 - `npm run manual:status`
+- `npm run manual:prepare:project_001`
+- `npm run manual:bug-context`
 - `npm run manual:reset:project_001`
 - `npm run sync:project_001`
 - `npm run build && node dist/50_tests/workspace/create-project-smoke.js`
@@ -32,6 +34,7 @@
 
 ## Scope
 - The manual QA pack now gives a tester-facing reset, status, playbook, matrix, and bug template layer on top of the automated smokes so local testing can start from a known `project_001` baseline.
+- The QA-B follow-up adds one-command manual session prep and one paste-friendly bug-context command so testers can start faster and capture cleaner defect notes without widening editor scope.
 - The create-project smoke test creates a temporary project scaffold under `40_projects/`, validates lifecycle-aware metadata, validates folder discovery, checks that the derived registry refreshes automatically, and restores the workspace afterward.
 - The sync command deterministically regenerates the replay-facing `project.json` scene from the internal editable scene files.
 - The edit-project smoke test mutates a real editable object in `project_001`, saves it through the internal project files, asserts that generated replay-facing `project.json` changed with it, reloads the project slice, verifies bounded undo/redo behavior, and then restores the original data.

@@ -10,8 +10,10 @@
 - Use `npm run publication:preflight` to confirm current host publication truth before assuming PUBLIC is behind.
 
 ## Manual QA Control
-- Current control run: QA-A manual QA pack, baseline reset flow, and bug capture support.
+- Current control run: QA-B manual session prep and bug context support.
 - Local manual testing should use the LOCAL checkout plus `npm run manual:status`.
+- `npm run manual:prepare:project_001` now gives testers one command for reset -> sync -> validate -> next-step output before launching the shell.
+- `npm run manual:bug-context` now gives testers one paste-friendly context block for bug notes.
 - `npm run manual:reset:project_001` restores the current tracked `project_001` baseline and clears only the known local-only editor logs.
 
 ## Progress Log
@@ -107,6 +109,7 @@
 - Standardized the external handoff package to include stable `CURRENT.*` files alongside the existing phase-specific artifacts under `/Users/alexb/Documents/Dev/MyIDE_handoff`.
 - Publication preflight successfully caught PUBLIC up to the PUB-B commit `f4af33f`, so LOCAL vs PUBLIC truth is now expected to change between runs rather than staying permanently blocked.
 - Added a manual QA support pack with a plain-English playbook, a pass/fail matrix, a copy/paste bug template, a `manual:status` command, and a safe `manual:reset:project_001` baseline restore command.
+- Added QA-B tester helpers so one command prepares a clean `project_001` manual session and one command prints concise bug-report context with local/public/handoff truth.
 
 ## Proven Facts
 - Local reference repos are available in the developer workspace outside this repository.
@@ -153,5 +156,4 @@
 - Object ordering remains layer-local, and layer isolation is session-only rather than a persistent project setting.
 - Previous/next layer navigation remains session-only selection state and does not cross layer boundaries.
 - Live GUI proof now exists for preload bridge health, `project_001` load, one bounded in-window inspector edit/save/reload loop, one bounded in-window existing-object canvas drag/save/reload loop, one bounded in-window create -> drag -> save -> reload loop for a new placeholder object, one bounded in-window create -> duplicate/delete -> save -> reload loop for a new placeholder object, one bounded in-window create -> reorder -> save -> reload loop for a new placeholder object, one bounded in-window create -> layer reassignment -> save -> reload loop for a new placeholder object, one bounded in-window create -> resize -> save -> reload loop for a new placeholder object, one bounded in-window create -> align -> save -> reload loop for a new placeholder object, and one bounded in-window create -> drag -> undo -> redo -> save -> reload loop for a new placeholder object, but the shell still does not yet prove broader interactive automation flows beyond those constrained persistence paths.
-- Public `origin/main` still lags the local MyIDE `main` history because GitHub HTTPS publication from this host remains blocked until credentials are available.
-- PUBLIC can catch up between runs; use `publication:preflight`, `publication:compare`, and `manual:status` to confirm the current LOCAL vs PUBLIC truth before testing or reporting a bug.
+- PUBLIC can change between runs; use `publication:preflight`, `publication:compare`, and `manual:status` to confirm the current LOCAL vs PUBLIC truth before testing or reporting a bug.

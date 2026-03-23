@@ -36,6 +36,8 @@ Public publication rules are defined in [`00_control/PUBLIC_REPO_POLICY.md`](./0
 - `npm run typecheck`
 - `npm run generate:registry`
 - `npm run manual:status`
+- `npm run manual:prepare:project_001`
+- `npm run manual:bug-context`
 - `npm run manual:reset:project_001`
 - `npm run publication:preflight`
 - `npm run publication:compare`
@@ -72,7 +74,9 @@ Public publication rules are defined in [`00_control/PUBLIC_REPO_POLICY.md`](./0
 - [`00_control/MANUAL_TEST_PLAYBOOK.md`](./00_control/MANUAL_TEST_PLAYBOOK.md) is the plain-English tester checklist.
 - [`00_control/MANUAL_TEST_MATRIX.md`](./00_control/MANUAL_TEST_MATRIX.md) is the fast pass/fail matrix.
 - [`00_control/MANUAL_BUG_TEMPLATE.md`](./00_control/MANUAL_BUG_TEMPLATE.md) is the copy/paste bug report format.
+- `npm run manual:prepare:project_001` resets `project_001` to the current tracked baseline, refreshes derived/synced outputs, validates the project slice, and tells the tester what to run next.
 - `npm run manual:status` prints the exact local/public/handoff context the tester is using.
+- `npm run manual:bug-context` prints a paste-friendly bug context block with current local/public/handoff details.
 - `npm run manual:reset:project_001` restores `project_001` to the current tracked local baseline and clears known local-only editor logs.
 
 ## Current Boundaries

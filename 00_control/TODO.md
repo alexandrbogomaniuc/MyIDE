@@ -216,6 +216,12 @@
 - [x] Add `manual:reset:project_001` for a safe reset to the current tracked baseline.
 - [ ] Run and record the first full manual QA pass against the current LOCAL build.
 
+## QA-B
+- [x] Add `manual:prepare:project_001` for one-command manual session prep.
+- [x] Add `manual:bug-context` for paste-friendly bug-report context.
+- [x] Refresh tester-facing docs so the new commands are the easiest manual QA path.
+- [ ] Use the new prep/context commands during the first full manual QA pass.
+
 ## Deferred
 - [ ] Donor decoding automation.
 - [ ] Full editor interactions.

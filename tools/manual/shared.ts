@@ -58,11 +58,65 @@ export function getCurrentHandoffPaths(repoRoot = getRepoRoot()): {
   };
 }
 
+export function tryResolvePublicHead(repoRoot = getRepoRoot()): string {
+  const lsRemote = gitAllowFailure(["ls-remote", "origin", "HEAD"], repoRoot);
+  if (lsRemote.status === 0 && lsRemote.stdout.trim().length > 0) {
+    return lsRemote.stdout.trim().split(/\s+/)[0] ?? "unavailable";
+  }
+
+  const cachedRemote = gitAllowFailure(["rev-parse", "origin/main"], repoRoot);
+  if (cachedRemote.status === 0 && cachedRemote.stdout.trim().length > 0) {
+    return `${cachedRemote.stdout.trim()} (cached origin/main)`;
+  }
+
+  return "unavailable";
+}
+
 export function describeGap(localHead: string, publicHead: string, aheadCount: number): string {
   if (localHead === publicHead) {
     return "in sync";
   }
   return `ahead by ${aheadCount} commit${aheadCount === 1 ? "" : "s"}`;
+}
+
+export function getManualContext(repoRoot = getRepoRoot()): {
+  localHead: string;
+  publicHead: string;
+  localPhase: string;
+  gapSummary: string;
+  aheadCount: number;
+  validatedProject: {
+    projectId: string;
+    displayName: string;
+    phase: string;
+    status: string;
+  };
+  handoff: {
+    bundle: string;
+    notes: string;
+  };
+} {
+  const localHead = git(["rev-parse", "HEAD"], repoRoot);
+  const validatedProject = getValidatedProjectSummary(repoRoot);
+  const publicHead = tryResolvePublicHead(repoRoot);
+  const aheadCount =
+    publicHead !== "unavailable" && !publicHead.endsWith("(cached origin/main)")
+      ? Number.parseInt(git(["rev-list", "--count", `${publicHead}..HEAD`], repoRoot), 10)
+      : 0;
+  const gapSummary =
+    publicHead === "unavailable" || publicHead.endsWith("(cached origin/main)")
+      ? "public HEAD unavailable"
+      : describeGap(localHead, publicHead, aheadCount);
+
+  return {
+    localHead,
+    publicHead,
+    localPhase: validatedProject.phase,
+    gapSummary,
+    aheadCount,
+    validatedProject,
+    handoff: getCurrentHandoffPaths(repoRoot)
+  };
 }
 
 export function listTrackedProject001PathsAtHead(repoRoot = getRepoRoot()): string[] {

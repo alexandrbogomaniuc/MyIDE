@@ -3,10 +3,11 @@
 Use this when testing the current local MyIDE build by hand.
 
 ## Before You Start
-1. Run `npm run manual:status`.
-2. If you want a clean baseline, run `npm run manual:reset:project_001`.
+1. Run `npm run manual:prepare:project_001`.
+2. If you only need a quick context check, run `npm run manual:status`.
 3. Launch the shell with `npm run dev`.
 4. Test the LOCAL build on this machine, not the public GitHub snapshot.
+5. If you do not want the full prepare flow, `npm run manual:reset:project_001` still restores only the `project_001` baseline.
 
 ## Core Checklist
 1. App launch
@@ -46,5 +47,6 @@ Use this when testing the current local MyIDE build by hand.
 1. Stop after the first clear failure.
 2. Take a screenshot.
 3. Note the exact step where it failed.
-4. Run `npm run manual:status` again and copy the output.
+4. Run `npm run manual:bug-context` and copy the output.
 5. Fill in [`MANUAL_BUG_TEMPLATE.md`](./MANUAL_BUG_TEMPLATE.md).
+6. If needed, run `npm run manual:status` again for a second quick context check.
