@@ -17,6 +17,7 @@ Use this when testing the current local MyIDE build by hand.
    - The bridge health card shows the preload bridge is healthy.
 3. `project_001` load
    - `project_001` appears in the project list and loads without error.
+   - The read-only Donor Evidence panel shows donor/capture context for the project.
 4. Create and edit
    - Create one placeholder object from the preset picker.
    - Select it and change at least one inspector field such as `displayName`, `width`, or `height`.
@@ -35,6 +36,10 @@ Use this when testing the current local MyIDE build by hand.
    - Save the scene.
    - Reload from disk.
    - Confirm the final state is still visible after reload.
+9. Evidence linkage
+   - With an object selected, inspect the read-only Evidence Linkage section.
+   - If linkage is grounded, evidence refs should be visible.
+   - If linkage is not grounded, the shell should say so plainly instead of inventing provenance.
 
 ## Expected Result
 - The app stays open.

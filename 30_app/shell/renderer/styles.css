@@ -659,6 +659,67 @@ button:disabled {
   color: #d5e7f5;
 }
 
+.evidence-section {
+  border: 1px solid rgba(179, 209, 186, 0.14);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+  overflow: hidden;
+}
+
+.evidence-section summary {
+  cursor: pointer;
+  padding: 0.9rem 1rem;
+  color: var(--text);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.evidence-section[open] summary {
+  border-bottom: 1px solid rgba(179, 209, 186, 0.12);
+}
+
+.evidence-section-body {
+  display: grid;
+  gap: 12px;
+  padding: 12px 14px 14px;
+}
+
+.evidence-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.evidence-list {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.evidence-list code {
+  color: var(--accent);
+}
+
+.inspector-evidence-summary {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(110, 169, 216, 0.22);
+  background: rgba(110, 169, 216, 0.08);
+}
+
+.evidence-chip-row span {
+  color: #d7e9f7;
+  border-color: rgba(110, 169, 216, 0.28);
+  background: rgba(110, 169, 216, 0.1);
+}
+
+.evidence-chip-row code {
+  color: inherit;
+}
+
 .editor-canvas-shell {
   overflow: auto;
   border-radius: 18px;
@@ -884,7 +945,8 @@ button:disabled {
   }
 
   .detail-grid,
-  .inspector-grid {
+  .inspector-grid,
+  .evidence-grid {
     grid-template-columns: 1fr;
   }
 }

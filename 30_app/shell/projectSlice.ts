@@ -16,6 +16,7 @@ export interface ProjectSliceBundle {
   workspace: WorkspaceSliceBundle;
   selectedProjectId: string;
   project: JsonObject;
+  importArtifact: JsonObject | null;
   previewScene: EditablePreviewScene | null;
   editableProject: EditableProjectData | null;
   fixtures: {
@@ -31,10 +32,12 @@ export interface ProjectSliceBundle {
 
 const workspaceRoot = path.resolve(__dirname, "../../..");
 const replayProjectRoot = path.join(workspaceRoot, "40_projects", "project_001");
+const importArtifactPath = path.join(replayProjectRoot, "imports", "mystery-garden-import.json");
 
 export function getProjectSlicePaths(): readonly string[] {
   return [
     path.join(replayProjectRoot, "project.json"),
+    importArtifactPath,
     path.join(replayProjectRoot, "fixtures", "normal_spin.json"),
     path.join(replayProjectRoot, "fixtures", "free_spins_trigger.json"),
     path.join(replayProjectRoot, "fixtures", "restart_restore.json"),
@@ -54,6 +57,18 @@ async function readJsonFile(filePath: string): Promise<JsonObject> {
   const parsed: unknown = JSON.parse(raw);
   assertJsonObject(parsed, filePath);
   return parsed;
+}
+
+async function readOptionalJsonFile(filePath: string): Promise<JsonObject | null> {
+  try {
+    return await readJsonFile(filePath);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException | undefined)?.code === "ENOENT") {
+      return null;
+    }
+
+    throw error;
+  }
 }
 
 function getObjectArray(value: JsonValue | undefined): JsonObject[] {
@@ -98,10 +113,11 @@ async function loadSelectedEditableProject(workspace: WorkspaceSliceBundle, sele
 }
 
 export async function loadProjectSlice(requestedProjectId?: string): Promise<ProjectSliceBundle> {
-  const [projectPath, normalSpinPath, freeSpinsTriggerPath, restartRestorePath, mockedGameStatePath, mockedLastActionPath] = getProjectSlicePaths();
-  const [workspace, project, normalSpin, freeSpinsTrigger, restartRestore, mockedGameState, mockedLastAction] = await Promise.all([
+  const [projectPath, importPath, normalSpinPath, freeSpinsTriggerPath, restartRestorePath, mockedGameStatePath, mockedLastActionPath] = getProjectSlicePaths();
+  const [workspace, project, importArtifact, normalSpin, freeSpinsTrigger, restartRestore, mockedGameState, mockedLastAction] = await Promise.all([
     loadWorkspaceSlice(),
     readJsonFile(projectPath),
+    readOptionalJsonFile(importPath),
     readJsonFile(normalSpinPath),
     readJsonFile(freeSpinsTriggerPath),
     readJsonFile(restartRestorePath),
@@ -122,6 +138,7 @@ export async function loadProjectSlice(requestedProjectId?: string): Promise<Pro
     workspace,
     selectedProjectId,
     project: replayProject as unknown as JsonObject,
+    importArtifact,
     previewScene,
     editableProject,
     fixtures: {

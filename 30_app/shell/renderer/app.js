@@ -61,6 +61,7 @@ const objectSizePresets = {
 const elements = {
   onboardingCard: document.getElementById("onboarding-card"),
   projectBrowser: document.getElementById("project-browser"),
+  evidenceBrowser: document.getElementById("evidence-browser"),
   sceneExplorer: document.getElementById("scene-explorer"),
   projectSummary: document.getElementById("project-summary"),
   editorCanvas: document.getElementById("editor-canvas"),
@@ -3996,6 +3997,227 @@ function getSelectedObject() {
   return state.editorData.objects.find((entry) => entry.id === state.selectedObjectId) ?? null;
 }
 
+function asJsonObject(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : null;
+}
+
+function asJsonObjectArray(value) {
+  return Array.isArray(value)
+    ? value.filter((entry) => entry && typeof entry === "object" && !Array.isArray(entry))
+    : [];
+}
+
+function asStringList(value) {
+  return Array.isArray(value)
+    ? value.filter((entry) => typeof entry === "string" && entry.trim().length > 0)
+    : [];
+}
+
+function normalizeEvidenceRefs(value) {
+  if (Array.isArray(value)) {
+    return value.filter((entry) => typeof entry === "string" && entry.trim().length > 0);
+  }
+
+  if (typeof value === "string" && value.trim().length > 0) {
+    return value
+      .split(",")
+      .map((entry) => entry.trim())
+      .filter((entry) => entry.length > 0);
+  }
+
+  return [];
+}
+
+function uniqueStrings(values) {
+  return [...new Set(values.filter((entry) => typeof entry === "string" && entry.trim().length > 0))];
+}
+
+function getReplayProject() {
+  return asJsonObject(state.bundle?.project);
+}
+
+function getImportArtifact() {
+  return asJsonObject(state.bundle?.importArtifact);
+}
+
+function getImportProject() {
+  return asJsonObject(getImportArtifact()?.project);
+}
+
+function getProjectAssets(projectLike) {
+  return asJsonObjectArray(asJsonObject(projectLike)?.assets);
+}
+
+function getProjectStates(projectLike) {
+  return asJsonObjectArray(asJsonObject(projectLike)?.states);
+}
+
+function getProjectAnimations(projectLike) {
+  return asJsonObjectArray(asJsonObject(projectLike)?.animations);
+}
+
+function collectProjectNodes(projectLike) {
+  return asJsonObjectArray(asJsonObject(projectLike)?.scenes).flatMap((scene) =>
+    asJsonObjectArray(scene.layers).flatMap((layer) => asJsonObjectArray(layer.nodes))
+  );
+}
+
+function findProjectNodeByObjectId(projectLike, objectId) {
+  return collectProjectNodes(projectLike).find((node) => {
+    const extensions = asJsonObject(node.extensions);
+    return node.nodeId === objectId || extensions?.editorObjectId === objectId;
+  }) ?? null;
+}
+
+function findProjectAssetByRef(projectLike, assetRef) {
+  if (typeof assetRef !== "string" || assetRef.length === 0) {
+    return null;
+  }
+
+  return getProjectAssets(projectLike).find((asset) => asset.assetId === assetRef) ?? null;
+}
+
+function getProjectPathSummary(selectedProject) {
+  return uniqueStrings([
+    selectedProject?.keyPaths?.evidenceRoot,
+    selectedProject?.keyPaths?.reportsRoot,
+    selectedProject?.keyPaths?.importsRoot,
+    selectedProject?.keyPaths?.importArtifactPath
+  ].filter((entry) => typeof entry === "string" && entry.length > 0));
+}
+
+function collectObjectStateLinkage(projectLike, objectId) {
+  return getProjectStates(projectLike).flatMap((stateEntry) => {
+    const entryActions = asJsonObjectArray(stateEntry.entryActions);
+    const matchingActions = entryActions.filter((action) => action.target === objectId);
+    if (matchingActions.length === 0) {
+      return [];
+    }
+
+    return [{
+      stateId: typeof stateEntry.stateId === "string" ? stateEntry.stateId : "unknown-state",
+      name: typeof stateEntry.name === "string" ? stateEntry.name : "Unnamed state",
+      actionTypes: uniqueStrings(matchingActions.map((action) => String(action.type ?? "action"))),
+      evidenceRefs: normalizeEvidenceRefs(asJsonObject(stateEntry.extensions)?.evidenceRefs)
+    }];
+  });
+}
+
+function collectObjectAnimationLinkage(projectLike, objectId) {
+  return getProjectAnimations(projectLike).flatMap((animationEntry) => {
+    const matchingTracks = asJsonObjectArray(animationEntry.tracks).filter((track) => track.target === objectId);
+    if (matchingTracks.length === 0) {
+      return [];
+    }
+
+    return [{
+      animationId: typeof animationEntry.animationId === "string" ? animationEntry.animationId : "unknown-animation",
+      name: typeof animationEntry.name === "string" ? animationEntry.name : "Unnamed animation",
+      properties: uniqueStrings(matchingTracks.map((track) => String(track.property ?? "property"))),
+      evidenceRefs: normalizeEvidenceRefs(asJsonObject(animationEntry.extensions)?.evidenceRefs)
+    }];
+  });
+}
+
+function getSelectedProjectEvidenceSummary() {
+  const selectedProject = getSelectedProject();
+  if (!selectedProject) {
+    return null;
+  }
+
+  const importArtifact = getImportArtifact();
+  const importProject = getImportProject();
+  const importEvidenceRefs = normalizeEvidenceRefs(importArtifact?.sourceEvidenceRefs);
+  const captureSessions = asStringList(selectedProject.donor?.captureSessions);
+  const donorEvidenceRefs = asStringList(selectedProject.donor?.evidenceRefs);
+  const projectPaths = getProjectPathSummary(selectedProject);
+
+  return {
+    donorName: selectedProject.donor?.donorName ?? "Unknown donor",
+    donorId: selectedProject.donor?.donorId ?? "unknown-donor",
+    evidenceRoot: selectedProject.keyPaths?.evidenceRoot ?? selectedProject.donor?.evidenceRoot ?? "Not indexed",
+    captureSessions,
+    donorEvidenceRefs,
+    reportsRoot: selectedProject.keyPaths?.reportsRoot ?? null,
+    importsRoot: selectedProject.keyPaths?.importsRoot ?? null,
+    importArtifactPath: selectedProject.keyPaths?.importArtifactPath ?? null,
+    importId: typeof importArtifact?.importId === "string" ? importArtifact.importId : null,
+    importSourceDonorId: typeof importArtifact?.sourceDonorId === "string" ? importArtifact.sourceDonorId : null,
+    importEvidenceRefs,
+    donorReportsRoot: selectedProject.keyPaths?.reportsRoot ?? null,
+    projectPaths,
+    replayDonorEvidenceRoot: asJsonObject(importProject?.sources)?.donorEvidenceRoot ?? asJsonObject(getReplayProject()?.sources)?.donorEvidenceRoot ?? null
+  };
+}
+
+function getSelectedObjectEvidenceLinkage() {
+  const selectedObject = getSelectedObject();
+  const selectedProject = getSelectedProject();
+  if (!selectedObject || !selectedProject) {
+    return null;
+  }
+
+  const replayProject = getReplayProject();
+  const importProject = getImportProject();
+  const replayNode = findProjectNodeByObjectId(replayProject, selectedObject.id);
+  const importNode = findProjectNodeByObjectId(importProject, selectedObject.id);
+  const replayAsset = findProjectAssetByRef(replayProject, selectedObject.assetRef ?? selectedObject.placeholderRef);
+  const importAsset = findProjectAssetByRef(importProject, selectedObject.assetRef ?? selectedObject.placeholderRef);
+  const stateLinks = collectObjectStateLinkage(replayProject, selectedObject.id);
+  const animationLinks = collectObjectAnimationLinkage(replayProject, selectedObject.id);
+  const directEvidenceRefs = uniqueStrings([
+    ...normalizeEvidenceRefs(asJsonObject(replayNode?.extensions)?.evidenceRefs),
+    ...normalizeEvidenceRefs(asJsonObject(importNode?.extensions)?.evidenceRefs)
+  ]);
+  const assetEvidenceRefs = uniqueStrings([
+    ...normalizeEvidenceRefs(asJsonObject(replayAsset?.provenance)?.evidenceRef),
+    ...normalizeEvidenceRefs(asJsonObject(importAsset?.provenance)?.evidenceRef)
+  ]);
+  const stateEvidenceRefs = uniqueStrings(stateLinks.flatMap((entry) => entry.evidenceRefs));
+  const animationEvidenceRefs = uniqueStrings(animationLinks.flatMap((entry) => entry.evidenceRefs));
+  const allEvidenceRefs = uniqueStrings([
+    ...directEvidenceRefs,
+    ...assetEvidenceRefs,
+    ...stateEvidenceRefs,
+    ...animationEvidenceRefs
+  ]);
+  const notes = uniqueStrings([
+    typeof asJsonObject(replayNode?.extensions)?.notes === "string" ? asJsonObject(replayNode?.extensions)?.notes : "",
+    typeof asJsonObject(importNode?.extensions)?.notes === "string" ? asJsonObject(importNode?.extensions)?.notes : "",
+    typeof asJsonObject(replayAsset?.provenance)?.notes === "string" ? asJsonObject(replayAsset?.provenance)?.notes : "",
+    typeof asJsonObject(importAsset?.provenance)?.notes === "string" ? asJsonObject(importAsset?.provenance)?.notes : ""
+  ]);
+  const hasGroundedEvidence = allEvidenceRefs.length > 0;
+  const hasStructuralLinkage = Boolean(replayNode || importNode || replayAsset || importAsset || stateLinks.length > 0 || animationLinks.length > 0);
+  let statusLabel = "No grounded evidence linkage is recorded for this object yet.";
+
+  if (hasGroundedEvidence) {
+    statusLabel = "Grounded donor evidence is recorded for this object through replay/import metadata.";
+  } else if (hasStructuralLinkage) {
+    statusLabel = "Structural linkage exists for this object, but grounded evidence refs are not recorded yet.";
+  }
+
+  return {
+    statusLabel,
+    replayNodeId: typeof replayNode?.nodeId === "string" ? replayNode.nodeId : selectedObject.id,
+    importNodeId: typeof importNode?.nodeId === "string" ? importNode.nodeId : null,
+    assetRef: selectedObject.assetRef ?? selectedObject.placeholderRef ?? "none",
+    assetLabel: typeof replayAsset?.name === "string"
+      ? replayAsset.name
+      : typeof importAsset?.name === "string"
+        ? importAsset.name
+        : null,
+    directEvidenceRefs,
+    assetEvidenceRefs,
+    stateLinks,
+    stateEvidenceRefs,
+    animationLinks,
+    animationEvidenceRefs,
+    allEvidenceRefs,
+    notes
+  };
+}
+
 function isObjectEditable(object) {
   const layer = getLayerById(object.layerId);
   return !object.locked && !layer?.locked;
@@ -5290,7 +5512,7 @@ function renderOnboardingCard() {
     </div>
     <div class="tree-row">
       <strong>Where donor material fits</strong>
-      <span>Raw donor captures stay read-only evidence. The live preview and save loop use internal <code>scene.json</code>, <code>layers.json</code>, and <code>objects.json</code>.</span>
+      <span>Raw donor captures stay read-only evidence. The live preview and save loop use internal <code>scene.json</code>, <code>layers.json</code>, and <code>objects.json</code>. Open the Donor Evidence panel for the donor-side context behind this slice.</span>
     </div>
     <div class="tree-row">
       <strong>First 3 steps</strong>
@@ -5371,6 +5593,108 @@ function renderProjectBrowser() {
     </div>
     <div class="project-list">${projectCards}</div>
     ${selectedSummary}
+  `;
+}
+
+function renderEvidenceBrowser() {
+  if (!elements.evidenceBrowser) {
+    return;
+  }
+
+  const selectedProject = getSelectedProject();
+  if (!selectedProject) {
+    elements.evidenceBrowser.innerHTML = `<div class="tree-row"><strong>No Project Selected</strong><span>Select a project to inspect donor evidence context.</span></div>`;
+    return;
+  }
+
+  const summary = getSelectedProjectEvidenceSummary();
+  if (!summary) {
+    elements.evidenceBrowser.innerHTML = `<div class="tree-row"><strong>No Evidence Summary</strong><span>The selected project does not expose donor evidence metadata yet.</span></div>`;
+    return;
+  }
+
+  const captureSessionsMarkup = summary.captureSessions.length > 0
+    ? summary.captureSessions.map((sessionId) => `<li><code>${escapeHtml(sessionId)}</code></li>`).join("")
+    : `<li>No capture sessions indexed yet.</li>`;
+  const donorEvidenceRefsMarkup = summary.donorEvidenceRefs.length > 0
+    ? summary.donorEvidenceRefs.map((refId) => `<li><code>${escapeHtml(refId)}</code></li>`).join("")
+    : `<li>No donor evidence refs indexed yet.</li>`;
+  const importEvidenceRefsMarkup = summary.importEvidenceRefs.length > 0
+    ? summary.importEvidenceRefs.map((refId) => `<li><code>${escapeHtml(refId)}</code></li>`).join("")
+    : `<li>No importer evidence refs indexed yet.</li>`;
+  const projectPathsMarkup = summary.projectPaths.length > 0
+    ? summary.projectPaths.map((entry) => `<li><code>${escapeHtml(toRepoRelativePath(entry))}</code></li>`).join("")
+    : `<li>No project evidence/report paths recorded yet.</li>`;
+
+  elements.evidenceBrowser.innerHTML = `
+    <div class="tree-row scope-summary">
+      <strong>${escapeHtml(summary.donorName)} evidence (read-only)</strong>
+      <span>This panel shows donor capture context and importer metadata for <code>${escapeHtml(selectedProject.projectId)}</code>. It is reference material only; scene edits still happen through internal project files.</span>
+      <div class="chip-row">
+        <span>${escapeHtml(summary.donorId)}</span>
+        <span>${summary.captureSessions.length} capture sessions</span>
+        <span>${summary.donorEvidenceRefs.length} donor evidence refs</span>
+        <span>${summary.importEvidenceRefs.length} importer evidence refs</span>
+      </div>
+    </div>
+    <details class="evidence-section" open>
+      <summary>Overview</summary>
+      <div class="evidence-section-body detail-grid">
+        <div class="detail-card">
+          <span>Donor</span>
+          <strong>${escapeHtml(summary.donorName)}</strong>
+          <small><code>${escapeHtml(summary.donorId)}</code></small>
+        </div>
+        <div class="detail-card">
+          <span>Evidence Root</span>
+          <strong><code>${escapeHtml(toRepoRelativePath(summary.evidenceRoot))}</code></strong>
+          <small>Read-only donor capture source for this project.</small>
+        </div>
+        <div class="detail-card">
+          <span>Importer Manifest</span>
+          <strong>${summary.importId ? escapeHtml(summary.importId) : "Not indexed"}</strong>
+          <small>${summary.importSourceDonorId ? `Source donor ${escapeHtml(summary.importSourceDonorId)}.` : "Importer linkage is not recorded."}</small>
+        </div>
+        <div class="detail-card">
+          <span>Editing Boundary</span>
+          <strong>Internal Scene Files</strong>
+          <small>Donor evidence is visible here as context only. It is not directly editable or draggable in this build.</small>
+        </div>
+      </div>
+    </details>
+    <details class="evidence-section">
+      <summary>Capture Sessions</summary>
+      <div class="evidence-section-body">
+        <ul class="evidence-list">${captureSessionsMarkup}</ul>
+      </div>
+    </details>
+    <details class="evidence-section">
+      <summary>Evidence References</summary>
+      <div class="evidence-section-body evidence-grid">
+        <div>
+          <strong>Project metadata refs</strong>
+          <ul class="evidence-list">${donorEvidenceRefsMarkup}</ul>
+        </div>
+        <div>
+          <strong>Importer refs</strong>
+          <ul class="evidence-list">${importEvidenceRefsMarkup}</ul>
+        </div>
+      </div>
+    </details>
+    <details class="evidence-section">
+      <summary>Reports And Local Paths</summary>
+      <div class="evidence-section-body evidence-grid">
+        <div>
+          <strong>Known project paths</strong>
+          <ul class="evidence-list">${projectPathsMarkup}</ul>
+        </div>
+        <div class="tree-row">
+          <strong>Replay / importer linkage roots</strong>
+          <span>${summary.replayDonorEvidenceRoot ? `<code>${escapeHtml(toRepoRelativePath(summary.replayDonorEvidenceRoot))}</code>` : "Replay donor evidence root is not recorded."}</span>
+          <span>${summary.importArtifactPath ? `<code>${escapeHtml(toRepoRelativePath(summary.importArtifactPath))}</code>` : "Import artifact path is not recorded."}</span>
+        </div>
+      </div>
+    </details>
   `;
 }
 
@@ -5538,7 +5862,7 @@ function renderProjectSummary() {
     </div>
     <div class="tree-row scope-summary">
       <strong>Current Scope</strong>
-      <span>This shell edits reconstructed internal scene objects for the selected project. It does not yet expose a donor asset browser or donor drag/drop placement workflow.</span>
+      <span>This shell edits reconstructed internal scene objects for the selected project. The Donor Evidence panel shows read-only provenance and capture context, but this build still does not expose a donor asset browser or donor drag/drop placement workflow.</span>
       <div class="chip-row">
         <span>editable source: internal scene</span>
         <span>donor evidence: read-only</span>
@@ -6143,6 +6467,7 @@ function renderInspector() {
   const sizeEditable = isObjectSizeEditable(selectedObject);
   const viewportAlignable = isViewportAlignableObject(selectedObject);
   const orderContext = getSelectedObjectOrderContext();
+  const evidenceLinkage = getSelectedObjectEvidenceLinkage();
   const assignableLayers = getAssignableLayers().map((entry) => ({
     value: entry.id,
     label: `${entry.displayName}${entry.visible === false ? " (hidden)" : ""}`
@@ -6154,11 +6479,13 @@ function renderInspector() {
     title: selectedObject.displayName,
     subtitle: `${selectedProject.displayName} · ${selectedObject.type}`,
     mode: locked ? "inspect" : "edit",
+    evidenceRefs: evidenceLinkage?.allEvidenceRefs ?? [],
     facts: [
       `Layer ${layer?.displayName ?? selectedObject.layerId} is ${layer?.visible === false ? "hidden" : "visible"} in the editor.`,
       isLayerIsolationActive() ? `Solo layer view is active for ${getIsolatedLayer()?.displayName ?? "the current layer"}.` : "Solo layer view is off.",
       `Current project lifecycle stage is ${labelizeStage(selectedProject.lifecycle?.currentStage)}.`,
-      "Preview rendering and save/reload use internal project files only."
+      "Preview rendering and save/reload use internal project files only.",
+      evidenceLinkage?.statusLabel ?? "No grounded evidence linkage is recorded for this object yet."
     ],
     assumptions: projectNotes.assumptions ?? [],
     unresolved: projectNotes.unresolvedQuestions ?? [],
@@ -6188,6 +6515,92 @@ function renderInspector() {
             fieldState: "read-only"
           },
           { key: "lockState", label: "Lock State", value: locked ? "locked" : "editable", status: "proven", fieldState: "read-only" }
+        ]
+      },
+      {
+        groupId: "group.evidence-linkage",
+        title: "Evidence Linkage",
+        description: "Read-only donor linkage for the selected object. This build surfaces provenance context but does not edit donor assets directly.",
+        rows: [
+          {
+            key: "linkageStatus",
+            label: "Linkage Status",
+            value: evidenceLinkage?.statusLabel ?? "No grounded evidence linkage is recorded for this object yet.",
+            status: evidenceLinkage?.allEvidenceRefs?.length ? "proven" : "todo",
+            fieldState: "read-only"
+          },
+          {
+            key: "replayNode",
+            label: "Replay Node",
+            value: evidenceLinkage?.replayNodeId ?? selectedObject.id,
+            status: "proven",
+            fieldState: "read-only"
+          },
+          {
+            key: "importNode",
+            label: "Importer Node",
+            value: evidenceLinkage?.importNodeId ?? "No importer node linkage recorded.",
+            status: evidenceLinkage?.importNodeId ? "proven" : "todo",
+            fieldState: "read-only"
+          },
+          {
+            key: "assetLinkage",
+            label: "Asset / Source Hint",
+            value: evidenceLinkage?.assetLabel
+              ? `${evidenceLinkage.assetRef} · ${evidenceLinkage.assetLabel}`
+              : evidenceLinkage?.assetRef ?? "No asset provenance recorded.",
+            status: evidenceLinkage?.assetLabel ? "proven" : "todo",
+            fieldState: "read-only"
+          },
+          {
+            key: "directEvidenceRefs",
+            label: "Direct Node Evidence",
+            value: evidenceLinkage?.directEvidenceRefs?.length
+              ? `${evidenceLinkage.directEvidenceRefs.length} grounded node refs`
+              : "No direct node evidence refs recorded.",
+            status: evidenceLinkage?.directEvidenceRefs?.length ? "proven" : "todo",
+            fieldState: "read-only",
+            evidenceRefs: evidenceLinkage?.directEvidenceRefs ?? []
+          },
+          {
+            key: "assetEvidenceRefs",
+            label: "Asset Evidence",
+            value: evidenceLinkage?.assetEvidenceRefs?.length
+              ? `${evidenceLinkage.assetEvidenceRefs.length} grounded asset refs`
+              : "No asset evidence refs recorded.",
+            status: evidenceLinkage?.assetEvidenceRefs?.length ? "proven" : "todo",
+            fieldState: "read-only",
+            evidenceRefs: evidenceLinkage?.assetEvidenceRefs ?? []
+          },
+          {
+            key: "stateEvidence",
+            label: "State Linkage",
+            value: evidenceLinkage?.stateLinks?.length
+              ? evidenceLinkage.stateLinks.map((entry) => `${entry.stateId} (${entry.actionTypes.join(", ")})`).join("; ")
+              : "No state linkage recorded for this object.",
+            status: evidenceLinkage?.stateLinks?.length ? "proven" : "todo",
+            fieldState: "read-only",
+            evidenceRefs: evidenceLinkage?.stateEvidenceRefs ?? []
+          },
+          {
+            key: "animationEvidence",
+            label: "Animation Linkage",
+            value: evidenceLinkage?.animationLinks?.length
+              ? evidenceLinkage.animationLinks.map((entry) => `${entry.animationId} (${entry.properties.join(", ")})`).join("; ")
+              : "No animation linkage recorded for this object.",
+            status: evidenceLinkage?.animationLinks?.length ? "proven" : "todo",
+            fieldState: "read-only",
+            evidenceRefs: evidenceLinkage?.animationEvidenceRefs ?? []
+          },
+          {
+            key: "linkageNotes",
+            label: "Linkage Notes",
+            value: evidenceLinkage?.notes?.length
+              ? evidenceLinkage.notes.join(" ")
+              : "No importer or replay provenance notes are recorded for this object yet.",
+            status: evidenceLinkage?.notes?.length ? "proven" : "todo",
+            fieldState: "read-only"
+          }
         ]
       },
       {
@@ -6319,6 +6732,19 @@ function renderInspector() {
   const propertyPanel = typeof window.myideApi?.buildPropertyPanelViewModel === "function"
     ? window.myideApi.buildPropertyPanelViewModel(inspectorInput)
     : inspectorInput;
+  const evidenceSummaryMarkup = propertyPanel.evidenceRefs.length > 0
+    ? `
+      <div class="inspector-evidence-summary">
+        <strong>Grounded Evidence Refs</strong>
+        <div class="chip-row evidence-chip-row">${propertyPanel.evidenceRefs.map((refId) => `<span><code>${escapeHtml(refId)}</code></span>`).join("")}</div>
+      </div>
+    `
+    : `
+      <div class="inspector-evidence-summary">
+        <strong>Grounded Evidence Refs</strong>
+        <p class="muted-copy">No grounded evidence refs are recorded for this object yet. The selected object is still part of the internal scene editor, not a direct donor asset.</p>
+      </div>
+    `;
 
   const groupsMarkup = propertyPanel.groups.map((group) => {
     const rowsMarkup = group.rows.map((row) => renderInspectorRow(row)).join("");
@@ -6343,6 +6769,7 @@ function renderInspector() {
       <span>${locked ? "locked by object/layer" : "local-first editor"}</span>
       <span>${viewportAlignable ? "viewport alignable" : "alignment locked"}</span>
     </div>
+    ${evidenceSummaryMarkup}
     ${groupsMarkup}
   `;
 }
@@ -6350,6 +6777,9 @@ function renderInspector() {
 function renderInspectorRow(row) {
   const disabled = row.fieldState !== "editable" ? "disabled" : "";
   const noteMarkup = row.notes ? `<small class="muted-copy">${escapeHtml(row.notes)}</small>` : "";
+  const evidenceMarkup = Array.isArray(row.evidenceRefs) && row.evidenceRefs.length > 0
+    ? `<div class="chip-row evidence-chip-row">${row.evidenceRefs.map((refId) => `<span><code>${escapeHtml(refId)}</code></span>`).join("")}</div>`
+    : "";
   const value = row.value;
 
   if (row.fieldKind === "boolean") {
@@ -6358,6 +6788,7 @@ function renderInspectorRow(row) {
         <input name="${escapeAttribute(row.key)}" type="checkbox" ${value ? "checked" : ""} ${disabled} />
         <span>${row.label}</span>
       </label>
+      ${evidenceMarkup}
       ${noteMarkup}
     `;
   }
@@ -6368,6 +6799,7 @@ function renderInspectorRow(row) {
         <span>${row.label}</span>
         <textarea name="${escapeAttribute(row.key)}" ${disabled}>${escapeHtml(value)}</textarea>
       </label>
+      ${evidenceMarkup}
       ${noteMarkup}
     `;
   }
@@ -6382,6 +6814,7 @@ function renderInspectorRow(row) {
         <span>${row.label}</span>
         <select name="${escapeAttribute(row.key)}" ${disabled}>${optionsMarkup}</select>
       </label>
+      ${evidenceMarkup}
       ${noteMarkup}
     `;
   }
@@ -6398,6 +6831,7 @@ function renderInspectorRow(row) {
           ${disabled}
         />
       </label>
+      ${evidenceMarkup}
       ${noteMarkup}
     `;
   }
@@ -6407,6 +6841,7 @@ function renderInspectorRow(row) {
       <strong>${row.label}</strong>
       <span>${escapeHtml(value)}</span>
     </div>
+    ${evidenceMarkup}
     ${noteMarkup}
   `;
 }
@@ -6425,6 +6860,7 @@ function renderAll() {
   enforceIsolationSelection();
   renderOnboardingCard();
   renderProjectBrowser();
+  renderEvidenceBrowser();
   renderSceneExplorer();
   renderBridgeStatus();
   renderSyncStatus();
@@ -6544,6 +6980,9 @@ function renderFatal(message) {
 
   if (elements.projectBrowser) {
     elements.projectBrowser.innerHTML = `<div class="tree-row"><strong>Load Error</strong><span>${message}</span></div>`;
+  }
+  if (elements.evidenceBrowser) {
+    elements.evidenceBrowser.innerHTML = `<div class="tree-row"><strong>Donor Evidence</strong><span>${message}</span></div>`;
   }
   if (elements.sceneExplorer) {
     elements.sceneExplorer.innerHTML = `<div class="tree-row"><strong>Scene Explorer</strong><span>Editor data could not be loaded.</span></div>`;
