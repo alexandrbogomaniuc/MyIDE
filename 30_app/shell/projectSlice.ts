@@ -37,7 +37,6 @@ const importArtifactPath = path.join(replayProjectRoot, "imports", "mystery-gard
 export function getProjectSlicePaths(): readonly string[] {
   return [
     path.join(replayProjectRoot, "project.json"),
-    importArtifactPath,
     path.join(replayProjectRoot, "fixtures", "normal_spin.json"),
     path.join(replayProjectRoot, "fixtures", "free_spins_trigger.json"),
     path.join(replayProjectRoot, "fixtures", "restart_restore.json"),
@@ -113,11 +112,11 @@ async function loadSelectedEditableProject(workspace: WorkspaceSliceBundle, sele
 }
 
 export async function loadProjectSlice(requestedProjectId?: string): Promise<ProjectSliceBundle> {
-  const [projectPath, importPath, normalSpinPath, freeSpinsTriggerPath, restartRestorePath, mockedGameStatePath, mockedLastActionPath] = getProjectSlicePaths();
+  const [projectPath, normalSpinPath, freeSpinsTriggerPath, restartRestorePath, mockedGameStatePath, mockedLastActionPath] = getProjectSlicePaths();
   const [workspace, project, importArtifact, normalSpin, freeSpinsTrigger, restartRestore, mockedGameState, mockedLastAction] = await Promise.all([
     loadWorkspaceSlice(),
     readJsonFile(projectPath),
-    readOptionalJsonFile(importPath),
+    readOptionalJsonFile(importArtifactPath),
     readJsonFile(normalSpinPath),
     readJsonFile(freeSpinsTriggerPath),
     readJsonFile(restartRestorePath),
