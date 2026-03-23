@@ -29,7 +29,8 @@ Manual QA helpers are for local testing against the current tracked `project_001
   - Remove only the known local-only editor log outputs:
     - `40_projects/project_001/logs/editor-snapshots/`
     - `40_projects/project_001/logs/editor-save-history.jsonl`
-  - Abort if the repo has changes outside `project_001`.
+  - Abort if tracked files outside `project_001` are dirty.
+  - Leave unrelated untracked notes or report folders outside `project_001` alone.
   - Abort if unexpected untracked files exist inside `project_001`.
 
 ## Safety Model

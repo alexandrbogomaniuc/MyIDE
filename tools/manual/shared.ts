@@ -10,6 +10,11 @@ export const KNOWN_LOCAL_ONLY_RESET_PATHS = [
   "40_projects/project_001/logs/editor-save-history.jsonl"
 ];
 
+export type DirtyPathEntry = {
+  status: string;
+  relativePath: string;
+};
+
 type RegistryProject = {
   projectId: string;
   displayName?: string;
@@ -166,7 +171,7 @@ function normalizePorcelainPath(rawPath: string): string {
   return rawPath;
 }
 
-export function listDirtyPaths(repoRoot = getRepoRoot()): string[] {
+export function listDirtyEntries(repoRoot = getRepoRoot()): DirtyPathEntry[] {
   const output = gitAllowFailure(
     ["status", "--porcelain=v1", "--untracked-files=all"],
     repoRoot
@@ -175,7 +180,14 @@ export function listDirtyPaths(repoRoot = getRepoRoot()): string[] {
     .split("\n")
     .map((line) => line.trimEnd())
     .filter(Boolean)
-    .map((line) => normalizePorcelainPath(line.slice(3).trim()));
+    .map((line) => ({
+      status: line.slice(0, 2),
+      relativePath: normalizePorcelainPath(line.slice(3).trim())
+    }));
+}
+
+export function listDirtyPaths(repoRoot = getRepoRoot()): string[] {
+  return listDirtyEntries(repoRoot).map((entry) => entry.relativePath);
 }
 
 export function isPathWithinProject001(relativePath: string): boolean {

@@ -7,7 +7,7 @@ import {
   PROJECT_001_RELATIVE_PATH,
   getProject001Root,
   isPathWithinProject001,
-  listDirtyPaths,
+  listDirtyEntries,
   listKnownLogArtifacts,
   listTrackedProject001PathsAtHead,
   listUnexpectedLogArtifacts,
@@ -28,13 +28,15 @@ function restoreTrackedFile(repoRoot: string, relativePath: string): void {
 function main(): void {
   const repoRoot = getRepoRoot();
   const allowUnknown = process.argv.includes(FORCE_UNKNOWN_FLAG);
-  const dirtyPaths = listDirtyPaths(repoRoot);
-  const outsideProject001 = dirtyPaths.filter((relativePath) => !isPathWithinProject001(relativePath));
-  if (outsideProject001.length > 0) {
+  const dirtyEntries = listDirtyEntries(repoRoot);
+  const blockingOutsideProject001 = dirtyEntries.filter(
+    (entry) => !isPathWithinProject001(entry.relativePath) && entry.status !== "??"
+  );
+  if (blockingOutsideProject001.length > 0) {
     throw new Error(
-      `Refusing to reset project_001 because the repo has changes outside ${PROJECT_001_RELATIVE_PATH}: ${outsideProject001.join(
-        ", "
-      )}`
+      `Refusing to reset project_001 because the repo has tracked changes outside ${
+        PROJECT_001_RELATIVE_PATH
+      }: ${blockingOutsideProject001.map((entry) => entry.relativePath).join(", ")}`
     );
   }
 
@@ -80,6 +82,14 @@ function main(): void {
 
   console.log(`Reset ${getProject001Root(repoRoot)} to the current tracked HEAD baseline.`);
   console.log("Known local-only editor logs were removed.");
+  const outsideProject001Untracked = dirtyEntries
+    .filter((entry) => !isPathWithinProject001(entry.relativePath) && entry.status === "??")
+    .map((entry) => entry.relativePath);
+  if (outsideProject001Untracked.length > 0) {
+    console.log(
+      `Left unrelated untracked repo paths alone: ${outsideProject001Untracked.join(", ")}.`
+    );
+  }
   if (allowUnknown) {
     console.log("Unknown untracked files inside project_001 were also removed because --force-unknown was set.");
   }
