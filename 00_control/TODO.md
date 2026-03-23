@@ -207,7 +207,14 @@
 - [x] Add repeatable external handoff refresh and handoff verification commands.
 - [x] Standardize the external handoff package with stable `CURRENT.*` files outside the repo.
 - [x] Add an in-repo publication playbook and tracked LOCAL vs PUBLIC gap snapshot.
-- [ ] Publish the unpublished local commit range from an authenticated environment and confirm public catches up.
+- [x] Publish the unpublished local commit range from an authenticated environment and confirm public catches up.
+
+## QA-A
+- [x] Add a plain-English manual test playbook.
+- [x] Add a compact manual test matrix and bug template.
+- [x] Add `manual:status` for quick LOCAL vs PUBLIC vs HANDOFF context.
+- [x] Add `manual:reset:project_001` for a safe reset to the current tracked baseline.
+- [ ] Run and record the first full manual QA pass against the current LOCAL build.
 
 ## Deferred
 - [ ] Donor decoding automation.

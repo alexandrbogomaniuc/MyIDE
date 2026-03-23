@@ -37,5 +37,6 @@ Use the phase-specific files for audit history and the stable `CURRENT.*` files 
 
 ## Current Host Truth
 - This host can measure the local/public gap and refresh the handoff package.
-- This host may still fail `git push origin main` if GitHub HTTPS credentials are not configured.
+- Use `npm run publication:preflight` to determine whether this host can push right now.
 - If push fails here, do not keep retrying random fixes in this repo. Refresh the handoff package and publish from the authenticated environment instead.
+- For local manual testing, prefer `npm run manual:status` and the docs in `00_control/MANUAL_*`.

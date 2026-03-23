@@ -28,3 +28,6 @@ The stable `CURRENT.*` files are the fastest handoff path for another authentica
 3. Run `npm run handoff:refresh`.
 4. Run `npm run handoff:verify`.
 5. If this host still cannot push, use `CURRENT.bundle` from another authenticated clone and follow the exact commands in `CURRENT_RECOVERY_NOTES.txt`.
+
+## Manual QA Companion
+- `npm run manual:status` is the quickest way for a tester to confirm the local commit, local phase, public SHA, and current handoff availability before opening the shell.

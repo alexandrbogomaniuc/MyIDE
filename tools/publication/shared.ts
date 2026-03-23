@@ -203,10 +203,12 @@ export async function collectPublicationState(): Promise<PublicationState> {
   const localShellReadme = readText(localShellReadmePath);
   const localPackageJson = readText(localPackageJsonPath);
   const localPhase = readLocalPhase(repoRoot);
+  const localShellReadmeHasUndoRedo = localShellReadme.includes("live-undo-redo");
   const publicReadmePhase = extractPhaseFromReadme(publicReadme);
   const publicRegistryPhase =
     (JSON.parse(publicRegistry) as { projects?: Array<{ projectId: string; phase?: string }> })
       .projects?.find((project) => project.projectId === "project_001")?.phase ?? "unknown";
+  const publicShellReadmeHasUndoRedo = publicShellReadme.includes("live-undo-redo");
   const packageScripts = summarizePackageScripts(publicPackageJson);
 
   const publicArtifacts: PublicArtifactState[] = [
@@ -230,8 +232,10 @@ export async function collectPublicationState(): Promise<PublicationState> {
       label: "Shell README",
       url: RAW_URLS.shellReadme,
       localPath: "30_app/shell/README.md",
-      localSummary: "Local shell README includes live undo/redo proof scope",
-      publicSummary: publicShellReadme.includes("undo -> redo")
+      localSummary: localShellReadmeHasUndoRedo
+        ? "Local shell README includes live undo/redo scope"
+        : "Local shell README stops before live undo/redo scope",
+      publicSummary: publicShellReadmeHasUndoRedo
         ? "Public shell README includes live undo/redo scope"
         : "Public shell README stops before live undo/redo scope",
       matchesLocal: compareTextSummary(localShellReadme, publicShellReadme)
@@ -265,7 +269,7 @@ export async function collectPublicationState(): Promise<PublicationState> {
     publicReadmeMatchesLocalPhase: publicReadme.includes(localPhase),
     publicRegistryMatchesLocalPhase: publicRegistryPhase === localPhase,
     publicPackageHasAllLiveShellScripts: packageScripts.missing.length === 0,
-    publicShellReadmeMentionsUndoRedoScope: publicShellReadme.includes("undo -> redo"),
+    publicShellReadmeMentionsUndoRedoScope: publicShellReadmeHasUndoRedo,
     publicPackageMissingLiveShellScripts: packageScripts.missing
   };
 }

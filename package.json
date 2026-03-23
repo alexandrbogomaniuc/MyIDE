@@ -8,6 +8,8 @@
     "build": "tsc -p tsconfig.json",
     "create:project": "npm run build && node dist/30_app/workspace/createProject.js",
     "generate:registry": "npm run build && node dist/30_app/workspace/generateRegistry.js",
+    "manual:status": "npm run build && node dist/tools/manual/status.js",
+    "manual:reset:project_001": "npm run build && node dist/tools/manual/resetProject001.js",
     "publication:preflight": "npm run build && node dist/tools/publication/preflight.js",
     "publication:compare": "npm run build && node dist/tools/publication/comparePublicState.js",
     "publication:refresh": "npm run build && node dist/tools/publication/refreshHandoff.js",
