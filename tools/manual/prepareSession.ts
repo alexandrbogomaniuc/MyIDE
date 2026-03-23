@@ -51,7 +51,8 @@ function main(): void {
   console.log("Next:");
   console.log("- Run `npm run dev`");
   console.log("- Re-run `npm run manual:status` if you want a quick context check before testing");
-  console.log("- If you hit a bug, run `npm run manual:bug-context` and paste it into 00_control/MANUAL_BUG_TEMPLATE.md");
+  console.log("- If you hit a bug, run `npm run manual:bug-bundle` to create a timestamped report folder");
+  console.log("- If you only need a quick text block, run `npm run manual:bug-context` too");
 }
 
 main();
