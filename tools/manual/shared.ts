@@ -4,6 +4,7 @@ import path from "path";
 import { getHandoffRoot, getRepoRoot, git, gitAllowFailure, readJsonFile } from "../publication/shared";
 
 export const PROJECT_001_RELATIVE_PATH = "40_projects/project_001";
+export const MANUAL_REPORTS_ROOT_NAME = "MyIDE_manual_reports";
 export const KNOWN_LOCAL_ONLY_RESET_PATHS = [
   "40_projects/project_001/logs/editor-snapshots",
   "40_projects/project_001/logs/editor-save-history.jsonl"
@@ -56,6 +57,10 @@ export function getCurrentHandoffPaths(repoRoot = getRepoRoot()): {
     bundle: path.join(handoffRoot, "CURRENT.bundle"),
     notes: path.join(handoffRoot, "CURRENT_RECOVERY_NOTES.txt")
   };
+}
+
+export function getManualReportsRoot(repoRoot = getRepoRoot()): string {
+  return path.resolve(repoRoot, `../${MANUAL_REPORTS_ROOT_NAME}`);
 }
 
 export function tryResolvePublicHead(repoRoot = getRepoRoot()): string {
@@ -117,6 +122,24 @@ export function getManualContext(repoRoot = getRepoRoot()): {
     validatedProject,
     handoff: getCurrentHandoffPaths(repoRoot)
   };
+}
+
+export function formatManualBugContext(
+  context: ReturnType<typeof getManualContext>,
+  timestampUtc = new Date().toISOString()
+): string {
+  return [
+    "Manual bug context",
+    `Date/time: ${timestampUtc}`,
+    `Local commit SHA: ${context.localHead}`,
+    `Local phase: ${context.localPhase}`,
+    `Public/main SHA: ${context.publicHead}`,
+    `Local/public status: ${context.gapSummary}`,
+    `Validated project: ${context.validatedProject.projectId} (${context.validatedProject.displayName})`,
+    `Validated project status: ${context.validatedProject.status}`,
+    `Handoff bundle: ${existsSync(context.handoff.bundle) ? context.handoff.bundle : "missing CURRENT.bundle"}`,
+    `Handoff notes: ${existsSync(context.handoff.notes) ? context.handoff.notes : "missing CURRENT_RECOVERY_NOTES.txt"}`
+  ].join("\n");
 }
 
 export function listTrackedProject001PathsAtHead(repoRoot = getRepoRoot()): string[] {

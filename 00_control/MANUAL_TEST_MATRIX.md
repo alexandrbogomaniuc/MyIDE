@@ -14,3 +14,4 @@
 | Undo/redo | Undo once, redo once | Object returns to old state, then back to new state | Screenshot or note the exact state chain |
 | Save/reload | Save, then reload from disk | Final intended state survives reload | Screenshot after reload plus any mismatch note |
 | Bug context | Run `npm run manual:bug-context` after a failure | Concise local/public/handoff bug context is printed | Copy the full bug-context output |
+| Bug bundle | Run `npm run manual:bug-bundle` after a failure | A timestamped folder is created under `/Users/alexb/Documents/Dev/MyIDE_manual_reports/` with `BUG.md`, `context.txt`, `README.txt`, and `attachments/` | Copy the created bundle path and add files to `attachments/` |

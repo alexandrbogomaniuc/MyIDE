@@ -219,6 +219,7 @@
 ## QA-B
 - [x] Add `manual:prepare:project_001` for one-command manual session prep.
 - [x] Add `manual:bug-context` for paste-friendly bug-report context.
+- [x] Add `manual:bug-bundle` for one-command timestamped bug capture outside the repo.
 - [x] Refresh tester-facing docs so the new commands are the easiest manual QA path.
 - [ ] Use the new prep/context commands during the first full manual QA pass.
 

@@ -38,6 +38,7 @@ Public publication rules are defined in [`00_control/PUBLIC_REPO_POLICY.md`](./0
 - `npm run manual:status`
 - `npm run manual:prepare:project_001`
 - `npm run manual:bug-context`
+- `npm run manual:bug-bundle`
 - `npm run manual:reset:project_001`
 - `npm run publication:preflight`
 - `npm run publication:compare`
@@ -77,6 +78,7 @@ Public publication rules are defined in [`00_control/PUBLIC_REPO_POLICY.md`](./0
 - `npm run manual:prepare:project_001` resets `project_001` to the current tracked baseline, refreshes derived/synced outputs, validates the project slice, and tells the tester what to run next.
 - `npm run manual:status` prints the exact local/public/handoff context the tester is using.
 - `npm run manual:bug-context` prints a paste-friendly bug context block with current local/public/handoff details.
+- `npm run manual:bug-bundle` creates a timestamped bug-report folder outside the repo under `/Users/alexb/Documents/Dev/MyIDE_manual_reports/`, prefilled with `BUG.md`, current `context.txt`, and an `attachments/` folder.
 - `npm run manual:reset:project_001` restores `project_001` to the current tracked local baseline and clears known local-only editor logs.
 
 ## Current Boundaries

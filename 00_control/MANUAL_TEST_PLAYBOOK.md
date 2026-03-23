@@ -47,6 +47,7 @@ Use this when testing the current local MyIDE build by hand.
 1. Stop after the first clear failure.
 2. Take a screenshot.
 3. Note the exact step where it failed.
-4. Run `npm run manual:bug-context` and copy the output.
-5. Fill in [`MANUAL_BUG_TEMPLATE.md`](./MANUAL_BUG_TEMPLATE.md).
-6. If needed, run `npm run manual:status` again for a second quick context check.
+4. Run `npm run manual:bug-bundle`.
+5. Put screenshots or exported files into the new `attachments/` folder.
+6. Finish `BUG.md` inside the new bundle folder.
+7. If you only need a quick text block for chat or notes, run `npm run manual:bug-context` too.
