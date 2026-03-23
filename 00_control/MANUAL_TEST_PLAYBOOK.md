@@ -3,11 +3,12 @@
 Use this when testing the current local MyIDE build by hand.
 
 ## Before You Start
-1. Run `npm run manual:prepare:project_001`.
-2. If you only need a quick context check, run `npm run manual:status`.
-3. Launch the shell with `npm run dev`.
-4. Test the LOCAL build on this machine, not the public GitHub snapshot.
-5. If you do not want the full prepare flow, `npm run manual:reset:project_001` still restores only the `project_001` baseline.
+1. This test edits reconstructed internal scene data under `40_projects/project_001/internal`; donor evidence under `10_donors/` is read-only in the current shell.
+2. Run `npm run manual:prepare:project_001`.
+3. If you only need a quick context check, run `npm run manual:status`.
+4. Launch the shell with `npm run dev`.
+5. Test the LOCAL build on this machine, not the public GitHub snapshot.
+6. If you do not want the full prepare flow, `npm run manual:reset:project_001` still restores only the `project_001` baseline.
 
 ## Core Checklist
 1. App launch

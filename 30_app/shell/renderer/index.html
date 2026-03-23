@@ -12,7 +12,7 @@
         <div class="brand">
           <p class="eyebrow">Local-first reconstruction studio</p>
           <h1>MyIDE</h1>
-          <p class="lede">Universal multi-project IDE with the first usable scene editor slice for the validated Mystery Garden project.</p>
+          <p class="lede">Current build: a bounded internal scene editor for the validated <code>project_001</code> Mystery Garden slice. Raw donor captures stay read-only evidence in this shell.</p>
         </div>
         <div class="chips" aria-label="Project constraints">
           <span>MULTI PROJECT</span>
@@ -24,13 +24,21 @@
 
       <main class="workspace">
         <section class="stack">
+          <article class="panel onboarding-panel">
+            <div class="panel-head">
+              <h2>Start Here</h2>
+              <span>Current scope</span>
+            </div>
+            <div id="onboarding-card" class="browser-stack" aria-live="polite"></div>
+          </article>
+
           <article class="panel">
             <div class="panel-head">
               <h2>Project Browser</h2>
               <span>Folder-discovered workspace</span>
             </div>
             <div class="browser-toolbar">
-              <p class="muted-copy">Project folders stay authoritative. Open `project_001` to edit the first validated scene slice.</p>
+              <p class="muted-copy">Project folders stay authoritative. Open `project_001` to edit the validated internal scene slice; donor captures stay read-only evidence in this build.</p>
               <button id="action-rescan" type="button">Rescan Workspace</button>
             </div>
             <div id="project-browser" class="browser-stack" aria-live="polite"></div>
@@ -93,6 +101,7 @@
             <h2>Editor Canvas</h2>
             <span>Internal scene data only</span>
           </div>
+          <p class="context-hint">You are editing reconstructed internal scene objects here. “Preview Source: Editable Internal Scene” means the canvas is driven by <code>internal/scene.json</code>, <code>layers.json</code>, and <code>objects.json</code>, not raw donor assets.</p>
           <div id="editor-toolbar" class="editor-toolbar">
             <button id="action-undo" type="button">Undo</button>
             <button id="action-redo" type="button">Redo</button>
@@ -149,6 +158,7 @@
             <h2>Property Inspector</h2>
             <span>Edit selected object</span>
           </div>
+          <p class="context-hint">Inspector changes apply to the selected internal scene object only. Raw donor captures are evidence inputs, not directly editable objects in this build.</p>
           <div id="inspector" class="inspector-card"></div>
           <div class="panel-head panel-head-tight">
             <h2>Activity</h2>

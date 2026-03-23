@@ -168,6 +168,16 @@ select {
   margin-bottom: 12px;
 }
 
+.context-hint {
+  margin: 0;
+  padding: 0.85rem 1rem;
+  border-radius: 14px;
+  border: 1px solid rgba(110, 169, 216, 0.22);
+  background: rgba(110, 169, 216, 0.08);
+  color: #d7e9f7;
+  line-height: 1.5;
+}
+
 .muted-copy {
   margin: 0;
   color: var(--muted);
@@ -467,6 +477,21 @@ button:disabled {
   line-height: 1.4;
 }
 
+.quickstart-list {
+  margin: 0;
+  padding-left: 1.2rem;
+  color: var(--text);
+  line-height: 1.55;
+}
+
+.quickstart-list li + li {
+  margin-top: 0.4rem;
+}
+
+.quickstart-list strong {
+  color: var(--accent);
+}
+
 .chip-row,
 .lifecycle-grid {
   display: flex;
@@ -624,6 +649,14 @@ button:disabled {
 
 .sync-status-meta code {
   color: var(--accent);
+}
+
+.scope-summary {
+  gap: 10px;
+}
+
+.scope-summary .chip-row span {
+  color: #d5e7f5;
 }
 
 .editor-canvas-shell {

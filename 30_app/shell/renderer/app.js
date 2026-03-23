@@ -59,6 +59,7 @@ const objectSizePresets = {
 };
 
 const elements = {
+  onboardingCard: document.getElementById("onboarding-card"),
   projectBrowser: document.getElementById("project-browser"),
   sceneExplorer: document.getElementById("scene-explorer"),
   projectSummary: document.getElementById("project-summary"),
@@ -5260,6 +5261,52 @@ function renderBridgeStatus() {
   `;
 }
 
+function renderOnboardingCard() {
+  if (!elements.onboardingCard) {
+    return;
+  }
+
+  const selectedProject = getSelectedProject();
+  const workspaceProjects = getWorkspaceProjects();
+  const validatedProject = workspaceProjects.find((project) => project.projectId === "project_001") ?? selectedProject;
+  const validatedProjectLabel = validatedProject
+    ? `<code>${escapeHtml(validatedProject.projectId)}</code> (${escapeHtml(validatedProject.displayName)})`
+    : "<code>project_001</code>";
+  const capabilities = [
+    "Select objects",
+    "Move / resize / align",
+    "Reassign / reorder",
+    "Create placeholders",
+    "Duplicate / delete",
+    "Undo / redo",
+    "Save / reload"
+  ];
+
+  elements.onboardingCard.innerHTML = `
+    <div class="tree-row scope-summary">
+      <strong>What this build is</strong>
+      <p>MyIDE currently edits the reconstructed internal scene for the validated ${validatedProjectLabel} slice.</p>
+      <p>It does not yet expose a donor asset browser, donor palette, or drag/drop donor placement flow.</p>
+    </div>
+    <div class="tree-row">
+      <strong>Where donor material fits</strong>
+      <span>Raw donor captures stay read-only evidence. The live preview and save loop use internal <code>scene.json</code>, <code>layers.json</code>, and <code>objects.json</code>.</span>
+    </div>
+    <div class="tree-row">
+      <strong>First 3 steps</strong>
+      <ol class="quickstart-list">
+        <li><strong>Open project_001</strong> in the Project Browser.</li>
+        <li><strong>Select an object or create a placeholder</strong> from the preset picker.</li>
+        <li><strong>Edit, save, and reload</strong> to confirm the internal scene loop works.</li>
+      </ol>
+    </div>
+    <div class="tree-row">
+      <strong>What you can test now</strong>
+      <div class="chip-row">${capabilities.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div>
+    </div>
+  `;
+}
+
 function renderProjectBrowser() {
   if (!elements.projectBrowser) {
     return;
@@ -5437,6 +5484,21 @@ function renderProjectSummary() {
   const view = getViewportState();
   const viewSummary = `View ${Math.round(view.zoom * 100)}%${Math.abs(view.panX) > 0.001 || Math.abs(view.panY) > 0.001 ? ` pan ${Math.round(view.panX)}, ${Math.round(view.panY)}` : " default origin"}`;
   const editorStatusSummary = `${sceneSummary} · ${isSnapEnabled() ? `Snap ${getSnapSize()}px` : "Snap off"} · ${getSelectedLayerLabel()} · ${isLayerIsolationActive() ? `Solo ${getIsolatedLayer()?.displayName ?? "layer"}` : "No solo layer"} · ${viewSummary}`;
+  const captureSessions = Array.isArray(selectedProject.donor?.captureSessions)
+    ? selectedProject.donor.captureSessions
+    : [];
+  const evidenceRefs = Array.isArray(selectedProject.donor?.evidenceRefs)
+    ? selectedProject.donor.evidenceRefs
+    : [];
+  const evidenceRoot = selectedProject.keyPaths?.evidenceRoot
+    ?? selectedProject.donor?.evidenceRoot
+    ?? "Not indexed";
+  const captureSessionSummary = captureSessions.length > 0
+    ? `${captureSessions.slice(0, 2).join(", ")}${captureSessions.length > 2 ? ` +${captureSessions.length - 2} more` : ""}`
+    : "No capture sessions indexed yet.";
+  const evidenceRefSummary = evidenceRefs.length > 0
+    ? `${evidenceRefs.length} indexed evidence refs`
+    : "No evidence refs indexed yet.";
 
   const lifecycleChips = lifecycleStageOrder.map((stageId) => {
     const stage = selectedProject.lifecycle?.stages?.[stageId];
@@ -5471,7 +5533,42 @@ function renderProjectSummary() {
       <div class="detail-card">
         <span>Preview Source</span>
         <strong>Editable Internal Scene</strong>
-        <small>The shell preview is driven from <code>internal/scene.json</code>, <code>layers.json</code>, and <code>objects.json</code>, and save deterministically syncs replay-facing <code>project.json</code>.</small>
+        <small>The shell preview is driven from <code>internal/scene.json</code>, <code>layers.json</code>, and <code>objects.json</code>. Raw donor captures stay read-only evidence, and save deterministically syncs replay-facing <code>project.json</code>.</small>
+      </div>
+    </div>
+    <div class="tree-row scope-summary">
+      <strong>Current Scope</strong>
+      <span>This shell edits reconstructed internal scene objects for the selected project. It does not yet expose a donor asset browser or donor drag/drop placement workflow.</span>
+      <div class="chip-row">
+        <span>editable source: internal scene</span>
+        <span>donor evidence: read-only</span>
+        <span>validated slice: project_001</span>
+      </div>
+    </div>
+    <div class="tree-row">
+      <strong>Read-only Donor Evidence Summary</strong>
+      <span>${escapeHtml(selectedProject.donor.donorName)} evidence explains provenance for this project. It is not the live editable source in this build.</span>
+      <div class="detail-grid">
+        <div class="detail-card">
+          <span>Evidence Root</span>
+          <strong><code>${escapeHtml(evidenceRoot)}</code></strong>
+          <small>Read-only donor capture path for this project.</small>
+        </div>
+        <div class="detail-card">
+          <span>Capture Sessions</span>
+          <strong>${captureSessions.length}</strong>
+          <small>${escapeHtml(captureSessionSummary)}</small>
+        </div>
+        <div class="detail-card">
+          <span>Evidence Records</span>
+          <strong>${evidenceRefs.length}</strong>
+          <small>${escapeHtml(evidenceRefSummary)}</small>
+        </div>
+        <div class="detail-card">
+          <span>Editing Surface</span>
+          <strong>Internal Scene Files</strong>
+          <small>Use the canvas and inspector to edit reconstructed objects, then save/reload.</small>
+        </div>
       </div>
     </div>
     <div class="tree-row">
@@ -6326,6 +6423,7 @@ function renderActivityLog() {
 
 function renderAll() {
   enforceIsolationSelection();
+  renderOnboardingCard();
   renderProjectBrowser();
   renderSceneExplorer();
   renderBridgeStatus();
