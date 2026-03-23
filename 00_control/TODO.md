@@ -202,6 +202,13 @@
 - [x] Keep the repository clean after the smoke by restoring the touched project files and local logs.
 - [x] Capture a live GUI artifact for the bounded create->drag->undo->redo persistence loop.
 
+## PUB-B
+- [x] Add repeatable publication preflight and LOCAL vs PUBLIC comparison commands.
+- [x] Add repeatable external handoff refresh and handoff verification commands.
+- [x] Standardize the external handoff package with stable `CURRENT.*` files outside the repo.
+- [x] Add an in-repo publication playbook and tracked LOCAL vs PUBLIC gap snapshot.
+- [ ] Publish the unpublished local commit range from an authenticated environment and confirm public catches up.
+
 ## Deferred
 - [ ] Donor decoding automation.
 - [ ] Full editor interactions.

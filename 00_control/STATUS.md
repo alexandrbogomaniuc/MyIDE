@@ -4,6 +4,11 @@
 - Active scope: PHASE 5T live shell create -> drag -> undo -> redo -> save -> reload proof on top of the existing slot-first implementation slice.
 - Current milestone: keep `project_001` as the validated bounded internal scene editor slice with preset-based placeholder creation -> resize/move/edit -> snap-assisted layout -> viewport alignment aids -> layer reassignment -> layer-local ordering -> order-position cues -> previous/next layer navigation -> quick session-only isolation -> session-only viewport zoom/pan/reset/fit -> duplicate/delete -> undo/redo -> save/reload -> deterministic replay sync -> preload bridge health proof -> live Electron shell project load proof -> live Electron shell inspector edit/save/reload proof -> live Electron shell existing-object canvas drag/save/reload proof -> live Electron shell create -> drag -> save -> reload proof for a newly created placeholder object -> live Electron shell create -> duplicate/delete -> save -> reload proof for a newly created placeholder object -> live Electron shell create -> reorder -> save -> reload proof for a newly created placeholder object -> live Electron shell create -> layer reassignment -> save -> reload proof for a newly created placeholder object -> live Electron shell create -> resize -> save -> reload proof for a newly created placeholder object -> live Electron shell create -> align -> save -> reload proof for a newly created placeholder object -> live Electron shell create -> drag -> undo -> redo -> save -> reload proof for a newly created placeholder object.
 
+## Publication Control
+- Current control run: PUB-B publication/handoff hardening and local/public gap control.
+- Local HEAD is ahead of public `origin/main`; use [`PUBLICATION_PLAYBOOK.md`](./PUBLICATION_PLAYBOOK.md) and [`LOCAL_PUBLIC_GAP.md`](./LOCAL_PUBLIC_GAP.md) instead of relying on ad hoc terminal notes.
+- This host can inspect public state and refresh external handoff artifacts, but GitHub HTTPS push may still fail here until credentials are configured.
+
 ## Progress Log
 
 ### 2026-03-19
@@ -91,6 +96,11 @@
 - Added a dedicated `smoke:electron-live-undo-redo` path that launches the real Electron app, loads `project_001` through the preload bridge, selects the `Banner` preset, creates `node.placeholder.banner-01`, drags it through the live canvas pointer path, undoes that drag, redoes it, saves, reloads, verifies replay sync, writes `/tmp/myide-electron-live-undo-redo.json`, and restores the touched project files/logs afterward.
 - Captured a visible keep-open Electron undo-redo proof run and screenshot artifact after the same bounded create -> drag -> undo -> redo -> save -> reload loop completed through the live shell path.
 
+### 2026-03-23
+- Added a deterministic publication toolchain under `tools/publication/` for preflight, LOCAL vs PUBLIC comparison, external handoff refresh, and handoff verification.
+- Added a publication playbook and tracked local/public gap snapshot so publication state is visible inside the repo rather than only in run reports.
+- Standardized the external handoff package to include stable `CURRENT.*` files alongside the existing phase-specific artifacts under `/Users/alexb/Documents/Dev/MyIDE_handoff`.
+
 ## Proven Facts
 - Local reference repos are available in the developer workspace outside this repository.
 - The first Mystery Garden donor evidence pack now contains both official web evidence and one live public runtime session, all hashed.
@@ -136,3 +146,4 @@
 - Object ordering remains layer-local, and layer isolation is session-only rather than a persistent project setting.
 - Previous/next layer navigation remains session-only selection state and does not cross layer boundaries.
 - Live GUI proof now exists for preload bridge health, `project_001` load, one bounded in-window inspector edit/save/reload loop, one bounded in-window existing-object canvas drag/save/reload loop, one bounded in-window create -> drag -> save -> reload loop for a new placeholder object, one bounded in-window create -> duplicate/delete -> save -> reload loop for a new placeholder object, one bounded in-window create -> reorder -> save -> reload loop for a new placeholder object, one bounded in-window create -> layer reassignment -> save -> reload loop for a new placeholder object, one bounded in-window create -> resize -> save -> reload loop for a new placeholder object, one bounded in-window create -> align -> save -> reload loop for a new placeholder object, and one bounded in-window create -> drag -> undo -> redo -> save -> reload loop for a new placeholder object, but the shell still does not yet prove broader interactive automation flows beyond those constrained persistence paths.
+- Public `origin/main` still lags the local MyIDE `main` history because GitHub HTTPS publication from this host remains blocked until credentials are available.
