@@ -5,16 +5,30 @@ This document describes the first concrete `project_001` archived row contract s
 ## Fixture Status
 - Current row file: `sample-playerBets-row.json`
 - Status: derived contract fixture / expected shape
-- Not yet a captured production GS row
+- No full captured `playerBets` row is stored in this repo yet
 - Grounded parts come from:
   - the audited GS servlet + `TRow` row/parse contract
   - the canonical GS `gethistory.response.json` example for free-spins feature-mode/counter structure
   - the existing `project_001` `fixtures/free_spins_trigger.json` donor-backed replay slice
+- Strongest currently captured row-adjacent evidence:
+  - `MG-EV-20260320-LIVE-A-005__runtime_init_response.json`
+  - confirms a live `flow.round_id` of `14099735306`
+  - does not contain a full archived `playerBets` row
 - Provisional parts remain:
   - the exact numeric `stateId`
   - the exact `extBetId`
-  - the exact `ROUND_ID` value
   - any per-game key that still reflects `project_001` contract shaping rather than a captured GS row
+
+## Captured Vs Derived Truth
+- Captured target evidence found so far:
+  - one sanitized live init response proving `flow.round_id=14099735306`
+  - no full archived `playerBets` row with the complete GS history shape
+- Derived fixture file:
+  - `contract/sample-playerBets-row.json`
+  - remains the deterministic replay input for the local harness
+- Parser-ready normalized view:
+  - generated at runtime by the shared parser and replay harness
+  - explained in `parsed-row-example.md`
 
 ## Source Shape
 The audited GS history servlet returns JSON rows under `playerBets[]` with the following fields:
@@ -50,7 +64,8 @@ The audited GS history servlet returns JSON rows under `playerBets[]` with the f
 - `ROUND_ID` is mandatory.
 - If `ROUND_ID` is missing, support/history lookup and round-specific replay navigation become unreliable.
 - Every project should prove where `ROUND_ID` comes from and which payload bag carries it.
-- For `project_001`, the current contract fixture carries `ROUND_ID` in `servletData`.
+- For `project_001`, the current derived fixture carries `ROUND_ID` in `servletData`.
+- That value is now grounded to the captured live init response `MG-EV-20260320-LIVE-A-005`.
 
 ## Project 001 Concrete Fixture Shape
 - Intended row slice: free-spins trigger into free-spins active
@@ -64,7 +79,8 @@ The audited GS history servlet returns JSON rows under `playerBets[]` with the f
 - Top-level row fields are derived from the audited GS history servlet row contract.
 - `FEATURE_MODE` and `COUNTER_FREE_SPINS_AWARDED` are derived from the canonical GS `gethistory` example shape for free-spins history items.
 - `TRIGGER_MODAL_TEXT`, `FOLLOW_UP_COUNTER_TEXT`, `SYMBOL_GRID`, `FOLLOW_UP_SYMBOL_GRID`, and `EVIDENCE_REFS` are derived from the current `project_001` free-spins-trigger internal replay fixture.
-- `ROUND_ID`, `stateId`, and `extBetId` remain provisional until a real target archived row is captured.
+- `ROUND_ID` is confirmed from captured live init evidence, but still not from a captured archived `playerBets` row.
+- `stateId` and `extBetId` remain provisional until a real archived target row is captured.
 
 ## Required Deterministic Keys
 ### Top-level JSON row
@@ -101,6 +117,10 @@ The audited GS history servlet returns JSON rows under `playerBets[]` with the f
 - `DONOR_ID`
 - `SOURCE_CAPTURE`
 - `FIXTURE_KIND`
+- `FIXTURE_PROVENANCE`
+- `CAPTURE_STATUS`
+- `CAPTURED_ROUND_ID`
+- `CAPTURED_ROUND_ID_EVIDENCE`
 - `SOURCE_NOTE`
 
 ## Deterministic Replay Requirement

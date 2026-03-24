@@ -93,8 +93,9 @@ Public publication rules are defined in [`00_control/PUBLIC_REPO_POLICY.md`](./0
 - `project_001` now has one concrete project-specific VABS slice: an intended folder-name decision, a stronger derived archived-row fixture, a parser harness, a local replay harness, and a first minimal replay-summary stub package under `40_projects/project_001/vabs/renderer/mysterygarden/`.
 - `npm run vabs:scaffold:project_001`, `npm run vabs:verify:project_001`, and `npm run vabs:replay:project_001` are local-first scaffold/verification/replay helpers.
 - `npm run vabs:parse:project_001` prints the parsed row-contract summary for the current fixture.
-- `npm run vabs:replay:project_001` writes deterministic replay-summary artifacts to `/tmp/myide-vabs-project_001-replay/`.
-- VABS in the current repo is now at the first project-specific concrete replay slice for `project_001`, but it still does not claim a finished production GS renderer.
+- `project_001` now tracks captured-vs-derived truth explicitly: no full captured archived `playerBets` row is stored yet, but the current derived fixture now carries one confirmed live `ROUND_ID` from `MG-EV-20260320-LIVE-A-005`.
+- `npm run vabs:replay:project_001` writes deterministic replay-summary artifacts to `/tmp/myide-vabs-project_001-replay/<fixture>/`.
+- VABS in the current repo is now at a stronger project-specific concrete replay slice for `project_001`, but it still does not claim a finished production GS renderer.
 
 ## Current Boundaries
 - No production server adapter implementation yet.

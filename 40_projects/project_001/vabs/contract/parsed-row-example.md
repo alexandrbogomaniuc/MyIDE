@@ -5,13 +5,18 @@ This file shows the intended parsed summary for the current `project_001` contra
 ## Source Row
 - file: `contract/sample-playerBets-row.json`
 - status: sanitized derived contract fixture, not a captured production GS row
+- strongest captured input so far: `MG-EV-20260320-LIVE-A-005__runtime_init_response.json`
+- confirmed captured value reused here: `flow.round_id=14099735306`
 
 ## Parsed Summary
 - `time`: `20 Mar 2026 10:32:56`
 - `stateId`: `317`
 - `stateName`: `Free Spins Trigger`
 - `extBetId`: `project001-fs-trigger-0001`
-- `ROUND_ID`: `202603200001`
+- `ROUND_ID`: `14099735306`
+- `fixtureProvenance`: `derived-project-fixture-plus-gs-example-plus-captured-round-id`
+- `captureStatus`: `no-captured-playerbets-row__captured-round-id-only`
+- `capturedRoundIdEvidence`: `MG-EV-20260320-LIVE-A-005`
 - `entryState`: `state.spin`
 - `resultState`: `state.free-spins-trigger`
 - `followUpState`: `state.free-spins-active`
@@ -48,6 +53,10 @@ This file shows the intended parsed summary for the current `project_001` contra
 - `DONOR_ID`
 - `SOURCE_CAPTURE`
 - `FIXTURE_KIND`
+- `FIXTURE_PROVENANCE`
+- `CAPTURE_STATUS`
+- `CAPTURED_ROUND_ID`
+- `CAPTURED_ROUND_ID_EVIDENCE`
 - `SOURCE_NOTE`
 
 ## Why This Example Exists
@@ -59,4 +68,5 @@ This file shows the intended parsed summary for the current `project_001` contra
 - Derived from audited GS row transport: top-level row fields plus `ROUND_ID` contract expectations.
 - Derived from canonical GS `gethistory` example: `FEATURE_MODE`, `COUNTER_FREE_SPINS_AWARDED`.
 - Derived from `project_001` free-spins-trigger fixture: states, grids, trigger/follow-up text, evidence refs.
-- Still provisional until a captured target row exists: `stateId`, `ROUND_ID` value, `extBetId`.
+- Confirmed from captured live init response: `ROUND_ID=14099735306`.
+- Still provisional until a captured target row exists: `stateId`, `extBetId`, and the full archived `playerBets` transport row.

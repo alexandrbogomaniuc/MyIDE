@@ -239,6 +239,13 @@
 - [ ] Replace the sanitized contract fixture with a real captured target row when that row becomes available.
 - [ ] Replace the stub renderer package with a visual project-specific renderer only after the real target row and deployment path are locked.
 
+## GS-VABS-D
+- [x] Attempt to locate one real/sanitized archived row or the strongest row-adjacent evidence available for `project_001`.
+- [x] Make captured-vs-derived provenance explicit in the contract docs and replay output.
+- [x] Strengthen the local replay harness with fixture-tier provenance and deterministic output paths.
+- [x] Deepen the `mysterygarden` renderer stub into a richer replay-summary panel while keeping it read-only and non-production.
+- [ ] Capture one real sanitized archived `playerBets` row for Mystery Garden and add it as a separate captured fixture tier.
+
 ## GS-VABS-C
 - [x] Strengthen the `project_001` row fixture with clearer grounded/derived/provisional provenance.
 - [x] Add a deterministic local replay harness for the `project_001` VABS slice.

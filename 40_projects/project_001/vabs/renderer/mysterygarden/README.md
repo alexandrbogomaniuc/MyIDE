@@ -11,7 +11,7 @@ This is the first project-specific GS VABS renderer stub package for `project_00
 - prove the intended folder/package shape
 - prove the first row-contract parsing pattern
 - keep future renderer work grounded in one concrete project slice
-- produce one minimal replay-summary panel from the local row fixture
+- produce one stronger replay-summary panel from the local row fixture
 
 ## Current Files
 - `code.js`
@@ -20,6 +20,6 @@ This is the first project-specific GS VABS renderer stub package for `project_00
 ## Scope
 - reads the contract fixture fields and grouped payload values
 - exposes the expected callback structure for future GS VABS work
-- renders a deterministic minimal replay summary with `ROUND_ID`, state flow, bet/win/balance, trigger/follow-up cues, two encoded boards, and evidence refs
+- renders a deterministic replay summary with fixture provenance, `ROUND_ID`, state flow, bet/win/balance, feature cues, trigger/follow-up notes, encoded boards, and evidence refs
 - does not depend on live runtime APIs beyond the normal GS VABS row/engine surface
 - remains a stub and does not claim the final VABS art or gameplay renderer

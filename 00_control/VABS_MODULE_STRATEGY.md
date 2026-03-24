@@ -88,3 +88,16 @@ This run still does not add:
 - a finished production GS VABS renderer
 - live GS deployment/runtime dependency
 - any change to the current internal-scene editor model
+
+## Current GS-VABS-D Scope
+This run adds:
+- one explicit captured-vs-derived provenance lane for `project_001`
+- one stronger derived fixture that now carries a live-captured `ROUND_ID`
+- one captured-row attempt note that records the exact blocker when no full `playerBets` row is available
+- one stronger local replay harness with fixture-tier output and provenance in the replay artifacts
+- one stronger `mysterygarden` stub that surfaces provenance, feature cues, boards, and evidence refs more clearly
+
+This run still does not add:
+- a finished production GS VABS renderer
+- a captured full archived `playerBets` row for Mystery Garden
+- any change to the current internal-scene editor model

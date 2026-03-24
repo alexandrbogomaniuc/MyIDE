@@ -5,8 +5,10 @@ import { getRepoRoot } from "../publication/shared";
 import {
   buildReplaySummary,
   createLocalReplayRow,
+  FixtureSelection,
   getProjectConfig,
   getRendererEntryPath,
+  parseFixtureSelectionArg,
   parseProjectIdArg,
   ReplaySummary
 } from "./shared";
@@ -131,11 +133,15 @@ function wrapHtml(summary: ReplaySummary, innerHtml: string): string {
 `;
 }
 
-export function runLocalReplayHarness(projectId: string, repoRoot = getRepoRoot()): ReplayHarnessResult {
+export function runLocalReplayHarness(
+  projectId: string,
+  repoRoot = getRepoRoot(),
+  selection: FixtureSelection = "auto"
+): ReplayHarnessResult {
   const config = getProjectConfig(projectId);
   const rendererPath = getRendererEntryPath(projectId, repoRoot);
   const renderer = loadRenderer(rendererPath);
-  const row = createLocalReplayRow(projectId, repoRoot);
+  const row = createLocalReplayRow(projectId, repoRoot, selection);
 
   if (typeof renderer.start === "function") {
     renderer.start();
@@ -144,7 +150,7 @@ export function runLocalReplayHarness(projectId: string, repoRoot = getRepoRoot(
   const rowEvent = typeof renderer.createRowEvent === "function" ? renderer.createRowEvent(row) : row;
   const drawResult = typeof renderer.draw === "function" ? renderer.draw(rowEvent) : null;
   const summary = {
-    ...buildReplaySummary(projectId, repoRoot),
+    ...buildReplaySummary(projectId, repoRoot, selection),
     ...(drawResult && typeof drawResult === "object" && !Array.isArray(drawResult) ? drawResult : {})
   } as ReplaySummary;
 
@@ -161,7 +167,11 @@ export function runLocalReplayHarness(projectId: string, repoRoot = getRepoRoot(
       ? renderer.renderSummaryText(summary)
       : JSON.stringify(summary, null, 2);
 
-  const artifactDirectory = path.join("/tmp", `myide-vabs-${projectId}-replay`);
+  const artifactDirectory = path.join(
+    "/tmp",
+    `myide-vabs-${projectId}-replay`,
+    summary.actualFixtureSelection
+  );
   const jsonPath = path.join(artifactDirectory, "replay-summary.json");
   const htmlPath = path.join(artifactDirectory, "replay-summary.html");
   const textPath = path.join(artifactDirectory, "replay-summary.txt");
@@ -184,15 +194,23 @@ export function runLocalReplayHarness(projectId: string, repoRoot = getRepoRoot(
 function main(): void {
   const repoRoot = getRepoRoot();
   const projectId = parseProjectIdArg();
-  const result = runLocalReplayHarness(projectId, repoRoot);
+  const selection = parseFixtureSelectionArg();
+  const result = runLocalReplayHarness(projectId, repoRoot, selection);
 
   console.log(`Local VABS replay harness passed for ${projectId}`);
+  console.log(`- Requested fixture: ${result.summary.requestedFixtureSelection}`);
+  console.log(`- Actual fixture: ${result.summary.actualFixtureSelection}`);
+  console.log(`- Fixture path: ${result.summary.fixturePath}`);
   console.log(`- ROUND_ID: ${result.summary.roundId}`);
+  console.log(`- Captured ROUND_ID: ${result.summary.capturedRoundId}`);
   console.log(`- State: ${result.summary.stateName} (${result.summary.stateId})`);
   console.log(`- Renderer: ${result.rendererPath}`);
   console.log(`- JSON summary: ${result.jsonPath}`);
   console.log(`- HTML preview: ${result.htmlPath}`);
   console.log(`- Text summary: ${result.textPath}`);
+  if (!result.summary.capturedFixtureAvailable) {
+    console.log(`- Captured-row notes: ${result.summary.capturedNotesPath}`);
+  }
 }
 
 main();

@@ -34,7 +34,8 @@ This folder is the GS VABS workspace scaffold for `project_001`.
 - Reason: the audited GS template normalizes the real game name to a lowercase folder token before loading `common/vabs/<folder>/code.js`; for `Mystery Garden`, the intended normalized token is `mysterygarden`.
 
 ## Current Slice
-- The archived row fixture is now a stronger derived contract fixture tied to the `project_001` free-spins-trigger slice.
+- The archived row fixture is still derived, but it now carries one confirmed captured `ROUND_ID` from `MG-EV-20260320-LIVE-A-005`.
+- `contract/captured-row-notes.md` records the exact captured-vs-derived status and blocker.
 - The renderer folder now contains one project-specific stub package under `renderer/mysterygarden/`.
-- The local replay harness now loads that row plus the `mysterygarden` stub and writes deterministic replay-summary artifacts under `/tmp/myide-vabs-project_001-replay/`.
-- The stub now renders a minimal replay-summary panel, but it is still not a finished production GS renderer.
+- The local replay harness now supports fixture provenance reporting and writes deterministic replay-summary artifacts under `/tmp/myide-vabs-project_001-replay/<fixture>/`.
+- The stub now renders a stronger replay-summary panel, but it is still not a finished production GS renderer.

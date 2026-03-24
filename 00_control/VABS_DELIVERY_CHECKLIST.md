@@ -9,6 +9,7 @@ Use this for each project that will eventually ship GS VABS / visual round histo
 - [ ] Document required `servletData` keys.
 - [ ] Record that `ROUND_ID` is mandatory.
 - [ ] Add one deterministic sample archived row.
+- [ ] Record whether that row is captured, derived, or mixed provenance.
 
 ## Renderer Scaffold
 - [ ] Create `renderer/code.template.js`.
@@ -31,6 +32,7 @@ Use this for each project that will eventually ship GS VABS / visual round histo
 ## Acceptance
 - [ ] Acceptance checklist exists.
 - [ ] One deterministic archived row sample replays consistently.
+- [ ] Captured-vs-derived provenance is explicit for the active fixture.
 - [ ] One deterministic local replay harness run emits a replay-summary artifact for review/debug.
 - [ ] One support/history flow proves the intended round can be opened by `ROUND_ID`.
 - [ ] Current internal scene editor workflow still passes unchanged.
@@ -44,4 +46,4 @@ Use this for each project that will eventually ship GS VABS / visual round histo
 ## Project 001 Current Decision
 - Intended folder name: `mysterygarden`
 - Decision status: provisional but intended
-- Current concrete slice: stronger derived free-spins-trigger row fixture plus local replay harness plus minimal replay-summary renderer stub
+- Current concrete slice: stronger derived free-spins-trigger row fixture plus captured-round-id tracking plus local replay harness plus stronger replay-summary renderer stub

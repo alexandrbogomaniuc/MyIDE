@@ -16,8 +16,8 @@
 }(typeof globalThis !== "undefined" ? globalThis : this, function (root) {
     var fallbackStrings = {
         STUB_TITLE: "Mystery Garden Replay Summary (Stub)",
-        STUB_SUBTITLE: "Read-only local replay proof from the project_001 archived-row fixture.",
-        STUB_SCOPE: "This is a deterministic stub, not a finished production GS renderer."
+        STUB_SUBTITLE: "Read-only local replay proof from the project_001 archived-row fixture with explicit captured-vs-derived provenance.",
+        STUB_SCOPE: "This panel proves the row -> parser -> renderer direction only. It is not a finished production GS renderer."
     };
 
     function readStrings() {
@@ -53,6 +53,18 @@
         });
     }
 
+    function flattenGrid(grid) {
+        return grid.reduce(function (cells, column) {
+            return cells.concat(column);
+        }, []);
+    }
+
+    function countSymbol(grid, symbol) {
+        return flattenGrid(grid).filter(function (value) {
+            return value === symbol;
+        }).length;
+    }
+
     function escapeHtml(value) {
         return String(value)
             .replaceAll("&", "&amp;")
@@ -85,8 +97,20 @@
     }
 
     function getSummary(row) {
+        var symbolGrid = parseGrid(readValue(row, "SYMBOL_GRID"));
+        var followUpSymbolGrid = parseGrid(readValue(row, "FOLLOW_UP_SYMBOL_GRID"));
+        var evidenceRefs = parseList(readValue(row, "EVIDENCE_REFS"));
+
         return {
             roundId: readValue(row, "ROUND_ID"),
+            capturedRoundId: readValue(row, "CAPTURED_ROUND_ID"),
+            capturedRoundIdEvidence: readValue(row, "CAPTURED_ROUND_ID_EVIDENCE"),
+            fixtureKind: readValue(row, "FIXTURE_KIND"),
+            fixtureProvenance: readValue(row, "FIXTURE_PROVENANCE"),
+            captureStatus: readValue(row, "CAPTURE_STATUS"),
+            sourceCapture: readValue(row, "SOURCE_CAPTURE"),
+            donorId: readValue(row, "DONOR_ID"),
+            sourceNote: readValue(row, "SOURCE_NOTE"),
             entryState: readValue(row, "ENTRY_STATE"),
             resultState: readValue(row, "RESULT_STATE"),
             followUpState: readValue(row, "FOLLOW_UP_STATE"),
@@ -96,9 +120,18 @@
             currency: readValue(row, "CURRENCY"),
             triggerModalText: readValue(row, "TRIGGER_MODAL_TEXT"),
             followUpCounterText: readValue(row, "FOLLOW_UP_COUNTER_TEXT"),
-            evidenceRefs: parseList(readValue(row, "EVIDENCE_REFS")),
-            symbolGrid: parseGrid(readValue(row, "SYMBOL_GRID")),
-            followUpSymbolGrid: parseGrid(readValue(row, "FOLLOW_UP_SYMBOL_GRID")),
+            evidenceRefs: evidenceRefs,
+            evidenceRefCount: evidenceRefs.length,
+            symbolGrid: symbolGrid,
+            followUpSymbolGrid: followUpSymbolGrid,
+            triggerBoardColumns: symbolGrid.length,
+            triggerBoardRows: symbolGrid.length ? Math.max.apply(null, symbolGrid.map(function (column) { return column.length; })) : 0,
+            followUpBoardColumns: followUpSymbolGrid.length,
+            followUpBoardRows: followUpSymbolGrid.length ? Math.max.apply(null, followUpSymbolGrid.map(function (column) { return column.length; })) : 0,
+            triggerKeyCount: countSymbol(symbolGrid, "KEY"),
+            triggerBookCount: countSymbol(symbolGrid, "BOOK"),
+            followUpKeyCount: countSymbol(followUpSymbolGrid, "KEY"),
+            followUpBookCount: countSymbol(followUpSymbolGrid, "BOOK"),
             extBetId: row && typeof row.getExtBetId === "function" ? row.getExtBetId() : "",
             stateId: row && typeof row.getStateID === "function" ? row.getStateID() : "",
             stateName: row && typeof row.getStateText === "function" ? row.getStateText() : "",
@@ -112,6 +145,11 @@
         var lines = [
             "Mystery Garden Replay Summary (Stub)",
             "ROUND_ID: " + (summary.roundId || "-"),
+            "Captured ROUND_ID: " + (summary.capturedRoundId || "-"),
+            "Captured ROUND_ID Evidence: " + (summary.capturedRoundIdEvidence || "-"),
+            "Fixture: " + (summary.actualFixtureSelection || summary.fixtureKind || "-") + " [" + (summary.fixturePath || "-") + "]",
+            "Fixture Provenance: " + (summary.fixtureProvenance || "-"),
+            "Capture Status: " + (summary.captureStatus || "-"),
             "State: " + (summary.stateName || "-") + " (" + (summary.stateId || "-") + ")",
             "State Flow: " + (summary.entryState || "-") + " -> " + (summary.resultState || "-") + " -> " + (summary.followUpState || "-"),
             "Feature Mode: " + (summary.featureMode || "-"),
@@ -119,8 +157,12 @@
             "Free Spins Awarded: " + (summary.awardFreeSpins || "-"),
             "Counter: " + (summary.followUpCounterText || "-"),
             "Trigger Message: " + (summary.triggerModalText || "-"),
+            "Trigger Board: " + summary.triggerBoardColumns + "x" + summary.triggerBoardRows + " (KEY=" + summary.triggerKeyCount + ", BOOK=" + summary.triggerBookCount + ")",
+            "Follow-up Board: " + summary.followUpBoardColumns + "x" + summary.followUpBoardRows + " (KEY=" + summary.followUpKeyCount + ", BOOK=" + summary.followUpBookCount + ")",
             "extBetId: " + (summary.extBetId || "-"),
-            "Evidence Refs: " + (summary.evidenceRefs.length ? summary.evidenceRefs.join(", ") : "-")
+            "Source Capture: " + (summary.sourceCapture || "-"),
+            "Evidence Refs: " + (summary.evidenceRefs.length ? summary.evidenceRefs.join(", ") : "-"),
+            "Source Note: " + (summary.sourceNote || "-")
         ];
 
         return lines.join("\n");
@@ -144,6 +186,7 @@
             "    <article class=\"mg-vabs-stub-card\">",
             "      <h2>Round</h2>",
             "      <p><span class=\"mg-vabs-stub-label\">ROUND_ID</span>" + escapeHtml(summary.roundId || "-") + "</p>",
+            "      <p><span class=\"mg-vabs-stub-label\">Captured</span>" + escapeHtml(summary.capturedRoundId || "-") + "</p>",
             "      <p><span class=\"mg-vabs-stub-label\">extBetId</span>" + escapeHtml(summary.extBetId || "-") + "</p>",
             "      <p><span class=\"mg-vabs-stub-label\">State</span>" + escapeHtml(summary.stateName || "-") + " (" + escapeHtml(summary.stateId || "-") + ")</p>",
             "    </article>",
@@ -160,25 +203,45 @@
             "      <p><span class=\"mg-vabs-stub-label\">Counter</span>" + escapeHtml(summary.counterFreeSpinsAwarded || "-") + "</p>",
             "    </article>",
             "    <article class=\"mg-vabs-stub-card\">",
-            "      <h2>Text Cue</h2>",
-            "      <p>" + escapeHtml(summary.triggerModalText || "-") + "</p>",
-            "      <p><span class=\"mg-vabs-stub-label\">Follow-up</span>" + escapeHtml(summary.followUpCounterText || "-") + "</p>",
+            "      <h2>Provenance</h2>",
+            "      <p><span class=\"mg-vabs-stub-label\">Fixture</span>" + escapeHtml(summary.actualFixtureSelection || summary.fixtureKind || "-") + "</p>",
+            "      <p><span class=\"mg-vabs-stub-label\">Provenance</span>" + escapeHtml(summary.fixtureProvenance || "-") + "</p>",
+            "      <p><span class=\"mg-vabs-stub-label\">Status</span>" + escapeHtml(summary.captureStatus || "-") + "</p>",
+            "      <p><span class=\"mg-vabs-stub-label\">Evidence</span>" + escapeHtml(summary.capturedRoundIdEvidence || "-") + "</p>",
             "    </article>",
             "  </div>",
             "  <div class=\"mg-vabs-stub-sequence\">" + escapeHtml(summary.entryState || "-") + " -> " + escapeHtml(summary.resultState || "-") + " -> " + escapeHtml(summary.followUpState || "-") + "</div>",
             "  <div class=\"mg-vabs-stub-grid\">",
-            "    <article class=\"mg-vabs-stub-card mg-vabs-stub-board\">",
+            "    <article class=\"mg-vabs-stub-card\">",
+            "      <h2>Text Cue</h2>",
+            "      <p>" + escapeHtml(summary.triggerModalText || "-") + "</p>",
+            "      <p><span class=\"mg-vabs-stub-label\">Follow-up</span>" + escapeHtml(summary.followUpCounterText || "-") + "</p>",
+            "      <p><span class=\"mg-vabs-stub-label\">Source</span>" + escapeHtml(summary.sourceCapture || "-") + "</p>",
+            "      <p><span class=\"mg-vabs-stub-label\">Donor</span>" + escapeHtml(summary.donorId || "-") + "</p>",
+            "    </article>",
+            "    <article class=\"mg-vabs-stub-card\">",
             "      <h2>Trigger Board</h2>",
+            "      <p><span class=\"mg-vabs-stub-label\">Shape</span>" + escapeHtml(summary.triggerBoardColumns + "x" + summary.triggerBoardRows) + "</p>",
+            "      <p><span class=\"mg-vabs-stub-label\">KEY</span>" + escapeHtml(summary.triggerKeyCount) + "</p>",
+            "      <p><span class=\"mg-vabs-stub-label\">BOOK</span>" + escapeHtml(summary.triggerBookCount) + "</p>",
                    renderGridTable(summary.symbolGrid),
             "    </article>",
-            "    <article class=\"mg-vabs-stub-card mg-vabs-stub-board\">",
+            "    <article class=\"mg-vabs-stub-card\">",
             "      <h2>Follow-up Board</h2>",
+            "      <p><span class=\"mg-vabs-stub-label\">Shape</span>" + escapeHtml(summary.followUpBoardColumns + "x" + summary.followUpBoardRows) + "</p>",
+            "      <p><span class=\"mg-vabs-stub-label\">KEY</span>" + escapeHtml(summary.followUpKeyCount) + "</p>",
+            "      <p><span class=\"mg-vabs-stub-label\">BOOK</span>" + escapeHtml(summary.followUpBookCount) + "</p>",
                    renderGridTable(summary.followUpSymbolGrid),
             "    </article>",
             "  </div>",
             "  <article class=\"mg-vabs-stub-card\">",
             "    <h2>Evidence Refs</h2>",
+            "    <p><span class=\"mg-vabs-stub-label\">Count</span>" + escapeHtml(summary.evidenceRefCount || 0) + "</p>",
                  evidenceItems,
+            "  </article>",
+            "  <article class=\"mg-vabs-stub-card\">",
+            "    <h2>Source Note</h2>",
+            "    <p>" + escapeHtml(summary.sourceNote || "-") + "</p>",
             "  </article>",
             "  <p class=\"mg-vabs-stub-subtitle\">" + escapeHtml(strings.STUB_SCOPE || fallbackStrings.STUB_SCOPE) + "</p>",
             "</section>"
