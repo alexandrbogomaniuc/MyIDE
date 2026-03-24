@@ -39,3 +39,8 @@ Use this for each project that will eventually ship GS VABS / visual round histo
 - [ ] Donor evidence remains read-only.
 - [ ] VABS remains a separate module/workstream.
 - [ ] No project is called VABS-ready without scaffold + deploy + acceptance coverage.
+
+## Project 001 Current Decision
+- Intended folder name: `mysterygarden`
+- Decision status: provisional but intended
+- Current concrete slice: free-spins-trigger contract fixture plus renderer stub

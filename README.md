@@ -89,8 +89,10 @@ Public publication rules are defined in [`00_control/PUBLIC_REPO_POLICY.md`](./0
 - [`00_control/VABS_MODULE_STRATEGY.md`](./00_control/VABS_MODULE_STRATEGY.md) explains how GS VABS fits into MyIDE as an additional module.
 - [`00_control/VABS_DELIVERY_CHECKLIST.md`](./00_control/VABS_DELIVERY_CHECKLIST.md) is the delivery checklist for per-project archived round history support.
 - `40_projects/project_001/vabs/` is now the project-local VABS scaffold for `project_001`.
+- `project_001` now has one concrete project-specific VABS slice: an intended folder-name decision, a concrete archived-row contract fixture, a parser harness, and a first stub package under `40_projects/project_001/vabs/renderer/mysterygarden/`.
 - `npm run vabs:scaffold:project_001` and `npm run vabs:verify:project_001` are local-first scaffold/verification helpers.
-- VABS in the current repo is scaffold and validation work only. It does not yet claim a finished production GS renderer.
+- `npm run vabs:parse:project_001` prints the parsed row-contract summary for the current fixture.
+- VABS in the current repo is now at the first project-specific concrete slice for `project_001`, but it still does not claim a finished production GS renderer.
 
 ## Current Boundaries
 - No production server adapter implementation yet.

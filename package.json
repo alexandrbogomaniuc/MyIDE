@@ -14,6 +14,7 @@
     "manual:bug-bundle": "npm run build && node dist/tools/manual/createBugBundle.js",
     "manual:reset:project_001": "npm run build && node dist/tools/manual/resetProject001.js",
     "vabs:scaffold:project_001": "npm run build && node dist/tools/gs-vabs/scaffoldVabsPackage.js project_001",
+    "vabs:parse:project_001": "npm run build && node dist/tools/gs-vabs/parseRowFixture.js project_001",
     "vabs:verify:project_001": "npm run build && node dist/tools/gs-vabs/verifyVabsPackage.js project_001",
     "publication:preflight": "npm run build && node dist/tools/publication/preflight.js",
     "publication:compare": "npm run build && node dist/tools/publication/comparePublicState.js",

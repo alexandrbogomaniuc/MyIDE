@@ -225,12 +225,19 @@
 - [x] Add a per-project VABS scaffold under `40_projects/project_001/vabs/`.
 - [x] Add local scaffold/verify tooling for the VABS workspace.
 - [x] Keep current editor/manual verification passing after the VABS scaffold is introduced.
-- [ ] Define the final `project_001` GS folder name against the real target naming rules.
-- [ ] Replace the template renderer with a real project-specific VABS renderer only when the archived row contract is locked.
 - [x] Add `manual:bug-context` for paste-friendly bug-report context.
 - [x] Add `manual:bug-bundle` for one-command timestamped bug capture outside the repo.
 - [x] Refresh tester-facing docs so the new commands are the easiest manual QA path.
 - [ ] Use the new prep/context commands during the first full manual QA pass.
+
+## GS-VABS-B
+- [x] Lock one intended `project_001` GS VABS folder-name decision.
+- [x] Add one concrete archived-row contract fixture for `project_001`.
+- [x] Add a row parser / contract verification harness.
+- [x] Add the first project-specific renderer stub package for `project_001`.
+- [x] Keep current editor/manual verification passing after the concrete VABS slice is introduced.
+- [ ] Replace the sanitized contract fixture with a real captured target row when that row becomes available.
+- [ ] Replace the stub renderer package with a visual project-specific renderer only after the real target row and deployment path are locked.
 
 ## Deferred
 - [ ] Donor decoding automation.

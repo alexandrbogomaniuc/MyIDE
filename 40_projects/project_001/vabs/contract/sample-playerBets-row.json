@@ -1,11 +1,11 @@
 {
-  "time": "24 Mar 2026 12:34:56",
-  "stateId": 100,
-  "stateName": "ROUND_COMPLETE",
-  "bet": 1.0,
-  "win": 2.5,
+  "time": "20 Mar 2026 10:32:56",
+  "stateId": 317,
+  "stateName": "Free Spins Trigger",
+  "bet": 1,
+  "win": 0,
   "balance": 103.5,
-  "betData": "BET_TOTAL=100~BETID=0~COINSEQ=5|5|5",
-  "servletData": "ROUND_ID=123456789~STEP=ROUND_COMPLETE~SOURCE=sample-fixture",
-  "extBetId": "sample-ext-bet-001"
+  "betData": "BET_TOTAL=100~BETID=0~COINSEQ=100|100|100~ENTRY_STATE=state.spin~RESULT_STATE=state.free-spins-trigger~FOLLOW_UP_STATE=state.free-spins-active~AWARD_FREE_SPINS=10~CURRENCY=EUR~SYMBOL_GRID=KEY,ROSE,A|BOOK,KEY,ROSE|A,ROSE,KEY|BOOK,A,ROSE|ROSE,BOOK,A~EVIDENCE_REFS=MG-EV-20260320-WEB-A-001|MG-EV-20260320-WEB-A-006|MG-EV-20260320-WEB-A-007|MG-EV-20260320-WEB-A-005",
+  "servletData": "ROUND_ID=202603200001~PROJECT_ID=project_001~DONOR_ID=donor_001_mystery_garden~SOURCE_CAPTURE=MG-CS-20260320-WEB-A~FIXTURE_KIND=contract-fixture~SOURCE_NOTE=free-spins-trigger-expected-shape",
+  "extBetId": "project001-fs-trigger-0001"
 }

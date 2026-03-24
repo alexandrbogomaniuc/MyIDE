@@ -65,3 +65,15 @@ This run does not add:
 - a production GS VABS renderer
 - deep shell/runtime coupling
 - donor asset editing
+
+## Current GS-VABS-B Scope
+This run adds:
+- one intended `project_001` folder-name decision: `mysterygarden`
+- one concrete sanitized archived-row contract fixture
+- one parser/verification harness for that fixture
+- one project-specific renderer stub package under `renderer/mysterygarden/`
+
+This run still does not add:
+- a finished production GS VABS renderer
+- live GS runtime dependency
+- any change to the current internal-scene editor model

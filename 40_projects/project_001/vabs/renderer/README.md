@@ -3,7 +3,7 @@
 This folder holds the project-local GS VABS renderer scaffold for `project_001`.
 
 ## Current Status
-- Template only.
+- Contains both generic templates and the first project-specific stub package.
 - Not a finished production renderer.
 - Safe to use for contract planning and delivery checklists.
 
@@ -15,6 +15,10 @@ This folder holds the project-local GS VABS renderer scaffold for `project_001`.
 ## Required Outputs
 - `code.template.js`
 - `strings_en.template.js`
+- `mysterygarden/code.js`
+- `mysterygarden/strings_en.js`
 
 ## Naming Rule
-- Final GS folder naming still needs a target-environment decision before shipping.
+- Current intended folder name: `mysterygarden`
+- Status: provisional but intended
+- Shipping still requires confirmation against the real target full game name and GS normalization rules.
