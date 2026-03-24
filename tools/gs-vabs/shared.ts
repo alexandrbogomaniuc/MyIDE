@@ -4,9 +4,11 @@ import path from "path";
 import { getRepoRoot } from "../publication/shared";
 
 export const DEFAULT_PROJECT_ID = "project_001";
+const RAW_CAPTURE_GITIGNORE_ENTRY = "40_projects/project_001/vabs/contract/captured-playerBets-row.json";
 
 export type FixtureSelection = "auto" | "derived" | "captured";
 export type ResolvedFixtureSelection = "derived" | "captured";
+export type FixtureKind = "derived" | "captured-sanitized" | "captured-raw-local";
 
 export type ProjectVabsConfig = {
   projectId: string;
@@ -42,13 +44,22 @@ type RowFixture = {
 export type FixtureResolution = {
   requestedSelection: FixtureSelection;
   actualSelection: ResolvedFixtureSelection;
+  actualFixtureKind: FixtureKind;
   fixturePath: string;
   relativeFixturePath: string;
-  capturedFixturePath: string;
-  relativeCapturedFixturePath: string;
+  derivedFixturePath: string;
+  relativeDerivedFixturePath: string;
+  capturedSanitizedFixturePath: string;
+  relativeCapturedSanitizedFixturePath: string;
+  capturedRawFixturePath: string;
+  relativeCapturedRawFixturePath: string;
+  capturedSanitizedFixtureAvailable: boolean;
+  capturedRawFixtureAvailable: boolean;
   capturedFixtureAvailable: boolean;
   capturedNotesPath: string;
   relativeCapturedNotesPath: string;
+  comparisonPath: string;
+  relativeComparisonPath: string;
 };
 
 export type ParsedRowFixture = {
@@ -75,14 +86,48 @@ export type LocalReplayRow = {
   setRoundID: (roundId: string) => void;
 };
 
+export type FixtureDifference = {
+  field: string;
+  derivedValue: string;
+  capturedValue: string;
+};
+
+export type FixtureComparisonResult = {
+  projectId: string;
+  targetFolderName: string;
+  comparisonMode: "derived-only" | "derived-vs-captured";
+  derivedFixturePath: string;
+  capturedFixturePath: string | null;
+  capturedFixtureKind: FixtureKind | null;
+  capturedFixtureAvailable: boolean;
+  capturedNotesPath: string;
+  confirmedFromCaptured: string[];
+  derivedFromGsExamples: string[];
+  derivedFromProjectFixture: string[];
+  provisionalFields: string[];
+  matchingFields: string[];
+  differingFields: FixtureDifference[];
+  derivedOnlyFields: string[];
+  capturedOnlyFields: string[];
+  notes: string[];
+};
+
 export type ReplaySummary = {
   projectId: string;
   targetFolderName: string;
   requestedFixtureSelection: FixtureSelection;
   actualFixtureSelection: ResolvedFixtureSelection;
+  actualFixtureKind: FixtureKind;
   fixturePath: string;
   capturedFixtureAvailable: boolean;
   capturedNotesPath: string;
+  comparisonPath: string;
+  comparisonMode: "derived-only" | "derived-vs-captured";
+  confirmedFromCaptured: string[];
+  derivedFromGsExamples: string[];
+  derivedFromProjectFixture: string[];
+  provisionalFields: string[];
+  differingFields: FixtureDifference[];
   roundId: string;
   capturedRoundId: string;
   capturedRoundIdEvidence: string;
@@ -163,6 +208,57 @@ const PROJECT_CONFIGS: Record<string, ProjectVabsConfig> = {
   }
 };
 
+const GS_EXAMPLE_DERIVED_FIELDS = ["FEATURE_MODE", "COUNTER_FREE_SPINS_AWARDED"];
+const PROJECT_FIXTURE_DERIVED_FIELDS = [
+  "ENTRY_STATE",
+  "RESULT_STATE",
+  "FOLLOW_UP_STATE",
+  "AWARD_FREE_SPINS",
+  "TRIGGER_MODAL_TEXT",
+  "FOLLOW_UP_COUNTER_TEXT",
+  "SYMBOL_GRID",
+  "FOLLOW_UP_SYMBOL_GRID",
+  "EVIDENCE_REFS"
+];
+const PROVISIONAL_FIELDS = [
+  "time",
+  "stateId",
+  "stateName",
+  "extBetId",
+  "bet",
+  "win",
+  "balance",
+  "BET_TOTAL",
+  "BETID",
+  "COINSEQ",
+  "CURRENCY"
+];
+const COMPARABLE_FIELDS = [
+  "time",
+  "stateId",
+  "stateName",
+  "extBetId",
+  "bet",
+  "win",
+  "balance",
+  "ROUND_ID",
+  "BET_TOTAL",
+  "BETID",
+  "COINSEQ",
+  "ENTRY_STATE",
+  "RESULT_STATE",
+  "FOLLOW_UP_STATE",
+  "FEATURE_MODE",
+  "AWARD_FREE_SPINS",
+  "COUNTER_FREE_SPINS_AWARDED",
+  "CURRENCY",
+  "TRIGGER_MODAL_TEXT",
+  "FOLLOW_UP_COUNTER_TEXT",
+  "SYMBOL_GRID",
+  "FOLLOW_UP_SYMBOL_GRID",
+  "EVIDENCE_REFS"
+];
+
 const REQUIRED_FILES: ScaffoldFile[] = [
   {
     relativePath: "README.md",
@@ -195,6 +291,11 @@ const REQUIRED_FILES: ScaffoldFile[] = [
     relativePath: "contract/captured-row-notes.md",
     contents: () =>
       "# Captured Row Attempt Notes\n\nRecord whether a real archived `playerBets` row was found, or what blocker kept the fixture derived.\n"
+  },
+  {
+    relativePath: "contract/fixture-comparison.md",
+    contents: () =>
+      "# Fixture Comparison\n\nDocument how captured, sanitized, and derived row truth currently compare.\n"
   },
   {
     relativePath: "contract/sample-playerBets-row.json",
@@ -271,6 +372,48 @@ const REQUIRED_FILES: ScaffoldFile[] = [
   }
 ];
 
+function sortedUnique(values: string[]): string[] {
+  return Array.from(new Set(values.filter((value) => value.length > 0))).sort();
+}
+
+function normalizeFieldValue(value: unknown): string {
+  if (value === null || value === undefined) {
+    return "";
+  }
+  if (typeof value === "number") {
+    return String(value);
+  }
+  return String(value).trim();
+}
+
+function extractComparableFieldValues(parsed: ParsedRowFixture): Record<string, string> {
+  return {
+    time: normalizeFieldValue(parsed.fixture.time),
+    stateId: normalizeFieldValue(parsed.fixture.stateId),
+    stateName: normalizeFieldValue(parsed.fixture.stateName),
+    extBetId: normalizeFieldValue(parsed.fixture.extBetId),
+    bet: normalizeFieldValue(parsed.fixture.bet),
+    win: normalizeFieldValue(parsed.fixture.win),
+    balance: normalizeFieldValue(parsed.fixture.balance),
+    ROUND_ID: normalizeFieldValue(parsed.roundId),
+    BET_TOTAL: normalizeFieldValue(parsed.betData.BET_TOTAL),
+    BETID: normalizeFieldValue(parsed.betData.BETID),
+    COINSEQ: normalizeFieldValue(parsed.betData.COINSEQ),
+    ENTRY_STATE: normalizeFieldValue(parsed.betData.ENTRY_STATE),
+    RESULT_STATE: normalizeFieldValue(parsed.betData.RESULT_STATE),
+    FOLLOW_UP_STATE: normalizeFieldValue(parsed.betData.FOLLOW_UP_STATE),
+    FEATURE_MODE: normalizeFieldValue(parsed.betData.FEATURE_MODE),
+    AWARD_FREE_SPINS: normalizeFieldValue(parsed.betData.AWARD_FREE_SPINS),
+    COUNTER_FREE_SPINS_AWARDED: normalizeFieldValue(parsed.betData.COUNTER_FREE_SPINS_AWARDED),
+    CURRENCY: normalizeFieldValue(parsed.betData.CURRENCY),
+    TRIGGER_MODAL_TEXT: normalizeFieldValue(parsed.betData.TRIGGER_MODAL_TEXT),
+    FOLLOW_UP_COUNTER_TEXT: normalizeFieldValue(parsed.betData.FOLLOW_UP_COUNTER_TEXT),
+    SYMBOL_GRID: normalizeFieldValue(parsed.betData.SYMBOL_GRID),
+    FOLLOW_UP_SYMBOL_GRID: normalizeFieldValue(parsed.betData.FOLLOW_UP_SYMBOL_GRID),
+    EVIDENCE_REFS: normalizeFieldValue(parsed.betData.EVIDENCE_REFS)
+  };
+}
+
 export function parseProjectIdArg(): string {
   return process.argv[2] ?? DEFAULT_PROJECT_ID;
 }
@@ -312,12 +455,20 @@ export function getDerivedFixturePath(projectId: string, repoRoot = getRepoRoot(
   return path.join(getVabsRoot(projectId, repoRoot), "contract", "sample-playerBets-row.json");
 }
 
-export function getCapturedFixturePath(projectId: string, repoRoot = getRepoRoot()): string {
+export function getCapturedSanitizedFixturePath(projectId: string, repoRoot = getRepoRoot()): string {
+  return path.join(getVabsRoot(projectId, repoRoot), "contract", "captured-playerBets-row.sanitized.json");
+}
+
+export function getCapturedRawFixturePath(projectId: string, repoRoot = getRepoRoot()): string {
   return path.join(getVabsRoot(projectId, repoRoot), "contract", "captured-playerBets-row.json");
 }
 
 export function getCapturedNotesPath(projectId: string, repoRoot = getRepoRoot()): string {
   return path.join(getVabsRoot(projectId, repoRoot), "contract", "captured-row-notes.md");
+}
+
+export function getFixtureComparisonPath(projectId: string, repoRoot = getRepoRoot()): string {
+  return path.join(getVabsRoot(projectId, repoRoot), "contract", "fixture-comparison.md");
 }
 
 export function getRowFixturePath(
@@ -339,9 +490,13 @@ export function resolveFixtureSelection(
   selection: FixtureSelection = "auto"
 ): FixtureResolution {
   const derivedPath = getDerivedFixturePath(projectId, repoRoot);
-  const capturedPath = getCapturedFixturePath(projectId, repoRoot);
+  const capturedSanitizedPath = getCapturedSanitizedFixturePath(projectId, repoRoot);
+  const capturedRawPath = getCapturedRawFixturePath(projectId, repoRoot);
   const capturedNotesPath = getCapturedNotesPath(projectId, repoRoot);
-  const capturedFixtureAvailable = existsSync(capturedPath);
+  const comparisonPath = getFixtureComparisonPath(projectId, repoRoot);
+  const capturedSanitizedFixtureAvailable = existsSync(capturedSanitizedPath);
+  const capturedRawFixtureAvailable = existsSync(capturedRawPath);
+  const capturedFixtureAvailable = capturedSanitizedFixtureAvailable || capturedRawFixtureAvailable;
 
   if (selection === "captured" && !capturedFixtureAvailable) {
     throw new Error(
@@ -349,20 +504,38 @@ export function resolveFixtureSelection(
     );
   }
 
-  const actualSelection: ResolvedFixtureSelection =
-    selection === "captured" || (selection === "auto" && capturedFixtureAvailable) ? "captured" : "derived";
-  const fixturePath = actualSelection === "captured" ? capturedPath : derivedPath;
+  let actualFixtureKind: FixtureKind = "derived";
+  if (selection === "captured" || (selection === "auto" && capturedFixtureAvailable)) {
+    actualFixtureKind = capturedSanitizedFixtureAvailable ? "captured-sanitized" : "captured-raw-local";
+  }
+
+  const actualSelection: ResolvedFixtureSelection = actualFixtureKind === "derived" ? "derived" : "captured";
+  const fixturePath =
+    actualFixtureKind === "captured-sanitized"
+      ? capturedSanitizedPath
+      : actualFixtureKind === "captured-raw-local"
+        ? capturedRawPath
+        : derivedPath;
 
   return {
     requestedSelection: selection,
     actualSelection,
+    actualFixtureKind,
     fixturePath,
     relativeFixturePath: path.relative(repoRoot, fixturePath),
-    capturedFixturePath: capturedPath,
-    relativeCapturedFixturePath: path.relative(repoRoot, capturedPath),
+    derivedFixturePath: derivedPath,
+    relativeDerivedFixturePath: path.relative(repoRoot, derivedPath),
+    capturedSanitizedFixturePath: capturedSanitizedPath,
+    relativeCapturedSanitizedFixturePath: path.relative(repoRoot, capturedSanitizedPath),
+    capturedRawFixturePath: capturedRawPath,
+    relativeCapturedRawFixturePath: path.relative(repoRoot, capturedRawPath),
+    capturedSanitizedFixtureAvailable,
+    capturedRawFixtureAvailable,
     capturedFixtureAvailable,
     capturedNotesPath,
-    relativeCapturedNotesPath: path.relative(repoRoot, capturedNotesPath)
+    relativeCapturedNotesPath: path.relative(repoRoot, capturedNotesPath),
+    comparisonPath,
+    relativeComparisonPath: path.relative(repoRoot, comparisonPath)
   };
 }
 
@@ -469,7 +642,7 @@ export function parseRowFixture(
     betData,
     servletData,
     roundId,
-    fixtureProvenance: servletData.FIXTURE_PROVENANCE ?? servletData.FIXTURE_KIND ?? resolution.actualSelection,
+    fixtureProvenance: servletData.FIXTURE_PROVENANCE ?? servletData.FIXTURE_KIND ?? resolution.actualFixtureKind,
     captureStatus:
       servletData.CAPTURE_STATUS ??
       (resolution.actualSelection === "captured" ? "captured-playerbets-row" : "derived-contract-fixture"),
@@ -524,6 +697,183 @@ export function createLocalReplayRow(
   };
 }
 
+export function buildFixtureComparison(
+  projectId: string,
+  repoRoot = getRepoRoot()
+): FixtureComparisonResult {
+  const config = getProjectConfig(projectId);
+  const derived = parseRowFixture(projectId, repoRoot, "derived");
+  const resolution = resolveFixtureSelection(projectId, repoRoot, "auto");
+  const notes = [
+    "The compare lane is deterministic and local-first.",
+    "A captured raw fixture should stay local-only and is expected at contract/captured-playerBets-row.json.",
+    "A public-safe sanitized captured fixture should be committed only at contract/captured-playerBets-row.sanitized.json."
+  ];
+
+  if (!resolution.capturedFixtureAvailable) {
+    return {
+      projectId,
+      targetFolderName: config.targetFolderName,
+      comparisonMode: "derived-only",
+      derivedFixturePath: resolution.relativeDerivedFixturePath,
+      capturedFixturePath: null,
+      capturedFixtureKind: null,
+      capturedFixtureAvailable: false,
+      capturedNotesPath: resolution.relativeCapturedNotesPath,
+      confirmedFromCaptured: ["ROUND_ID"],
+      derivedFromGsExamples: GS_EXAMPLE_DERIVED_FIELDS,
+      derivedFromProjectFixture: PROJECT_FIXTURE_DERIVED_FIELDS,
+      provisionalFields: PROVISIONAL_FIELDS,
+      matchingFields: [],
+      differingFields: [],
+      derivedOnlyFields: sortedUnique(COMPARABLE_FIELDS.filter((field) => extractComparableFieldValues(derived)[field])),
+      capturedOnlyFields: [],
+      notes: notes.concat([
+        "No captured archived playerBets row is available yet.",
+        "The strongest grounded capture is MG-EV-20260320-LIVE-A-005, which confirms ROUND_ID=14099735306 from a live init response rather than a history row.",
+        "That same live init response reports currency code FUN, while the current derived fixture still uses CURRENCY=EUR until a captured archived row confirms the transport value."
+      ])
+    };
+  }
+
+  const captured = parseRowFixture(projectId, repoRoot, "captured");
+  const derivedValues = extractComparableFieldValues(derived);
+  const capturedValues = extractComparableFieldValues(captured);
+  const matchingFields: string[] = [];
+  const differingFields: FixtureDifference[] = [];
+  const derivedOnlyFields: string[] = [];
+  const capturedOnlyFields: string[] = [];
+  const confirmedFromCaptured: string[] = [];
+
+  for (const field of COMPARABLE_FIELDS) {
+    const derivedValue = derivedValues[field] ?? "";
+    const capturedValue = capturedValues[field] ?? "";
+
+    if (capturedValue) {
+      confirmedFromCaptured.push(field);
+    }
+
+    if (derivedValue && capturedValue) {
+      if (derivedValue === capturedValue) {
+        matchingFields.push(field);
+      } else {
+        differingFields.push({ field, derivedValue, capturedValue });
+      }
+      continue;
+    }
+
+    if (derivedValue && !capturedValue) {
+      derivedOnlyFields.push(field);
+    }
+    if (!derivedValue && capturedValue) {
+      capturedOnlyFields.push(field);
+    }
+  }
+
+  return {
+    projectId,
+    targetFolderName: config.targetFolderName,
+    comparisonMode: "derived-vs-captured",
+    derivedFixturePath: resolution.relativeDerivedFixturePath,
+    capturedFixturePath: captured.resolution.relativeFixturePath,
+    capturedFixtureKind: captured.resolution.actualFixtureKind,
+    capturedFixtureAvailable: true,
+    capturedNotesPath: resolution.relativeCapturedNotesPath,
+    confirmedFromCaptured: sortedUnique(confirmedFromCaptured),
+    derivedFromGsExamples: GS_EXAMPLE_DERIVED_FIELDS,
+    derivedFromProjectFixture: PROJECT_FIXTURE_DERIVED_FIELDS,
+    provisionalFields: PROVISIONAL_FIELDS.filter((field) => !(capturedValues[field] ?? "").length),
+    matchingFields: sortedUnique(matchingFields),
+    differingFields,
+    derivedOnlyFields: sortedUnique(derivedOnlyFields),
+    capturedOnlyFields: sortedUnique(capturedOnlyFields),
+    notes: notes.concat([
+      "Auto fixture selection prefers a sanitized captured fixture over a local raw captured fixture.",
+      "Any differing fields must be treated as comparison signals, not automatic errors."
+    ])
+  };
+}
+
+export function renderFixtureComparisonMarkdown(comparison: FixtureComparisonResult): string {
+  const lines: string[] = [
+    "# Fixture Comparison",
+    "",
+    `This file tracks captured-vs-derived truth for \`${comparison.projectId}\`.`,
+    "",
+    "## Fixture Inputs",
+    `- Derived fixture: \`${comparison.derivedFixturePath}\``,
+    comparison.capturedFixturePath
+      ? `- Captured fixture: \`${comparison.capturedFixturePath}\``
+      : "- Captured fixture: none committed yet",
+    comparison.capturedFixtureKind
+      ? `- Captured fixture kind: \`${comparison.capturedFixtureKind}\``
+      : "- Captured fixture kind: none",
+    `- Comparison mode: \`${comparison.comparisonMode}\``,
+    `- Captured-row notes: \`${comparison.capturedNotesPath}\``,
+    "",
+    "## Confirmed From Captured Data",
+    ...(comparison.confirmedFromCaptured.length
+      ? comparison.confirmedFromCaptured.map((field) => `- \`${field}\``)
+      : ["- none"]),
+    "",
+    "## Derived From GS Examples",
+    ...comparison.derivedFromGsExamples.map((field) => `- \`${field}\``),
+    "",
+    "## Derived From Project Fixture",
+    ...comparison.derivedFromProjectFixture.map((field) => `- \`${field}\``),
+    "",
+    "## Provisional For Project 001",
+    ...(comparison.provisionalFields.length
+      ? comparison.provisionalFields.map((field) => `- \`${field}\``)
+      : ["- none"]),
+    ""
+  ];
+
+  if (comparison.comparisonMode === "derived-vs-captured") {
+    lines.push(
+      "## Matching Fields",
+      ...(comparison.matchingFields.length
+        ? comparison.matchingFields.map((field) => `- \`${field}\``)
+        : ["- none"]),
+      "",
+      "## Differing Fields",
+      ...(comparison.differingFields.length
+        ? comparison.differingFields.map(
+            (difference) =>
+              `- \`${difference.field}\`: derived=\`${difference.derivedValue || "-"}\`, captured=\`${difference.capturedValue || "-"}\``
+          )
+        : ["- none"]),
+      "",
+      "## Derived-Only Fields",
+      ...(comparison.derivedOnlyFields.length
+        ? comparison.derivedOnlyFields.map((field) => `- \`${field}\``)
+        : ["- none"]),
+      "",
+      "## Captured-Only Fields",
+      ...(comparison.capturedOnlyFields.length
+        ? comparison.capturedOnlyFields.map((field) => `- \`${field}\``)
+        : ["- none"]),
+      ""
+    );
+  } else {
+    lines.push(
+      "## Current Blocker",
+      "- No full captured archived `playerBets` row is available yet, so field-by-field archived-row comparison cannot run yet.",
+      "- The current compare lane therefore anchors only the confirmed `ROUND_ID` plus the documented derived/provisional buckets.",
+      "- Captured live init evidence reports currency code `FUN`, while the derived fixture still uses `CURRENCY=EUR`; that mismatch remains provisional until a captured archived row is available.",
+      ""
+    );
+  }
+
+  lines.push(
+    "## Notes",
+    ...comparison.notes.map((note) => `- ${note}`),
+    ""
+  );
+
+  return `${lines.join("\n")}\n`;
+}
+
 export function buildReplaySummary(
   projectId: string,
   repoRoot = getRepoRoot(),
@@ -531,6 +881,7 @@ export function buildReplaySummary(
 ): ReplaySummary {
   const config = getProjectConfig(projectId);
   const parsed = parseRowFixture(projectId, repoRoot, selection);
+  const comparison = buildFixtureComparison(projectId, repoRoot);
   const symbolGrid = parseSymbolGrid(parsed.betData.SYMBOL_GRID ?? "");
   const followUpSymbolGrid = parseSymbolGrid(parsed.betData.FOLLOW_UP_SYMBOL_GRID ?? "");
   const evidenceRefs = parseDelimitedList(parsed.betData.EVIDENCE_REFS ?? "");
@@ -540,9 +891,17 @@ export function buildReplaySummary(
     targetFolderName: config.targetFolderName,
     requestedFixtureSelection: parsed.resolution.requestedSelection,
     actualFixtureSelection: parsed.resolution.actualSelection,
+    actualFixtureKind: parsed.resolution.actualFixtureKind,
     fixturePath: parsed.resolution.relativeFixturePath,
     capturedFixtureAvailable: parsed.resolution.capturedFixtureAvailable,
     capturedNotesPath: parsed.resolution.relativeCapturedNotesPath,
+    comparisonPath: parsed.resolution.relativeComparisonPath,
+    comparisonMode: comparison.comparisonMode,
+    confirmedFromCaptured: comparison.confirmedFromCaptured,
+    derivedFromGsExamples: comparison.derivedFromGsExamples,
+    derivedFromProjectFixture: comparison.derivedFromProjectFixture,
+    provisionalFields: comparison.provisionalFields,
+    differingFields: comparison.differingFields,
     roundId: parsed.roundId,
     capturedRoundId: parsed.capturedRoundId,
     capturedRoundIdEvidence: parsed.capturedRoundIdEvidence,
@@ -647,6 +1006,7 @@ export function verifyScaffold(projectId: string, repoRoot = getRepoRoot()): Ver
   const roundIdDocs = [
     "contract/archived-row-contract.md",
     "contract/captured-row-notes.md",
+    "contract/fixture-comparison.md",
     "tests/acceptance-checklist.md"
   ];
   for (const relativePath of roundIdDocs) {
@@ -678,6 +1038,46 @@ export function verifyScaffold(projectId: string, repoRoot = getRepoRoot()): Ver
         message: "Captured-row notes do not distinguish derived fixture status"
       });
     }
+    if (!text.includes("captured-playerBets-row.sanitized.json")) {
+      problems.push({
+        relativePath: path.relative(repoRoot, capturedNotesPath),
+        message: "Captured-row notes do not mention the sanitized captured intake path"
+      });
+    }
+    if (!text.includes("captured-playerBets-row.json")) {
+      problems.push({
+        relativePath: path.relative(repoRoot, capturedNotesPath),
+        message: "Captured-row notes do not mention the local raw captured intake path"
+      });
+    }
+  }
+
+  const comparisonPath = getFixtureComparisonPath(projectId, repoRoot);
+  if (existsSync(comparisonPath)) {
+    const text = readFileSync(comparisonPath, "utf8");
+    if (!text.includes("Confirmed From Captured Data")) {
+      problems.push({
+        relativePath: path.relative(repoRoot, comparisonPath),
+        message: "Fixture comparison file does not include confirmed captured fields"
+      });
+    }
+    if (!text.includes("Provisional For Project 001")) {
+      problems.push({
+        relativePath: path.relative(repoRoot, comparisonPath),
+        message: "Fixture comparison file does not include provisional fields"
+      });
+    }
+  }
+
+  const gitignorePath = path.join(repoRoot, ".gitignore");
+  if (existsSync(gitignorePath)) {
+    const text = readFileSync(gitignorePath, "utf8");
+    if (!text.includes(RAW_CAPTURE_GITIGNORE_ENTRY)) {
+      problems.push({
+        relativePath: path.relative(repoRoot, gitignorePath),
+        message: "Raw captured row intake path is not gitignored"
+      });
+    }
   }
 
   const derivedRowPath = getDerivedFixturePath(projectId, repoRoot);
@@ -685,8 +1085,7 @@ export function verifyScaffold(projectId: string, repoRoot = getRepoRoot()): Ver
     verifyRowFixture(projectId, repoRoot, problems, "derived");
   }
 
-  const capturedRowPath = getCapturedFixturePath(projectId, repoRoot);
-  if (existsSync(capturedRowPath)) {
+  if (resolveFixtureSelection(projectId, repoRoot, "auto").capturedFixtureAvailable) {
     verifyRowFixture(projectId, repoRoot, problems, "captured");
   }
 

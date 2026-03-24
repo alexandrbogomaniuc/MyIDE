@@ -7,6 +7,9 @@ This file shows the intended parsed summary for the current `project_001` contra
 - status: sanitized derived contract fixture, not a captured production GS row
 - strongest captured input so far: `MG-EV-20260320-LIVE-A-005__runtime_init_response.json`
 - confirmed captured value reused here: `flow.round_id=14099735306`
+- captured-row intake paths reserved:
+  - local raw: `contract/captured-playerBets-row.json`
+  - sanitized: `contract/captured-playerBets-row.sanitized.json`
 
 ## Parsed Summary
 - `time`: `20 Mar 2026 10:32:56`
@@ -63,6 +66,7 @@ This file shows the intended parsed summary for the current `project_001` contra
 - to keep the contract parser testable
 - to keep the renderer stub and local replay harness deterministic
 - to make the first project-specific VABS slice concrete without claiming a finished production row
+- to make the derived-vs-captured comparison readable through `fixture-comparison.md`
 
 ## Provenance Snapshot
 - Derived from audited GS row transport: top-level row fields plus `ROUND_ID` contract expectations.

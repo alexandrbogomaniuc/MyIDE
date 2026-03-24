@@ -47,3 +47,4 @@
 - These keys are deliberately small and explicit so the first renderer stub can stay deterministic.
 - They are still a sanitized derived contract fixture, not a claim of final production servlet payload shape.
 - A full captured `playerBets` row is still missing, so provenance must remain explicit in both docs and replay output.
+- `captured-playerBets-row.sanitized.json` is the intended future commit-safe captured-row path when one becomes available.

@@ -246,6 +246,12 @@
 - [x] Deepen the `mysterygarden` renderer stub into a richer replay-summary panel while keeping it read-only and non-production.
 - [ ] Capture one real sanitized archived `playerBets` row for Mystery Garden and add it as a separate captured fixture tier.
 
+## GS-VABS-E
+- [x] Define explicit local raw vs sanitized captured-row intake paths for `project_001`.
+- [x] Add a deterministic captured-vs-derived comparison lane.
+- [x] Make replay/verify output state which fixture kind was used and which fields remain provisional.
+- [ ] Drop in one real sanitized archived `playerBets` row and rerun the comparison lane against it.
+
 ## GS-VABS-C
 - [x] Strengthen the `project_001` row fixture with clearer grounded/derived/provisional provenance.
 - [x] Add a deterministic local replay harness for the `project_001` VABS slice.

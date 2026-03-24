@@ -19,10 +19,10 @@
 - `npm run manual:reset:project_001` restores the current tracked `project_001` baseline and clears only the known local-only editor logs.
 
 ## VABS Module Control
-- Current VABS control run: GS-VABS-D captured-row attempt, explicit captured-vs-derived tracking, stronger local replay harness, and stronger replay-summary stub.
+- Current VABS control run: GS-VABS-E captured-row intake path, explicit captured-vs-derived comparison, stronger local replay harness, and stronger replay-summary stub.
 - VABS stays separate from the current shell/editor runtime.
 - Donor evidence remains read-only.
-- `40_projects/project_001/vabs/` now contains one concrete `project_001` slice with a provisional intended folder-name decision, one stronger derived row-contract fixture, explicit captured-vs-derived fixture tracking, parser verification, one local replay harness, and one project-specific stronger replay-summary stub.
+- `40_projects/project_001/vabs/` now contains one concrete `project_001` slice with a provisional intended folder-name decision, one stronger derived row-contract fixture, explicit captured-row intake paths, explicit captured-vs-derived comparison, parser verification, one local replay harness, and one project-specific stronger replay-summary stub.
 - The production renderer is still not finished in this phase.
 
 ## Progress Log

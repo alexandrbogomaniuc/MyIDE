@@ -64,3 +64,4 @@
 - `TRIGGER_MODAL_TEXT`, `FOLLOW_UP_COUNTER_TEXT`, `SYMBOL_GRID`, `FOLLOW_UP_SYMBOL_GRID`, and `EVIDENCE_REFS` are derived from the donor-backed internal `project_001` trigger fixture.
 - They are not yet claimed as the final production GS payload for Mystery Garden.
 - No captured `playerBets` row has been found yet, so `betData` remains a deterministic derived contract bag in this phase.
+- `fixture-comparison.md` is the current source for which of these keys are still provisional vs example-derived.

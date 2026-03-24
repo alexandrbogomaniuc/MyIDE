@@ -94,10 +94,22 @@ This run adds:
 - one explicit captured-vs-derived provenance lane for `project_001`
 - one stronger derived fixture that now carries a live-captured `ROUND_ID`
 - one captured-row attempt note that records the exact blocker when no full `playerBets` row is available
+- one explicit captured-row intake path split between a local raw row and a future sanitized commit-safe row
 - one stronger local replay harness with fixture-tier output and provenance in the replay artifacts
 - one stronger `mysterygarden` stub that surfaces provenance, feature cues, boards, and evidence refs more clearly
 
 This run still does not add:
 - a finished production GS VABS renderer
 - a captured full archived `playerBets` row for Mystery Garden
+- any change to the current internal-scene editor model
+
+## Current GS-VABS-E Scope
+This run adds:
+- one clearer captured-row intake path with local raw vs sanitized captured tiers
+- one deterministic fixture-comparison lane for `project_001`
+- one stronger provenance-aware local replay harness and verification output
+
+This run still does not add:
+- a finished production GS VABS renderer
+- a committed full captured archived `playerBets` row
 - any change to the current internal-scene editor model

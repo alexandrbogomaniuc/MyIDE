@@ -6,6 +6,9 @@ This document describes the first concrete `project_001` archived row contract s
 - Current row file: `sample-playerBets-row.json`
 - Status: derived contract fixture / expected shape
 - No full captured `playerBets` row is stored in this repo yet
+- Reserved captured intake paths:
+  - local raw: `captured-playerBets-row.json` (gitignored)
+  - sanitized commit-safe: `captured-playerBets-row.sanitized.json`
 - Grounded parts come from:
   - the audited GS servlet + `TRow` row/parse contract
   - the canonical GS `gethistory.response.json` example for free-spins feature-mode/counter structure
@@ -23,12 +26,19 @@ This document describes the first concrete `project_001` archived row contract s
 - Captured target evidence found so far:
   - one sanitized live init response proving `flow.round_id=14099735306`
   - no full archived `playerBets` row with the complete GS history shape
+- Captured-row intake rule:
+  - local raw archived rows belong only in `captured-playerBets-row.json`
+  - commit-safe captured rows belong only in `captured-playerBets-row.sanitized.json`
+  - the compare/verify lane must say which one was actually used
 - Derived fixture file:
   - `contract/sample-playerBets-row.json`
   - remains the deterministic replay input for the local harness
 - Parser-ready normalized view:
   - generated at runtime by the shared parser and replay harness
   - explained in `parsed-row-example.md`
+- Comparison doc:
+  - `contract/fixture-comparison.md`
+  - records which fields are confirmed from captured data vs derived from GS examples vs still provisional
 
 ## Source Shape
 The audited GS history servlet returns JSON rows under `playerBets[]` with the following fields:

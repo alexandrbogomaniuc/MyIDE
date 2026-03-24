@@ -7,6 +7,17 @@ This file tracks the strongest grounded row-adjacent evidence currently availabl
 - The deterministic replay fixture therefore remains `contract/sample-playerBets-row.json`.
 - That fixture is still derived, not captured.
 
+## Intake Paths
+- Local-only raw intake path: `contract/captured-playerBets-row.json`
+  - intended for a future unsanitized local archived row drop
+  - gitignored on purpose
+- Public-safe sanitized intake path: `contract/captured-playerBets-row.sanitized.json`
+  - intended for a future sanitized archived row that is safe to commit
+- Auto selection rule:
+  - prefer `captured-playerBets-row.sanitized.json`
+  - otherwise use local `captured-playerBets-row.json`
+  - otherwise fall back to `sample-playerBets-row.json`
+
 ## Captured Evidence Found
 - Capture session: `MG-CS-20260320-LIVE-A`
 - Evidence item: `MG-EV-20260320-LIVE-A-005__runtime_init_response.json`

@@ -75,51 +75,6 @@ function wrapHtml(summary: ReplaySummary, innerHtml: string): string {
         margin: 0 0 18px;
         color: #9bb0c9;
       }
-      .mg-vabs-stub-grid {
-        display: grid;
-        gap: 12px;
-        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      }
-      .mg-vabs-stub-card {
-        padding: 14px;
-        border-radius: 14px;
-        background: rgba(255, 255, 255, 0.04);
-        border: 1px solid rgba(255, 255, 255, 0.08);
-      }
-      .mg-vabs-stub-card h2 {
-        margin: 0 0 8px;
-        font-size: 15px;
-      }
-      .mg-vabs-stub-label {
-        display: inline-block;
-        min-width: 110px;
-        color: #9bb0c9;
-      }
-      .mg-vabs-stub-sequence {
-        margin-top: 18px;
-        padding: 12px 14px;
-        border-radius: 12px;
-        background: rgba(88, 145, 255, 0.12);
-        color: #d9e7ff;
-      }
-      .mg-vabs-stub-board {
-        margin-top: 18px;
-      }
-      .mg-vabs-stub-board table {
-        border-collapse: collapse;
-        margin-top: 8px;
-      }
-      .mg-vabs-stub-board td {
-        min-width: 52px;
-        padding: 8px 10px;
-        text-align: center;
-        border: 1px solid rgba(255, 255, 255, 0.12);
-        background: rgba(255, 255, 255, 0.03);
-      }
-      .mg-vabs-stub-list {
-        margin: 8px 0 0;
-        padding-left: 18px;
-      }
       pre {
         margin: 0;
         white-space: pre-wrap;
@@ -167,11 +122,7 @@ export function runLocalReplayHarness(
       ? renderer.renderSummaryText(summary)
       : JSON.stringify(summary, null, 2);
 
-  const artifactDirectory = path.join(
-    "/tmp",
-    `myide-vabs-${projectId}-replay`,
-    summary.actualFixtureSelection
-  );
+  const artifactDirectory = path.join("/tmp", `myide-vabs-${projectId}-replay`, summary.actualFixtureKind);
   const jsonPath = path.join(artifactDirectory, "replay-summary.json");
   const htmlPath = path.join(artifactDirectory, "replay-summary.html");
   const textPath = path.join(artifactDirectory, "replay-summary.txt");
@@ -200,7 +151,17 @@ function main(): void {
   console.log(`Local VABS replay harness passed for ${projectId}`);
   console.log(`- Requested fixture: ${result.summary.requestedFixtureSelection}`);
   console.log(`- Actual fixture: ${result.summary.actualFixtureSelection}`);
+  console.log(`- Actual fixture kind: ${result.summary.actualFixtureKind}`);
   console.log(`- Fixture path: ${result.summary.fixturePath}`);
+  console.log(`- Comparison mode: ${result.summary.comparisonMode}`);
+  console.log(`- Comparison path: ${result.summary.comparisonPath}`);
+  console.log(`- Confirmed-from-captured fields: ${result.summary.confirmedFromCaptured.join(", ") || "none"}`);
+  console.log(`- Provisional fields: ${result.summary.provisionalFields.join(", ") || "none"}`);
+  if (result.summary.differingFields.length > 0) {
+    console.log(
+      `- Differing fields: ${result.summary.differingFields.map((difference) => difference.field).join(", ")}`
+    );
+  }
   console.log(`- ROUND_ID: ${result.summary.roundId}`);
   console.log(`- Captured ROUND_ID: ${result.summary.capturedRoundId}`);
   console.log(`- State: ${result.summary.stateName} (${result.summary.stateId})`);

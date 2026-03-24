@@ -1,5 +1,11 @@
 import { getRepoRoot } from "../publication/shared";
-import { getProjectConfig, parseProjectIdArg, parseRowFixture, verifyScaffold } from "./shared";
+import {
+  buildFixtureComparison,
+  getProjectConfig,
+  parseProjectIdArg,
+  parseRowFixture,
+  verifyScaffold
+} from "./shared";
 import { runLocalReplayHarness } from "./runLocalReplayHarness";
 
 function main(): void {
@@ -19,16 +25,22 @@ function main(): void {
   console.log(`VABS scaffold verification passed for ${projectId}`);
 
   const parsed = parseRowFixture(projectId, repoRoot);
+  const comparison = buildFixtureComparison(projectId, repoRoot);
   const harness = runLocalReplayHarness(projectId, repoRoot);
 
   console.log(`- Target folder: ${config.targetFolderName} (${config.targetFolderDecision})`);
   console.log(`- Requested fixture: ${parsed.resolution.requestedSelection}`);
   console.log(`- Actual fixture: ${parsed.resolution.actualSelection}`);
+  console.log(`- Actual fixture kind: ${parsed.resolution.actualFixtureKind}`);
   console.log(`- Fixture path: ${parsed.resolution.relativeFixturePath}`);
   console.log(`- ROUND_ID: ${parsed.roundId}`);
   console.log(`- Captured ROUND_ID: ${parsed.capturedRoundId}`);
   console.log(`- Capture status: ${parsed.captureStatus}`);
   console.log(`- Fixture provenance: ${parsed.fixtureProvenance}`);
+  console.log(`- Comparison mode: ${comparison.comparisonMode}`);
+  console.log(`- Confirmed-from-captured fields: ${comparison.confirmedFromCaptured.join(", ") || "none"}`);
+  console.log(`- Provisional fields: ${comparison.provisionalFields.join(", ") || "none"}`);
+  console.log(`- Comparison doc: ${parsed.resolution.relativeComparisonPath}`);
   console.log(`- Result state: ${parsed.betData.RESULT_STATE}`);
   console.log(`- Renderer stub: 40_projects/${projectId}/vabs/renderer/${config.targetFolderName}/code.js`);
   console.log(`- Replay harness HTML: ${harness.htmlPath}`);

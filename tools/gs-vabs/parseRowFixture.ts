@@ -17,6 +17,7 @@ function main(): void {
   console.log(`- Target folder: ${config.targetFolderName} (${config.targetFolderDecision})`);
   console.log(`- Requested fixture: ${parsed.resolution.requestedSelection}`);
   console.log(`- Actual fixture: ${parsed.resolution.actualSelection}`);
+  console.log(`- Actual fixture kind: ${parsed.resolution.actualFixtureKind}`);
   console.log(`- Fixture path: ${parsed.resolution.relativeFixturePath}`);
   console.log(`- ROUND_ID: ${parsed.roundId}`);
   console.log(`- Captured ROUND_ID: ${parsed.capturedRoundId}`);

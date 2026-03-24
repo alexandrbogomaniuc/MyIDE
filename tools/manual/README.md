@@ -3,7 +3,7 @@
 Manual QA helpers are for local testing against the current tracked `project_001` baseline.
 The current shell edits reconstructed internal scene data under `40_projects/project_001/internal`; donor evidence stays read-only, is visible through the in-app donor evidence browser drill-down with item-level cards, lightweight previews where local artifacts already exist, object linkage drill-down, and small navigation/copy helpers, and is not a drag/drop asset browser in this build.
 GS VABS support is a separate project-delivery module; the manual commands here are still for the current shell/editor baseline, not a production VABS renderer.
-`project_001` now has one stronger VABS contract/renderer-stub slice with explicit captured-vs-derived fixture tracking, but editor QA and VABS verification remain separate flows.
+`project_001` now has one stronger VABS contract/renderer-stub slice with explicit captured-row intake and captured-vs-derived fixture tracking, but editor QA and VABS verification remain separate flows.
 
 ## Recommended Tester Flow
 1. Run `npm run manual:status` for a quick LOCAL vs PUBLIC vs HANDOFF check.
