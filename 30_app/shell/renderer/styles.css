@@ -784,6 +784,127 @@ button:disabled {
   min-width: 0;
 }
 
+.evidence-filter-banner {
+  border-color: rgba(110, 169, 216, 0.26);
+  background: rgba(110, 169, 216, 0.08);
+}
+
+.evidence-filter-banner.is-active {
+  border-color: rgba(230, 191, 100, 0.32);
+  background: rgba(230, 191, 100, 0.08);
+}
+
+.evidence-item-grid,
+.evidence-linkage-grid,
+.linked-object-list {
+  display: grid;
+  gap: 12px;
+}
+
+.evidence-item-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.evidence-item-card,
+.evidence-linkage-card {
+  display: grid;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(179, 209, 186, 0.14);
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.evidence-item-card.is-highlighted {
+  border-color: rgba(230, 191, 100, 0.54);
+  background: rgba(230, 191, 100, 0.08);
+  box-shadow: 0 0 0 1px rgba(230, 191, 100, 0.18);
+}
+
+.evidence-item-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.evidence-item-head small,
+.evidence-item-body p,
+.evidence-linkage-card small {
+  display: block;
+  margin: 4px 0 0;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.evidence-item-meta {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.evidence-preview {
+  overflow: hidden;
+  border-radius: 14px;
+  border: 1px solid rgba(179, 209, 186, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.evidence-preview-image {
+  min-height: 120px;
+}
+
+.evidence-preview-image img {
+  display: block;
+  width: 100%;
+  max-height: 200px;
+  object-fit: cover;
+}
+
+.evidence-preview-text,
+.evidence-preview-fallback {
+  padding: 12px 14px;
+}
+
+.evidence-preview-text p,
+.evidence-preview-fallback span {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.evidence-linked-objects {
+  display: grid;
+  gap: 10px;
+}
+
+.linked-object-button {
+  appearance: none;
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(179, 209, 186, 0.12);
+  background: rgba(255, 255, 255, 0.025);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.linked-object-button:hover {
+  border-color: rgba(230, 191, 100, 0.42);
+}
+
+.linked-object-button small {
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.evidence-linkage-drilldown {
+  display: grid;
+  gap: 12px;
+}
+
 .copy-button {
   appearance: none;
   border: 1px solid rgba(110, 169, 216, 0.28);
@@ -1063,7 +1184,10 @@ button:disabled {
   .detail-grid,
   .inspector-grid,
   .evidence-grid,
-  .evidence-card-list {
+  .evidence-card-list,
+  .evidence-item-grid,
+  .evidence-item-meta,
+  .evidence-linkage-grid {
     grid-template-columns: 1fr;
   }
 }

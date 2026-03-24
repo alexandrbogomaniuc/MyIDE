@@ -19,6 +19,7 @@ Use this when testing the current local MyIDE build by hand.
    - `project_001` appears in the project list and loads without error.
    - The read-only Donor Evidence panel shows donor/capture context for the project.
    - Expand at least one donor evidence drill-down section and confirm copy helpers are visible for donor IDs, paths, sessions, or refs.
+   - Open at least one item-level evidence card and confirm it shows either a small preview or an honest non-preview fallback.
 4. Create and edit
    - Create one placeholder object from the preset picker.
    - Select it and change at least one inspector field such as `displayName`, `width`, or `height`.
@@ -40,6 +41,7 @@ Use this when testing the current local MyIDE build by hand.
 9. Evidence linkage
    - With an object selected, inspect the read-only Evidence Linkage section.
    - If linkage is grounded, grouped linkage rows and evidence refs should be visible.
+   - Use one linkage helper to focus that evidence in the Donor Evidence panel or to filter the donor evidence view down to the selected object.
    - Copying one grounded evidence ref or linkage id should work when a copy button is shown.
    - If linkage is not grounded, the shell should say so plainly instead of inventing provenance.
 

@@ -28,6 +28,10 @@ const state = {
     enabled: false,
     size: 10
   },
+  evidenceUi: {
+    selectedObjectOnly: false,
+    highlightedEvidenceId: null
+  },
   layerIsolation: {
     activeLayerId: null,
     previousSelectedObjectId: null
@@ -3546,6 +3550,44 @@ function bindActions() {
     if (handleCopyEvent(event)) {
       return;
     }
+
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) {
+      return;
+    }
+
+    const objectButton = target.closest("[data-select-object-id]");
+    if (objectButton instanceof HTMLElement && objectButton.dataset.selectObjectId) {
+      event.preventDefault();
+      selectObjectFromEvidence(objectButton.dataset.selectObjectId);
+      return;
+    }
+
+    const highlightButton = target.closest("[data-highlight-evidence-id]");
+    if (highlightButton instanceof HTMLElement && highlightButton.dataset.highlightEvidenceId) {
+      event.preventDefault();
+      focusEvidenceItem(highlightButton.dataset.highlightEvidenceId);
+      return;
+    }
+
+    const filterButton = target.closest("[data-evidence-filter-mode]");
+    if (filterButton instanceof HTMLElement) {
+      event.preventDefault();
+      setEvidenceFilterMode(filterButton.dataset.evidenceFilterMode === "selected");
+      renderAll();
+      setPreviewStatus(state.evidenceUi.selectedObjectOnly
+        ? "Showing donor evidence grounded for the selected object."
+        : "Showing the full donor evidence catalog.");
+      return;
+    }
+
+    const clearButton = target.closest("[data-clear-evidence-filter]");
+    if (clearButton instanceof HTMLElement) {
+      event.preventDefault();
+      setEvidenceFilterMode(false);
+      renderAll();
+      setPreviewStatus("Cleared the donor evidence filter.");
+    }
   });
   elements.editorCanvas?.addEventListener("click", (event) => {
     if (consumeViewportSuppressedClick()) {
@@ -3596,6 +3638,36 @@ function bindActions() {
   elements.inspector?.addEventListener("click", (event) => {
     if (handleCopyEvent(event)) {
       return;
+    }
+
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) {
+      return;
+    }
+
+    const focusLinkageButton = target.closest("[data-focus-linkage-refs]");
+    if (focusLinkageButton instanceof HTMLElement) {
+      event.preventDefault();
+      let refs = [];
+      try {
+        const parsed = JSON.parse(String(focusLinkageButton.dataset.focusLinkageRefs ?? "[]"));
+        refs = Array.isArray(parsed)
+          ? parsed.map((value) => String(value).trim()).filter((value) => value.length > 0)
+          : [];
+      } catch {
+        refs = [];
+      }
+      const label = focusLinkageButton.dataset.focusLinkageLabel ?? "selected object evidence";
+      focusSelectedObjectEvidence(refs, label);
+      return;
+    }
+
+    const clearButton = target.closest("[data-clear-evidence-filter]");
+    if (clearButton instanceof HTMLElement) {
+      event.preventDefault();
+      setEvidenceFilterMode(false);
+      renderAll();
+      setPreviewStatus("Cleared the donor evidence filter.");
     }
   });
   elements.inspector?.addEventListener("change", (event) => {
@@ -4231,6 +4303,23 @@ function collectObjectAnimationLinkage(projectLike, objectId) {
   });
 }
 
+function getDonorEvidenceCatalog() {
+  return state.bundle?.evidenceCatalog ?? null;
+}
+
+function getEvidenceCatalogItems() {
+  const catalog = getDonorEvidenceCatalog();
+  return Array.isArray(catalog?.items) ? catalog.items : [];
+}
+
+function getEvidenceItemById(evidenceId) {
+  if (typeof evidenceId !== "string" || evidenceId.length === 0) {
+    return null;
+  }
+
+  return getEvidenceCatalogItems().find((item) => item?.evidenceId === evidenceId) ?? null;
+}
+
 function getSelectedProjectEvidenceSummary() {
   const selectedProject = getSelectedProject();
   if (!selectedProject) {
@@ -4248,6 +4337,7 @@ function getSelectedProjectEvidenceSummary() {
   const rawDonorRoots = asStringList(replaySources?.rawDonorRoots);
   const importNodeEntries = collectImportNodeEvidenceEntries(importProject);
   const importAssetEntries = collectImportAssetEvidenceEntries(importProject);
+  const evidenceCatalog = getDonorEvidenceCatalog();
 
   return {
     donorName: selectedProject.donor?.donorName ?? "Unknown donor",
@@ -4268,12 +4358,12 @@ function getSelectedProjectEvidenceSummary() {
     replayDonorEvidenceRoot: asJsonObject(importProject?.sources)?.donorEvidenceRoot ?? replaySources?.donorEvidenceRoot ?? null,
     rawDonorRoots,
     donorStatus: selectedProject.donor?.status ?? "unknown",
-    donorNotes: typeof selectedProject.donor?.notes === "string" ? selectedProject.donor.notes : null
+    donorNotes: typeof selectedProject.donor?.notes === "string" ? selectedProject.donor.notes : null,
+    evidenceCatalog
   };
 }
 
-function getSelectedObjectEvidenceLinkage() {
-  const selectedObject = getSelectedObject();
+function getObjectEvidenceLinkage(selectedObject) {
   const selectedProject = getSelectedProject();
   if (!selectedObject || !selectedProject) {
     return null;
@@ -4334,6 +4424,8 @@ function getSelectedObjectEvidenceLinkage() {
   return {
     statusLabel,
     linkageSummary,
+    objectId: selectedObject.id,
+    objectLabel: selectedObject.displayName,
     replayNodeId: typeof replayNode?.nodeId === "string" ? replayNode.nodeId : selectedObject.id,
     importNodeId: typeof importNode?.nodeId === "string" ? importNode.nodeId : null,
     assetRef: selectedObject.assetRef ?? selectedObject.placeholderRef ?? "none",
@@ -4361,6 +4453,165 @@ function getSelectedObjectEvidenceLinkage() {
     allEvidenceRefs,
     notes
   };
+}
+
+function getSelectedObjectEvidenceLinkage() {
+  return getObjectEvidenceLinkage(getSelectedObject());
+}
+
+function getSelectedObjectOnlyEvidenceRefs() {
+  if (!state.evidenceUi.selectedObjectOnly) {
+    return [];
+  }
+
+  return getSelectedObjectEvidenceLinkage()?.allEvidenceRefs ?? [];
+}
+
+function getVisibleEvidenceItems() {
+  const catalogItems = getEvidenceCatalogItems();
+  const selectedRefs = getSelectedObjectOnlyEvidenceRefs();
+  if (selectedRefs.length === 0) {
+    return state.evidenceUi.selectedObjectOnly ? [] : catalogItems;
+  }
+
+  const visibleRefSet = new Set(selectedRefs);
+  return catalogItems.filter((item) => visibleRefSet.has(item.evidenceId));
+}
+
+function getVisibleEvidenceRefList() {
+  return getVisibleEvidenceItems().map((item) => item.evidenceId);
+}
+
+function buildEvidenceToObjectIndex() {
+  const objects = Array.isArray(state.editorData?.objects) ? state.editorData.objects : [];
+  const index = new Map();
+
+  for (const object of objects) {
+    const linkage = getObjectEvidenceLinkage(object);
+    if (!linkage) {
+      continue;
+    }
+
+    const groupedRefs = [
+      ["importer node", linkage.importNodeEvidenceRefs],
+      ["replay asset", linkage.replayAssetEvidenceRefs],
+      ["importer asset", linkage.importAssetEvidenceRefs],
+      ["state", linkage.stateEvidenceRefs],
+      ["animation", linkage.animationEvidenceRefs]
+    ];
+
+    for (const [kind, refs] of groupedRefs) {
+      for (const evidenceRef of refs) {
+        const evidenceMap = index.get(evidenceRef) ?? new Map();
+        const entry = evidenceMap.get(object.id) ?? {
+          objectId: object.id,
+          displayName: object.displayName ?? object.id,
+          kinds: new Set()
+        };
+        entry.kinds.add(kind);
+        evidenceMap.set(object.id, entry);
+        index.set(evidenceRef, evidenceMap);
+      }
+    }
+  }
+
+  return new Map(Array.from(index.entries()).map(([evidenceRef, objectMap]) => [
+    evidenceRef,
+    Array.from(objectMap.values()).map((entry) => ({
+      objectId: entry.objectId,
+      displayName: entry.displayName,
+      kinds: Array.from(entry.kinds.values()).sort()
+    }))
+  ]));
+}
+
+function setEvidenceFilterMode(selectedObjectOnly) {
+  state.evidenceUi.selectedObjectOnly = Boolean(selectedObjectOnly);
+  if (!state.evidenceUi.selectedObjectOnly) {
+    state.evidenceUi.highlightedEvidenceId = null;
+  }
+}
+
+function scrollEvidenceCardIntoView(evidenceId) {
+  if (typeof evidenceId !== "string" || evidenceId.length === 0) {
+    return;
+  }
+
+  window.requestAnimationFrame(() => {
+    const card = elements.evidenceBrowser?.querySelector(`[data-evidence-card-id="${evidenceId}"]`);
+    if (!(card instanceof HTMLElement)) {
+      return;
+    }
+
+    const details = card.closest("details");
+    if (details instanceof HTMLDetailsElement) {
+      details.open = true;
+    }
+
+    card.scrollIntoView({
+      block: "nearest",
+      behavior: "smooth"
+    });
+  });
+}
+
+function focusEvidenceItem(evidenceId, {
+  selectedObjectOnly = state.evidenceUi.selectedObjectOnly,
+  statusMessage = null
+} = {}) {
+  if (typeof evidenceId !== "string" || evidenceId.length === 0) {
+    return;
+  }
+
+  setEvidenceFilterMode(selectedObjectOnly);
+  state.evidenceUi.highlightedEvidenceId = evidenceId;
+  renderAll();
+  scrollEvidenceCardIntoView(evidenceId);
+
+  const evidenceItem = getEvidenceItemById(evidenceId);
+  if (statusMessage) {
+    setPreviewStatus(statusMessage);
+  } else if (evidenceItem) {
+    setPreviewStatus(`Focused donor evidence ${evidenceItem.evidenceId}.`);
+  }
+}
+
+function focusSelectedObjectEvidence(refs, label = "selected object evidence") {
+  const normalizedRefs = uniqueStrings(Array.isArray(refs) ? refs : []);
+  if (normalizedRefs.length === 0) {
+    setEvidenceFilterMode(true);
+    renderAll();
+    setPreviewStatus(`No grounded ${label} is recorded for the selected object.`);
+    return;
+  }
+
+  const visibleCatalogRef = normalizedRefs.find((ref) => Boolean(getEvidenceItemById(ref))) ?? normalizedRefs[0];
+  focusEvidenceItem(visibleCatalogRef, {
+    selectedObjectOnly: true,
+    statusMessage: `Showing ${label} for the selected object in the Donor Evidence panel.`
+  });
+}
+
+function selectObjectFromEvidence(objectId) {
+  if (!getEditableObjectById(objectId)) {
+    setPreviewStatus(`Could not find ${objectId} in the current internal scene.`);
+    return;
+  }
+
+  state.selectedObjectId = objectId;
+  renderAll();
+  window.requestAnimationFrame(() => {
+    const row = elements.sceneExplorer?.querySelector(`[data-object-id="${objectId}"]`);
+    if (row instanceof HTMLElement) {
+      row.scrollIntoView({
+        block: "nearest",
+        behavior: "smooth"
+      });
+    }
+  });
+
+  const selectedObject = getSelectedObject();
+  setPreviewStatus(`Selected ${selectedObject?.displayName ?? objectId} from donor evidence linkage.`);
 }
 
 function renderCopyButton(copyValue, copyLabel, buttonText = "Copy") {
@@ -4487,6 +4738,227 @@ function renderImporterAssetEntries(entries) {
         </li>
       `).join("")}
     </ul>
+  `;
+}
+
+function renderEvidencePreview(item) {
+  if (!item) {
+    return "";
+  }
+
+  if (item.previewKind === "image" && item.previewUrl) {
+    return `
+      <div class="evidence-preview evidence-preview-image">
+        <img src="${escapeAttribute(item.previewUrl)}" alt="${escapeAttribute(item.title || item.evidenceId)} donor evidence preview" loading="lazy" />
+      </div>
+    `;
+  }
+
+  if (item.previewKind === "text" && item.previewText) {
+    return `
+      <div class="evidence-preview evidence-preview-text">
+        <p>${escapeHtml(item.previewText)}</p>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="evidence-preview evidence-preview-fallback">
+      <span>${escapeHtml(item.previewText ?? "No lightweight preview is available for this evidence item in the current shell.")}</span>
+    </div>
+  `;
+}
+
+function renderEvidenceLinkedObjectButtons(linkedObjects) {
+  if (!Array.isArray(linkedObjects) || linkedObjects.length === 0) {
+    return `<p class="muted-copy">No linked internal scene objects are grounded for this evidence item yet.</p>`;
+  }
+
+  return `
+    <div class="linked-object-list">
+      ${linkedObjects.map((entry) => `
+        <button
+          type="button"
+          class="linked-object-button"
+          data-select-object-id="${escapeAttribute(entry.objectId)}"
+          title="Select ${escapeAttribute(entry.displayName)} in the scene explorer"
+        >
+          <strong>${escapeHtml(entry.displayName)}</strong>
+          <small><code>${escapeHtml(entry.objectId)}</code> · ${escapeHtml(entry.kinds.join(", "))}</small>
+        </button>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderEvidenceItemCards(items, evidenceObjectIndex, {
+  highlightedEvidenceId = null,
+  selectedObjectOnly = false
+} = {}) {
+  if (!Array.isArray(items) || items.length === 0) {
+    return selectedObjectOnly
+      ? `<p class="muted-copy">No donor evidence items are currently grounded for the selected object.</p>`
+      : `<p class="muted-copy">No donor evidence catalog is available for this project yet.</p>`;
+  }
+
+  return `
+    <div class="evidence-item-grid">
+      ${items.map((item) => {
+        const linkedObjects = evidenceObjectIndex.get(item.evidenceId) ?? [];
+        const isHighlighted = item.evidenceId === highlightedEvidenceId;
+        const relativePath = toRepoRelativePath(item.absolutePath || item.relativePath);
+        const previewBadge = item.previewKind === "image"
+          ? "image preview"
+          : item.previewKind === "text"
+            ? "text preview"
+            : "metadata only";
+
+        return `
+          <article
+            class="evidence-item-card ${isHighlighted ? "is-highlighted" : ""}"
+            data-evidence-card-id="${escapeAttribute(item.evidenceId)}"
+          >
+            <div class="evidence-item-head">
+              <div>
+                <strong><code>${escapeHtml(item.evidenceId)}</code></strong>
+                <small>${escapeHtml(item.title)}</small>
+              </div>
+              <div class="evidence-actions">
+                ${renderCopyButton(item.evidenceId, `evidence id ${item.evidenceId}`)}
+                <button
+                  type="button"
+                  class="copy-button"
+                  data-highlight-evidence-id="${escapeAttribute(item.evidenceId)}"
+                  title="Focus ${escapeAttribute(item.evidenceId)}"
+                >Focus</button>
+              </div>
+            </div>
+            <div class="chip-row">
+              <span>${escapeHtml(item.sourceCategory)}</span>
+              <span>${escapeHtml(item.sourceType)}</span>
+              <span>${escapeHtml(item.fileType)}</span>
+              <span>${escapeHtml(previewBadge)}</span>
+              <span>${item.localExists ? "local file present" : "metadata only"}</span>
+            </div>
+            ${renderEvidencePreview(item)}
+            <div class="detail-grid evidence-item-meta">
+              <div class="detail-card">
+                <span>Capture Session</span>
+                <strong><code>${escapeHtml(item.captureSessionId)}</code></strong>
+                <div class="evidence-actions">
+                  ${renderCopyButton(item.captureSessionId, `capture session ${item.captureSessionId}`)}
+                </div>
+              </div>
+              <div class="detail-card">
+                <span>Local Path</span>
+                <strong><code>${escapeHtml(relativePath)}</code></strong>
+                <div class="evidence-actions">
+                  ${renderCopyButton(item.absolutePath, `evidence path ${item.evidenceId}`)}
+                </div>
+              </div>
+            </div>
+            <div class="evidence-item-body">
+              ${item.notes ? `<p class="muted-copy">${escapeHtml(item.notes)}</p>` : ""}
+              ${item.sourceUrl ? `<p class="muted-copy">Source URL <code>${escapeHtml(item.sourceUrl)}</code></p>` : ""}
+              <p class="muted-copy">Captured ${escapeHtml(item.capturedAtUtc ?? "unknown time")} · ${escapeHtml(item.sha256 ?? "no hash")} · ${item.sizeBytes ?? "unknown"} bytes</p>
+            </div>
+            <div class="evidence-linked-objects">
+              <div class="evidence-subsection-head">
+                <strong>Linked Scene Objects</strong>
+                ${linkedObjects.length > 0 ? renderCopyButton(linkedObjects.map((entry) => entry.objectId).join("\n"), `linked object ids for ${item.evidenceId}`, "Copy IDs") : ""}
+              </div>
+              ${renderEvidenceLinkedObjectButtons(linkedObjects)}
+            </div>
+          </article>
+        `;
+      }).join("")}
+    </div>
+  `;
+}
+
+function renderSelectedObjectEvidenceDrilldown(linkage) {
+  if (!linkage) {
+    return `
+      <div class="evidence-linkage-drilldown">
+        <div class="tree-row">
+          <strong>Evidence Drill-Down</strong>
+          <span>Select an object to inspect grounded donor evidence linkage.</span>
+        </div>
+      </div>
+    `;
+  }
+
+  const groups = [
+    {
+      key: "importer-node",
+      title: "Importer Node Refs",
+      refs: linkage.importNodeEvidenceRefs,
+      detail: linkage.importNodeId ? `<code>${escapeHtml(linkage.importNodeId)}</code>` : "No importer node linkage recorded."
+    },
+    {
+      key: "replay-asset",
+      title: "Replay Asset Refs",
+      refs: linkage.replayAssetEvidenceRefs,
+      detail: linkage.replayAssetLabel ?? "No replay asset provenance recorded."
+    },
+    {
+      key: "importer-asset",
+      title: "Importer Asset Refs",
+      refs: linkage.importAssetEvidenceRefs,
+      detail: linkage.importAssetLabel ?? "No importer asset provenance recorded."
+    },
+    {
+      key: "state",
+      title: "Related State Refs",
+      refs: linkage.stateEvidenceRefs,
+      detail: linkage.stateLinks.length > 0
+        ? linkage.stateLinks.map((entry) => `${entry.stateId} (${entry.actionTypes.join(", ")})`).join("; ")
+        : "No state linkage recorded."
+    },
+    {
+      key: "animation",
+      title: "Related Animation Refs",
+      refs: linkage.animationEvidenceRefs,
+      detail: linkage.animationLinks.length > 0
+        ? linkage.animationLinks.map((entry) => `${entry.animationId} (${entry.properties.join(", ")})`).join("; ")
+        : "No animation linkage recorded."
+    }
+  ];
+  const allVisibleRefs = uniqueStrings(groups.flatMap((group) => group.refs));
+
+  return `
+    <div class="evidence-linkage-drilldown">
+      <div class="tree-row scope-summary">
+        <strong>Evidence Drill-Down</strong>
+        <span>${escapeHtml(linkage.statusLabel)}</span>
+        <div class="chip-row">
+          <span>${escapeHtml(linkage.objectLabel)}</span>
+          <span>${allVisibleRefs.length} grounded refs</span>
+          <span>${state.evidenceUi.selectedObjectOnly ? "selected-object filter on" : "selected-object filter off"}</span>
+        </div>
+        <div class="evidence-actions">
+          ${allVisibleRefs.length > 0 ? `<button type="button" class="copy-button" data-focus-linkage-refs="${escapeAttribute(JSON.stringify(allVisibleRefs))}" data-focus-linkage-label="selected object evidence">Show In Browser</button>` : ""}
+          ${allVisibleRefs.length > 0 ? renderCopyButton(allVisibleRefs.join("\n"), `all selected object evidence refs for ${linkage.objectId}`, "Copy All Visible Refs") : ""}
+          ${state.evidenceUi.selectedObjectOnly ? `<button type="button" class="copy-button" data-clear-evidence-filter="1">Clear Evidence Filter</button>` : ""}
+        </div>
+      </div>
+      <div class="evidence-linkage-grid">
+        ${groups.map((group) => `
+          <div class="evidence-linkage-card">
+            <div class="evidence-record-head">
+              <strong>${escapeHtml(group.title)}</strong>
+              <span class="summary-count">${group.refs.length}</span>
+            </div>
+            <small class="muted-copy">${escapeHtml(group.detail)}</small>
+            ${group.refs.length > 0 ? renderEvidenceRefChips(group.refs, `${group.title.toLowerCase()} ref`) : `<p class="muted-copy">No grounded refs recorded for this group yet.</p>`}
+            <div class="evidence-actions">
+              ${group.refs.length > 0 ? `<button type="button" class="copy-button" data-focus-linkage-refs="${escapeAttribute(JSON.stringify(group.refs))}" data-focus-linkage-label="${escapeAttribute(group.title.toLowerCase())}">Show In Browser</button>` : ""}
+              ${group.refs.length > 0 ? renderCopyButton(group.refs.join("\n"), `${group.title.toLowerCase()} refs`, "Copy Group Refs") : ""}
+            </div>
+          </div>
+        `).join("")}
+      </div>
+    </div>
   `;
 }
 
@@ -5362,6 +5834,10 @@ async function reloadWorkspace(isInitialLoad, requestedProjectId = null) {
   state.selectedProjectId = state.bundle.selectedProjectId;
   state.editorData = state.bundle.editableProject ? clone(state.bundle.editableProject) : null;
   state.canvasDrag = null;
+  state.evidenceUi = {
+    selectedObjectOnly: false,
+    highlightedEvidenceId: null
+  };
   resetViewportSessionState();
   resetLayerIsolation();
   resetEditorHistory();
@@ -5784,7 +6260,7 @@ function renderOnboardingCard() {
     </div>
     <div class="tree-row">
       <strong>Where donor material fits</strong>
-      <span>Raw donor captures stay read-only evidence. The live preview and save loop use internal <code>scene.json</code>, <code>layers.json</code>, and <code>objects.json</code>. Open the Donor Evidence panel for the donor-side context behind this slice.</span>
+      <span>Raw donor captures stay read-only evidence. The live preview and save loop use internal <code>scene.json</code>, <code>layers.json</code>, and <code>objects.json</code>. Open the Donor Evidence panel for item-level evidence cards, grounded linked-object context, and copyable donor refs behind this slice.</span>
     </div>
     <div class="tree-row">
       <strong>First 3 steps</strong>
@@ -5885,6 +6361,17 @@ function renderEvidenceBrowser() {
     return;
   }
 
+  const selectedObject = getSelectedObject();
+  const selectedObjectLinkage = getSelectedObjectEvidenceLinkage();
+  const selectedObjectRefs = selectedObjectLinkage?.allEvidenceRefs ?? [];
+  const evidenceObjectIndex = buildEvidenceToObjectIndex();
+  const visibleEvidenceItems = getVisibleEvidenceItems();
+  const visibleEvidenceRefs = getVisibleEvidenceRefList();
+  const highlightedEvidenceId = visibleEvidenceRefs.includes(state.evidenceUi.highlightedEvidenceId)
+    ? state.evidenceUi.highlightedEvidenceId
+    : null;
+  const evidenceCatalogCount = summary.evidenceCatalog?.itemCount ?? 0;
+
   const pathEntries = [
     {
       label: "Evidence root",
@@ -5931,9 +6418,13 @@ function renderEvidenceBrowser() {
     `Evidence Root: ${summary.evidenceRoot}`,
     `Capture Sessions: ${summary.captureSessions.join(", ") || "none"}`,
     `Donor Evidence Refs: ${summary.donorEvidenceRefs.join(", ") || "none"}`,
-    `Importer Evidence Refs: ${summary.importEvidenceRefs.join(", ") || "none"}`
+    `Importer Evidence Refs: ${summary.importEvidenceRefs.join(", ") || "none"}`,
+    `Catalog Items: ${evidenceCatalogCount}`
   ].join("\n");
   const importerEntryCount = summary.importNodeEntries.length + summary.importAssetEntries.length;
+  const evidenceItemsCountLabel = state.evidenceUi.selectedObjectOnly
+    ? `${visibleEvidenceItems.length} of ${evidenceCatalogCount}`
+    : String(evidenceCatalogCount);
 
   elements.evidenceBrowser.innerHTML = `
     <div class="tree-row scope-summary">
@@ -5944,13 +6435,27 @@ function renderEvidenceBrowser() {
         <span>${summary.captureSessions.length} capture sessions</span>
         <span>${summary.donorEvidenceRefs.length} donor evidence refs</span>
         <span>${summary.importEvidenceRefs.length} importer evidence refs</span>
+        <span>${evidenceCatalogCount} catalog items</span>
       </div>
       <div class="evidence-actions">
         ${renderCopyButton(summary.donorId, "donor id")}
         ${renderCopyButton(summary.evidenceRoot, "evidence root path")}
         ${renderCopyButton(donorSummaryCopyText, "donor evidence summary", "Copy Summary")}
+        ${selectedObjectRefs.length > 0 ? `<button type="button" class="copy-button" data-evidence-filter-mode="selected">${state.evidenceUi.selectedObjectOnly ? "Showing Selected Object Evidence" : "Show Selected Object Evidence"}</button>` : ""}
+        ${state.evidenceUi.selectedObjectOnly ? `<button type="button" class="copy-button" data-clear-evidence-filter="1">Clear Evidence Filter</button>` : ""}
+        ${visibleEvidenceRefs.length > 0 ? renderCopyButton(visibleEvidenceRefs.join("\n"), "visible donor evidence refs", "Copy Visible Refs") : ""}
       </div>
     </div>
+    ${(state.evidenceUi.selectedObjectOnly || highlightedEvidenceId) ? `
+      <div class="tree-row evidence-filter-banner ${state.evidenceUi.selectedObjectOnly ? "is-active" : ""}">
+        <strong>${state.evidenceUi.selectedObjectOnly ? "Selected-object evidence view" : "Evidence focus"}</strong>
+        <span>${state.evidenceUi.selectedObjectOnly
+          ? (selectedObject
+            ? `${escapeHtml(selectedObject.displayName)} currently grounds ${selectedObjectRefs.length} donor refs and ${visibleEvidenceItems.length} visible evidence cards.`
+            : "Select an object to filter the donor evidence browser.")
+          : `Focused evidence item ${escapeHtml(highlightedEvidenceId ?? "n/a")}.`}</span>
+      </div>
+    ` : ""}
     <details class="evidence-section" open>
       <summary>Donor Summary <span class="summary-count">${summary.donorEvidenceRefs.length + summary.importEvidenceRefs.length}</span></summary>
       <div class="evidence-section-body detail-grid">
@@ -5988,6 +6493,15 @@ function renderEvidenceBrowser() {
             <span>${summary.donorNotes ? escapeHtml(summary.donorNotes) : "No extra donor note recorded."}</span>
           </div>
         </div>
+      </div>
+    </details>
+    <details class="evidence-section" open>
+      <summary>Evidence Items <span class="summary-count">${escapeHtml(evidenceItemsCountLabel)}</span></summary>
+      <div class="evidence-section-body">
+        ${renderEvidenceItemCards(visibleEvidenceItems, evidenceObjectIndex, {
+          highlightedEvidenceId,
+          selectedObjectOnly: state.evidenceUi.selectedObjectOnly
+        })}
       </div>
     </details>
     <details class="evidence-section">
@@ -7136,6 +7650,7 @@ function renderInspector() {
   const propertyPanel = typeof window.myideApi?.buildPropertyPanelViewModel === "function"
     ? window.myideApi.buildPropertyPanelViewModel(inspectorInput)
     : inspectorInput;
+  const evidenceDrilldownMarkup = renderSelectedObjectEvidenceDrilldown(evidenceLinkage);
   const evidenceSummaryMarkup = propertyPanel.evidenceRefs.length > 0
     ? `
       <div class="inspector-evidence-summary">
@@ -7174,6 +7689,7 @@ function renderInspector() {
       <span>${viewportAlignable ? "viewport alignable" : "alignment locked"}</span>
     </div>
     ${evidenceSummaryMarkup}
+    ${evidenceDrilldownMarkup}
     ${groupsMarkup}
   `;
 }
