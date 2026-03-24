@@ -86,6 +86,17 @@ export type LocalReplayRow = {
   setRoundID: (roundId: string) => void;
 };
 
+export type SerializableReplayRow = {
+  valueMap: Record<string, string>;
+  extBetId: string;
+  stateId: number | string;
+  stateName: string;
+  bet: number;
+  payout: number;
+  balance: number;
+  roundId: string;
+};
+
 export type FixtureDifference = {
   field: string;
   derivedValue: string;
@@ -777,36 +788,57 @@ export function createLocalReplayRow(
   repoRoot = getRepoRoot(),
   selection: FixtureSelection = "auto"
 ): LocalReplayRow {
-  const parsed = parseRowFixture(projectId, repoRoot, selection);
-  let currentRoundId = parsed.roundId;
+  const { rowSnapshot } = buildSerializableReplayRow(projectId, repoRoot, selection);
+  return createLocalReplayRowFromSnapshot(rowSnapshot);
+}
 
+export function buildSerializableReplayRow(
+  projectId: string,
+  repoRoot = getRepoRoot(),
+  selection: FixtureSelection = "auto"
+): { parsed: ParsedRowFixture; rowSnapshot: SerializableReplayRow } {
+  const parsed = parseRowFixture(projectId, repoRoot, selection);
+  return {
+    parsed,
+    rowSnapshot: {
+      valueMap: { ...parsed.betData, ...parsed.servletData },
+      extBetId: parsed.fixture.extBetId ?? "",
+      stateId: parsed.fixture.stateId ?? "",
+      stateName: parsed.fixture.stateName ?? "",
+      bet: Number(parsed.fixture.bet ?? 0),
+      payout: Number(parsed.fixture.win ?? 0),
+      balance: Number(parsed.fixture.balance ?? 0),
+      roundId: parsed.roundId
+    }
+  };
+}
+
+export function createLocalReplayRowFromSnapshot(rowSnapshot: SerializableReplayRow): LocalReplayRow {
+  let currentRoundId = rowSnapshot.roundId;
   return {
     getValue(key: string): string | null {
-      if (key in parsed.betData) {
-        return parsed.betData[key];
-      }
-      if (key in parsed.servletData) {
-        return parsed.servletData[key];
+      if (key in rowSnapshot.valueMap) {
+        return rowSnapshot.valueMap[key];
       }
       return null;
     },
     getExtBetId(): string {
-      return parsed.fixture.extBetId ?? "";
+      return rowSnapshot.extBetId;
     },
     getStateText(): string {
-      return parsed.fixture.stateName ?? "";
+      return rowSnapshot.stateName;
     },
     getStateID(): number | string {
-      return parsed.fixture.stateId ?? "";
+      return rowSnapshot.stateId;
     },
     getBet(): number {
-      return Number(parsed.fixture.bet ?? 0);
+      return rowSnapshot.bet;
     },
     getPayout(): number {
-      return Number(parsed.fixture.win ?? 0);
+      return rowSnapshot.payout;
     },
     getBalance(): number {
-      return Number(parsed.fixture.balance ?? 0);
+      return rowSnapshot.balance;
     },
     getRoundID(): string {
       return currentRoundId;

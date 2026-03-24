@@ -35,3 +35,23 @@ These artifacts are local harness outputs only. They are not part of the public 
 - `/tmp/myide-vabs-project_001-export-preview/derived/preview-summary.txt`
 
 If a sanitized captured row exists later, the preview path can also emit a `captured-sanitized/` tier.
+
+`npm run vabs:mock:project_001` writes a local browser-facing shell mock outside the repo under:
+
+- `/tmp/myide-vabs-project_001-shell-mock/derived/shell-mock.html`
+- `/tmp/myide-vabs-project_001-shell-mock/derived/shell-mock.json`
+- `/tmp/myide-vabs-project_001-shell-mock/derived/shell-mock.txt`
+
+The shell mock stages the exported package under:
+
+- `/tmp/myide-vabs-project_001-shell-mock/derived/common/vabs/mysterygarden/code.js`
+- `/tmp/myide-vabs-project_001-shell-mock/derived/common/vabs/mysterygarden/strings_en.js`
+- `/tmp/myide-vabs-project_001-shell-mock/derived/common/vabs/mysterygarden/manifest.json`
+
+`npm run vabs:smoke:project_001` writes deterministic browser-smoke artifacts beside the shell mock:
+
+- `/tmp/myide-vabs-project_001-shell-mock/derived/browser-smoke.dom.html`
+- `/tmp/myide-vabs-project_001-shell-mock/derived/browser-smoke.json`
+- `/tmp/myide-vabs-project_001-shell-mock/derived/browser-smoke.txt`
+
+If a sanitized captured row exists later, the shell-mock and browser-smoke paths can also emit a `captured-sanitized/` tier.

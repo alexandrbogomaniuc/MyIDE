@@ -50,6 +50,8 @@ Public publication rules are defined in [`00_control/PUBLIC_REPO_POLICY.md`](./0
 - `npm run vabs:export:project_001`
 - `npm run vabs:verify:export:project_001`
 - `npm run vabs:preview:project_001`
+- `npm run vabs:mock:project_001`
+- `npm run vabs:smoke:project_001`
 - `npm run vabs:replay:project_001`
 - `npm run publication:preflight`
 - `npm run publication:compare`
@@ -97,15 +99,17 @@ Public publication rules are defined in [`00_control/PUBLIC_REPO_POLICY.md`](./0
 - [`00_control/VABS_MODULE_STRATEGY.md`](./00_control/VABS_MODULE_STRATEGY.md) explains how GS VABS fits into MyIDE as an additional module.
 - [`00_control/VABS_DELIVERY_CHECKLIST.md`](./00_control/VABS_DELIVERY_CHECKLIST.md) is the delivery checklist for per-project archived round history support.
 - `40_projects/project_001/vabs/` is now the project-local VABS scaffold for `project_001`.
-- `project_001` now has one concrete project-specific VABS slice: an intended folder-name decision, a stronger derived archived-row fixture, an explicit captured-row intake path, a parser/compare harness, a local replay harness, a local GS-style export package path, a local export preview dry-run, and a replay-summary stub package under `40_projects/project_001/vabs/renderer/mysterygarden/`.
-- `npm run vabs:scaffold:project_001`, `npm run vabs:intake:project_001`, `npm run vabs:sanitize:project_001`, `npm run vabs:verify:captured:project_001`, `npm run vabs:verify:project_001`, `npm run vabs:export:project_001`, `npm run vabs:verify:export:project_001`, `npm run vabs:preview:project_001`, and `npm run vabs:replay:project_001` are local-first scaffold/intake/sanitize/verification/export/preview/replay helpers.
+- `project_001` now has one concrete project-specific VABS slice: an intended folder-name decision, a stronger derived archived-row fixture, an explicit captured-row intake path, a parser/compare harness, a local replay harness, a local GS-style export package path, a local export preview dry-run, a local page-shell mock plus browser smoke path, and a replay-summary stub package under `40_projects/project_001/vabs/renderer/mysterygarden/`.
+- `npm run vabs:scaffold:project_001`, `npm run vabs:intake:project_001`, `npm run vabs:sanitize:project_001`, `npm run vabs:verify:captured:project_001`, `npm run vabs:verify:project_001`, `npm run vabs:export:project_001`, `npm run vabs:verify:export:project_001`, `npm run vabs:preview:project_001`, `npm run vabs:mock:project_001`, `npm run vabs:smoke:project_001`, and `npm run vabs:replay:project_001` are local-first scaffold/intake/sanitize/verification/export/preview/mock/smoke/replay helpers.
 - `npm run vabs:parse:project_001` prints the parsed row-contract summary for the current fixture.
 - `npm run vabs:compare:project_001` prints the current captured-vs-derived comparison view for `project_001`.
 - `project_001` now tracks captured-vs-derived truth explicitly: no full captured archived `playerBets` row is stored yet, but the current derived fixture carries one confirmed live `ROUND_ID` from `MG-EV-20260320-LIVE-A-005`, the repo now reserves both a gitignored raw captured-row intake path and a future commit-safe sanitized captured-row path, and `auto` replay selection only promotes the sanitized path.
 - `npm run vabs:replay:project_001` writes deterministic replay-summary artifacts to `/tmp/myide-vabs-project_001-replay/<fixture-kind>/`.
 - `npm run vabs:export:project_001` writes a deterministic GS-style local package to `/tmp/myide-vabs-project_001-export/common/vabs/mysterygarden/`.
 - `npm run vabs:preview:project_001` proves that exported package can be exercised locally without JSP hosting or live GS deployment.
-- These export and preview outputs are local validation artifacts, not production-ready GS deployment proof.
+- `npm run vabs:mock:project_001` writes a browser-facing local shell mock under `/tmp/myide-vabs-project_001-shell-mock/<fixture-kind>/`.
+- `npm run vabs:smoke:project_001` opens that mock through a headless local browser and confirms the exported stub executes inside the mock shell.
+- These export, preview, mock, and smoke outputs are local validation artifacts, not production-ready GS deployment proof.
 - VABS in the current repo is now at a stronger project-specific concrete replay slice for `project_001`, but it still does not claim a finished production GS renderer.
 
 ## Current Boundaries

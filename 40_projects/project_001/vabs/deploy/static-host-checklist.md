@@ -25,3 +25,4 @@
 - [ ] Missing or mismatched asset filenames
 - [ ] Renderer logic published without the required static files
 - [ ] Preview succeeds locally but exported package shape differs from the intended GS static path
+- [ ] Shell mock succeeds locally but still bypasses required JSP/servlet boot behavior in production

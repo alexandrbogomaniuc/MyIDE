@@ -6,7 +6,9 @@ import {
   parseRowFixture,
   verifyScaffold
 } from "./shared";
+import { runBrowserSmoke } from "./browserSmoke";
 import { runExportPreview } from "./runExportPreview";
+import { runLocalShellMock } from "./runLocalShellMock";
 import { verifyExportPackage } from "./verifyExportPackage";
 import { runLocalReplayHarness } from "./runLocalReplayHarness";
 
@@ -31,12 +33,21 @@ function main(): void {
   const harness = runLocalReplayHarness(projectId, repoRoot);
   const exportVerification = verifyExportPackage(projectId, repoRoot);
   const preview = runExportPreview(projectId, repoRoot);
+  const shellMock = runLocalShellMock(projectId, repoRoot);
+  const browserSmoke = runBrowserSmoke(projectId, repoRoot);
 
   if (exportVerification.problems.length > 0) {
     console.error(`VABS export verification failed for ${projectId}`);
     for (const problem of exportVerification.problems) {
       console.error(`- ${problem}`);
     }
+    process.exit(1);
+  }
+
+  if (!browserSmoke.result.smokePassed) {
+    console.error(`VABS shell-mock browser smoke failed for ${projectId}`);
+    console.error(`- Error: ${browserSmoke.result.error ?? "expected summary markers were missing"}`);
+    console.error(`- DOM: ${browserSmoke.result.domPath}`);
     process.exit(1);
   }
 
@@ -62,6 +73,9 @@ function main(): void {
   console.log(`- Export package root: ${exportVerification.result.packageRoot}`);
   console.log(`- Export manifest: ${exportVerification.result.manifestPath}`);
   console.log(`- Export preview HTML: ${preview.htmlPath}`);
+  console.log(`- Shell mock HTML: ${shellMock.htmlPath}`);
+  console.log(`- Browser smoke JSON: ${browserSmoke.jsonPath}`);
+  console.log(`- Browser smoke DOM: ${browserSmoke.result.domPath}`);
 
   if (!parsed.resolution.capturedFixtureAvailable) {
     console.log(`- Captured-row notes: ${parsed.resolution.relativeCapturedNotesPath}`);

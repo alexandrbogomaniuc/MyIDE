@@ -22,6 +22,8 @@
     "vabs:export:project_001": "npm run build && node dist/tools/gs-vabs/exportPackage.js project_001",
     "vabs:verify:export:project_001": "npm run build && node dist/tools/gs-vabs/verifyExportPackage.js project_001",
     "vabs:preview:project_001": "npm run build && node dist/tools/gs-vabs/runExportPreview.js project_001",
+    "vabs:mock:project_001": "npm run build && node dist/tools/gs-vabs/runLocalShellMock.js project_001",
+    "vabs:smoke:project_001": "npm run build && node dist/tools/gs-vabs/browserSmoke.js project_001",
     "vabs:replay:project_001": "npm run build && node dist/tools/gs-vabs/runLocalReplayHarness.js project_001",
     "vabs:verify:project_001": "npm run build && node dist/tools/gs-vabs/verifyVabsPackage.js project_001",
     "publication:preflight": "npm run build && node dist/tools/publication/preflight.js",

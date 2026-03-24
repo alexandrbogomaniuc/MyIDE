@@ -138,3 +138,15 @@ This run still does not add:
 - live JSP/static-host deployment proof
 - a committed full captured Mystery Garden archived `playerBets` row
 - any change to the current internal-scene editor model
+
+## Current GS-VABS-H Scope
+This run adds:
+- one local page-shell mock that approximates the GS `/vabs/show.jsp` boot shape around the exported `common/vabs/mysterygarden/` package
+- one browser-smoke path that opens that mock shell through a headless local browser and confirms the stub executes
+- one stronger provenance-aware output lane for shell/mock/smoke artifacts
+
+This run still does not add:
+- a finished production GS VABS renderer
+- live JSP/static-host deployment proof
+- a committed full captured Mystery Garden archived `playerBets` row
+- any change to the current internal-scene editor model
