@@ -380,12 +380,14 @@ async function main(): Promise<void> {
   const projectRoot = path.join(workspaceRoot, "40_projects", "project_001");
   const internalRoot = path.join(projectRoot, "internal");
   const replayProjectPath = path.join(projectRoot, "project.json");
+  const registryPath = path.join(workspaceRoot, "40_projects", "registry.json");
   const logsRoot = path.join(projectRoot, "logs");
   const snapshotRoot = path.join(logsRoot, "editor-snapshots");
   const historyPath = path.join(logsRoot, "editor-save-history.jsonl");
   const backupRoot = await fs.mkdtemp(path.join(os.tmpdir(), "myide-live-align-backup-"));
 
   const restorePlan = [
+    { source: registryPath, backup: path.join(backupRoot, "registry.json"), existed: false },
     { source: internalRoot, backup: path.join(backupRoot, "internal"), existed: false },
     { source: replayProjectPath, backup: path.join(backupRoot, "project.json"), existed: false },
     { source: snapshotRoot, backup: path.join(backupRoot, "editor-snapshots"), existed: false },
