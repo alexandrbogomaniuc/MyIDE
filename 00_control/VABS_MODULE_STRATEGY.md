@@ -125,3 +125,16 @@ This run still does not add:
 - a finished production GS VABS renderer
 - a committed full captured Mystery Garden archived `playerBets` row
 - any change to the current internal-scene editor model
+
+## Current GS-VABS-G Scope
+This run adds:
+- one deterministic GS-style local export package under `common/vabs/mysterygarden/`
+- one local export preview dry-run that loads the exported package rather than the source renderer path
+- one stronger deployment-readiness layer with explicit package-shape and manifest expectations
+- local validation artifacts that feel closer to GS delivery without claiming production package readiness
+
+This run still does not add:
+- a finished production GS VABS renderer
+- live JSP/static-host deployment proof
+- a committed full captured Mystery Garden archived `playerBets` row
+- any change to the current internal-scene editor model

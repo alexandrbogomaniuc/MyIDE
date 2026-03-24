@@ -12,6 +12,7 @@ Use this for each project that will eventually ship GS VABS / visual round histo
 - [ ] Record whether that row is captured, derived, or mixed provenance.
 - [ ] Define the raw local capture-drop path and the sanitized commit-safe capture path.
 - [ ] Define whether `auto` replay selection may use only sanitized captured rows or some broader fallback.
+- [ ] Define the local GS-style export package shape.
 
 ## Renderer Scaffold
 - [ ] Create `renderer/code.template.js`.
@@ -38,6 +39,9 @@ Use this for each project that will eventually ship GS VABS / visual round histo
 - [ ] Raw local-only captured rows stay out of Git and do not become the default replay input accidentally.
 - [ ] Captured-vs-derived comparison exists and is readable.
 - [ ] One deterministic local replay harness run emits a replay-summary artifact for review/debug.
+- [ ] One deterministic local export package can be built for `common/vabs/<folder>/`.
+- [ ] One deterministic local preview dry-run can execute against the exported package.
+- [ ] Export and preview success are described only as local validation artifacts until real deployment proof exists.
 - [ ] One support/history flow proves the intended round can be opened by `ROUND_ID`.
 - [ ] Current internal scene editor workflow still passes unchanged.
 
@@ -52,3 +56,4 @@ Use this for each project that will eventually ship GS VABS / visual round histo
 - Decision status: provisional but intended
 - Current concrete slice: stronger derived free-spins-trigger row fixture plus captured-round-id tracking plus explicit captured-row intake/comparison plus local replay harness plus stronger replay-summary renderer stub
 - Current intake rule: `auto` uses the sanitized captured row if present, otherwise falls back to the derived fixture
+- Current export rule: the local export package mirrors `common/vabs/mysterygarden/` but remains a stub-only non-production package

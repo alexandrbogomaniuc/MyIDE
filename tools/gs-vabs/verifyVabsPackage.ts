@@ -6,6 +6,8 @@ import {
   parseRowFixture,
   verifyScaffold
 } from "./shared";
+import { runExportPreview } from "./runExportPreview";
+import { verifyExportPackage } from "./verifyExportPackage";
 import { runLocalReplayHarness } from "./runLocalReplayHarness";
 
 function main(): void {
@@ -27,6 +29,16 @@ function main(): void {
   const parsed = parseRowFixture(projectId, repoRoot);
   const comparison = buildFixtureComparison(projectId, repoRoot);
   const harness = runLocalReplayHarness(projectId, repoRoot);
+  const exportVerification = verifyExportPackage(projectId, repoRoot);
+  const preview = runExportPreview(projectId, repoRoot);
+
+  if (exportVerification.problems.length > 0) {
+    console.error(`VABS export verification failed for ${projectId}`);
+    for (const problem of exportVerification.problems) {
+      console.error(`- ${problem}`);
+    }
+    process.exit(1);
+  }
 
   console.log(`- Target folder: ${config.targetFolderName} (${config.targetFolderDecision})`);
   console.log(`- Requested fixture: ${parsed.resolution.requestedSelection}`);
@@ -47,6 +59,9 @@ function main(): void {
   console.log(`- Result state: ${parsed.betData.RESULT_STATE}`);
   console.log(`- Renderer stub: 40_projects/${projectId}/vabs/renderer/${config.targetFolderName}/code.js`);
   console.log(`- Replay harness HTML: ${harness.htmlPath}`);
+  console.log(`- Export package root: ${exportVerification.result.packageRoot}`);
+  console.log(`- Export manifest: ${exportVerification.result.manifestPath}`);
+  console.log(`- Export preview HTML: ${preview.htmlPath}`);
 
   if (!parsed.resolution.capturedFixtureAvailable) {
     console.log(`- Captured-row notes: ${parsed.resolution.relativeCapturedNotesPath}`);

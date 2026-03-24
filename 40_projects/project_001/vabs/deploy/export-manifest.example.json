@@ -1,0 +1,19 @@
+{
+  "schemaVersion": "0.1.0",
+  "projectId": "project_001",
+  "targetFolderName": "mysterygarden",
+  "staticPackagePath": "common/vabs/mysterygarden",
+  "requestedFixtureSelection": "auto",
+  "actualFixtureSelection": "derived",
+  "actualFixtureKind": "derived",
+  "fixtureProvenance": "derived-project-fixture-plus-gs-example-plus-captured-round-id",
+  "captureStatus": "no-captured-playerbets-row__captured-round-id-only",
+  "roundId": "14099735306",
+  "rendererStatus": "stub-only-non-production",
+  "packagePurpose": "local-gs-style-export-preview",
+  "limitations": [
+    "Read-only local export only.",
+    "No finished production GS renderer is claimed here.",
+    "Auto export only promotes a sanitized captured row; otherwise it exports the derived fixture."
+  ]
+}

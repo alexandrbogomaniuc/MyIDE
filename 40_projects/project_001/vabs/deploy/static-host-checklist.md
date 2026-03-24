@@ -5,9 +5,12 @@
 - [ ] Target host/path for the per-game package is recorded.
 - [ ] The deployment can serve `/common/vabs/<folder>/code.js`.
 - [ ] Shared VABS engine assets are present alongside the per-game package.
+- [ ] The local export path mirrors `common/vabs/<folder>/`.
 
 ## Static Package Contents
 - [ ] `code.js` exists in the target package.
+- [ ] `strings_en.js` exists in the target package.
+- [ ] `manifest.json` or an equivalent export manifest exists in the target package.
 - [ ] Required static art files exist with the expected case-sensitive names.
 - [ ] Localization files are present if the target deployment needs them.
 
@@ -21,3 +24,4 @@
 - [ ] Missing shared `/common/vabs` assets
 - [ ] Missing or mismatched asset filenames
 - [ ] Renderer logic published without the required static files
+- [ ] Preview succeeds locally but exported package shape differs from the intended GS static path

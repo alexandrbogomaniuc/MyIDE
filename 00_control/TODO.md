@@ -225,6 +225,11 @@
 - [ ] Capture one real sanitized Mystery Garden archived `playerBets` row.
 - [ ] Promote provisional fields to confirmed only after a captured archived row is available.
 
+## GS-VABS-G
+- [x] Add a deterministic local GS-style export package path for `project_001`.
+- [x] Add a local preview dry-run against the exported package.
+- [ ] Prove the same package against a real sanitized captured archived row once one exists.
+
 ## GS-VABS-A
 - [x] Audit accessible GS/VABS reference files and document grounded patterns.
 - [x] Document VABS as an additional MyIDE module rather than an editor replacement.

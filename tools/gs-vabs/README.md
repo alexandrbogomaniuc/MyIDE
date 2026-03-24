@@ -24,6 +24,16 @@ These commands manage the project-local GS VABS scaffold without coupling VABS i
   - Report whether raw and/or sanitized captured rows exist.
   - Verify the sanitized captured row when present.
   - Run the local replay harness against the captured selection when the sanitized row is valid.
+- `npm run vabs:export:project_001`
+  - Build a deterministic local GS-style export package under `/tmp/myide-vabs-project_001-export/common/vabs/mysterygarden/`.
+  - Export `code.js`, `strings_en.js`, and a manifest with fixture provenance and package limitations.
+- `npm run vabs:verify:export:project_001`
+  - Build the local export package.
+  - Verify the expected `common/vabs/mysterygarden/` structure and manifest fields are present.
+- `npm run vabs:preview:project_001`
+  - Load the exported package rather than the source renderer path.
+  - Run the local row fixture through the exported stub.
+  - Write deterministic preview artifacts to `/tmp/myide-vabs-project_001-export-preview/<fixture-kind>/`.
 - `npm run vabs:replay:project_001`
   - Load the `project_001` row fixture through the shared parser path.
   - Default fixture selection is `auto`; re-run with `-- captured` or `-- derived` to force a specific tier.
@@ -39,11 +49,13 @@ These commands manage the project-local GS VABS scaffold without coupling VABS i
   - Check the local raw captured-row intake path is gitignored.
   - Check the project-specific renderer stub package exists.
   - Check the acceptance checklist exists.
+  - Build and verify the GS-style export package.
+  - Run the local export preview dry-run.
   - Run the local replay harness and confirm the replay-summary artifact can be produced successfully.
   - Report whether a sanitized captured row is available and whether a local raw-only row is present.
 
 ## Scope
 - Local-first.
 - Deterministic.
-- Scaffold, captured-row intake guidance, sanitization, captured-vs-derived fixture tracking, local replay-summary harness, comparison, and verification only.
+- Scaffold, captured-row intake guidance, sanitization, captured-vs-derived fixture tracking, export, preview, local replay-summary harness, comparison, and verification only.
 - No production VABS renderer build in this phase.

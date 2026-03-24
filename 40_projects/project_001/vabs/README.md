@@ -29,6 +29,9 @@ This folder is the GS VABS workspace scaffold for `project_001`.
 - `npm run vabs:verify:captured:project_001`
 - `npm run vabs:parse:project_001`
 - `npm run vabs:compare:project_001`
+- `npm run vabs:export:project_001`
+- `npm run vabs:verify:export:project_001`
+- `npm run vabs:preview:project_001`
 - `npm run vabs:replay:project_001`
 - `npm run vabs:verify:project_001`
 
@@ -47,4 +50,6 @@ This folder is the GS VABS workspace scaffold for `project_001`.
 - `contract/fixture-comparison.md` records which fields are confirmed from captured data vs derived from GS examples vs still provisional.
 - The renderer folder now contains one project-specific stub package under `renderer/mysterygarden/`.
 - The local replay harness now supports fixture provenance reporting and writes deterministic replay-summary artifacts under `/tmp/myide-vabs-project_001-replay/<fixture-kind>/`.
+- The GS-style export path now writes a local package under `/tmp/myide-vabs-project_001-export/common/vabs/mysterygarden/`.
+- The local export preview dry-run now loads that exported package and writes deterministic preview artifacts under `/tmp/myide-vabs-project_001-export-preview/<fixture-kind>/`.
 - The stub now renders a stronger replay-summary panel, but it is still not a finished production GS renderer.
