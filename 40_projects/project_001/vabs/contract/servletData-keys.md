@@ -48,3 +48,5 @@
 - They are still a sanitized derived contract fixture, not a claim of final production servlet payload shape.
 - A full captured `playerBets` row is still missing, so provenance must remain explicit in both docs and replay output.
 - `captured-playerBets-row.sanitized.json` is the intended future commit-safe captured-row path when one becomes available.
+- `captured-playerBets-row.json` is the local-only raw intake path and must stay out of Git.
+- `auto` replay selection should only promote the sanitized captured row, not the raw local-only intake file.

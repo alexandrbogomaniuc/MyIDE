@@ -15,8 +15,12 @@ This file tracks the strongest grounded row-adjacent evidence currently availabl
   - intended for a future sanitized archived row that is safe to commit
 - Auto selection rule:
   - prefer `captured-playerBets-row.sanitized.json`
-  - otherwise use local `captured-playerBets-row.json`
   - otherwise fall back to `sample-playerBets-row.json`
+  - do not auto-promote the raw local-only row
+- Explicit captured selection rule:
+  - `-- captured` may use `captured-playerBets-row.sanitized.json`
+  - if no sanitized row exists yet, `-- captured` may use local `captured-playerBets-row.json`
+  - this keeps raw intake opt-in and local-only
 
 ## Captured Evidence Found
 - Capture session: `MG-CS-20260320-LIVE-A`
@@ -47,4 +51,4 @@ This file tracks the strongest grounded row-adjacent evidence currently availabl
 
 ## Exact Blocker
 - A real/sanitizable archived `playerBets` row for the target Mystery Garden history path is still not present in the accessible local reference material.
-- Until one is captured, the replay harness should keep reporting the row as `derived-contract-fixture` with `captured-round-id-only` provenance.
+- Until one is captured and sanitized, the default replay harness should keep reporting the row as `derived-contract-fixture` with `captured-round-id-only` provenance.

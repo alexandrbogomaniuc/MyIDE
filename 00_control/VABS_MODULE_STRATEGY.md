@@ -113,3 +113,15 @@ This run still does not add:
 - a finished production GS VABS renderer
 - a committed full captured archived `playerBets` row
 - any change to the current internal-scene editor model
+
+## Current GS-VABS-F Scope
+This run adds:
+- one stronger raw-intake -> sanitize -> verify captured-row workflow
+- one tracked source-log for exactly which donor/canonical locations were checked for a real archived row
+- one explicit rule that `auto` replay selection only promotes a sanitized captured row
+- one stronger provenance-aware replay summary that reports sanitized/raw availability and comparison notes
+
+This run still does not add:
+- a finished production GS VABS renderer
+- a committed full captured Mystery Garden archived `playerBets` row
+- any change to the current internal-scene editor model

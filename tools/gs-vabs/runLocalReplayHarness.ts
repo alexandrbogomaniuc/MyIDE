@@ -153,10 +153,15 @@ function main(): void {
   console.log(`- Actual fixture: ${result.summary.actualFixtureSelection}`);
   console.log(`- Actual fixture kind: ${result.summary.actualFixtureKind}`);
   console.log(`- Fixture path: ${result.summary.fixturePath}`);
+  console.log(`- Captured sanitized available: ${result.summary.capturedSanitizedFixtureAvailable ? "yes" : "no"}`);
+  console.log(`- Captured raw local available: ${result.summary.capturedRawFixtureAvailable ? "yes" : "no"}`);
   console.log(`- Comparison mode: ${result.summary.comparisonMode}`);
   console.log(`- Comparison path: ${result.summary.comparisonPath}`);
   console.log(`- Confirmed-from-captured fields: ${result.summary.confirmedFromCaptured.join(", ") || "none"}`);
   console.log(`- Provisional fields: ${result.summary.provisionalFields.join(", ") || "none"}`);
+  if (result.summary.comparisonNotes.length > 0) {
+    console.log(`- Comparison notes: ${result.summary.comparisonNotes.join(" | ")}`);
+  }
   if (result.summary.differingFields.length > 0) {
     console.log(
       `- Differing fields: ${result.summary.differingFields.map((difference) => difference.field).join(", ")}`
@@ -174,4 +179,6 @@ function main(): void {
   }
 }
 
-main();
+if (require.main === module) {
+  main();
+}

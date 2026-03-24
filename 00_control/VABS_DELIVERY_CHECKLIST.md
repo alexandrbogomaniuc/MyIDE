@@ -11,6 +11,7 @@ Use this for each project that will eventually ship GS VABS / visual round histo
 - [ ] Add one deterministic sample archived row.
 - [ ] Record whether that row is captured, derived, or mixed provenance.
 - [ ] Define the raw local capture-drop path and the sanitized commit-safe capture path.
+- [ ] Define whether `auto` replay selection may use only sanitized captured rows or some broader fallback.
 
 ## Renderer Scaffold
 - [ ] Create `renderer/code.template.js`.
@@ -34,6 +35,7 @@ Use this for each project that will eventually ship GS VABS / visual round histo
 - [ ] Acceptance checklist exists.
 - [ ] One deterministic archived row sample replays consistently.
 - [ ] Captured-vs-derived provenance is explicit for the active fixture.
+- [ ] Raw local-only captured rows stay out of Git and do not become the default replay input accidentally.
 - [ ] Captured-vs-derived comparison exists and is readable.
 - [ ] One deterministic local replay harness run emits a replay-summary artifact for review/debug.
 - [ ] One support/history flow proves the intended round can be opened by `ROUND_ID`.
@@ -49,3 +51,4 @@ Use this for each project that will eventually ship GS VABS / visual round histo
 - Intended folder name: `mysterygarden`
 - Decision status: provisional but intended
 - Current concrete slice: stronger derived free-spins-trigger row fixture plus captured-round-id tracking plus explicit captured-row intake/comparison plus local replay harness plus stronger replay-summary renderer stub
+- Current intake rule: `auto` uses the sanitized captured row if present, otherwise falls back to the derived fixture

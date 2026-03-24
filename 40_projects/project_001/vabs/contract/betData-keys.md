@@ -65,3 +65,4 @@
 - They are not yet claimed as the final production GS payload for Mystery Garden.
 - No captured `playerBets` row has been found yet, so `betData` remains a deterministic derived contract bag in this phase.
 - `fixture-comparison.md` is the current source for which of these keys are still provisional vs example-derived.
+- If a sanitized captured row is added later, only keys actually present in that row should be preserved; the captured row should not be inflated to match every derived helper key.

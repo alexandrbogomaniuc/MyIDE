@@ -13,6 +13,17 @@ These commands manage the project-local GS VABS scaffold without coupling VABS i
 - `npm run vabs:compare:project_001`
   - Print the current captured-vs-derived comparison view for `project_001`.
   - Report which fields are confirmed from captured data, derived from GS examples, derived from the project fixture, or still provisional.
+- `npm run vabs:intake:project_001`
+  - Copy a raw local archived-row candidate into the local-only intake path when a `--source` file is provided.
+  - Otherwise print the current raw/sanitized intake status for `project_001`.
+- `npm run vabs:sanitize:project_001`
+  - Read the local-only raw intake row when present.
+  - Extract the first valid archived `playerBets`-shaped row.
+  - Redact unsafe values and write a commit-safe `captured-playerBets-row.sanitized.json` when possible.
+- `npm run vabs:verify:captured:project_001`
+  - Report whether raw and/or sanitized captured rows exist.
+  - Verify the sanitized captured row when present.
+  - Run the local replay harness against the captured selection when the sanitized row is valid.
 - `npm run vabs:replay:project_001`
   - Load the `project_001` row fixture through the shared parser path.
   - Default fixture selection is `auto`; re-run with `-- captured` or `-- derived` to force a specific tier.
@@ -29,9 +40,10 @@ These commands manage the project-local GS VABS scaffold without coupling VABS i
   - Check the project-specific renderer stub package exists.
   - Check the acceptance checklist exists.
   - Run the local replay harness and confirm the replay-summary artifact can be produced successfully.
+  - Report whether a sanitized captured row is available and whether a local raw-only row is present.
 
 ## Scope
 - Local-first.
 - Deterministic.
-- Scaffold, captured-row intake guidance, captured-vs-derived fixture tracking, local replay-summary harness, comparison, and verification only.
+- Scaffold, captured-row intake guidance, sanitization, captured-vs-derived fixture tracking, local replay-summary harness, comparison, and verification only.
 - No production VABS renderer build in this phase.

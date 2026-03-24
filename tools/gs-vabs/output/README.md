@@ -18,4 +18,6 @@ or, for a local-only raw row that has not yet been sanitized:
 - `/tmp/myide-vabs-project_001-replay/captured-raw-local/replay-summary.html`
 - `/tmp/myide-vabs-project_001-replay/captured-raw-local/replay-summary.txt`
 
+`auto` replay selection only promotes the sanitized captured row. The `captured-raw-local` output tier should appear only when captured replay is selected explicitly before sanitization.
+
 These artifacts are local harness outputs only. They are not part of the public repo and should not be committed.

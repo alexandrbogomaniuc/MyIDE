@@ -10,6 +10,8 @@ This file shows the intended parsed summary for the current `project_001` contra
 - captured-row intake paths reserved:
   - local raw: `contract/captured-playerBets-row.json`
   - sanitized: `contract/captured-playerBets-row.sanitized.json`
+  - `auto` only promotes the sanitized path
+  - the raw local path is opt-in for capture intake and sanitization work
 
 ## Parsed Summary
 - `time`: `20 Mar 2026 10:32:56`
@@ -74,3 +76,7 @@ This file shows the intended parsed summary for the current `project_001` contra
 - Derived from `project_001` free-spins-trigger fixture: states, grids, trigger/follow-up text, evidence refs.
 - Confirmed from captured live init response: `ROUND_ID=14099735306`.
 - Still provisional until a captured target row exists: `stateId`, `extBetId`, and the full archived `playerBets` transport row.
+
+## Captured Intake Note
+- A future sanitized captured row may produce a smaller parsed summary if the real archived row does not carry every current derived helper key.
+- That is expected and should be reported as stronger provenance, not as a regression.

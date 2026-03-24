@@ -219,6 +219,12 @@
 ## QA-B
 - [x] Add `manual:prepare:project_001` for one-command manual session prep.
 
+## GS-VABS-F
+- [x] Add explicit raw vs sanitized captured-row intake paths for `project_001`.
+- [x] Add stronger provenance-aware compare/verify/replay reporting.
+- [ ] Capture one real sanitized Mystery Garden archived `playerBets` row.
+- [ ] Promote provisional fields to confirmed only after a captured archived row is available.
+
 ## GS-VABS-A
 - [x] Audit accessible GS/VABS reference files and document grounded patterns.
 - [x] Document VABS as an additional MyIDE module rather than an editor replacement.

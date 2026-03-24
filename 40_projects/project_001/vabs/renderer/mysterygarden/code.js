@@ -149,12 +149,15 @@
             "Captured ROUND_ID Evidence: " + (summary.capturedRoundIdEvidence || "-"),
             "Fixture: " + (summary.actualFixtureSelection || summary.fixtureKind || "-") + " [" + (summary.fixturePath || "-") + "]",
             "Fixture Kind: " + (summary.actualFixtureKind || "-"),
+            "Captured Sanitized Available: " + (summary.capturedSanitizedFixtureAvailable ? "yes" : "no"),
+            "Captured Raw Local Available: " + (summary.capturedRawFixtureAvailable ? "yes" : "no"),
             "Fixture Provenance: " + (summary.fixtureProvenance || "-"),
             "Capture Status: " + (summary.captureStatus || "-"),
             "Comparison Mode: " + (summary.comparisonMode || "-"),
             "Confirmed From Captured: " + (summary.confirmedFromCaptured && summary.confirmedFromCaptured.length ? summary.confirmedFromCaptured.join(", ") : "-"),
             "Provisional Fields: " + (summary.provisionalFields && summary.provisionalFields.length ? summary.provisionalFields.join(", ") : "-"),
             "Differing Fields: " + (summary.differingFields && summary.differingFields.length ? summary.differingFields.map(function (difference) { return difference.field; }).join(", ") : "-"),
+            "Comparison Notes: " + (summary.comparisonNotes && summary.comparisonNotes.length ? summary.comparisonNotes.join(" | ") : "-"),
             "State: " + (summary.stateName || "-") + " (" + (summary.stateId || "-") + ")",
             "State Flow: " + (summary.entryState || "-") + " -> " + (summary.resultState || "-") + " -> " + (summary.followUpState || "-"),
             "Feature Mode: " + (summary.featureMode || "-"),
@@ -180,6 +183,12 @@
                 return "<li>" + escapeHtml(ref) + "</li>";
             }).join("") + "</ul>"
             : "<p>No grounded evidence refs are recorded for this row.</p>";
+
+        var comparisonNotes = summary.comparisonNotes && summary.comparisonNotes.length
+            ? "<ul class=\"mg-vabs-stub-list\">" + summary.comparisonNotes.map(function (note) {
+                return "<li>" + escapeHtml(note) + "</li>";
+            }).join("") + "</ul>"
+            : "<p>No additional comparison notes are recorded.</p>";
 
         return [
             "<section class=\"mg-vabs-stub-panel\">",
@@ -211,6 +220,8 @@
             "      <h2>Provenance</h2>",
             "      <p><span class=\"mg-vabs-stub-label\">Fixture</span>" + escapeHtml(summary.actualFixtureSelection || summary.fixtureKind || "-") + "</p>",
             "      <p><span class=\"mg-vabs-stub-label\">Kind</span>" + escapeHtml(summary.actualFixtureKind || "-") + "</p>",
+            "      <p><span class=\"mg-vabs-stub-label\">Sanitized</span>" + escapeHtml(summary.capturedSanitizedFixtureAvailable ? "yes" : "no") + "</p>",
+            "      <p><span class=\"mg-vabs-stub-label\">Raw Local</span>" + escapeHtml(summary.capturedRawFixtureAvailable ? "yes" : "no") + "</p>",
             "      <p><span class=\"mg-vabs-stub-label\">Provenance</span>" + escapeHtml(summary.fixtureProvenance || "-") + "</p>",
             "      <p><span class=\"mg-vabs-stub-label\">Status</span>" + escapeHtml(summary.captureStatus || "-") + "</p>",
             "      <p><span class=\"mg-vabs-stub-label\">Evidence</span>" + escapeHtml(summary.capturedRoundIdEvidence || "-") + "</p>",
@@ -251,6 +262,10 @@
             "    <p><span class=\"mg-vabs-stub-label\">Confirmed</span>" + escapeHtml(summary.confirmedFromCaptured && summary.confirmedFromCaptured.length ? summary.confirmedFromCaptured.join(", ") : "-") + "</p>",
             "    <p><span class=\"mg-vabs-stub-label\">Provisional</span>" + escapeHtml(summary.provisionalFields && summary.provisionalFields.length ? summary.provisionalFields.join(", ") : "-") + "</p>",
             "    <p><span class=\"mg-vabs-stub-label\">Differing</span>" + escapeHtml(summary.differingFields && summary.differingFields.length ? summary.differingFields.map(function (difference) { return difference.field; }).join(", ") : "-") + "</p>",
+            "  </article>",
+            "  <article class=\"mg-vabs-stub-card\">",
+            "    <h2>Provenance Notes</h2>",
+                 comparisonNotes,
             "  </article>",
             "  <article class=\"mg-vabs-stub-card\">",
             "    <h2>Source Note</h2>",

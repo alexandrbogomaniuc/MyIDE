@@ -20,6 +20,6 @@ This is the first project-specific GS VABS renderer stub package for `project_00
 ## Scope
 - reads the contract fixture fields and grouped payload values
 - exposes the expected callback structure for future GS VABS work
-- renders a deterministic replay summary with fixture provenance, comparison status, `ROUND_ID`, state flow, bet/win/balance, feature cues, trigger/follow-up notes, encoded boards, and evidence refs
+- renders a deterministic replay summary with fixture provenance, sanitized/raw availability, comparison status, `ROUND_ID`, state flow, bet/win/balance, feature cues, trigger/follow-up notes, encoded boards, evidence refs, and provenance notes
 - does not depend on live runtime APIs beyond the normal GS VABS row/engine surface
 - remains a stub and does not claim the final VABS art or gameplay renderer

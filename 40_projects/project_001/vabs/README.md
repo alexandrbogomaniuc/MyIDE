@@ -24,6 +24,9 @@ This folder is the GS VABS workspace scaffold for `project_001`.
 
 ## Commands
 - `npm run vabs:scaffold:project_001`
+- `npm run vabs:intake:project_001`
+- `npm run vabs:sanitize:project_001`
+- `npm run vabs:verify:captured:project_001`
 - `npm run vabs:parse:project_001`
 - `npm run vabs:compare:project_001`
 - `npm run vabs:replay:project_001`
@@ -37,8 +40,10 @@ This folder is the GS VABS workspace scaffold for `project_001`.
 ## Current Slice
 - The archived row fixture is still derived, but it now carries one confirmed captured `ROUND_ID` from `MG-EV-20260320-LIVE-A-005`.
 - `contract/captured-row-notes.md` records the exact captured-vs-derived status and blocker.
+- `contract/capture-source-log.md` records the exact donor/canonical sources checked for a real archived row and what was or was not found.
 - `contract/captured-playerBets-row.json` is the local-only raw intake path and is gitignored.
 - `contract/captured-playerBets-row.sanitized.json` is the reserved future commit-safe captured-row path.
+- `auto` fixture selection only promotes the sanitized captured path; it will not silently use the local raw intake file.
 - `contract/fixture-comparison.md` records which fields are confirmed from captured data vs derived from GS examples vs still provisional.
 - The renderer folder now contains one project-specific stub package under `renderer/mysterygarden/`.
 - The local replay harness now supports fixture provenance reporting and writes deterministic replay-summary artifacts under `/tmp/myide-vabs-project_001-replay/<fixture-kind>/`.

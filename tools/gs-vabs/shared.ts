@@ -120,6 +120,8 @@ export type ReplaySummary = {
   actualFixtureKind: FixtureKind;
   fixturePath: string;
   capturedFixtureAvailable: boolean;
+  capturedSanitizedFixtureAvailable: boolean;
+  capturedRawFixtureAvailable: boolean;
   capturedNotesPath: string;
   comparisonPath: string;
   comparisonMode: "derived-only" | "derived-vs-captured";
@@ -128,6 +130,7 @@ export type ReplaySummary = {
   derivedFromProjectFixture: string[];
   provisionalFields: string[];
   differingFields: FixtureDifference[];
+  comparisonNotes: string[];
   roundId: string;
   capturedRoundId: string;
   capturedRoundIdEvidence: string;
@@ -220,6 +223,19 @@ const PROJECT_FIXTURE_DERIVED_FIELDS = [
   "FOLLOW_UP_SYMBOL_GRID",
   "EVIDENCE_REFS"
 ];
+const CAPTURED_REQUIRED_BETDATA_KEYS = ["BET_TOTAL", "BETID", "COINSEQ"];
+const CAPTURED_REQUIRED_SERVLETDATA_KEYS = [
+  "ROUND_ID",
+  "PROJECT_ID",
+  "DONOR_ID",
+  "SOURCE_CAPTURE",
+  "FIXTURE_KIND",
+  "FIXTURE_PROVENANCE",
+  "CAPTURE_STATUS",
+  "CAPTURED_ROUND_ID",
+  "CAPTURED_ROUND_ID_EVIDENCE",
+  "SOURCE_NOTE"
+];
 const PROVISIONAL_FIELDS = [
   "time",
   "stateId",
@@ -291,6 +307,11 @@ const REQUIRED_FILES: ScaffoldFile[] = [
     relativePath: "contract/captured-row-notes.md",
     contents: () =>
       "# Captured Row Attempt Notes\n\nRecord whether a real archived `playerBets` row was found, or what blocker kept the fixture derived.\n"
+  },
+  {
+    relativePath: "contract/capture-source-log.md",
+    contents: () =>
+      "# Capture Source Log\n\nLog the exact local/canonical sources checked for a real archived `playerBets` row and what was or was not found.\n"
   },
   {
     relativePath: "contract/fixture-comparison.md",
@@ -467,6 +488,10 @@ export function getCapturedNotesPath(projectId: string, repoRoot = getRepoRoot()
   return path.join(getVabsRoot(projectId, repoRoot), "contract", "captured-row-notes.md");
 }
 
+export function getCaptureSourceLogPath(projectId: string, repoRoot = getRepoRoot()): string {
+  return path.join(getVabsRoot(projectId, repoRoot), "contract", "capture-source-log.md");
+}
+
 export function getFixtureComparisonPath(projectId: string, repoRoot = getRepoRoot()): string {
   return path.join(getVabsRoot(projectId, repoRoot), "contract", "fixture-comparison.md");
 }
@@ -505,8 +530,10 @@ export function resolveFixtureSelection(
   }
 
   let actualFixtureKind: FixtureKind = "derived";
-  if (selection === "captured" || (selection === "auto" && capturedFixtureAvailable)) {
+  if (selection === "captured") {
     actualFixtureKind = capturedSanitizedFixtureAvailable ? "captured-sanitized" : "captured-raw-local";
+  } else if (selection === "auto" && capturedSanitizedFixtureAvailable) {
+    actualFixtureKind = "captured-sanitized";
   }
 
   const actualSelection: ResolvedFixtureSelection = actualFixtureKind === "derived" ? "derived" : "captured";
@@ -615,6 +642,99 @@ export function parseSymbolGrid(text: string): string[][] {
   );
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+export function hasRequiredTopLevelFields(value: unknown, projectId = DEFAULT_PROJECT_ID): value is RowFixture {
+  if (!isRecord(value)) {
+    return false;
+  }
+  const config = getProjectConfig(projectId);
+  return config.requiredTopLevelFields.every((field) => field in value);
+}
+
+export function extractCapturedRowFixture(
+  source: unknown,
+  projectId = DEFAULT_PROJECT_ID
+): { fixture: RowFixture; sourceShape: string; extractedIndex: number; candidateCount: number } {
+  if (hasRequiredTopLevelFields(source, projectId)) {
+    return {
+      fixture: source as RowFixture,
+      sourceShape: "direct-row",
+      extractedIndex: 0,
+      candidateCount: 1
+    };
+  }
+
+  const candidates: unknown[] = [];
+  let sourceShape = "unknown";
+
+  if (Array.isArray(source)) {
+    sourceShape = "array";
+    candidates.push(...source);
+  } else if (isRecord(source) && Array.isArray(source.playerBets)) {
+    sourceShape = "playerBets-array";
+    candidates.push(...source.playerBets);
+  } else if (
+    isRecord(source) &&
+    isRecord(source.response) &&
+    isRecord(source.response.body) &&
+    Array.isArray(source.response.body.playerBets)
+  ) {
+    sourceShape = "response.body.playerBets-array";
+    candidates.push(...source.response.body.playerBets);
+  } else if (isRecord(source) && isRecord(source.history) && Array.isArray(source.history.items)) {
+    throw new Error(
+      "Input looks like a generic browser gethistory fixture (`history.items`), not a legacy archived playerBets row."
+    );
+  } else if (
+    isRecord(source) &&
+    isRecord(source.response) &&
+    isRecord(source.response.body) &&
+    isRecord(source.response.body.history) &&
+    Array.isArray(source.response.body.history.items)
+  ) {
+    throw new Error(
+      "Input looks like a wrapped browser gethistory fixture (`response.body.history.items`), not a legacy archived playerBets row."
+    );
+  }
+
+  for (let index = 0; index < candidates.length; index += 1) {
+    if (hasRequiredTopLevelFields(candidates[index], projectId)) {
+      return {
+        fixture: candidates[index] as RowFixture,
+        sourceShape,
+        extractedIndex: index,
+        candidateCount: candidates.length
+      };
+    }
+  }
+
+  throw new Error(
+    "Could not extract a PlayerBet-shaped row with time/stateId/stateName/bet/win/balance/betData/servletData/extBetId."
+  );
+}
+
+export function serializeKeyValueBag(record: Record<string, string>, preferredOrder: string[] = []): string {
+  const seen = new Set<string>();
+  const orderedKeys = [
+    ...preferredOrder.filter((key) => key in record),
+    ...Object.keys(record)
+      .filter((key) => !seen.has(key))
+      .sort()
+  ];
+  const normalizedKeys = orderedKeys.filter((key) => {
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+
+  return normalizedKeys.map((key) => `${key}=${record[key] ?? ""}`).join("~");
+}
+
 export function readRowFixture(
   projectId: string,
   repoRoot = getRepoRoot(),
@@ -707,7 +827,8 @@ export function buildFixtureComparison(
   const notes = [
     "The compare lane is deterministic and local-first.",
     "A captured raw fixture should stay local-only and is expected at contract/captured-playerBets-row.json.",
-    "A public-safe sanitized captured fixture should be committed only at contract/captured-playerBets-row.sanitized.json."
+    "A public-safe sanitized captured fixture should be committed only at contract/captured-playerBets-row.sanitized.json.",
+    "Auto fixture selection only promotes a sanitized captured row; a raw local intake remains opt-in via `-- captured` until it is sanitized."
   ];
 
   if (!resolution.capturedFixtureAvailable) {
@@ -894,6 +1015,8 @@ export function buildReplaySummary(
     actualFixtureKind: parsed.resolution.actualFixtureKind,
     fixturePath: parsed.resolution.relativeFixturePath,
     capturedFixtureAvailable: parsed.resolution.capturedFixtureAvailable,
+    capturedSanitizedFixtureAvailable: parsed.resolution.capturedSanitizedFixtureAvailable,
+    capturedRawFixtureAvailable: parsed.resolution.capturedRawFixtureAvailable,
     capturedNotesPath: parsed.resolution.relativeCapturedNotesPath,
     comparisonPath: parsed.resolution.relativeComparisonPath,
     comparisonMode: comparison.comparisonMode,
@@ -902,6 +1025,7 @@ export function buildReplaySummary(
     derivedFromProjectFixture: comparison.derivedFromProjectFixture,
     provisionalFields: comparison.provisionalFields,
     differingFields: comparison.differingFields,
+    comparisonNotes: comparison.notes,
     roundId: parsed.roundId,
     capturedRoundId: parsed.capturedRoundId,
     capturedRoundIdEvidence: parsed.capturedRoundIdEvidence,
@@ -959,7 +1083,9 @@ function verifyRowFixture(
     });
   }
 
-  for (const key of config.requiredBetDataKeys) {
+  const requiredBetDataKeys =
+    selection === "derived" ? config.requiredBetDataKeys : CAPTURED_REQUIRED_BETDATA_KEYS;
+  for (const key of requiredBetDataKeys) {
     if (!(key in parsed.betData)) {
       problems.push({
         relativePath: label,
@@ -968,7 +1094,9 @@ function verifyRowFixture(
     }
   }
 
-  for (const key of config.requiredServletDataKeys) {
+  const requiredServletDataKeys =
+    selection === "derived" ? config.requiredServletDataKeys : CAPTURED_REQUIRED_SERVLETDATA_KEYS;
+  for (const key of requiredServletDataKeys) {
     if (!(key in parsed.servletData)) {
       problems.push({
         relativePath: label,
@@ -976,6 +1104,16 @@ function verifyRowFixture(
       });
     }
   }
+}
+
+export function verifyFixtureSelection(
+  projectId: string,
+  repoRoot = getRepoRoot(),
+  selection: ResolvedFixtureSelection = "derived"
+): VerificationProblem[] {
+  const problems: VerificationProblem[] = [];
+  verifyRowFixture(projectId, repoRoot, problems, selection);
+  return problems;
 }
 
 export function verifyScaffold(projectId: string, repoRoot = getRepoRoot()): VerificationProblem[] {
@@ -1052,6 +1190,23 @@ export function verifyScaffold(projectId: string, repoRoot = getRepoRoot()): Ver
     }
   }
 
+  const captureSourceLogPath = getCaptureSourceLogPath(projectId, repoRoot);
+  if (existsSync(captureSourceLogPath)) {
+    const text = readFileSync(captureSourceLogPath, "utf8");
+    if (!text.toLowerCase().includes("captured")) {
+      problems.push({
+        relativePath: path.relative(repoRoot, captureSourceLogPath),
+        message: "Capture source log does not mention captured-row search status"
+      });
+    }
+    if (!text.toLowerCase().includes("playerbets")) {
+      problems.push({
+        relativePath: path.relative(repoRoot, captureSourceLogPath),
+        message: "Capture source log does not mention playerBets search results"
+      });
+    }
+  }
+
   const comparisonPath = getFixtureComparisonPath(projectId, repoRoot);
   if (existsSync(comparisonPath)) {
     const text = readFileSync(comparisonPath, "utf8");
@@ -1085,7 +1240,7 @@ export function verifyScaffold(projectId: string, repoRoot = getRepoRoot()): Ver
     verifyRowFixture(projectId, repoRoot, problems, "derived");
   }
 
-  if (resolveFixtureSelection(projectId, repoRoot, "auto").capturedFixtureAvailable) {
+  if (resolveFixtureSelection(projectId, repoRoot, "auto").capturedSanitizedFixtureAvailable) {
     verifyRowFixture(projectId, repoRoot, problems, "captured");
   }
 

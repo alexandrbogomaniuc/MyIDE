@@ -19,6 +19,8 @@ function main(): void {
   console.log(`- Actual fixture: ${parsed.resolution.actualSelection}`);
   console.log(`- Actual fixture kind: ${parsed.resolution.actualFixtureKind}`);
   console.log(`- Fixture path: ${parsed.resolution.relativeFixturePath}`);
+  console.log(`- Captured sanitized available: ${parsed.resolution.capturedSanitizedFixtureAvailable ? "yes" : "no"}`);
+  console.log(`- Captured raw local available: ${parsed.resolution.capturedRawFixtureAvailable ? "yes" : "no"}`);
   console.log(`- ROUND_ID: ${parsed.roundId}`);
   console.log(`- Captured ROUND_ID: ${parsed.capturedRoundId}`);
   console.log(`- Capture status: ${parsed.captureStatus}`);

@@ -29,6 +29,8 @@ This document describes the first concrete `project_001` archived row contract s
 - Captured-row intake rule:
   - local raw archived rows belong only in `captured-playerBets-row.json`
   - commit-safe captured rows belong only in `captured-playerBets-row.sanitized.json`
+  - `auto` fixture selection must only promote the sanitized captured row
+  - the raw local-only row may be used only through explicit captured selection or the sanitize flow
   - the compare/verify lane must say which one was actually used
 - Derived fixture file:
   - `contract/sample-playerBets-row.json`
@@ -120,6 +122,17 @@ The audited GS history servlet returns JSON rows under `playerBets[]` with the f
 - `SYMBOL_GRID`
 - `FOLLOW_UP_SYMBOL_GRID`
 - `EVIDENCE_REFS`
+
+### Sanitized captured minimum
+- A sanitized captured row does not have to preserve every derived `project_001` helper key.
+- It must still preserve enough stable row truth for deterministic replay and comparison:
+  - top-level GS history row fields
+  - `BET_TOTAL`
+  - `BETID`
+  - `COINSEQ`
+  - `ROUND_ID`
+  - explicit provenance keys in `servletData`
+- If richer game-specific keys are missing from the captured row, the replay harness must report that honestly instead of fabricating them.
 
 ### servletData
 - `ROUND_ID`
