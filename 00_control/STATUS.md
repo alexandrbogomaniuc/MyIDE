@@ -3,6 +3,7 @@
 ## Current Phase
 - Active scope: PHASE 5T live shell create -> drag -> undo -> redo -> save -> reload proof on top of the existing slot-first implementation slice.
 - Current milestone: keep `project_001` as the validated bounded internal scene editor slice with preset-based placeholder creation -> resize/move/edit -> snap-assisted layout -> viewport alignment aids -> layer reassignment -> layer-local ordering -> order-position cues -> previous/next layer navigation -> quick session-only isolation -> session-only viewport zoom/pan/reset/fit -> duplicate/delete -> undo/redo -> save/reload -> deterministic replay sync -> preload bridge health proof -> live Electron shell project load proof -> live Electron shell inspector edit/save/reload proof -> live Electron shell existing-object canvas drag/save/reload proof -> live Electron shell create -> drag -> save -> reload proof for a newly created placeholder object -> live Electron shell create -> duplicate/delete -> save -> reload proof for a newly created placeholder object -> live Electron shell create -> reorder -> save -> reload proof for a newly created placeholder object -> live Electron shell create -> layer reassignment -> save -> reload proof for a newly created placeholder object -> live Electron shell create -> resize -> save -> reload proof for a newly created placeholder object -> live Electron shell create -> align -> save -> reload proof for a newly created placeholder object -> live Electron shell create -> drag -> undo -> redo -> save -> reload proof for a newly created placeholder object.
+- GS-VABS-A adds a separate VABS strategy/scaffold/validation module on top of that baseline. The editor of record remains the existing internal scene/object workflow.
 
 ## Publication Control
 - Current control run: PUB-B publication/handoff hardening and local/public gap control.
@@ -16,6 +17,12 @@
 - `npm run manual:bug-context` now gives testers one paste-friendly context block for bug notes.
 - `npm run manual:bug-bundle` now gives testers one timestamped folder for notes, context, and attachments outside the repo.
 - `npm run manual:reset:project_001` restores the current tracked `project_001` baseline and clears only the known local-only editor logs.
+
+## VABS Module Control
+- Current VABS control run: GS-VABS-A strategy, scaffold, and validation harness.
+- VABS stays separate from the current shell/editor runtime.
+- Donor evidence remains read-only.
+- `40_projects/project_001/vabs/` is scaffold-only in this phase and does not claim a finished production renderer.
 
 ## Progress Log
 

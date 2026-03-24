@@ -218,6 +218,15 @@
 
 ## QA-B
 - [x] Add `manual:prepare:project_001` for one-command manual session prep.
+
+## GS-VABS-A
+- [x] Audit accessible GS/VABS reference files and document grounded patterns.
+- [x] Document VABS as an additional MyIDE module rather than an editor replacement.
+- [x] Add a per-project VABS scaffold under `40_projects/project_001/vabs/`.
+- [x] Add local scaffold/verify tooling for the VABS workspace.
+- [x] Keep current editor/manual verification passing after the VABS scaffold is introduced.
+- [ ] Define the final `project_001` GS folder name against the real target naming rules.
+- [ ] Replace the template renderer with a real project-specific VABS renderer only when the archived row contract is locked.
 - [x] Add `manual:bug-context` for paste-friendly bug-report context.
 - [x] Add `manual:bug-bundle` for one-command timestamped bug capture outside the repo.
 - [x] Refresh tester-facing docs so the new commands are the easiest manual QA path.

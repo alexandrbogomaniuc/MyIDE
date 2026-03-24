@@ -9,6 +9,7 @@ Use this when testing the current local MyIDE build by hand.
 4. Launch the shell with `npm run dev`.
 5. Test the LOCAL build on this machine, not the public GitHub snapshot.
 6. If you do not want the full prepare flow, `npm run manual:reset:project_001` still restores only the `project_001` baseline.
+7. GS VABS validation is a separate delivery lane; it does not replace the current shell manual QA flow.
 
 ## Core Checklist
 1. App launch

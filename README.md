@@ -7,6 +7,7 @@ MyIDE is a universal local-first IDE for multiple game projects over time, with 
 - Active validated donor slice: `donor_001_mystery_garden`.
 - Proven replay scope: one bounded Mystery Garden slice driven only by internal project data under `40_projects/project_001`.
 - Proven editor scope: open `project_001`, inspect the internal scene/layer/object list, create placeholder objects from a small preset set, drag/nudge with optional snap, align supported placeholder-backed objects to viewport edges/centers, reassign editable objects between unlocked layers, edit bounded properties including placeholder width/height, reorder editable objects within a layer, read the selected object's order position within its layer, step to the previous/next object within that layer, use quick session-only layer isolation for focused editing, zoom/pan/reset/fit the viewport without dirtying project state, duplicate/delete, undo/redo, save, reload, prove deterministic sync updates the replay-facing `project.json`, prove the live Electron shell can load `project_001` through a working preload bridge, prove one bounded renderer-driven inspector edit/save/reload cycle through the real Electron shell path, prove one bounded live-shell canvas drag/save/reload cycle for an existing object, prove one bounded live-shell create -> drag -> save -> reload cycle for a newly created placeholder object, prove one bounded live-shell create -> duplicate/delete -> save -> reload cycle for a newly created placeholder object, prove one bounded live-shell create -> reorder -> save -> reload cycle for a newly created placeholder object, prove one bounded live-shell create -> layer reassignment -> save -> reload cycle for a newly created placeholder object, prove one bounded live-shell create -> resize -> save -> reload cycle for a newly created placeholder object, prove one bounded live-shell create -> align -> save -> reload cycle for a newly created placeholder object, and prove one bounded live-shell create -> drag -> undo -> redo -> save -> reload cycle for a newly created placeholder object through the same real shell path.
+- GS VABS support now starts as a separate strategy/scaffold/validation module on top of that editor. It does not replace the current internal-scene authoring flow.
 
 ## Core Rules
 - The product architecture is universal and multi-project.
@@ -40,6 +41,8 @@ Public publication rules are defined in [`00_control/PUBLIC_REPO_POLICY.md`](./0
 - `npm run manual:bug-context`
 - `npm run manual:bug-bundle`
 - `npm run manual:reset:project_001`
+- `npm run vabs:scaffold:project_001`
+- `npm run vabs:verify:project_001`
 - `npm run publication:preflight`
 - `npm run publication:compare`
 - `npm run handoff:refresh`
@@ -81,6 +84,13 @@ Public publication rules are defined in [`00_control/PUBLIC_REPO_POLICY.md`](./0
 - `npm run manual:bug-context` prints a paste-friendly bug context block with current local/public/handoff details.
 - `npm run manual:bug-bundle` creates a timestamped bug-report folder outside the repo under `/Users/alexb/Documents/Dev/MyIDE_manual_reports/`, prefilled with `BUG.md`, current `context.txt`, and an `attachments/` folder.
 - `npm run manual:reset:project_001` restores `project_001` to the current tracked local baseline and clears known local-only editor logs.
+
+## GS VABS Module
+- [`00_control/VABS_MODULE_STRATEGY.md`](./00_control/VABS_MODULE_STRATEGY.md) explains how GS VABS fits into MyIDE as an additional module.
+- [`00_control/VABS_DELIVERY_CHECKLIST.md`](./00_control/VABS_DELIVERY_CHECKLIST.md) is the delivery checklist for per-project archived round history support.
+- `40_projects/project_001/vabs/` is now the project-local VABS scaffold for `project_001`.
+- `npm run vabs:scaffold:project_001` and `npm run vabs:verify:project_001` are local-first scaffold/verification helpers.
+- VABS in the current repo is scaffold and validation work only. It does not yet claim a finished production GS renderer.
 
 ## Current Boundaries
 - No production server adapter implementation yet.

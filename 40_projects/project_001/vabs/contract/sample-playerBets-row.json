@@ -1,0 +1,11 @@
+{
+  "time": "24 Mar 2026 12:34:56",
+  "stateId": 100,
+  "stateName": "ROUND_COMPLETE",
+  "bet": 1.0,
+  "win": 2.5,
+  "balance": 103.5,
+  "betData": "BET_TOTAL=100~BETID=0~COINSEQ=5|5|5",
+  "servletData": "ROUND_ID=123456789~STEP=ROUND_COMPLETE~SOURCE=sample-fixture",
+  "extBetId": "sample-ext-bet-001"
+}
