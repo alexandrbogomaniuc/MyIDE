@@ -1,9 +1,14 @@
-var game_strings = {
-    TITLE: "Mystery Garden VABS Stub",
-    ROUND_ID_LABEL: "Round ID",
-    ENTRY_STATE_LABEL: "Entry State",
-    RESULT_STATE_LABEL: "Result State",
-    FOLLOW_UP_STATE_LABEL: "Follow-up State",
-    FREE_SPINS_AWARD_LABEL: "Free Spins Award",
-    STUB_NOTE: "Stub package only. Final production renderer not implemented yet."
-};
+(function (root, factory) {
+    var strings = factory();
+    root.game_strings = strings;
+
+    if (typeof module !== "undefined" && module.exports) {
+        module.exports = strings;
+    }
+}(typeof globalThis !== "undefined" ? globalThis : this, function () {
+    return {
+        STUB_TITLE: "Mystery Garden Replay Summary (Stub)",
+        STUB_SUBTITLE: "Read-only local replay proof from the project_001 archived-row fixture.",
+        STUB_SCOPE: "This panel proves the row -> parser -> renderer direction only. It is not a finished production GS renderer."
+    };
+}));

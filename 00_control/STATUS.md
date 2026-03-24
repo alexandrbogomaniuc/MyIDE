@@ -19,10 +19,10 @@
 - `npm run manual:reset:project_001` restores the current tracked `project_001` baseline and clears only the known local-only editor logs.
 
 ## VABS Module Control
-- Current VABS control run: GS-VABS-B target decision, real row fixture shape, parser harness, and first renderer stub.
+- Current VABS control run: GS-VABS-C grounded row fixture, local replay harness, and first minimal replay-summary stub.
 - VABS stays separate from the current shell/editor runtime.
 - Donor evidence remains read-only.
-- `40_projects/project_001/vabs/` now contains one concrete `project_001` slice with a provisional intended folder-name decision, one sanitized row-contract fixture, parser verification, and one project-specific renderer stub.
+- `40_projects/project_001/vabs/` now contains one concrete `project_001` slice with a provisional intended folder-name decision, one stronger derived row-contract fixture, parser verification, one local replay harness, and one project-specific minimal replay-summary stub.
 - The production renderer is still not finished in this phase.
 
 ## Progress Log

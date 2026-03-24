@@ -77,3 +77,14 @@ This run still does not add:
 - a finished production GS VABS renderer
 - live GS runtime dependency
 - any change to the current internal-scene editor model
+
+## Current GS-VABS-C Scope
+This run adds:
+- one stronger derived archived-row fixture with clearer provenance notes
+- one local replay harness that loads the row fixture through the shared parser and runs the `mysterygarden` stub locally
+- one minimal replay-summary panel stub that renders `ROUND_ID`, state flow, wallet summary, trigger/follow-up cues, encoded boards, and evidence refs deterministically
+
+This run still does not add:
+- a finished production GS VABS renderer
+- live GS deployment/runtime dependency
+- any change to the current internal-scene editor model

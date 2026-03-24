@@ -4,10 +4,17 @@ This document describes the first concrete `project_001` archived row contract s
 
 ## Fixture Status
 - Current row file: `sample-playerBets-row.json`
-- Status: contract fixture / expected shape
+- Status: derived contract fixture / expected shape
 - Not yet a captured production GS row
-- Grounded parts come from the audited GS servlet + TRow format plus the existing `project_001` free-spins-trigger replay slice
-- Provisional parts are the exact numeric `stateId`, `extBetId`, and some per-game payload keys until a real target row is captured
+- Grounded parts come from:
+  - the audited GS servlet + `TRow` row/parse contract
+  - the canonical GS `gethistory.response.json` example for free-spins feature-mode/counter structure
+  - the existing `project_001` `fixtures/free_spins_trigger.json` donor-backed replay slice
+- Provisional parts remain:
+  - the exact numeric `stateId`
+  - the exact `extBetId`
+  - the exact `ROUND_ID` value
+  - any per-game key that still reflects `project_001` contract shaping rather than a captured GS row
 
 ## Source Shape
 The audited GS history servlet returns JSON rows under `playerBets[]` with the following fields:
@@ -51,7 +58,13 @@ The audited GS history servlet returns JSON rows under `playerBets[]` with the f
   - entry: `state.spin`
   - result: `state.free-spins-trigger`
   - follow-up: `state.free-spins-active`
-- The current fixture is sanitized and deterministic on purpose so it can drive parser and renderer-stub work without needing a live GS runtime.
+- The current fixture is sanitized and deterministic on purpose so it can drive parser, local replay harness, and renderer-stub work without needing a live GS runtime.
+
+## Provenance Tiers
+- Top-level row fields are derived from the audited GS history servlet row contract.
+- `FEATURE_MODE` and `COUNTER_FREE_SPINS_AWARDED` are derived from the canonical GS `gethistory` example shape for free-spins history items.
+- `TRIGGER_MODAL_TEXT`, `FOLLOW_UP_COUNTER_TEXT`, `SYMBOL_GRID`, `FOLLOW_UP_SYMBOL_GRID`, and `EVIDENCE_REFS` are derived from the current `project_001` free-spins-trigger internal replay fixture.
+- `ROUND_ID`, `stateId`, and `extBetId` remain provisional until a real target archived row is captured.
 
 ## Required Deterministic Keys
 ### Top-level JSON row
@@ -72,9 +85,14 @@ The audited GS history servlet returns JSON rows under `playerBets[]` with the f
 - `ENTRY_STATE`
 - `RESULT_STATE`
 - `FOLLOW_UP_STATE`
+- `FEATURE_MODE`
 - `AWARD_FREE_SPINS`
+- `COUNTER_FREE_SPINS_AWARDED`
 - `CURRENCY`
+- `TRIGGER_MODAL_TEXT`
+- `FOLLOW_UP_COUNTER_TEXT`
 - `SYMBOL_GRID`
+- `FOLLOW_UP_SYMBOL_GRID`
 - `EVIDENCE_REFS`
 
 ### servletData
@@ -89,3 +107,4 @@ The audited GS history servlet returns JSON rows under `playerBets[]` with the f
 - The same archived row input must produce the same VABS replay output.
 - Project-specific renderer logic must not depend on live mutable server state at replay time.
 - Acceptance testing must include at least one stable row fixture with a stable `ROUND_ID`.
+- The local replay harness must be able to turn the parsed row plus the project-specific stub into the same replay-summary JSON, text, and HTML artifacts on repeated runs.

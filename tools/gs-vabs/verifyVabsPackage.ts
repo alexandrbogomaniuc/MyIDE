@@ -1,5 +1,6 @@
 import { getRepoRoot } from "../publication/shared";
 import { getProjectConfig, parseProjectIdArg, parseRowFixture, verifyScaffold } from "./shared";
+import { runLocalReplayHarness } from "./runLocalReplayHarness";
 
 function main(): void {
   const repoRoot = getRepoRoot();
@@ -17,10 +18,12 @@ function main(): void {
 
   console.log(`VABS scaffold verification passed for ${projectId}`);
   const parsed = parseRowFixture(projectId, repoRoot);
+  const harness = runLocalReplayHarness(projectId, repoRoot);
   console.log(`- Target folder: ${config.targetFolderName} (${config.targetFolderDecision})`);
   console.log(`- ROUND_ID: ${parsed.roundId}`);
   console.log(`- Result state: ${parsed.betData.RESULT_STATE}`);
   console.log(`- Renderer stub: 40_projects/${projectId}/vabs/renderer/${config.targetFolderName}/code.js`);
+  console.log(`- Replay harness HTML: ${harness.htmlPath}`);
 }
 
 main();

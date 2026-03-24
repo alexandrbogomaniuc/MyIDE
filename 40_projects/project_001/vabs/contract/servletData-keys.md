@@ -30,10 +30,10 @@
 - `SOURCE_CAPTURE`
   - records which evidence capture session informed the contract fixture
 - `FIXTURE_KIND`
-  - marks the row explicitly as a contract fixture
+  - marks the row explicitly as a derived contract fixture
 - `SOURCE_NOTE`
   - short note explaining the row source and current assumption status
 
 ## Notes
 - These keys are deliberately small and explicit so the first renderer stub can stay deterministic.
-- They are still a sanitized contract fixture, not a claim of final production servlet payload shape.
+- They are still a sanitized derived contract fixture, not a claim of final production servlet payload shape.

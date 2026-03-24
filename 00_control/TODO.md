@@ -239,6 +239,14 @@
 - [ ] Replace the sanitized contract fixture with a real captured target row when that row becomes available.
 - [ ] Replace the stub renderer package with a visual project-specific renderer only after the real target row and deployment path are locked.
 
+## GS-VABS-C
+- [x] Strengthen the `project_001` row fixture with clearer grounded/derived/provisional provenance.
+- [x] Add a deterministic local replay harness for the `project_001` VABS slice.
+- [x] Advance the `mysterygarden` stub to a minimal replay-summary panel.
+- [x] Extend `vabs:verify:project_001` to prove the local replay harness can execute.
+- [ ] Replace the derived fixture with a captured GS archived row when that row becomes available.
+- [ ] Advance the minimal replay-summary stub into a true project-specific GS replay renderer only after a captured row and target deployment path are locked.
+
 ## Deferred
 - [ ] Donor decoding automation.
 - [ ] Full editor interactions.

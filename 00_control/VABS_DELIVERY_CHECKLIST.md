@@ -31,6 +31,7 @@ Use this for each project that will eventually ship GS VABS / visual round histo
 ## Acceptance
 - [ ] Acceptance checklist exists.
 - [ ] One deterministic archived row sample replays consistently.
+- [ ] One deterministic local replay harness run emits a replay-summary artifact for review/debug.
 - [ ] One support/history flow proves the intended round can be opened by `ROUND_ID`.
 - [ ] Current internal scene editor workflow still passes unchanged.
 
@@ -43,4 +44,4 @@ Use this for each project that will eventually ship GS VABS / visual round histo
 ## Project 001 Current Decision
 - Intended folder name: `mysterygarden`
 - Decision status: provisional but intended
-- Current concrete slice: free-spins-trigger contract fixture plus renderer stub
+- Current concrete slice: stronger derived free-spins-trigger row fixture plus local replay harness plus minimal replay-summary renderer stub
