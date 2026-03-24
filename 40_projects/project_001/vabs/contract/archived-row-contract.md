@@ -4,8 +4,10 @@ This document describes the first concrete `project_001` archived row contract s
 
 ## Fixture Status
 - Current row file: `sample-playerBets-row.json`
+- Current session file: `sample-playerBets-session.json`
 - Status: derived contract fixture / expected shape
 - No full captured `playerBets` row is stored in this repo yet
+- No captured archived `playerBets[]` session is stored in this repo yet
 - Reserved captured intake paths:
   - local raw: `captured-playerBets-row.json` (gitignored)
   - sanitized commit-safe: `captured-playerBets-row.sanitized.json`
@@ -41,6 +43,9 @@ This document describes the first concrete `project_001` archived row contract s
 - Comparison doc:
   - `contract/fixture-comparison.md`
   - records which fields are confirmed from captured data vs derived from GS examples vs still provisional
+- Session mock doc:
+  - `contract/session-notes.md`
+  - records how the derived row list supports the local support/history shell mock without claiming captured session truth
 
 ## Source Shape
 The audited GS history servlet returns JSON rows under `playerBets[]` with the following fields:
@@ -81,11 +86,13 @@ The audited GS history servlet returns JSON rows under `playerBets[]` with the f
 
 ## Project 001 Concrete Fixture Shape
 - Intended row slice: free-spins trigger into free-spins active
+- Intended session slice: one derived base-spin neighbor row, one derived free-spins-trigger row with the grounded live `ROUND_ID`, and one derived free-spins-active neighbor row
 - Project replay states aligned to the fixture:
   - entry: `state.spin`
   - result: `state.free-spins-trigger`
   - follow-up: `state.free-spins-active`
 - The current fixture is sanitized and deterministic on purpose so it can drive parser, local replay harness, and renderer-stub work without needing a live GS runtime.
+- The current session fixture is also deterministic on purpose so it can drive a local history-style row list and click-to-replay flow without claiming a real GS archived session.
 
 ## Provenance Tiers
 - Top-level row fields are derived from the audited GS history servlet row contract.

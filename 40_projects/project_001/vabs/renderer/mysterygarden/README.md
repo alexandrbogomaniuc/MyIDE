@@ -23,5 +23,6 @@ This is the first project-specific GS VABS renderer stub package for `project_00
 - renders a deterministic replay summary with fixture provenance, sanitized/raw availability, comparison status, `ROUND_ID`, state flow, bet/win/balance, feature cues, trigger/follow-up notes, encoded boards, evidence refs, and provenance notes
 - is now exported and previewed through a local GS-style `common/vabs/mysterygarden/` package layout
 - is now also exercised through a local page-shell mock and hidden-browser smoke that approximate the `/vabs/show.jsp` boot seam without claiming real JSP proof
+- now updates inside that shell when a different session-row entry is selected from the local mock row list
 - does not depend on live runtime APIs beyond the normal GS VABS row/engine surface
 - remains a stub and does not claim the final VABS art or gameplay renderer

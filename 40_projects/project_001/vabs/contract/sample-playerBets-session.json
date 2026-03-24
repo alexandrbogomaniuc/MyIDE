@@ -1,0 +1,42 @@
+{
+  "sessionId": "project001-local-history-session-001",
+  "sessionFixtureKind": "derived",
+  "sessionFixtureProvenance": "derived-session-fixture-around-one-grounded-round-id",
+  "captureStatus": "derived-session-fixture__no-captured-playerbets-session__row1-grounded-round-id-only",
+  "sourceNote": "This session fixture is local-only support/history scaffolding. Row 1 carries the grounded ROUND_ID from MG-EV-20260320-LIVE-A-005. Neighbor rows remain derived until a real archived playerBets session is captured.",
+  "playerBets": [
+    {
+      "time": "20 Mar 2026 10:32:40",
+      "stateId": 301,
+      "stateName": "Base Spin",
+      "bet": 1,
+      "win": 0,
+      "balance": 104.5,
+      "betData": "BET_TOTAL=100~BETID=0~COINSEQ=100|100|100~ENTRY_STATE=state.idle~RESULT_STATE=state.spin~FOLLOW_UP_STATE=state.spin~FEATURE_MODE=BASE~AWARD_FREE_SPINS=0~COUNTER_FREE_SPINS_AWARDED=0~CURRENCY=EUR~TRIGGER_MODAL_TEXT=No feature trigger~FOLLOW_UP_COUNTER_TEXT=Base game~SYMBOL_GRID=ROSE,A,K|BOOK,ROSE,A|A,KEY,ROSE|BOOK,A,ROSE|ROSE,BOOK,A~FOLLOW_UP_SYMBOL_GRID=ROSE,A,K|BOOK,ROSE,A|A,KEY,ROSE|BOOK,A,ROSE|ROSE,BOOK,A~EVIDENCE_REFS=MG-EV-20260320-WEB-A-001|MG-EV-20260320-WEB-A-005",
+      "servletData": "ROUND_ID=14099735305~PROJECT_ID=project_001~DONOR_ID=donor_001_mystery_garden~SOURCE_CAPTURE=MG-CS-20260320-WEB-A~FIXTURE_KIND=derived-session-row~FIXTURE_PROVENANCE=derived-session-fixture-around-captured-round-id~CAPTURE_STATUS=derived-session-neighbor-row__no-captured-playerbets-row~CAPTURED_ROUND_ID=~CAPTURED_ROUND_ID_EVIDENCE=~SOURCE_NOTE=neighbor-row-shaped-to-approximate-history-list-context-before-the-grounded-trigger-round",
+      "extBetId": "project001-base-spin-0000"
+    },
+    {
+      "time": "20 Mar 2026 10:32:56",
+      "stateId": 317,
+      "stateName": "Free Spins Trigger",
+      "bet": 1,
+      "win": 0,
+      "balance": 103.5,
+      "betData": "BET_TOTAL=100~BETID=0~COINSEQ=100|100|100~ENTRY_STATE=state.spin~RESULT_STATE=state.free-spins-trigger~FOLLOW_UP_STATE=state.free-spins-active~FEATURE_MODE=FREE_SPINS~AWARD_FREE_SPINS=10~COUNTER_FREE_SPINS_AWARDED=10~CURRENCY=EUR~TRIGGER_MODAL_TEXT=YOU HAVE WON 10 FREE SPINS~FOLLOW_UP_COUNTER_TEXT=Free spins: 9/10~SYMBOL_GRID=KEY,ROSE,A|BOOK,KEY,ROSE|A,ROSE,KEY|BOOK,A,ROSE|ROSE,BOOK,A~FOLLOW_UP_SYMBOL_GRID=BOOK,ROSE,KEY|A,BOOK,ROSE|K,ROSE,BOOK|KEY,BOOK,A|ROSE,K,BOOK~EVIDENCE_REFS=MG-EV-20260320-WEB-A-001|MG-EV-20260320-WEB-A-006|MG-EV-20260320-WEB-A-007|MG-EV-20260320-WEB-A-005",
+      "servletData": "ROUND_ID=14099735306~PROJECT_ID=project_001~DONOR_ID=donor_001_mystery_garden~SOURCE_CAPTURE=MG-CS-20260320-WEB-A~FIXTURE_KIND=derived-session-row~FIXTURE_PROVENANCE=derived-project-fixture-plus-gs-example-plus-captured-round-id~CAPTURE_STATUS=no-captured-playerbets-row__captured-round-id-only~CAPTURED_ROUND_ID=14099735306~CAPTURED_ROUND_ID_EVIDENCE=MG-EV-20260320-LIVE-A-005~SOURCE_NOTE=free-spins-trigger-shaped-from-project-fixture-and-gs-history-example;ROUND_ID-confirmed-from-live-init",
+      "extBetId": "project001-fs-trigger-0001"
+    },
+    {
+      "time": "20 Mar 2026 10:33:04",
+      "stateId": 318,
+      "stateName": "Free Spins Active",
+      "bet": 0,
+      "win": 2.5,
+      "balance": 106,
+      "betData": "BET_TOTAL=0~BETID=1~COINSEQ=100|100|100~ENTRY_STATE=state.free-spins-trigger~RESULT_STATE=state.free-spins-active~FOLLOW_UP_STATE=state.free-spins-active~FEATURE_MODE=FREE_SPINS~AWARD_FREE_SPINS=10~COUNTER_FREE_SPINS_AWARDED=9~CURRENCY=EUR~TRIGGER_MODAL_TEXT=FREE SPINS IN PROGRESS~FOLLOW_UP_COUNTER_TEXT=Free spins: 8/10~SYMBOL_GRID=BOOK,ROSE,KEY|A,BOOK,ROSE|K,ROSE,BOOK|KEY,BOOK,A|ROSE,K,BOOK~FOLLOW_UP_SYMBOL_GRID=BOOK,A,ROSE|KEY,BOOK,ROSE|A,ROSE,BOOK|KEY,BOOK,A|ROSE,K,BOOK~EVIDENCE_REFS=MG-EV-20260320-WEB-A-006|MG-EV-20260320-WEB-A-007",
+      "servletData": "ROUND_ID=14099735307~PROJECT_ID=project_001~DONOR_ID=donor_001_mystery_garden~SOURCE_CAPTURE=MG-CS-20260320-WEB-A~FIXTURE_KIND=derived-session-row~FIXTURE_PROVENANCE=derived-session-follow-up-row-around-captured-trigger-round~CAPTURE_STATUS=derived-session-neighbor-row__no-captured-playerbets-row~CAPTURED_ROUND_ID=14099735306~CAPTURED_ROUND_ID_EVIDENCE=MG-EV-20260320-LIVE-A-005~SOURCE_NOTE=follow-up-row-shaped-from-project-fixture-for-session-list-and-row-click-replay-proof",
+      "extBetId": "project001-fs-active-0002"
+    }
+  ]
+}

@@ -21,14 +21,27 @@ export type BrowserSmokeResult = {
   actualFixtureKind: string;
   fixtureProvenance: string;
   captureStatus: string;
-  roundId: string;
   shellHtmlPath: string;
   packageRoot: string;
   browserBinary: string;
   rendererExecuted: boolean;
   stubPanelPresent: boolean;
   summaryTitlePresent: boolean;
-  roundIdPresent: boolean;
+  rowCount: number;
+  selectedRowIndex: number | null;
+  selectedRoundId: string | null;
+  selectedStateName: string | null;
+  rowClickAttempted: boolean;
+  rowClickApplied: boolean;
+  selectionChanged: boolean;
+  panelRoundId: string | null;
+  panelStateName: string | null;
+  panelUpdateSeq: number | null;
+  expectedClickedRowIndex: number;
+  expectedClickedRoundId: string;
+  expectedClickedStateName: string;
+  clickedRoundIdPresent: boolean;
+  clickedStatePresent: boolean;
   smokePassed: boolean;
   error: string | null;
   textSample: string;
@@ -50,8 +63,9 @@ function resolveBrowserBinary(): string {
   return browserBinary;
 }
 
-function runHeadlessDomDump(browserBinary: string, htmlPath: string): { dom: string; stderr: string } {
-  const fileUrl = pathToFileURL(htmlPath).toString();
+function runHeadlessDomDump(browserBinary: string, htmlPath: string, selectedRowIndex: number): { dom: string; stderr: string } {
+  const fileUrl = new URL(pathToFileURL(htmlPath).toString());
+  fileUrl.searchParams.set("selectRow", String(selectedRowIndex));
   const result = spawnSync(
     browserBinary,
     [
@@ -60,7 +74,7 @@ function runHeadlessDomDump(browserBinary: string, htmlPath: string): { dom: str
       "--allow-file-access-from-files",
       "--virtual-time-budget=3000",
       "--dump-dom",
-      fileUrl
+      fileUrl.toString()
     ],
     {
       encoding: "utf8"
@@ -81,6 +95,11 @@ function runHeadlessDomDump(browserBinary: string, htmlPath: string): { dom: str
   };
 }
 
+function parseDataAttribute(dom: string, attribute: string): string | null {
+  const match = dom.match(new RegExp(`${attribute}="([^"]*)"`, "i"));
+  return match ? match[1] : null;
+}
+
 export function runBrowserSmoke(
   projectId: string,
   repoRoot = getRepoRoot(),
@@ -88,16 +107,52 @@ export function runBrowserSmoke(
 ): BrowserSmokeArtifacts {
   const mockResult = runLocalShellMock(projectId, repoRoot, selection);
   const browserBinary = resolveBrowserBinary();
-  const { dom, stderr } = runHeadlessDomDump(browserBinary, mockResult.htmlPath);
+  const expectedClickedRowIndex = mockResult.sessionRows.length > 1 ? 1 : 0;
+  const expectedClickedRow = mockResult.sessionRows[expectedClickedRowIndex] ?? mockResult.sessionRows[0];
+  if (!expectedClickedRow) {
+    throw new Error(`Browser smoke requires at least one session row for ${projectId}.`);
+  }
+  const { dom, stderr } = runHeadlessDomDump(browserBinary, mockResult.htmlPath, expectedClickedRowIndex);
   const domPath = path.join(mockResult.artifactDirectory, "browser-smoke.dom.html");
   const jsonPath = path.join(mockResult.artifactDirectory, "browser-smoke.json");
   const textPath = path.join(mockResult.artifactDirectory, "browser-smoke.txt");
   const rendererExecuted = dom.includes('data-renderer-executed="yes"');
   const stubPanelPresent = dom.includes("mg-vabs-stub-panel");
   const summaryTitlePresent = dom.includes("Mystery Garden Replay Summary (Stub)");
-  const roundIdPresent = dom.includes(mockResult.shellSummary.roundId);
+  const rowCount = Number(parseDataAttribute(dom, "data-row-count") ?? "0");
+  const selectedRowIndexText = parseDataAttribute(dom, "data-selected-row-index");
+  const selectedRoundId = parseDataAttribute(dom, "data-selected-round-id");
+  const selectedStateName = parseDataAttribute(dom, "data-selected-state-name");
+  const rowClickAttempted = parseDataAttribute(dom, "data-row-click-attempted") === "yes";
+  const rowClickApplied = parseDataAttribute(dom, "data-row-click-applied") === "yes";
+  const selectionChanged = parseDataAttribute(dom, "data-selection-changed") === "yes";
+  const panelRoundId = parseDataAttribute(dom, "data-panel-round-id");
+  const panelStateName = parseDataAttribute(dom, "data-panel-state-name");
+  const panelUpdateSeqText = parseDataAttribute(dom, "data-panel-update-seq");
+  const selectedRowIndex =
+    selectedRowIndexText !== null && selectedRowIndexText.length > 0 ? Number(selectedRowIndexText) : null;
+  const panelUpdateSeq =
+    panelUpdateSeqText !== null && panelUpdateSeqText.length > 0 ? Number(panelUpdateSeqText) : null;
+  const clickedRoundIdPresent = dom.includes(expectedClickedRow.roundId);
+  const clickedStatePresent = dom.includes(expectedClickedRow.stateName);
   const errorMatch = dom.match(/Renderer boot failed:([^<]+)/);
-  const smokePassed = rendererExecuted && stubPanelPresent && summaryTitlePresent && roundIdPresent;
+  const smokePassed =
+    rendererExecuted &&
+    stubPanelPresent &&
+    summaryTitlePresent &&
+    rowCount >= 2 &&
+    selectedRowIndex === expectedClickedRowIndex &&
+    selectedRoundId === expectedClickedRow.roundId &&
+    selectedStateName === expectedClickedRow.stateName &&
+    rowClickAttempted &&
+    rowClickApplied &&
+    selectionChanged &&
+    panelRoundId === expectedClickedRow.roundId &&
+    panelStateName === expectedClickedRow.stateName &&
+    panelUpdateSeq !== null &&
+    panelUpdateSeq >= 2 &&
+    clickedRoundIdPresent &&
+    clickedStatePresent;
   const result: BrowserSmokeResult = {
     projectId,
     requestedFixtureSelection: mockResult.shellSummary.requestedFixtureSelection,
@@ -105,17 +160,30 @@ export function runBrowserSmoke(
     actualFixtureKind: mockResult.shellSummary.actualFixtureKind,
     fixtureProvenance: mockResult.shellSummary.fixtureProvenance,
     captureStatus: mockResult.shellSummary.captureStatus,
-    roundId: mockResult.shellSummary.roundId,
     shellHtmlPath: mockResult.htmlPath,
     packageRoot: mockResult.shellSummary.packageRoot,
     browserBinary,
     rendererExecuted,
     stubPanelPresent,
     summaryTitlePresent,
-    roundIdPresent,
+    rowCount,
+    selectedRowIndex,
+    selectedRoundId,
+    selectedStateName,
+    rowClickAttempted,
+    rowClickApplied,
+    selectionChanged,
+    panelRoundId,
+    panelStateName,
+    panelUpdateSeq,
+    expectedClickedRowIndex,
+    expectedClickedRoundId: expectedClickedRow.roundId,
+    expectedClickedStateName: expectedClickedRow.stateName,
+    clickedRoundIdPresent,
+    clickedStatePresent,
     smokePassed,
     error: smokePassed ? null : errorMatch ? errorMatch[1].trim() : stderr.trim() || null,
-    textSample: dom.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 1200),
+    textSample: dom.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 1400),
     domPath
   };
 
@@ -124,7 +192,7 @@ export function runBrowserSmoke(
   writeFileSync(jsonPath, `${JSON.stringify(result, null, 2)}\n`, "utf8");
   writeFileSync(
     textPath,
-    `Local VABS Browser Smoke\nBrowser: ${result.browserBinary}\nRequested Fixture: ${result.requestedFixtureSelection}\nActual Fixture: ${result.actualFixtureSelection} / ${result.actualFixtureKind}\nFixture Provenance: ${result.fixtureProvenance}\nCapture Status: ${result.captureStatus}\nROUND_ID: ${result.roundId}\nRenderer Executed: ${result.rendererExecuted ? "yes" : "no"}\nStub Panel Present: ${result.stubPanelPresent ? "yes" : "no"}\nSummary Title Present: ${result.summaryTitlePresent ? "yes" : "no"}\nRound ID Present: ${result.roundIdPresent ? "yes" : "no"}\nSmoke Passed: ${result.smokePassed ? "yes" : "no"}\nError: ${result.error ?? "-"}\nShell HTML: ${result.shellHtmlPath}\nRendered DOM: ${result.domPath}\nPackage Root: ${result.packageRoot}\n`,
+    `Local VABS Browser Smoke\nBrowser: ${result.browserBinary}\nRequested Fixture: ${result.requestedFixtureSelection}\nActual Fixture: ${result.actualFixtureSelection} / ${result.actualFixtureKind}\nFixture Provenance: ${result.fixtureProvenance}\nCapture Status: ${result.captureStatus}\nRow Count: ${result.rowCount}\nExpected Clicked Row: ${result.expectedClickedRowIndex}\nExpected Clicked ROUND_ID: ${result.expectedClickedRoundId}\nExpected Clicked State: ${result.expectedClickedStateName}\nSelected Row Index: ${result.selectedRowIndex ?? "-"}\nSelected ROUND_ID: ${result.selectedRoundId ?? "-"}\nSelected State: ${result.selectedStateName ?? "-"}\nPanel ROUND_ID: ${result.panelRoundId ?? "-"}\nPanel State: ${result.panelStateName ?? "-"}\nPanel Update Seq: ${result.panelUpdateSeq ?? "-"}\nRenderer Executed: ${result.rendererExecuted ? "yes" : "no"}\nStub Panel Present: ${result.stubPanelPresent ? "yes" : "no"}\nSummary Title Present: ${result.summaryTitlePresent ? "yes" : "no"}\nRow Click Attempted: ${result.rowClickAttempted ? "yes" : "no"}\nRow Click Applied: ${result.rowClickApplied ? "yes" : "no"}\nSelection Changed: ${result.selectionChanged ? "yes" : "no"}\nClicked Round Present: ${result.clickedRoundIdPresent ? "yes" : "no"}\nClicked State Present: ${result.clickedStatePresent ? "yes" : "no"}\nSmoke Passed: ${result.smokePassed ? "yes" : "no"}\nError: ${result.error ?? "-"}\nShell HTML: ${result.shellHtmlPath}\nRendered DOM: ${result.domPath}\nPackage Root: ${result.packageRoot}\n`,
     "utf8"
   );
 
@@ -144,7 +212,7 @@ function main(): void {
 
   if (!smoke.result.smokePassed) {
     console.error(`Local VABS browser smoke failed for ${projectId}`);
-    console.error(`- Error: ${smoke.result.error ?? "expected summary markers were missing"}`);
+    console.error(`- Error: ${smoke.result.error ?? "expected session-row markers were missing"}`);
     console.error(`- Rendered DOM: ${smoke.result.domPath}`);
     console.error(`- Smoke JSON: ${smoke.jsonPath}`);
     process.exit(1);
@@ -156,13 +224,16 @@ function main(): void {
   console.log(`- Actual fixture: ${smoke.result.actualFixtureSelection}`);
   console.log(`- Actual fixture kind: ${smoke.result.actualFixtureKind}`);
   console.log(`- Fixture provenance: ${smoke.result.fixtureProvenance}`);
-  console.log(`- Renderer executed: ${smoke.result.rendererExecuted ? "yes" : "no"}`);
-  console.log(`- Stub panel present: ${smoke.result.stubPanelPresent ? "yes" : "no"}`);
-  console.log(`- Round ID present: ${smoke.result.roundIdPresent ? "yes" : "no"}`);
+  console.log(`- Row count: ${smoke.result.rowCount}`);
+  console.log(`- Selected row index: ${smoke.result.selectedRowIndex}`);
+  console.log(`- Selected ROUND_ID: ${smoke.result.selectedRoundId}`);
+  console.log(`- Selected state: ${smoke.result.selectedStateName}`);
+  console.log(`- Row click attempted: ${smoke.result.rowClickAttempted ? "yes" : "no"}`);
+  console.log(`- Row click applied: ${smoke.result.rowClickApplied ? "yes" : "no"}`);
+  console.log(`- Selection changed: ${smoke.result.selectionChanged ? "yes" : "no"}`);
   console.log(`- Rendered DOM: ${smoke.result.domPath}`);
   console.log(`- Smoke JSON: ${smoke.jsonPath}`);
   console.log(`- Smoke text: ${smoke.textPath}`);
-
 }
 
 if (require.main === module) {

@@ -235,6 +235,12 @@
 - [x] Add a browser smoke that confirms the exported stub executes inside that shell.
 - [ ] Re-run the shell mock and browser smoke against a real sanitized captured archived row once one exists.
 
+## GS-VABS-I
+- [x] Add a deterministic session-level `playerBets[]` fixture for the local shell mock.
+- [x] Add a row list/table to the local shell mock.
+- [x] Prove row-click replay updates through the browser smoke path.
+- [ ] Re-run the session shell mock and row-click flow against a real sanitized captured archived row once one exists.
+
 ## GS-VABS-A
 - [x] Audit accessible GS/VABS reference files and document grounded patterns.
 - [x] Document VABS as an additional MyIDE module rather than an editor replacement.

@@ -35,6 +35,15 @@ This file shows the intended parsed summary for the current `project_001` contra
 - `followUpSymbolGrid`: `5 columns x 3 rows`
 - `evidenceRefCount`: `4`
 
+## Session-Level Example
+- file: `contract/sample-playerBets-session.json`
+- status: derived session-level `playerBets[]` fixture, not a captured archived session
+- row count: `3`
+- row 0: derived base-spin neighbor row
+- row 1: derived free-spins-trigger row with grounded `ROUND_ID=14099735306`
+- row 2: derived free-spins-active neighbor row
+- purpose: drive a local shell row list and row-click replay update without claiming a real GS history response
+
 ## Parsed betData Keys
 - `BET_TOTAL`
 - `BETID`

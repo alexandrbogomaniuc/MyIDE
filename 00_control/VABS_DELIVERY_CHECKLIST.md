@@ -43,6 +43,7 @@ Use this for each project that will eventually ship GS VABS / visual round histo
 - [ ] One deterministic local preview dry-run can execute against the exported package.
 - [ ] One deterministic local page-shell mock can boot the exported package in a browser-facing shell.
 - [ ] One deterministic browser smoke can confirm the mock shell rendered the expected summary.
+- [ ] One deterministic session-level local shell mock can show multiple `playerBets[]` rows and update the replay panel when a row is selected.
 - [ ] Export and preview success are described only as local validation artifacts until real deployment proof exists.
 - [ ] Shell-mock and browser-smoke success are described only as local validation artifacts until real deployment proof exists.
 - [ ] One support/history flow proves the intended round can be opened by `ROUND_ID`.
@@ -61,3 +62,4 @@ Use this for each project that will eventually ship GS VABS / visual round histo
 - Current intake rule: `auto` uses the sanitized captured row if present, otherwise falls back to the derived fixture
 - Current export rule: the local export package mirrors `common/vabs/mysterygarden/` but remains a stub-only non-production package
 - Current shell-mock rule: the local shell mock approximates `/vabs/show.jsp` boot with the exported package, but it is still not live JSP deployment proof
+- Current session-mock rule: the row list and row-click replay flow are derived local support/history scaffolding until a real captured archived session exists

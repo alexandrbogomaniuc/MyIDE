@@ -42,6 +42,8 @@ If a sanitized captured row exists later, the preview path can also emit a `capt
 - `/tmp/myide-vabs-project_001-shell-mock/derived/shell-mock.json`
 - `/tmp/myide-vabs-project_001-shell-mock/derived/shell-mock.txt`
 
+That mock now embeds a deterministic session-level `playerBets[]` list and a click-to-replay flow around the exported package.
+
 The shell mock stages the exported package under:
 
 - `/tmp/myide-vabs-project_001-shell-mock/derived/common/vabs/mysterygarden/code.js`
@@ -53,5 +55,10 @@ The shell mock stages the exported package under:
 - `/tmp/myide-vabs-project_001-shell-mock/derived/browser-smoke.dom.html`
 - `/tmp/myide-vabs-project_001-shell-mock/derived/browser-smoke.json`
 - `/tmp/myide-vabs-project_001-shell-mock/derived/browser-smoke.txt`
+
+The smoke now proves:
+- the shell mock rendered multiple rows
+- a non-default row was selected through the mock shell
+- the replay panel updated to that row's `ROUND_ID` and state
 
 If a sanitized captured row exists later, the shell-mock and browser-smoke paths can also emit a `captured-sanitized/` tier.

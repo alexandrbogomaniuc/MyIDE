@@ -54,6 +54,7 @@ This folder is the GS VABS workspace scaffold for `project_001`.
 - The local replay harness now supports fixture provenance reporting and writes deterministic replay-summary artifacts under `/tmp/myide-vabs-project_001-replay/<fixture-kind>/`.
 - The GS-style export path now writes a local package under `/tmp/myide-vabs-project_001-export/common/vabs/mysterygarden/`.
 - The local export preview dry-run now loads that exported package and writes deterministic preview artifacts under `/tmp/myide-vabs-project_001-export-preview/<fixture-kind>/`.
-- The local shell mock now stages a browser-facing shell under `/tmp/myide-vabs-project_001-shell-mock/<fixture-kind>/` and loads that same exported package through relative `common/vabs/mysterygarden/` paths.
-- The local browser smoke now opens that shell mock through a headless local browser and confirms the replay-summary stub executed inside the mock shell.
+- The repo now includes a deterministic derived session fixture at `contract/sample-playerBets-session.json` so the local shell mock can resemble a small support/history row list.
+- The local shell mock now stages a browser-facing shell under `/tmp/myide-vabs-project_001-shell-mock/<fixture-kind>/`, loads that same exported package through relative `common/vabs/mysterygarden/` paths, shows a row list, and updates the replay panel when a row is selected.
+- The local browser smoke now opens that shell mock through a headless local browser and confirms a non-default row selection updated the replay-summary stub inside the mock shell.
 - The stub now renders a stronger replay-summary panel, but it is still not a finished production GS renderer.

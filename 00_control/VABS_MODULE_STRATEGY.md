@@ -150,3 +150,16 @@ This run still does not add:
 - live JSP/static-host deployment proof
 - a committed full captured Mystery Garden archived `playerBets` row
 - any change to the current internal-scene editor model
+
+## Current GS-VABS-I Scope
+This run adds:
+- one deterministic derived session-level `playerBets[]` fixture for `project_001`
+- one local shell row list/table that feels closer to GS support/history flow
+- one row-click replay update path inside the local shell mock
+- one stronger browser smoke that confirms a non-default row selection updated the replay panel
+
+This run still does not add:
+- a finished production GS VABS renderer
+- live JSP/static-host deployment proof
+- a committed full captured Mystery Garden archived `playerBets` row or archived session
+- any change to the current internal-scene editor model

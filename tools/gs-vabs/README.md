@@ -37,10 +37,11 @@ These commands manage the project-local GS VABS scaffold without coupling VABS i
 - `npm run vabs:mock:project_001`
   - Build a local browser-facing shell mock around the exported package.
   - Stage a fixture-specific shell under `/tmp/myide-vabs-project_001-shell-mock/<fixture-kind>/`.
+  - Render a derived session-level `playerBets[]` row list and feed row clicks into the replay panel.
   - Approximate the `/vabs/show.jsp` boot seam without claiming a real JSP environment.
 - `npm run vabs:smoke:project_001`
   - Open the shell mock through a headless local browser.
-  - Confirm the exported stub rendered the expected replay summary.
+  - Confirm the shell mock rendered multiple rows and that selecting a non-default row updated the replay summary.
   - Write deterministic smoke artifacts beside the shell mock output.
 - `npm run vabs:replay:project_001`
   - Load the `project_001` row fixture through the shared parser path.
@@ -59,13 +60,13 @@ These commands manage the project-local GS VABS scaffold without coupling VABS i
   - Check the acceptance checklist exists.
   - Build and verify the GS-style export package.
   - Run the local export preview dry-run.
-  - Build the local page-shell mock.
-  - Run the local browser smoke against that shell mock.
+  - Build the local page-shell mock with a session-level row list.
+  - Run the local browser smoke against that shell mock and confirm row-click replay updates.
   - Run the local replay harness and confirm the replay-summary artifact can be produced successfully.
   - Report whether a sanitized captured row is available and whether a local raw-only row is present.
 
 ## Scope
 - Local-first.
 - Deterministic.
-- Scaffold, captured-row intake guidance, sanitization, captured-vs-derived fixture tracking, export, preview, local page-shell mock, local browser smoke, local replay-summary harness, comparison, and verification only.
+- Scaffold, captured-row intake guidance, sanitization, captured-vs-derived fixture tracking, export, preview, local page-shell mock, local browser smoke, local session-row mock, local row-click replay proof, local replay-summary harness, comparison, and verification only.
 - No production VABS renderer build in this phase.

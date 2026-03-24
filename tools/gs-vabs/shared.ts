@@ -41,6 +41,15 @@ type RowFixture = {
   extBetId?: string;
 };
 
+type SessionFixtureFile = {
+  sessionId?: string;
+  sessionFixtureKind?: string;
+  sessionFixtureProvenance?: string;
+  captureStatus?: string;
+  sourceNote?: string;
+  playerBets?: RowFixture[];
+};
+
 export type FixtureResolution = {
   requestedSelection: FixtureSelection;
   actualSelection: ResolvedFixtureSelection;
@@ -97,6 +106,28 @@ export type SerializableReplayRow = {
   roundId: string;
 };
 
+export type SessionFixtureKind = "derived" | "mixed" | "captured";
+
+export type SessionFixtureRow = {
+  rowIndex: number;
+  rowKey: string;
+  parsed: ParsedRowFixture;
+  rowSnapshot: SerializableReplayRow;
+  summary: ReplaySummary;
+};
+
+export type ParsedSessionFixture = {
+  projectId: string;
+  sessionId: string;
+  fixturePath: string;
+  relativeFixturePath: string;
+  sessionFixtureKind: SessionFixtureKind;
+  sessionFixtureProvenance: string;
+  captureStatus: string;
+  sourceNote: string;
+  rows: SessionFixtureRow[];
+};
+
 export type FixtureDifference = {
   field: string;
   derivedValue: string;
@@ -108,6 +139,7 @@ export type FixtureComparisonResult = {
   targetFolderName: string;
   comparisonMode: "derived-only" | "derived-vs-captured";
   derivedFixturePath: string;
+  sessionFixturePath: string;
   capturedFixturePath: string | null;
   capturedFixtureKind: FixtureKind | null;
   capturedFixtureAvailable: boolean;
@@ -507,6 +539,10 @@ export function getFixtureComparisonPath(projectId: string, repoRoot = getRepoRo
   return path.join(getVabsRoot(projectId, repoRoot), "contract", "fixture-comparison.md");
 }
 
+export function getSessionFixturePath(projectId: string, repoRoot = getRepoRoot()): string {
+  return path.join(getVabsRoot(projectId, repoRoot), "contract", "sample-playerBets-session.json");
+}
+
 export function getRowFixturePath(
   projectId: string,
   repoRoot = getRepoRoot(),
@@ -758,12 +794,10 @@ export function readRowFixture(
   };
 }
 
-export function parseRowFixture(
-  projectId: string,
-  repoRoot = getRepoRoot(),
-  selection: FixtureSelection = "auto"
+function parseRowFixtureRecord(
+  fixture: RowFixture,
+  resolution: FixtureResolution
 ): ParsedRowFixture {
-  const { fixture, resolution } = readRowFixture(projectId, repoRoot, selection);
   const betData = parseKeyValueBag(fixture.betData ?? "");
   const servletData = parseKeyValueBag(fixture.servletData ?? "");
   const roundId = servletData.ROUND_ID ?? betData.ROUND_ID ?? "";
@@ -783,6 +817,96 @@ export function parseRowFixture(
   };
 }
 
+function buildReplaySummaryFromParsedFixture(
+  projectId: string,
+  parsed: ParsedRowFixture,
+  comparison: FixtureComparisonResult,
+  repoRoot = getRepoRoot()
+): ReplaySummary {
+  const config = getProjectConfig(projectId);
+  const symbolGrid = parseSymbolGrid(parsed.betData.SYMBOL_GRID ?? "");
+  const followUpSymbolGrid = parseSymbolGrid(parsed.betData.FOLLOW_UP_SYMBOL_GRID ?? "");
+  const evidenceRefs = parseDelimitedList(parsed.betData.EVIDENCE_REFS ?? "");
+
+  return {
+    projectId,
+    targetFolderName: config.targetFolderName,
+    requestedFixtureSelection: parsed.resolution.requestedSelection,
+    actualFixtureSelection: parsed.resolution.actualSelection,
+    actualFixtureKind: parsed.resolution.actualFixtureKind,
+    fixturePath: parsed.resolution.relativeFixturePath,
+    capturedFixtureAvailable: parsed.resolution.capturedFixtureAvailable,
+    capturedSanitizedFixtureAvailable: parsed.resolution.capturedSanitizedFixtureAvailable,
+    capturedRawFixtureAvailable: parsed.resolution.capturedRawFixtureAvailable,
+    capturedNotesPath: parsed.resolution.relativeCapturedNotesPath,
+    comparisonPath: parsed.resolution.relativeComparisonPath,
+    comparisonMode: comparison.comparisonMode,
+    confirmedFromCaptured: comparison.confirmedFromCaptured,
+    derivedFromGsExamples: comparison.derivedFromGsExamples,
+    derivedFromProjectFixture: comparison.derivedFromProjectFixture,
+    provisionalFields: comparison.provisionalFields,
+    differingFields: comparison.differingFields,
+    comparisonNotes: comparison.notes,
+    roundId: parsed.roundId,
+    capturedRoundId: parsed.capturedRoundId,
+    capturedRoundIdEvidence: parsed.capturedRoundIdEvidence,
+    stateId: String(parsed.fixture.stateId ?? ""),
+    stateName: parsed.fixture.stateName ?? "",
+    extBetId: parsed.fixture.extBetId ?? "",
+    bet: Number(parsed.fixture.bet ?? 0),
+    win: Number(parsed.fixture.win ?? 0),
+    balance: Number(parsed.fixture.balance ?? 0),
+    currency: parsed.betData.CURRENCY ?? "",
+    featureMode: parsed.betData.FEATURE_MODE ?? "",
+    entryState: parsed.betData.ENTRY_STATE ?? "",
+    resultState: parsed.betData.RESULT_STATE ?? "",
+    followUpState: parsed.betData.FOLLOW_UP_STATE ?? "",
+    awardFreeSpins: parsed.betData.AWARD_FREE_SPINS ?? "",
+    counterFreeSpinsAwarded: parsed.betData.COUNTER_FREE_SPINS_AWARDED ?? "",
+    triggerModalText: parsed.betData.TRIGGER_MODAL_TEXT ?? "",
+    followUpCounterText: parsed.betData.FOLLOW_UP_COUNTER_TEXT ?? "",
+    symbolGrid,
+    followUpSymbolGrid,
+    evidenceRefs,
+    evidenceRefCount: evidenceRefs.length,
+    sourceCapture: parsed.servletData.SOURCE_CAPTURE ?? "",
+    donorId: parsed.servletData.DONOR_ID ?? "",
+    fixtureKind: parsed.servletData.FIXTURE_KIND ?? "",
+    fixtureProvenance: parsed.fixtureProvenance,
+    captureStatus: parsed.captureStatus,
+    sourceNote: parsed.servletData.SOURCE_NOTE ?? ""
+  };
+}
+
+function buildSerializableReplayRowFromParsedFixture(parsed: ParsedRowFixture): SerializableReplayRow {
+  return {
+    valueMap: { ...parsed.betData, ...parsed.servletData },
+    extBetId: parsed.fixture.extBetId ?? "",
+    stateId: parsed.fixture.stateId ?? "",
+    stateName: parsed.fixture.stateName ?? "",
+    bet: Number(parsed.fixture.bet ?? 0),
+    payout: Number(parsed.fixture.win ?? 0),
+    balance: Number(parsed.fixture.balance ?? 0),
+    roundId: parsed.roundId
+  };
+}
+
+function normalizeSessionFixtureKind(value: string | undefined): SessionFixtureKind {
+  if (value === "mixed" || value === "captured") {
+    return value;
+  }
+  return "derived";
+}
+
+export function parseRowFixture(
+  projectId: string,
+  repoRoot = getRepoRoot(),
+  selection: FixtureSelection = "auto"
+): ParsedRowFixture {
+  const { fixture, resolution } = readRowFixture(projectId, repoRoot, selection);
+  return parseRowFixtureRecord(fixture, resolution);
+}
+
 export function createLocalReplayRow(
   projectId: string,
   repoRoot = getRepoRoot(),
@@ -800,16 +924,7 @@ export function buildSerializableReplayRow(
   const parsed = parseRowFixture(projectId, repoRoot, selection);
   return {
     parsed,
-    rowSnapshot: {
-      valueMap: { ...parsed.betData, ...parsed.servletData },
-      extBetId: parsed.fixture.extBetId ?? "",
-      stateId: parsed.fixture.stateId ?? "",
-      stateName: parsed.fixture.stateName ?? "",
-      bet: Number(parsed.fixture.bet ?? 0),
-      payout: Number(parsed.fixture.win ?? 0),
-      balance: Number(parsed.fixture.balance ?? 0),
-      roundId: parsed.roundId
-    }
+    rowSnapshot: buildSerializableReplayRowFromParsedFixture(parsed)
   };
 }
 
@@ -858,6 +973,7 @@ export function buildFixtureComparison(
   const resolution = resolveFixtureSelection(projectId, repoRoot, "auto");
   const notes = [
     "The compare lane is deterministic and local-first.",
+    "The current session-level `playerBets[]` shell-mock rows are also derived and exist only to emulate support/history selection flow locally.",
     "A captured raw fixture should stay local-only and is expected at contract/captured-playerBets-row.json.",
     "A public-safe sanitized captured fixture should be committed only at contract/captured-playerBets-row.sanitized.json.",
     "Auto fixture selection only promotes a sanitized captured row; a raw local intake remains opt-in via `-- captured` until it is sanitized."
@@ -869,6 +985,7 @@ export function buildFixtureComparison(
       targetFolderName: config.targetFolderName,
       comparisonMode: "derived-only",
       derivedFixturePath: resolution.relativeDerivedFixturePath,
+      sessionFixturePath: path.relative(repoRoot, getSessionFixturePath(projectId, repoRoot)),
       capturedFixturePath: null,
       capturedFixtureKind: null,
       capturedFixtureAvailable: false,
@@ -924,11 +1041,12 @@ export function buildFixtureComparison(
   }
 
   return {
-    projectId,
-    targetFolderName: config.targetFolderName,
-    comparisonMode: "derived-vs-captured",
-    derivedFixturePath: resolution.relativeDerivedFixturePath,
-    capturedFixturePath: captured.resolution.relativeFixturePath,
+      projectId,
+      targetFolderName: config.targetFolderName,
+      comparisonMode: "derived-vs-captured",
+      derivedFixturePath: resolution.relativeDerivedFixturePath,
+      sessionFixturePath: path.relative(repoRoot, getSessionFixturePath(projectId, repoRoot)),
+      capturedFixturePath: captured.resolution.relativeFixturePath,
     capturedFixtureKind: captured.resolution.actualFixtureKind,
     capturedFixtureAvailable: true,
     capturedNotesPath: resolution.relativeCapturedNotesPath,
@@ -955,6 +1073,7 @@ export function renderFixtureComparisonMarkdown(comparison: FixtureComparisonRes
     "",
     "## Fixture Inputs",
     `- Derived fixture: \`${comparison.derivedFixturePath}\``,
+    `- Derived session fixture: \`${comparison.sessionFixturePath}\``,
     comparison.capturedFixturePath
       ? `- Captured fixture: \`${comparison.capturedFixturePath}\``
       : "- Captured fixture: none committed yet",
@@ -1032,60 +1151,80 @@ export function buildReplaySummary(
   repoRoot = getRepoRoot(),
   selection: FixtureSelection = "auto"
 ): ReplaySummary {
-  const config = getProjectConfig(projectId);
   const parsed = parseRowFixture(projectId, repoRoot, selection);
   const comparison = buildFixtureComparison(projectId, repoRoot);
-  const symbolGrid = parseSymbolGrid(parsed.betData.SYMBOL_GRID ?? "");
-  const followUpSymbolGrid = parseSymbolGrid(parsed.betData.FOLLOW_UP_SYMBOL_GRID ?? "");
-  const evidenceRefs = parseDelimitedList(parsed.betData.EVIDENCE_REFS ?? "");
+  return buildReplaySummaryFromParsedFixture(projectId, parsed, comparison, repoRoot);
+}
+
+export function buildSessionFixture(
+  projectId: string,
+  repoRoot = getRepoRoot(),
+  selection: FixtureSelection = "auto"
+): ParsedSessionFixture {
+  const sessionFixturePath = getSessionFixturePath(projectId, repoRoot);
+  const resolution = resolveFixtureSelection(projectId, repoRoot, selection);
+  const comparison = buildFixtureComparison(projectId, repoRoot);
+
+  if (!existsSync(sessionFixturePath)) {
+    const { parsed, rowSnapshot } = buildSerializableReplayRow(projectId, repoRoot, selection);
+    return {
+      projectId,
+      sessionId: `${projectId}-single-row-fallback`,
+      fixturePath: sessionFixturePath,
+      relativeFixturePath: path.relative(repoRoot, sessionFixturePath),
+      sessionFixtureKind: "derived",
+      sessionFixtureProvenance: "fallback-single-row-session",
+      captureStatus: parsed.captureStatus,
+      sourceNote: "Session fixture file is missing, so the shell mock fell back to the single-row replay fixture.",
+      rows: [
+        {
+          rowIndex: 0,
+          rowKey: "row-0",
+          parsed,
+          rowSnapshot,
+          summary: buildReplaySummaryFromParsedFixture(projectId, parsed, comparison, repoRoot)
+        }
+      ]
+    };
+  }
+
+  const raw = JSON.parse(readFileSync(sessionFixturePath, "utf8")) as SessionFixtureFile;
+  const playerBets = Array.isArray(raw.playerBets) ? raw.playerBets : [];
+  if (playerBets.length === 0) {
+    throw new Error(`Session fixture ${path.relative(repoRoot, sessionFixturePath)} does not contain playerBets[].`);
+  }
+
+  const sessionResolution: FixtureResolution = {
+    ...resolution,
+    fixturePath: sessionFixturePath,
+    relativeFixturePath: path.relative(repoRoot, sessionFixturePath)
+  };
+
+  const rows = playerBets.map((fixture, rowIndex) => {
+    const parsed = parseRowFixtureRecord(fixture, sessionResolution);
+    return {
+      rowIndex,
+      rowKey: `row-${rowIndex}`,
+      parsed,
+      rowSnapshot: buildSerializableReplayRowFromParsedFixture(parsed),
+      summary: buildReplaySummaryFromParsedFixture(projectId, parsed, comparison, repoRoot)
+    };
+  });
 
   return {
     projectId,
-    targetFolderName: config.targetFolderName,
-    requestedFixtureSelection: parsed.resolution.requestedSelection,
-    actualFixtureSelection: parsed.resolution.actualSelection,
-    actualFixtureKind: parsed.resolution.actualFixtureKind,
-    fixturePath: parsed.resolution.relativeFixturePath,
-    capturedFixtureAvailable: parsed.resolution.capturedFixtureAvailable,
-    capturedSanitizedFixtureAvailable: parsed.resolution.capturedSanitizedFixtureAvailable,
-    capturedRawFixtureAvailable: parsed.resolution.capturedRawFixtureAvailable,
-    capturedNotesPath: parsed.resolution.relativeCapturedNotesPath,
-    comparisonPath: parsed.resolution.relativeComparisonPath,
-    comparisonMode: comparison.comparisonMode,
-    confirmedFromCaptured: comparison.confirmedFromCaptured,
-    derivedFromGsExamples: comparison.derivedFromGsExamples,
-    derivedFromProjectFixture: comparison.derivedFromProjectFixture,
-    provisionalFields: comparison.provisionalFields,
-    differingFields: comparison.differingFields,
-    comparisonNotes: comparison.notes,
-    roundId: parsed.roundId,
-    capturedRoundId: parsed.capturedRoundId,
-    capturedRoundIdEvidence: parsed.capturedRoundIdEvidence,
-    stateId: String(parsed.fixture.stateId ?? ""),
-    stateName: parsed.fixture.stateName ?? "",
-    extBetId: parsed.fixture.extBetId ?? "",
-    bet: Number(parsed.fixture.bet ?? 0),
-    win: Number(parsed.fixture.win ?? 0),
-    balance: Number(parsed.fixture.balance ?? 0),
-    currency: parsed.betData.CURRENCY ?? "",
-    featureMode: parsed.betData.FEATURE_MODE ?? "",
-    entryState: parsed.betData.ENTRY_STATE ?? "",
-    resultState: parsed.betData.RESULT_STATE ?? "",
-    followUpState: parsed.betData.FOLLOW_UP_STATE ?? "",
-    awardFreeSpins: parsed.betData.AWARD_FREE_SPINS ?? "",
-    counterFreeSpinsAwarded: parsed.betData.COUNTER_FREE_SPINS_AWARDED ?? "",
-    triggerModalText: parsed.betData.TRIGGER_MODAL_TEXT ?? "",
-    followUpCounterText: parsed.betData.FOLLOW_UP_COUNTER_TEXT ?? "",
-    symbolGrid,
-    followUpSymbolGrid,
-    evidenceRefs,
-    evidenceRefCount: evidenceRefs.length,
-    sourceCapture: parsed.servletData.SOURCE_CAPTURE ?? "",
-    donorId: parsed.servletData.DONOR_ID ?? "",
-    fixtureKind: parsed.servletData.FIXTURE_KIND ?? "",
-    fixtureProvenance: parsed.fixtureProvenance,
-    captureStatus: parsed.captureStatus,
-    sourceNote: parsed.servletData.SOURCE_NOTE ?? ""
+    sessionId: raw.sessionId ?? `${projectId}-local-session`,
+    fixturePath: sessionFixturePath,
+    relativeFixturePath: path.relative(repoRoot, sessionFixturePath),
+    sessionFixtureKind: normalizeSessionFixtureKind(raw.sessionFixtureKind),
+    sessionFixtureProvenance:
+      raw.sessionFixtureProvenance ??
+      "derived-session-fixture-around-one-grounded-round-id",
+    captureStatus:
+      raw.captureStatus ??
+      (resolution.capturedFixtureAvailable ? "mixed-session-fixture" : "derived-session-fixture"),
+    sourceNote: raw.sourceNote ?? "",
+    rows
   };
 }
 
@@ -1306,6 +1445,78 @@ export function verifyScaffold(projectId: string, repoRoot = getRepoRoot()): Ver
         message: "Project-specific renderer stub file is missing"
       });
     }
+  }
+
+  return problems;
+}
+
+export function verifySessionFixture(projectId: string, repoRoot = getRepoRoot()): VerificationProblem[] {
+  const problems: VerificationProblem[] = [];
+  const relativePath = path.relative(repoRoot, getSessionFixturePath(projectId, repoRoot));
+  const sessionFixturePath = getSessionFixturePath(projectId, repoRoot);
+
+  if (!existsSync(sessionFixturePath)) {
+    problems.push({
+      relativePath,
+      message: "Session fixture file is missing"
+    });
+    return problems;
+  }
+
+  let raw: SessionFixtureFile;
+  try {
+    raw = JSON.parse(readFileSync(sessionFixturePath, "utf8")) as SessionFixtureFile;
+  } catch (error) {
+    problems.push({
+      relativePath,
+      message: error instanceof Error ? `Session fixture could not be parsed: ${error.message}` : String(error)
+    });
+    return problems;
+  }
+  if (!Array.isArray(raw.playerBets) || raw.playerBets.length < 2) {
+    problems.push({
+      relativePath,
+      message: "Session fixture must contain at least two playerBets rows"
+    });
+    return problems;
+  }
+
+  if (!raw.sessionFixtureKind) {
+    problems.push({
+      relativePath,
+      message: "Session fixture kind is not documented"
+    });
+  }
+
+  if (!raw.sessionFixtureProvenance) {
+    problems.push({
+      relativePath,
+      message: "Session fixture provenance is not documented"
+    });
+  }
+
+  if (!raw.captureStatus) {
+    problems.push({
+      relativePath,
+      message: "Session fixture capture status is not documented"
+    });
+  }
+
+  try {
+    const session = buildSessionFixture(projectId, repoRoot, "auto");
+    session.rows.forEach((row) => {
+      if (!row.summary.roundId || !/^\d+$/.test(row.summary.roundId)) {
+        problems.push({
+          relativePath,
+          message: `Session row ${row.rowIndex} is missing a numeric ROUND_ID`
+        });
+      }
+    });
+  } catch (error) {
+    problems.push({
+      relativePath,
+      message: error instanceof Error ? error.message : String(error)
+    });
   }
 
   return problems;

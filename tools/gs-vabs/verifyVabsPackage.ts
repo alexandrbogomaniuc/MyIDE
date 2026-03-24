@@ -1,9 +1,11 @@
 import { getRepoRoot } from "../publication/shared";
 import {
   buildFixtureComparison,
+  buildSessionFixture,
   getProjectConfig,
   parseProjectIdArg,
   parseRowFixture,
+  verifySessionFixture,
   verifyScaffold
 } from "./shared";
 import { runBrowserSmoke } from "./browserSmoke";
@@ -16,7 +18,7 @@ function main(): void {
   const repoRoot = getRepoRoot();
   const projectId = parseProjectIdArg();
   const config = getProjectConfig(projectId);
-  const problems = verifyScaffold(projectId, repoRoot);
+  const problems = verifyScaffold(projectId, repoRoot).concat(verifySessionFixture(projectId, repoRoot));
 
   if (problems.length > 0) {
     console.error(`VABS scaffold verification failed for ${projectId}`);
@@ -30,6 +32,7 @@ function main(): void {
 
   const parsed = parseRowFixture(projectId, repoRoot);
   const comparison = buildFixtureComparison(projectId, repoRoot);
+  const session = buildSessionFixture(projectId, repoRoot);
   const harness = runLocalReplayHarness(projectId, repoRoot);
   const exportVerification = verifyExportPackage(projectId, repoRoot);
   const preview = runExportPreview(projectId, repoRoot);
@@ -67,6 +70,10 @@ function main(): void {
   console.log(`- Provisional fields: ${comparison.provisionalFields.join(", ") || "none"}`);
   console.log(`- Comparison notes: ${comparison.notes.join(" | ")}`);
   console.log(`- Comparison doc: ${parsed.resolution.relativeComparisonPath}`);
+  console.log(`- Session fixture: ${session.relativeFixturePath}`);
+  console.log(`- Session fixture kind: ${session.sessionFixtureKind}`);
+  console.log(`- Session row count: ${session.rows.length}`);
+  console.log(`- Session source note: ${session.sourceNote || "-"}`);
   console.log(`- Result state: ${parsed.betData.RESULT_STATE}`);
   console.log(`- Renderer stub: 40_projects/${projectId}/vabs/renderer/${config.targetFolderName}/code.js`);
   console.log(`- Replay harness HTML: ${harness.htmlPath}`);
@@ -76,6 +83,9 @@ function main(): void {
   console.log(`- Shell mock HTML: ${shellMock.htmlPath}`);
   console.log(`- Browser smoke JSON: ${browserSmoke.jsonPath}`);
   console.log(`- Browser smoke DOM: ${browserSmoke.result.domPath}`);
+  console.log(`- Browser smoke selected row: ${browserSmoke.result.selectedRowIndex}`);
+  console.log(`- Browser smoke selected ROUND_ID: ${browserSmoke.result.selectedRoundId}`);
+  console.log(`- Browser smoke row click applied: ${browserSmoke.result.rowClickApplied ? "yes" : "no"}`);
 
   if (!parsed.resolution.capturedFixtureAvailable) {
     console.log(`- Captured-row notes: ${parsed.resolution.relativeCapturedNotesPath}`);
