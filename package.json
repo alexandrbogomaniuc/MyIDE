@@ -34,6 +34,8 @@
     "publication:refresh": "npm run build && node dist/tools/publication/refreshHandoff.js",
     "publication:verify": "npm run build && node dist/tools/publication/verifyHandoff.js",
     "publication:handoff": "npm run publication:preflight && npm run publication:compare && npm run publication:refresh && npm run publication:verify",
+    "automation:status-snapshot": "npm run build && node dist/tools/automation/generateStatusSnapshot.js",
+    "automation:check-freshness": "npm run build && node dist/tools/automation/checkReportFreshness.js",
     "handoff:refresh": "npm run publication:refresh",
     "handoff:verify": "npm run publication:verify",
     "sync:project_001": "npm run build && node dist/30_app/workspace/syncProject.js 40_projects/project_001",

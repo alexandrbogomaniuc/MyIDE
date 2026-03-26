@@ -6,7 +6,11 @@
 - GS-VABS-A adds a separate VABS strategy/scaffold/validation module on top of that baseline. The editor of record remains the existing internal scene/object workflow.
 
 ## Publication Control
-- Current control run: PUB-B publication/handoff hardening and local/public gap control.
+- Current control run: AUTOMATION-TRUTH-A authoritative status snapshot and stale-report guard on top of the existing publication/handoff flow.
+- Use `npm run automation:status-snapshot` as the authoritative repo-local status refresh before any automated outbound report.
+- Require `npm run automation:check-freshness` to return `CURRENT` before treating any status as current.
+- [`LOCAL_PUBLIC_GAP.md`](./LOCAL_PUBLIC_GAP.md) remains a tracked last-measured publication snapshot, not sufficient by itself for fresh automation reporting.
+- If no substantive workstream has completed since the last outbound report, say `no new substantive workstream` plainly instead of implying fresh progress.
 - Use [`PUBLICATION_PLAYBOOK.md`](./PUBLICATION_PLAYBOOK.md), [`LOCAL_PUBLIC_GAP.md`](./LOCAL_PUBLIC_GAP.md), and `npm run manual:status` for current LOCAL vs PUBLIC truth instead of relying on stale assumptions.
 - Use `npm run publication:preflight` to confirm current host publication truth before assuming PUBLIC is behind.
 

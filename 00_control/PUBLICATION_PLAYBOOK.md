@@ -14,6 +14,13 @@ PUB-B keeps publication and handoff predictable without adding editor/runtime sc
 4. Run `npm run handoff:refresh`.
 5. Run `npm run handoff:verify`.
 
+## Automation Report Guard
+1. Run `npm run automation:status-snapshot`.
+2. Run `npm run automation:check-freshness`.
+3. Only send an automated project report if freshness returns `CURRENT`.
+4. If freshness is not `CURRENT`, do not send stale status as if it were current.
+5. If no new substantive workstream has completed since the last outbound report, say `no new substantive workstream` plainly.
+
 ## What The Handoff Package Contains
 - Phase-specific files such as `PHASE5T_or_later.bundle` and `PHASE5T_or_later_RECOVERY_NOTES.txt`.
 - Stable current files:

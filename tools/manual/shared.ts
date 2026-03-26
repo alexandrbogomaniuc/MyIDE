@@ -69,7 +69,7 @@ export function getManualReportsRoot(repoRoot = getRepoRoot()): string {
 }
 
 export function tryResolvePublicHead(repoRoot = getRepoRoot()): string {
-  const lsRemote = gitAllowFailure(["ls-remote", "origin", "HEAD"], repoRoot);
+  const lsRemote = gitAllowFailure(["ls-remote", "origin", "refs/heads/main"], repoRoot);
   if (lsRemote.status === 0 && lsRemote.stdout.trim().length > 0) {
     return lsRemote.stdout.trim().split(/\s+/)[0] ?? "unavailable";
   }

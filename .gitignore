@@ -14,3 +14,5 @@ progress.md
 40_projects/project_001/vabs/contract/captured-playerBets-session.json
 40_projects/**/logs/editor-snapshots/**
 40_projects/**/logs/editor-save-history.jsonl
+00_control/AUTOMATION_STATUS_SNAPSHOT.md
+00_control/AUTOMATION_STATUS_SNAPSHOT.json
