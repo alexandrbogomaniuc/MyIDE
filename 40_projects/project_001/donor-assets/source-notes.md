@@ -22,6 +22,8 @@ Current stronger-slice intent:
 - make the palette easier to filter by image format
 - show donor-backed linkage clearly in the object list and inspector
 - prove more than one real donor image import survives save/reload
+- prove donor import can land on an intended layer
+- prove one existing editable object can be replaced with donor art while preserving layout and donor linkage
 
 Out of scope in this slice:
 - atlas slicing

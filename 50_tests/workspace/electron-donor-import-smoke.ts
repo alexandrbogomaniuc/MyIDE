@@ -29,11 +29,27 @@ interface LiveDonorImportPayload {
     importMode?: string | null;
     importedX?: number | null;
     importedY?: number | null;
+    targetLayerId?: string | null;
+    importedLayerId?: string | null;
     draggedX?: number | null;
     draggedY?: number | null;
+    reloadedLayerId?: string | null;
     reloadedX?: number | null;
     reloadedY?: number | null;
   }>;
+  replacementStarted?: boolean;
+  replacementCompleted?: boolean;
+  replacementPersistVerified?: boolean;
+  replacementLinkageVerified?: boolean;
+  replacementObjectId?: string | null;
+  replacementDonorAssetId?: string | null;
+  replacementDonorEvidenceId?: string | null;
+  replacementLayerId?: string | null;
+  replacementX?: number | null;
+  replacementY?: number | null;
+  replacementReloadedLayerId?: string | null;
+  replacementReloadedX?: number | null;
+  replacementReloadedY?: number | null;
   donorAssetId?: string | null;
   donorEvidenceId?: string | null;
   objectId?: string | null;
@@ -345,6 +361,10 @@ async function main(): Promise<void> {
     assert.equal(payload.internalPersistVerified, true, "Renderer did not confirm internal donor linkage after reload.");
     assert.equal(payload.replaySyncVerified, true, "Renderer did not confirm replay asset ref sync after donor import.");
     assert.equal(payload.donorLinkageVerified, true, "Renderer did not confirm replay donor linkage metadata after donor import.");
+    assert(
+      (payload.importModes ?? []).every((mode) => mode === "synthetic-drop" || mode === "drop-handler-bridge"),
+      "Renderer relied on a donor import fallback outside the bounded drag/drop composition path."
+    );
     assert(Array.isArray(payload.availableFileTypes), "Renderer did not report available donor file types.");
     assert(Array.isArray(payload.importedFileTypes), "Renderer did not report imported donor file types.");
     assert(Array.isArray(payload.importedAssets), "Renderer did not report imported donor assets.");
@@ -357,6 +377,19 @@ async function main(): Promise<void> {
       assert((payload.importedFileTypes ?? []).includes("png"), "Renderer did not import a grounded PNG donor asset.");
       assert((payload.importedFileTypes ?? []).includes("webp"), "Renderer did not import a grounded WEBP donor asset.");
     }
+    for (const importedAsset of payload.importedAssets) {
+      assert(
+        importedAsset.importMode === "synthetic-drop" || importedAsset.importMode === "drop-handler-bridge",
+        `Imported donor asset ${importedAsset.donorAssetId ?? "unknown"} did not use the bounded donor drop path.`
+      );
+      assert.equal(importedAsset.importedLayerId, importedAsset.targetLayerId, `Imported donor asset ${importedAsset.donorAssetId ?? "unknown"} did not land on the intended layer.`);
+      assert.equal(importedAsset.reloadedLayerId, importedAsset.targetLayerId, `Reloaded donor object ${importedAsset.objectId ?? "unknown"} did not stay on its intended layer.`);
+    }
+    assert.equal(payload.replacementStarted, true, "Renderer did not attempt the donor-backed replacement proof.");
+    assert.equal(payload.replacementCompleted, true, "Renderer did not complete the donor-backed replacement proof.");
+    assert.equal(payload.replacementPersistVerified, true, "Renderer did not preserve the donor-backed replacement layout/layer after reload.");
+    assert.equal(payload.replacementLinkageVerified, true, "Renderer did not preserve donor linkage for the donor-backed replacement after reload.");
+    assert.equal(payload.replacementReloadedLayerId, payload.replacementLayerId, "Renderer reloaded the donor-backed replacement on a different layer.");
 
     const internalDocument = await readJson(path.join(internalRoot, "objects.json"));
     const replayProject = await readJson(replayProjectPath);
@@ -382,6 +415,26 @@ async function main(): Promise<void> {
       assert.equal(replayDonorAsset.assetId, donorAssetId, `Replay node ${objectId} did not persist donor asset metadata.`);
       assert.equal(replayDonorAsset.evidenceId, donorEvidenceId, `Replay node ${objectId} did not persist donor evidence metadata.`);
       assert(replayEvidenceRefs.includes(donorEvidenceId), `Replay node ${objectId} did not persist donor evidenceRefs.`);
+      assert.equal(internalObject.layerId, importedAsset.targetLayerId, `Editable object ${objectId} did not persist its intended donor layer.`);
+    }
+    if (payload.replacementObjectId && payload.replacementDonorAssetId && payload.replacementDonorEvidenceId) {
+      const replacementInternalObject = getInternalObject(internalDocument, payload.replacementObjectId);
+      const replacementReplayNode = getReplayNode(replayProject, payload.replacementObjectId);
+      const replacementInternalDonorAsset = (replacementInternalObject.donorAsset ?? {}) as Record<string, unknown>;
+      const replacementReplayExtensions = (replacementReplayNode.extensions ?? {}) as Record<string, unknown>;
+      const replacementReplayDonorAsset = (replacementReplayExtensions.donorAsset ?? {}) as Record<string, unknown>;
+      const replacementReplayEvidenceRefs = Array.isArray(replacementReplayExtensions.evidenceRefs)
+        ? replacementReplayExtensions.evidenceRefs
+        : [];
+
+      assert.equal(replacementInternalObject.assetRef, payload.replacementDonorAssetId, "Replacement object did not persist donor assetRef.");
+      assert.equal(replacementInternalDonorAsset.assetId, payload.replacementDonorAssetId, "Replacement object did not persist donor asset metadata.");
+      assert.equal(replacementInternalDonorAsset.evidenceId, payload.replacementDonorEvidenceId, "Replacement object did not persist donor evidence metadata.");
+      assert.equal(replacementInternalObject.layerId, payload.replacementLayerId, "Replacement object did not persist its layer.");
+      assert.equal(replacementReplayNode.assetRef, payload.replacementDonorAssetId, "Replay replacement node did not persist donor assetRef.");
+      assert.equal(replacementReplayDonorAsset.assetId, payload.replacementDonorAssetId, "Replay replacement node did not persist donor asset metadata.");
+      assert.equal(replacementReplayDonorAsset.evidenceId, payload.replacementDonorEvidenceId, "Replay replacement node did not persist donor evidence metadata.");
+      assert(replacementReplayEvidenceRefs.includes(payload.replacementDonorEvidenceId), "Replay replacement node did not persist donor evidenceRefs.");
     }
     assert.equal(
       result.exitCode,

@@ -19,7 +19,8 @@
 - Local manual testing should use the LOCAL checkout plus `npm run manual:status`.
 - `npm run manual:prepare:project_001` now gives testers one command for reset -> sync -> validate -> next-step output before launching the shell.
 - The current tester-facing donor surface now includes a stronger bounded donor asset palette for supported local `project_001` images; on a typical window size it sits below Project Browser in the left column and may require scrolling to reach.
-- The current tester-facing donor import slice is bounded and honest: supported local static donor images can be filtered in the palette, more than one grounded donor image can be imported into the canvas, imported donor-backed objects show clearer donor linkage in the scene list and inspector, but raw donor files remain read-only and broader donor formats are still unsupported.
+- The current tester-facing donor composition slice is bounded and honest: supported local static donor images can be filtered in the palette, a tester can choose a donor import target layer, more than one grounded donor image can be imported into the canvas, one selected editable object can be replaced with donor art, imported donor-backed objects show clearer donor linkage in the scene list and inspector, but raw donor files remain read-only and broader donor formats are still unsupported.
+- The strongest automated donor proof now covers two real donor image imports (`png` plus `webp` when both exist locally), target-layer placement persistence, and one bounded donor-backed replacement persistence loop.
 - `npm run manual:bug-context` now gives testers one paste-friendly context block for bug notes.
 - `npm run manual:bug-bundle` now gives testers one timestamped folder for notes, context, and attachments outside the repo.
 - `npm run manual:reset:project_001` restores the current tracked `project_001` baseline and clears only the known local-only editor logs.
@@ -147,6 +148,7 @@
 - `registry.json` is now a generated/derived cache rather than the sole workspace truth.
 - The shell can now create a new project scaffold and have it appear in the browser after the workspace refreshes from disk.
 - The shell now exposes the first real editor-style workflow for `project_001`, including new object creation, object selection, drag/nudge, bounded property edits, duplicate/delete, save, reload, and visible sync status.
+- The shell now also exposes a bounded donor composition workflow for `project_001`, including local donor image indexing, donor palette search/filter, donor drag/drop import into a chosen target layer, and bounded replacement of one selected editable object with donor art while preserving donor linkage through save/reload.
 - The shell now exposes snap-assisted layout movement, selected-object layer reassignment, and bounded placeholder width/height editing inside the validated `project_001` editor slice.
 - The shell now exposes placeholder presets and viewport alignment aids inside the validated `project_001` editor slice without widening into a full scene editor.
 - The shell now exposes layer-local draw-order controls and a session-only layer isolate mode inside the validated `project_001` editor slice without widening into a full scene editor.

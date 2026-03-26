@@ -2,6 +2,7 @@
 
 ## Current Tester Blockers
 - [ ] Widen the new donor import slice beyond `project_001` local static images to additional projects and donor formats without weakening the current bounded save/reload flow.
+- [ ] Remove the remaining automated donor drag/drop bridge dependency so the Electron smoke can prove both imports through pure synthetic drag/drop without the bounded drop-handler bridge.
 - [ ] Add the next donor workflow upgrade only if testers need it after the stronger bounded slice: more image classes, clearer batch import ergonomics, and broader multi-project support.
 
 ## PHASE 0

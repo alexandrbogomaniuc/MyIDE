@@ -897,6 +897,28 @@ button:disabled {
   gap: 12px;
 }
 
+.donor-import-target-card {
+  border-color: rgba(230, 191, 100, 0.28);
+  background: rgba(230, 191, 100, 0.06);
+}
+
+.donor-import-target-controls {
+  display: grid;
+  gap: 10px;
+}
+
+.donor-import-layer-select {
+  justify-self: start;
+}
+
+.donor-import-layer-select select {
+  min-width: 220px;
+}
+
+.donor-import-target-chips {
+  align-items: center;
+}
+
 .donor-asset-filter-buttons {
   display: flex;
   flex-wrap: wrap;
@@ -1047,6 +1069,14 @@ button:disabled {
 .evidence-linked-objects {
   display: grid;
   gap: 10px;
+}
+
+.donor-replace-head {
+  align-items: center;
+}
+
+.donor-replace-button {
+  justify-self: start;
 }
 
 .linked-object-button {

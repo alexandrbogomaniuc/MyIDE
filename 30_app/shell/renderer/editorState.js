@@ -551,6 +551,27 @@
     };
   }
 
+  function buildEditableDonorAssetLink(asset) {
+    if (!asset) {
+      return null;
+    }
+
+    return {
+      assetId: asset.assetId,
+      evidenceId: asset.evidenceId,
+      captureSessionId: asset.captureSessionId,
+      donorId: asset.donorId,
+      donorName: asset.donorName,
+      title: asset.title,
+      filename: asset.filename,
+      fileType: asset.fileType,
+      sourceCategory: asset.sourceCategory,
+      repoRelativePath: asset.repoRelativePath,
+      width: asset.width ?? null,
+      height: asset.height ?? null
+    };
+  }
+
   function createDonorAssetObject(editorData, options = {}) {
     if (!editorData || !Array.isArray(editorData.objects) || !options.asset) {
       return null;
@@ -586,21 +607,58 @@
       visible: true,
       locked: false,
       assetRef: options.asset.assetId,
-      donorAsset: {
-        assetId: options.asset.assetId,
-        evidenceId: options.asset.evidenceId,
-        captureSessionId: options.asset.captureSessionId,
-        donorId: options.asset.donorId,
-        donorName: options.asset.donorName,
-        title: options.asset.title,
-        filename: options.asset.filename,
-        fileType: options.asset.fileType,
-        sourceCategory: options.asset.sourceCategory,
-        repoRelativePath: options.asset.repoRelativePath,
-        width: options.asset.width ?? null,
-        height: options.asset.height ?? null
-      },
+      donorAsset: buildEditableDonorAssetLink(options.asset),
       notes: `Imported from donor asset ${options.asset.evidenceId} (${options.asset.filename}) inside MyIDE.`
+    };
+  }
+
+  function replaceObjectWithDonorAsset(editorData, selectedObjectId, options = {}) {
+    if (!editorData || !Array.isArray(editorData.objects) || !options.asset) {
+      return null;
+    }
+
+    const editableLayers = getEditableLayers(editorData.layers);
+    const targetObject = editorData.objects.find((entry) => entry.id === selectedObjectId);
+    if (!targetObject || targetObject.locked) {
+      return null;
+    }
+
+    const targetLayer = editableLayers.find((entry) => entry.id === targetObject.layerId);
+    if (!targetLayer) {
+      return null;
+    }
+
+    const viewportWidth = Number.isFinite(options.viewport?.width) ? options.viewport.width : 1280;
+    const viewportHeight = Number.isFinite(options.viewport?.height) ? options.viewport.height : 720;
+    const fittedDimensions = fitDonorAssetDimensions(options.asset, viewportWidth, viewportHeight);
+    const preservedWidth = Number.isFinite(targetObject.width)
+      ? sanitizeObjectDimension(targetObject.width, fittedDimensions.width)
+      : fittedDimensions.width;
+    const preservedHeight = Number.isFinite(targetObject.height)
+      ? sanitizeObjectDimension(targetObject.height, fittedDimensions.height)
+      : fittedDimensions.height;
+    const previousDisplayName = targetObject.displayName;
+    const replacementLabel = options.asset.title || options.asset.filename || previousDisplayName || "Donor Image";
+
+    targetObject.displayName = replacementLabel;
+    targetObject.type = "image";
+    targetObject.width = preservedWidth;
+    targetObject.height = preservedHeight;
+    targetObject.assetRef = options.asset.assetId;
+    delete targetObject.placeholderRef;
+    targetObject.donorAsset = buildEditableDonorAssetLink(options.asset);
+
+    const replacementNote = `Replaced ${previousDisplayName || targetObject.id} with donor asset ${options.asset.evidenceId} (${options.asset.filename}) inside MyIDE.`;
+    targetObject.notes = [targetObject.notes, replacementNote].filter(Boolean).join(" ");
+
+    return {
+      objectId: targetObject.id,
+      previousDisplayName,
+      nextDisplayName: replacementLabel,
+      layerId: targetObject.layerId,
+      layerName: targetLayer.displayName,
+      width: preservedWidth,
+      height: preservedHeight
     };
   }
 
@@ -1004,6 +1062,7 @@
     getPlaceholderPreset,
     createPlaceholderObject,
     createDonorAssetObject,
+    replaceObjectWithDonorAsset,
     duplicateObject,
     deleteObject,
     reassignObjectLayer,

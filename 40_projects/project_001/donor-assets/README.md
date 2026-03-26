@@ -7,7 +7,7 @@ This folder tracks the bounded donor image import slices for `project_001`.
 - project-specific and local-first
 - raw donor files remain read-only under `10_donors/`
 - current grounded image classes on this machine: `png` and `webp`
-- current stronger proof target: import more than one real donor image and preserve donor linkage through save/reload
+- current stronger proof target: import more than one real donor image, place donor-backed objects onto an intended layer, replace one existing editable object with donor art, and preserve donor linkage through save/reload
 
 ## Local Output
 - `local-index.json`

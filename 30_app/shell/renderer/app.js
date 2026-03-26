@@ -36,7 +36,8 @@ const state = {
     searchQuery: "",
     fileTypeFilter: "all",
     highlightedAssetId: null,
-    dragPayload: null
+    dragPayload: null,
+    importTargetLayerId: "auto"
   },
   layerIsolation: {
     activeLayerId: null,
@@ -699,6 +700,18 @@ function dispatchRendererDragEvent(target, type, init = {}) {
     clientY: Number.isFinite(init.clientY) ? init.clientY : 0,
     dataTransfer: init.dataTransfer ?? null
   });
+
+  if (init.dataTransfer && event.dataTransfer !== init.dataTransfer) {
+    try {
+      Object.defineProperty(event, "dataTransfer", {
+        configurable: true,
+        enumerable: true,
+        value: init.dataTransfer
+      });
+    } catch {
+      // Best effort only. Synthetic drag/drop still uses the DragEvent constructor path first.
+    }
+  }
 
   target.dispatchEvent(event);
 }
@@ -1538,6 +1551,19 @@ async function runLiveDonorImportSmoke() {
     importedFileTypes: [],
     importModes: [],
     importedAssets: [],
+    replacementStarted: false,
+    replacementCompleted: false,
+    replacementPersistVerified: false,
+    replacementLinkageVerified: false,
+    replacementObjectId: null,
+    replacementDonorAssetId: null,
+    replacementDonorEvidenceId: null,
+    replacementLayerId: null,
+    replacementX: null,
+    replacementY: null,
+    replacementReloadedLayerId: null,
+    replacementReloadedX: null,
+    replacementReloadedY: null,
     donorAssetId: null,
     donorEvidenceId: null,
     objectId: null,
@@ -1666,12 +1692,17 @@ async function runLiveDonorImportSmoke() {
       "editor canvas donor drop zone"
     );
     const viewportRect = viewport.getBoundingClientRect();
+    const assignableLayers = getAssignableLayers();
+    if (assignableLayers.length === 0) {
+      throw new Error("The renderer did not expose any editable layers for donor composition.");
+    }
     baseResult.assetPaletteReady = true;
     baseResult.importStarted = true;
 
     const importedAssets = [];
     const importTargets = selectedDonorAssets.map((asset, index) => ({
       asset,
+      targetLayer: assignableLayers[index % assignableLayers.length] ?? assignableLayers[0],
       dropPoint: {
         x: viewportRect.left + viewportRect.width * Math.min(0.72, 0.34 + (index * 0.22)),
         y: viewportRect.top + viewportRect.height * Math.min(0.72, 0.32 + (index * 0.18))
@@ -1682,6 +1713,15 @@ async function runLiveDonorImportSmoke() {
       const donorAssetCard = await waitForRendererCondition(
         () => elements.evidenceBrowser?.querySelector(`[data-donor-asset-id="${target.asset.assetId}"]`) ?? null,
         `donor asset card ${target.asset.assetId} in the evidence browser`
+      );
+      const donorTargetLayerField = await waitForRendererCondition(
+        () => elements.evidenceBrowser?.querySelector("[data-donor-import-target-layer='1']") ?? null,
+        "donor import target layer selector"
+      );
+      updateRendererInputValue(donorTargetLayerField, target.targetLayer.id);
+      await waitForRendererCondition(
+        () => getDonorImportTargetLayerId() === target.targetLayer.id,
+        `${target.targetLayer.displayName} as the donor import target layer`
       );
       const dataTransfer = new DataTransfer();
       const payload = buildDonorAssetDragPayload(target.asset.assetId);
@@ -1699,6 +1739,11 @@ async function runLiveDonorImportSmoke() {
         clientY: viewportRect.top + 24 + (index * 16)
       });
 
+      dispatchRendererDragEvent(viewport, "dragenter", {
+        dataTransfer,
+        clientX: target.dropPoint.x,
+        clientY: target.dropPoint.y
+      });
       dispatchRendererDragEvent(viewport, "dragover", {
         dataTransfer,
         clientX: target.dropPoint.x,
@@ -1709,25 +1754,39 @@ async function runLiveDonorImportSmoke() {
         clientX: target.dropPoint.x,
         clientY: target.dropPoint.y
       });
+      dispatchRendererDragEvent(donorAssetCard, "dragend", {
+        dataTransfer,
+        clientX: target.dropPoint.x,
+        clientY: target.dropPoint.y
+      });
 
       await sleep(250);
-      const existingImportedObject = Array.isArray(state.editorData?.objects)
-        ? state.editorData.objects.find((entry) => entry.donorAsset?.assetId === target.asset.assetId)
+      let importedObject = Array.isArray(state.editorData?.objects)
+        ? state.editorData.objects.find((entry) =>
+          entry.donorAsset?.assetId === target.asset.assetId
+          && entry.layerId === target.targetLayer.id
+        ) ?? null
         : null;
       let importMode = "synthetic-drop";
-      if (!existingImportedObject) {
-        const fallbackScenePoint = getScenePointFromEvent({
+      if (!importedObject) {
+        const dropScenePoint = getScenePointFromEvent({
           clientX: target.dropPoint.x,
           clientY: target.dropPoint.y
         });
-        handleImportDonorAsset(payload.assetId, fallbackScenePoint);
-        importMode = "renderer-import-fallback";
+        const bridgedDrop = processDonorAssetDrop(payload, dropScenePoint);
+        if (!bridgedDrop) {
+          throw new Error(`The donor drop bridge could not import ${target.asset.assetId} after the synthetic drag path missed.`);
+        }
+        importMode = "drop-handler-bridge";
       }
 
-      const importedObject = await waitForRendererCondition(
+      importedObject = await waitForRendererCondition(
         () => {
           const objects = Array.isArray(state.editorData?.objects) ? state.editorData.objects : [];
-          return objects.find((entry) => entry.donorAsset?.assetId === target.asset.assetId) ?? null;
+          return objects.find((entry) =>
+            entry.donorAsset?.assetId === target.asset.assetId
+            && entry.layerId === target.targetLayer.id
+          ) ?? null;
         },
         `donor asset ${target.asset.assetId} to import into the editable scene`
       );
@@ -1738,10 +1797,13 @@ async function runLiveDonorImportSmoke() {
         filename: target.asset.filename,
         objectId: importedObject.id,
         importMode,
+        targetLayerId: target.targetLayer.id,
+        importedLayerId: importedObject.layerId,
         importedX: Number(importedObject.x),
         importedY: Number(importedObject.y),
         draggedX: null,
         draggedY: null,
+        reloadedLayerId: null,
         reloadedX: null,
         reloadedY: null
       });
@@ -1833,6 +1895,62 @@ async function runLiveDonorImportSmoke() {
     );
     baseResult.dragCompleted = true;
 
+    const replacementCandidateAsset = usableDonorAssets.find((asset) => !selectedAssetIds.has(asset.assetId))
+      ?? selectedDonorAssets[selectedDonorAssets.length - 1]
+      ?? null;
+    if (!replacementCandidateAsset) {
+      throw new Error("No donor asset was available for the selected-object replacement proof.");
+    }
+
+    if (!(elements.fieldPlaceholderPreset instanceof HTMLSelectElement) || !(elements.actionNewObject instanceof HTMLButtonElement)) {
+      throw new Error("Placeholder creation controls are missing for the donor replacement proof.");
+    }
+
+    updateRendererInputValue(elements.fieldPlaceholderPreset, "panel");
+    clickRendererElement(elements.actionNewObject);
+    const replacementSeedObject = await waitForRendererCondition(
+      () => {
+        const currentObject = getSelectedObject();
+        return currentObject && typeof currentObject.placeholderRef === "string" && currentObject.placeholderRef.length > 0
+          ? currentObject
+          : null;
+      },
+      "placeholder object for donor replacement"
+    );
+    baseResult.replacementStarted = true;
+    const replacementSeedPosition = {
+      x: Number(replacementSeedObject.x),
+      y: Number(replacementSeedObject.y)
+    };
+    const replacementSeedLayerId = replacementSeedObject.layerId;
+
+    const replacementButton = await waitForRendererCondition(
+      () => elements.evidenceBrowser?.querySelector(`[data-donor-replace-asset-id="${replacementCandidateAsset.assetId}"]`) ?? null,
+      `replace control for donor asset ${replacementCandidateAsset.assetId}`
+    );
+    clickRendererElement(replacementButton);
+
+    const replacedObject = await waitForRendererCondition(
+      () => {
+        const currentObject = getEditableObjectById(replacementSeedObject.id);
+        return currentObject
+          && currentObject.donorAsset?.assetId === replacementCandidateAsset.assetId
+          && currentObject.layerId === replacementSeedLayerId
+          && Number(currentObject.x) === replacementSeedPosition.x
+          && Number(currentObject.y) === replacementSeedPosition.y
+          ? currentObject
+          : null;
+      },
+      `${replacementSeedObject.id} to be replaced with donor asset ${replacementCandidateAsset.assetId}`
+    );
+    baseResult.replacementCompleted = true;
+    baseResult.replacementObjectId = replacedObject.id;
+    baseResult.replacementDonorAssetId = replacementCandidateAsset.assetId;
+    baseResult.replacementDonorEvidenceId = replacementCandidateAsset.evidenceId;
+    baseResult.replacementLayerId = replacedObject.layerId;
+    baseResult.replacementX = Number(replacedObject.x);
+    baseResult.replacementY = Number(replacedObject.y);
+
     if (!(elements.actionSave instanceof HTMLButtonElement)) {
       throw new Error("Save button is missing from the renderer toolbar.");
     }
@@ -1841,10 +1959,14 @@ async function runLiveDonorImportSmoke() {
     await waitForRendererCondition(
       () => {
         const currentObject = getEditableObjectById(primaryImportedAsset.objectId);
+        const replacementObject = baseResult.replacementObjectId
+          ? getEditableObjectById(baseResult.replacementObjectId)
+          : null;
         return Boolean(
           !state.dirty
           && state.syncStatus?.status === "synced"
           && currentObject
+          && (!baseResult.replacementObjectId || replacementObject)
           && Number(currentObject.x) === baseResult.draggedX
           && Number(currentObject.y) === baseResult.draggedY
         );
@@ -1881,6 +2003,7 @@ async function runLiveDonorImportSmoke() {
           const currentObject = getEditableObjectById(importedAsset.objectId);
           return currentObject
             && currentObject.donorAsset?.assetId === importedAsset.donorAssetId
+            && currentObject.layerId === importedAsset.targetLayerId
             && Number(currentObject.x) === expectedX
             && Number(currentObject.y) === expectedY
             ? currentObject
@@ -1894,6 +2017,7 @@ async function runLiveDonorImportSmoke() {
 
       importedAsset.reloadedX = Number(reloadedObject.x);
       importedAsset.reloadedY = Number(reloadedObject.y);
+      importedAsset.reloadedLayerId = reloadedObject.layerId;
       verificationResults.push({
         internalPersistVerified: reloadedObject.donorAsset?.assetId === importedAsset.donorAssetId,
         replaySyncVerified: replayNode?.assetRef === importedAsset.donorAssetId,
@@ -1901,6 +2025,38 @@ async function runLiveDonorImportSmoke() {
           && replayDonorAsset?.evidenceId === importedAsset.donorEvidenceId
           && replayDonorAsset?.repoRelativePath === donorAsset?.repoRelativePath
       });
+    }
+
+    if (baseResult.replacementObjectId && baseResult.replacementDonorAssetId && baseResult.replacementDonorEvidenceId) {
+      const replacementDonorAsset = getDonorAssetById(baseResult.replacementDonorAssetId);
+      const replacementObject = await waitForRendererCondition(
+        () => {
+          const currentObject = getEditableObjectById(baseResult.replacementObjectId);
+          return currentObject
+            && currentObject.donorAsset?.assetId === baseResult.replacementDonorAssetId
+            && currentObject.layerId === baseResult.replacementLayerId
+            && Number(currentObject.x) === baseResult.replacementX
+            && Number(currentObject.y) === baseResult.replacementY
+            ? currentObject
+            : null;
+        },
+        `${baseResult.replacementObjectId} replacement donor data after reload`
+      );
+      const replacementReplayNode = getReplayNodeById(baseResult.replacementObjectId);
+      const replacementReplayEvidenceRefs = normalizeEvidenceRefs(asJsonObject(replacementReplayNode?.extensions)?.evidenceRefs);
+      const replacementReplayDonorAsset = asJsonObject(replacementReplayNode?.extensions)?.donorAsset;
+
+      baseResult.replacementReloadedLayerId = replacementObject.layerId;
+      baseResult.replacementReloadedX = Number(replacementObject.x);
+      baseResult.replacementReloadedY = Number(replacementObject.y);
+      baseResult.replacementPersistVerified = replacementObject.donorAsset?.assetId === baseResult.replacementDonorAssetId
+        && replacementObject.layerId === baseResult.replacementLayerId
+        && Number(replacementObject.x) === baseResult.replacementX
+        && Number(replacementObject.y) === baseResult.replacementY;
+      baseResult.replacementLinkageVerified = replacementReplayNode?.assetRef === baseResult.replacementDonorAssetId
+        && replacementReplayEvidenceRefs.includes(baseResult.replacementDonorEvidenceId)
+        && replacementReplayDonorAsset?.evidenceId === baseResult.replacementDonorEvidenceId
+        && replacementReplayDonorAsset?.repoRelativePath === replacementDonorAsset?.repoRelativePath;
     }
 
     baseResult.reloadedX = primaryImportedAsset.reloadedX ?? null;
@@ -1921,7 +2077,19 @@ async function runLiveDonorImportSmoke() {
       throw new Error("Replay-facing imported donor objects did not preserve donor evidence linkage metadata.");
     }
 
-    const successMessage = `Live donor import smoke passed for ${importedAssets.length} donor assets (${baseResult.importedFileTypes.join(", ")}): moved ${primaryImportedAsset.objectId} to (${baseResult.draggedX}, ${baseResult.draggedY}) and reloaded donor linkage for every imported object.`;
+    if (baseResult.replacementStarted && !baseResult.replacementCompleted) {
+      throw new Error("The donor replacement step did not complete.");
+    }
+
+    if (baseResult.replacementCompleted && !baseResult.replacementPersistVerified) {
+      throw new Error("The donor-backed replacement object did not preserve its layer or layout after reload.");
+    }
+
+    if (baseResult.replacementCompleted && !baseResult.replacementLinkageVerified) {
+      throw new Error("The donor-backed replacement object did not preserve donor linkage metadata after reload.");
+    }
+
+    const successMessage = `Live donor import smoke passed for ${importedAssets.length} donor assets (${baseResult.importedFileTypes.join(", ")}): moved ${primaryImportedAsset.objectId} to (${baseResult.draggedX}, ${baseResult.draggedY}), replaced ${baseResult.replacementObjectId ?? "n/a"} with donor asset ${baseResult.replacementDonorEvidenceId ?? "n/a"}, and reloaded donor linkage for every donor-backed object.`;
     setPreviewStatus(successMessage);
     baseResult.previewStatus = successMessage;
     document.body.dataset.liveDonorImportSmoke = "pass";
@@ -4056,6 +4224,13 @@ function bindActions() {
       return;
     }
 
+    const replaceButton = target.closest("[data-donor-replace-asset-id]");
+    if (replaceButton instanceof HTMLElement && replaceButton.dataset.donorReplaceAssetId) {
+      event.preventDefault();
+      handleReplaceSelectedObjectWithDonorAsset(replaceButton.dataset.donorReplaceAssetId);
+      return;
+    }
+
     const donorAssetTypeFilter = target.closest("[data-donor-asset-type-filter]");
     if (donorAssetTypeFilter instanceof HTMLElement) {
       event.preventDefault();
@@ -4145,6 +4320,16 @@ function bindActions() {
       }
     });
   });
+  elements.evidenceBrowser?.addEventListener("change", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLSelectElement) || target.dataset.donorImportTargetLayer !== "1") {
+      return;
+    }
+
+    state.donorAssetUi.importTargetLayerId = target.value || "auto";
+    renderAll();
+    setPreviewStatus(`Donor imports now target ${getDonorImportTargetLayerLabel()}.`);
+  });
   elements.evidenceBrowser?.addEventListener("dragstart", (event) => {
     const target = event.target;
     if (!(target instanceof HTMLElement)) {
@@ -4167,10 +4352,22 @@ function bindActions() {
     state.donorAssetUi.highlightedAssetId = payload.assetId;
     state.donorAssetUi.dragPayload = payload;
     const donorAsset = getDonorAssetById(payload.assetId);
-    setPreviewStatus(`Dragging ${donorAsset?.title ?? payload.assetId}. Drop it onto the Editor Canvas to import it.`);
+    setPreviewStatus(`Dragging ${donorAsset?.title ?? payload.assetId}. Drop it onto the Editor Canvas to import it on ${getDonorImportTargetLayerLabel()}.`);
   });
   elements.evidenceBrowser?.addEventListener("dragend", () => {
-    state.donorAssetUi.dragPayload = null;
+    clearDonorDragState();
+  });
+  elements.editorCanvas?.addEventListener("dragenter", (event) => {
+    const viewport = event.target instanceof HTMLElement
+      ? event.target.closest("[data-donor-drop-zone]")
+      : null;
+    const payload = readDonorAssetDragPayload(event.dataTransfer);
+    if (!(viewport instanceof HTMLElement) || !payload) {
+      return;
+    }
+
+    event.preventDefault();
+    viewport.classList.add("is-donor-drop-target");
   });
   elements.editorCanvas?.addEventListener("dragover", (event) => {
     const viewport = event.target instanceof HTMLElement
@@ -4200,15 +4397,20 @@ function bindActions() {
       ? event.target.closest("[data-donor-drop-zone]")
       : null;
     const payload = readDonorAssetDragPayload(event.dataTransfer);
-    if (!(viewport instanceof HTMLElement) || !payload) {
+    if (!(viewport instanceof HTMLElement)) {
       return;
     }
 
     event.preventDefault();
-    viewport.classList.remove("is-donor-drop-target");
+    if (!payload) {
+      clearDonorDragState(viewport);
+      setPreviewStatus("Drop ignored because the donor payload was missing. Start the drag from a donor asset card again.");
+      return;
+    }
+
     const scenePoint = getScenePointFromEvent(event);
-    handleImportDonorAsset(payload.assetId, scenePoint);
-    state.donorAssetUi.dragPayload = null;
+    processDonorAssetDrop(payload, scenePoint);
+    clearDonorDragState(viewport);
   });
   elements.editorCanvas?.addEventListener("pointerdown", (event) => {
     handleCanvasPointerDown(event);
@@ -5533,6 +5735,43 @@ function renderDonorAssetFilterBar(donorAssetCatalog, visibleCount) {
   `;
 }
 
+function renderDonorImportTargetControl() {
+  const assignableLayers = getAssignableLayers();
+  const selectedValue = String(state.donorAssetUi?.importTargetLayerId ?? "auto").trim() || "auto";
+  const replaceableSelectedObject = getReplaceableSelectedObject();
+
+  if (!state.editorData || assignableLayers.length === 0) {
+    return `
+      <div class="tree-row donor-import-target-card">
+        <strong>Donor Composition Target</strong>
+        <span>No editable layer is available, so donor import is currently blocked.</span>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="tree-row donor-import-target-card">
+      <strong>Donor Composition Target</strong>
+      <span>New donor drops land on <strong>${escapeHtml(getDonorImportTargetLayerLabel())}</strong>. Replacement keeps the selected object's current layer and layout.</span>
+      <div class="donor-import-target-controls">
+        <label class="toolbar-select donor-import-layer-select" for="field-donor-import-layer">
+          <span>Import Target Layer</span>
+          <select id="field-donor-import-layer" data-donor-import-target-layer="1">
+            <option value="auto" ${selectedValue === "auto" ? "selected" : ""}>Auto: current selected layer</option>
+            ${assignableLayers.map((layer) => `
+              <option value="${escapeAttribute(layer.id)}" ${selectedValue === layer.id ? "selected" : ""}>${escapeHtml(layer.displayName)}</option>
+            `).join("")}
+          </select>
+        </label>
+        <div class="chip-row donor-import-target-chips">
+          <span>${assignableLayers.length} editable layer${assignableLayers.length === 1 ? "" : "s"}</span>
+          <span>${replaceableSelectedObject ? `replace-ready: ${escapeHtml(replaceableSelectedObject.displayName)}` : "replace-ready: select an editable object"}</span>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function renderDonorAssetCards(items, evidenceObjectIndex = new Map()) {
   const groupedItems = groupVisibleDonorAssetsByFileType(items);
   if (!Array.isArray(items) || items.length === 0) {
@@ -5541,6 +5780,8 @@ function renderDonorAssetCards(items, evidenceObjectIndex = new Map()) {
       ? `<p class="muted-copy">No donor asset matches <code>${escapeHtml(searchQuery)}</code>.</p>`
       : `<p class="muted-copy">No usable donor image assets are available for this project on this machine yet.</p>`;
   }
+
+  const replaceableSelectedObject = getReplaceableSelectedObject();
 
   return `
     <div class="donor-asset-groups">
@@ -5592,11 +5833,17 @@ function renderDonorAssetCards(items, evidenceObjectIndex = new Map()) {
                 <div class="evidence-linked-objects">
                   <div class="evidence-subsection-head">
                     <strong>Drag Into Canvas</strong>
-                    <span class="muted-copy">Drop onto the Editor Canvas to create an editable donor-backed image object.</span>
+                    <span class="muted-copy">Drop onto the Editor Canvas to create an editable donor-backed image object on ${escapeHtml(getDonorImportTargetLayerLabel())}.</span>
                   </div>
                   <div class="chip-row donor-asset-import-hint">
                     <span>asset id ${escapeHtml(item.assetId)}</span>
                     <span>filename ${escapeHtml(item.filename)}</span>
+                  </div>
+                  <div class="evidence-subsection-head donor-replace-head">
+                    <strong>Replace Selected Object</strong>
+                    ${replaceableSelectedObject
+                      ? `<button type="button" class="copy-button donor-replace-button" data-donor-replace-asset-id="${escapeAttribute(item.assetId)}" draggable="false">Replace ${escapeHtml(replaceableSelectedObject.displayName)}</button>`
+                      : `<span class="muted-copy">Select an editable object to replace it while keeping its layer and layout.</span>`}
                   </div>
                   <div class="evidence-subsection-head">
                     <strong>Imported Scene Objects</strong>
@@ -6695,7 +6942,8 @@ async function reloadWorkspace(isInitialLoad, requestedProjectId = null) {
     searchQuery: "",
     fileTypeFilter: "all",
     highlightedAssetId: null,
-    dragPayload: null
+    dragPayload: null,
+    importTargetLayerId: "auto"
   };
   resetViewportSessionState();
   resetLayerIsolation();
@@ -7363,10 +7611,10 @@ function renderEvidenceBrowser() {
       <summary>Donor Asset Palette <span class="summary-count">${visibleDonorAssets.length}${state.donorAssetUi.searchQuery ? ` of ${donorAssetCount}` : ""}</span></summary>
       <div class="evidence-section-body">
         <div class="tree-row scope-summary donor-asset-summary">
-          <strong>Local donor image import</strong>
+          <strong>Local donor image composition</strong>
           <span>${donorAssetCatalog?.blocker
             ? escapeHtml(donorAssetCatalog.blocker)
-            : "Drag one supported donor image asset onto the Editor Canvas to create an editable donor-backed scene object. Raw donor files remain read-only."}</span>
+            : "Drag one supported donor image asset onto the Editor Canvas to create an editable donor-backed scene object on the chosen target layer, or replace the selected editable scene object while keeping its layout. Raw donor files remain read-only."}</span>
           <div class="chip-row">
             <span>${donorAssetCatalog?.localIndexExists ? "using cached local index" : "using live local scan"}</span>
             <span>${donorAssetCount} usable donor images</span>
@@ -7383,6 +7631,7 @@ function renderEvidenceBrowser() {
           />
         </label>
         ${renderDonorAssetFilterBar(donorAssetCatalog, visibleDonorAssets.length)}
+        ${renderDonorImportTargetControl()}
         ${renderDonorAssetCards(visibleDonorAssets, evidenceObjectIndex)}
       </div>
     </details>
@@ -7632,7 +7881,7 @@ function renderProjectSummary() {
     </div>
     <div class="tree-row scope-summary">
       <strong>Current Scope</strong>
-      <span>This shell edits reconstructed internal scene objects for the selected project. The Donor Evidence panel sits in the left column below Project Browser on smaller windows and now includes a bounded donor image asset palette for <code>project_001</code>. Raw donor files remain read-only, but supported local donor images can be dragged into the canvas to create editable internal scene objects.</span>
+      <span>This shell edits reconstructed internal scene objects for the selected project. The Donor Evidence panel sits in the left column below Project Browser on smaller windows and now includes a bounded donor image asset palette for <code>project_001</code>. Raw donor files remain read-only, but supported local donor images can be dragged into the canvas on a chosen target layer or used to replace a selected editable scene object.</span>
       <div class="chip-row">
         <span>editable source: internal scene</span>
         <span>donor files: read-only</span>
@@ -7923,6 +8172,52 @@ function getSelectedLayerIdForCreation() {
   return getAssignableLayers()[0]?.id ?? null;
 }
 
+function getDonorImportTargetLayerId() {
+  const requestedLayerId = String(state.donorAssetUi?.importTargetLayerId ?? "auto").trim();
+  if (requestedLayerId && requestedLayerId !== "auto") {
+    const explicitLayer = getAssignableLayers().find((entry) => entry.id === requestedLayerId);
+    if (explicitLayer) {
+      return explicitLayer.id;
+    }
+  }
+
+  return getSelectedLayerIdForCreation();
+}
+
+function getDonorImportTargetLayerLabel() {
+  const requestedLayerId = String(state.donorAssetUi?.importTargetLayerId ?? "auto").trim();
+  const targetLayerId = getDonorImportTargetLayerId();
+  if (!targetLayerId) {
+    return "No editable layer";
+  }
+
+  const targetLayer = getLayerById(targetLayerId);
+  if (requestedLayerId && requestedLayerId !== "auto") {
+    return `${targetLayer?.displayName ?? targetLayerId} (chosen target)`;
+  }
+
+  const selectedObject = getSelectedObject();
+  if (selectedObject && isObjectEditable(selectedObject) && selectedObject.layerId === targetLayerId) {
+    return `${targetLayer?.displayName ?? targetLayerId} (selected object layer)`;
+  }
+
+  return `${targetLayer?.displayName ?? targetLayerId} (first editable layer)`;
+}
+
+function getReplaceableSelectedObject() {
+  const selectedObject = getSelectedObject();
+  if (!selectedObject || !isObjectEditable(selectedObject)) {
+    return null;
+  }
+
+  const layer = getLayerById(selectedObject.layerId);
+  if (selectedObject.locked || layer?.locked) {
+    return null;
+  }
+
+  return selectedObject;
+}
+
 function getAssignableLayers() {
   if (!state.editorData) {
     return [];
@@ -8175,6 +8470,7 @@ function handleImportDonorAsset(assetId, scenePoint = null) {
   let createdObjectId = null;
   let createdDisplayName = donorAsset.title;
   let createdLayerName = "unassigned";
+  const targetLayerId = getDonorImportTargetLayerId();
   const didChange = applyEditorMutation(`Imported donor asset ${donorAsset.evidenceId}.`, (editorData) => {
     const tools = getEditorStateTools();
     const viewport = getSceneViewport();
@@ -8188,7 +8484,7 @@ function handleImportDonorAsset(assetId, scenePoint = null) {
             y: Math.round(scenePoint.y - (Number.isFinite(donorAsset.height) ? Math.min(donorAsset.height, 240) / 2 : 80))
           }
           : null,
-        selectedLayerId: getSelectedLayerIdForCreation()
+        selectedLayerId: targetLayerId
       })
       : null;
 
@@ -8215,6 +8511,48 @@ function handleImportDonorAsset(assetId, scenePoint = null) {
   return true;
 }
 
+function handleReplaceSelectedObjectWithDonorAsset(assetId) {
+  const selectedObject = getReplaceableSelectedObject();
+  if (!selectedObject) {
+    setPreviewStatus("Select an editable scene object before replacing it with a donor asset.");
+    return false;
+  }
+
+  const donorAsset = getDonorAssetById(assetId);
+  if (!donorAsset) {
+    setPreviewStatus("That donor asset is not available in the current local donor asset catalog.");
+    return false;
+  }
+
+  if (!donorAsset.previewUrl) {
+    setPreviewStatus("This donor asset does not have a usable local preview path on this machine.");
+    return false;
+  }
+
+  let replacementResult = null;
+  const didChange = applyEditorMutation(`Replaced ${selectedObject.displayName} with donor asset ${donorAsset.evidenceId}.`, (editorData) => {
+    const tools = getEditorStateTools();
+    replacementResult = typeof tools.replaceObjectWithDonorAsset === "function"
+      ? tools.replaceObjectWithDonorAsset(editorData, selectedObject.id, {
+        asset: donorAsset,
+        viewport: getSceneViewport()
+      })
+      : null;
+  });
+
+  if (!didChange || !replacementResult) {
+    setPreviewStatus(`Could not replace ${selectedObject.displayName} with donor asset ${donorAsset.evidenceId}.`);
+    return false;
+  }
+
+  state.selectedObjectId = replacementResult.objectId;
+  state.donorAssetUi.highlightedAssetId = assetId;
+  ensureSelectedObject();
+  renderAll();
+  setPreviewStatus(`Replaced ${replacementResult.previousDisplayName} with ${replacementResult.nextDisplayName} on ${replacementResult.layerName}. Save to persist the donor-backed replacement.`);
+  return true;
+}
+
 function buildDonorAssetDragPayload(assetId) {
   const donorAsset = getDonorAssetById(assetId);
   if (!donorAsset) {
@@ -8231,28 +8569,41 @@ function buildDonorAssetDragPayload(assetId) {
 }
 
 function readDonorAssetDragPayload(dataTransfer) {
-  if (state.donorAssetUi?.dragPayload?.kind === "myide-donor-asset") {
-    return state.donorAssetUi.dragPayload;
+  if (dataTransfer) {
+    const rawPayload = dataTransfer.getData("application/x-myide-donor-asset")
+      || dataTransfer.getData("text/plain");
+    if (rawPayload) {
+      try {
+        const parsed = JSON.parse(rawPayload);
+        if (parsed?.kind === "myide-donor-asset" && typeof parsed.assetId === "string") {
+          return parsed;
+        }
+      } catch {
+        // Fall through to the bounded renderer drag-session payload.
+      }
+    }
   }
 
-  if (!dataTransfer) {
-    return null;
+  return state.donorAssetUi?.dragPayload?.kind === "myide-donor-asset"
+    ? state.donorAssetUi.dragPayload
+    : null;
+}
+
+function clearDonorDragState(viewport = null) {
+  state.donorAssetUi.dragPayload = null;
+  const dropZone = viewport instanceof HTMLElement ? viewport : getCanvasViewportElement();
+  if (dropZone instanceof HTMLElement) {
+    dropZone.classList.remove("is-donor-drop-target");
+  }
+}
+
+function processDonorAssetDrop(payload, scenePoint) {
+  if (!payload || payload.kind !== "myide-donor-asset" || typeof payload.assetId !== "string" || payload.assetId.length === 0) {
+    setPreviewStatus("Drop ignored because the donor payload was invalid. Start the drag from a donor asset card again.");
+    return false;
   }
 
-  const rawPayload = dataTransfer.getData("application/x-myide-donor-asset")
-    || dataTransfer.getData("text/plain");
-  if (!rawPayload) {
-    return null;
-  }
-
-  try {
-    const parsed = JSON.parse(rawPayload);
-    return parsed?.kind === "myide-donor-asset" && typeof parsed.assetId === "string"
-      ? parsed
-      : null;
-  } catch {
-    return null;
-  }
+  return handleImportDonorAsset(payload.assetId, scenePoint);
 }
 
 function handleDuplicateSelectedObject() {
@@ -8446,6 +8797,7 @@ function renderEditorCanvas() {
       <span>${panLabel}</span>
       <span>${selectedObject ? `Selected: ${selectedObject.displayName}` : "No selection"}</span>
       <span>Layer: ${selectedLayerLabel}</span>
+      <span>Donor import target: ${escapeHtml(getDonorImportTargetLayerLabel())}</span>
       <span>${snapLabel}</span>
       <span>${isolationLabel}</span>
       <span>Space+drag or middle mouse pan</span>
@@ -8880,6 +9232,10 @@ function renderInspector() {
           <div class="detail-card">
             <span>Source Category</span>
             <strong>${escapeHtml(donorAsset.sourceCategory ?? "unknown")}</strong>
+          </div>
+          <div class="detail-card">
+            <span>Placement Layer</span>
+            <strong>${escapeHtml(layer?.displayName ?? selectedObject.layerId)}</strong>
           </div>
         </div>
       </div>
