@@ -28,12 +28,14 @@ Use this when testing the current local MyIDE build by hand.
 4. Create and edit
    - Create one placeholder object from the preset picker.
    - Choose a donor import target layer.
-   - Drag one donor asset card into the canvas and confirm a new donor-backed image object appears on the intended layer.
+   - Drag one donor asset card into empty canvas space and confirm a new donor-backed image object appears on the intended layer.
    - If a second grounded donor image is available, drag a second donor asset card into the canvas too.
-   - Select one editable object and use **Replace Selected Object** on a donor asset card.
+   - Drag one donor asset card directly over an editable canvas object and confirm it replaces that object while keeping its slot and layer.
+   - Optionally compare that direct drop-to-replace path with **Replace Selected Object** on a donor asset card.
    - Select it and change at least one inspector field such as `displayName`, `width`, or `height`.
 5. Move and layout
    - Drag the new object on the canvas.
+   - Select one donor-backed image object and use its bottom-right resize handle once.
    - Try one alignment action on a placeholder-backed object.
    - Try one layer reassignment.
    - Try one reorder action within the current layer.
@@ -63,7 +65,7 @@ Use this when testing the current local MyIDE build by hand.
 - The created object remains editable.
 - At least one donor asset is visible in the donor asset palette.
 - More than one donor asset can be imported into the scene as editable internal image objects when multiple grounded donor images are available locally.
-- One selected editable object can be replaced with a donor asset while preserving layout and save/reload behavior.
+- One editable object can be replaced directly on drop with a donor asset while preserving layout and save/reload behavior.
 - Donor source files stay read-only even after import.
 - Drag, resize, align, reassign, reorder, duplicate/delete, and undo/redo behave coherently.
 - Save/reload keeps the final intended state.
@@ -75,7 +77,7 @@ Use this when testing the current local MyIDE build by hand.
   - only supported local donor image files are importable
   - no atlas slicing, animation import, audio/video import, or generic donor format pipeline
   - imported objects are internal scene objects with donor linkage, not editable raw donor assets
-  - automated Electron smoke still uses a bounded drop-handler bridge because synthetic DOM drag events are not yet materializing the drop reliably enough on their own in this environment
+  - automated Electron smoke still uses a bounded drag/drop bridge in this environment when synthetic DOM drag events do not surface the live canvas intent cleanly enough on their own
 
 ## If Something Fails
 1. Stop after the first clear failure.

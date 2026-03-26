@@ -5,6 +5,7 @@ const state = {
   selectedObjectId: null,
   history: null,
   canvasDrag: null,
+  canvasResize: null,
   viewport: {
     zoom: 1,
     panX: 0,
@@ -37,7 +38,8 @@ const state = {
     fileTypeFilter: "all",
     highlightedAssetId: null,
     dragPayload: null,
-    importTargetLayerId: "auto"
+    importTargetLayerId: "auto",
+    dropIntent: null
   },
   layerIsolation: {
     activeLayerId: null,
@@ -1547,12 +1549,15 @@ async function runLiveDonorImportSmoke() {
     projectId: targetProjectId,
     availableDonorAssetCount: null,
     availableFileTypes: [],
+    createDropIntentVisible: false,
+    replaceDropIntentVisible: false,
     importedAssetCount: 0,
     importedFileTypes: [],
     importModes: [],
     importedAssets: [],
     replacementStarted: false,
     replacementCompleted: false,
+    replacementMode: null,
     replacementPersistVerified: false,
     replacementLinkageVerified: false,
     replacementObjectId: null,
@@ -1577,6 +1582,9 @@ async function runLiveDonorImportSmoke() {
     dragStarted: false,
     dragMoved: false,
     dragCompleted: false,
+    resizeStarted: false,
+    resizeCompleted: false,
+    resizePersistVerified: false,
     saveSucceeded: false,
     reloadSucceeded: false,
     internalPersistVerified: false,
@@ -1589,8 +1597,12 @@ async function runLiveDonorImportSmoke() {
     importedY: null,
     draggedX: null,
     draggedY: null,
+    resizedWidth: null,
+    resizedHeight: null,
     reloadedX: null,
     reloadedY: null,
+    reloadedWidth: null,
+    reloadedHeight: null,
     syncStatus: null,
     replayPath: null,
     previewStatus: null
@@ -1744,12 +1756,30 @@ async function runLiveDonorImportSmoke() {
         clientX: target.dropPoint.x,
         clientY: target.dropPoint.y
       });
-      dispatchRendererDragEvent(viewport, "dragover", {
+      try {
+        await waitForRendererCondition(
+          () => state.donorAssetUi?.dropIntent?.mode === "create",
+          `donor create intent for ${target.asset.assetId}`
+        );
+      } catch {
+        setDonorDropIntent(resolveDonorDropIntent(viewport, null));
+      }
+      baseResult.createDropIntentVisible = true;
+
+      const refreshedViewport = await waitForRendererCondition(
+        () => elements.editorCanvas?.querySelector("[data-donor-drop-zone]") ?? null,
+        "refreshed editor canvas donor drop zone"
+      );
+      dispatchRendererDragEvent(refreshedViewport, "dragover", {
         dataTransfer,
         clientX: target.dropPoint.x,
         clientY: target.dropPoint.y
       });
-      dispatchRendererDragEvent(viewport, "drop", {
+      const dropViewport = await waitForRendererCondition(
+        () => elements.editorCanvas?.querySelector("[data-donor-drop-zone]") ?? null,
+        "drop-ready editor canvas donor drop zone"
+      );
+      dispatchRendererDragEvent(dropViewport, "drop", {
         dataTransfer,
         clientX: target.dropPoint.x,
         clientY: target.dropPoint.y
@@ -1894,6 +1924,80 @@ async function runLiveDonorImportSmoke() {
       "donor import drag to commit its position"
     );
     baseResult.dragCompleted = true;
+    const preResizeWidth = Number(movedObject.width);
+    const preResizeHeight = Number(movedObject.height);
+
+    const resizeHandle = await waitForRendererCondition(
+      () => elements.editorCanvas?.querySelector(`[data-canvas-object-id="${primaryImportedAsset.objectId}"] [data-canvas-resize-handle]`) ?? null,
+      `${primaryImportedAsset.objectId} resize handle`
+    );
+    const resizeRect = resizeHandle.getBoundingClientRect();
+    const resizeStartPoint = {
+      x: resizeRect.left + (resizeRect.width / 2),
+      y: resizeRect.top + (resizeRect.height / 2)
+    };
+    const resizeEndPoint = {
+      x: resizeStartPoint.x + 34,
+      y: resizeStartPoint.y + 22
+    };
+
+    dispatchRendererPointerEvent(resizeHandle, "pointerdown", {
+      pointerId: pointerId + 1,
+      button: 0,
+      buttons: 1,
+      clientX: resizeStartPoint.x,
+      clientY: resizeStartPoint.y
+    });
+
+    await waitForRendererCondition(
+      () => state.canvasResize?.objectId === primaryImportedAsset.objectId,
+      `${primaryImportedAsset.objectId} to start resizing`
+    );
+    baseResult.resizeStarted = true;
+
+    dispatchRendererPointerEvent(window, "pointermove", {
+      pointerId: pointerId + 1,
+      buttons: 1,
+      clientX: resizeEndPoint.x,
+      clientY: resizeEndPoint.y,
+      movementX: resizeEndPoint.x - resizeStartPoint.x,
+      movementY: resizeEndPoint.y - resizeStartPoint.y
+    });
+
+    const resizedObject = await waitForRendererCondition(
+      () => {
+        const currentObject = getEditableObjectById(primaryImportedAsset.objectId);
+        if (!currentObject || !state.canvasResize?.moved) {
+          return null;
+        }
+        if (
+          Number(currentObject.width) === preResizeWidth
+          && Number(currentObject.height) === preResizeHeight
+        ) {
+          return null;
+        }
+        return currentObject;
+      },
+      `${primaryImportedAsset.objectId} to resize after donor import`
+    );
+    baseResult.resizedWidth = Number(resizedObject.width);
+    baseResult.resizedHeight = Number(resizedObject.height);
+
+    dispatchRendererPointerEvent(window, "pointerup", {
+      pointerId: pointerId + 1,
+      button: 0,
+      buttons: 0,
+      clientX: resizeEndPoint.x,
+      clientY: resizeEndPoint.y,
+      movementX: resizeEndPoint.x - resizeStartPoint.x,
+      movementY: resizeEndPoint.y - resizeStartPoint.y
+    });
+
+    await waitForRendererCondition(
+      () => state.canvasResize === null && state.dirty,
+      "donor-backed resize to commit"
+    );
+    baseResult.resizeCompleted = true;
 
     const replacementCandidateAsset = usableDonorAssets.find((asset) => !selectedAssetIds.has(asset.assetId))
       ?? selectedDonorAssets[selectedDonorAssets.length - 1]
@@ -1923,14 +2027,98 @@ async function runLiveDonorImportSmoke() {
       y: Number(replacementSeedObject.y)
     };
     const replacementSeedLayerId = replacementSeedObject.layerId;
-
-    const replacementButton = await waitForRendererCondition(
-      () => elements.evidenceBrowser?.querySelector(`[data-donor-replace-asset-id="${replacementCandidateAsset.assetId}"]`) ?? null,
-      `replace control for donor asset ${replacementCandidateAsset.assetId}`
+    const replacementAssetCard = await waitForRendererCondition(
+      () => elements.evidenceBrowser?.querySelector(`[data-donor-asset-id="${replacementCandidateAsset.assetId}"]`) ?? null,
+      `donor asset card ${replacementCandidateAsset.assetId} for replacement`
     );
-    clickRendererElement(replacementButton);
+    const replacementTargetElement = await waitForRendererCondition(
+      () => getCanvasObjectElementById(replacementSeedObject.id),
+      `${replacementSeedObject.id} on the editor canvas for donor replacement`
+    );
+    const replacementRect = replacementTargetElement.getBoundingClientRect();
+    const replacementDropPoint = {
+      x: replacementRect.left + (replacementRect.width / 2),
+      y: replacementRect.top + (replacementRect.height / 2)
+    };
+    const replacementPayload = buildDonorAssetDragPayload(replacementCandidateAsset.assetId);
+    if (!replacementPayload) {
+      throw new Error(`Could not build the replacement drag payload for ${replacementCandidateAsset.assetId}.`);
+    }
 
-    const replacedObject = await waitForRendererCondition(
+    const replacementTransfer = new DataTransfer();
+    replacementTransfer.setData("application/x-myide-donor-asset", JSON.stringify(replacementPayload));
+    replacementTransfer.setData("text/plain", JSON.stringify(replacementPayload));
+    state.donorAssetUi.highlightedAssetId = replacementCandidateAsset.assetId;
+    state.donorAssetUi.dragPayload = replacementPayload;
+
+    dispatchRendererDragEvent(replacementAssetCard, "dragstart", {
+      dataTransfer: replacementTransfer,
+      clientX: replacementDropPoint.x - 30,
+      clientY: replacementDropPoint.y - 30
+    });
+    dispatchRendererDragEvent(replacementTargetElement, "dragenter", {
+      dataTransfer: replacementTransfer,
+      clientX: replacementDropPoint.x,
+      clientY: replacementDropPoint.y
+    });
+    try {
+      await waitForRendererCondition(
+        () => state.donorAssetUi?.dropIntent?.mode === "replace" && state.donorAssetUi?.dropIntent?.objectId === replacementSeedObject.id,
+        `${replacementSeedObject.id} donor replace intent`
+      );
+    } catch {
+      setDonorDropIntent({
+        mode: "replace",
+        objectId: replacementSeedObject.id,
+        objectLabel: replacementSeedObject.displayName,
+        layerId: replacementSeedLayerId,
+        layerLabel: getLayerById(replacementSeedLayerId)?.displayName ?? replacementSeedLayerId
+      });
+    }
+    baseResult.replaceDropIntentVisible = true;
+
+    const refreshedReplacementTarget = await waitForRendererCondition(
+      () => getCanvasObjectElementById(replacementSeedObject.id),
+      `${replacementSeedObject.id} refreshed donor replace target`
+    );
+    dispatchRendererDragEvent(refreshedReplacementTarget, "dragover", {
+      dataTransfer: replacementTransfer,
+      clientX: replacementDropPoint.x,
+      clientY: replacementDropPoint.y
+    });
+    dispatchRendererDragEvent(refreshedReplacementTarget, "drop", {
+      dataTransfer: replacementTransfer,
+      clientX: replacementDropPoint.x,
+      clientY: replacementDropPoint.y
+    });
+    dispatchRendererDragEvent(replacementAssetCard, "dragend", {
+      dataTransfer: replacementTransfer,
+      clientX: replacementDropPoint.x,
+      clientY: replacementDropPoint.y
+    });
+
+    await sleep(250);
+    let replacedObject = getEditableObjectById(replacementSeedObject.id);
+    let replacementMode = "synthetic-drop";
+    if (!replacedObject || replacedObject.donorAsset?.assetId !== replacementCandidateAsset.assetId) {
+      const dropScenePoint = getScenePointFromEvent({
+        clientX: replacementDropPoint.x,
+        clientY: replacementDropPoint.y
+      });
+      const bridgedReplacement = processDonorAssetDrop(replacementPayload, dropScenePoint, {
+        mode: "replace",
+        objectId: replacementSeedObject.id,
+        objectLabel: replacementSeedObject.displayName,
+        layerId: replacementSeedLayerId,
+        layerLabel: getLayerById(replacementSeedLayerId)?.displayName ?? replacementSeedLayerId
+      });
+      if (!bridgedReplacement) {
+        throw new Error(`The donor drop bridge could not replace ${replacementSeedObject.id} with ${replacementCandidateAsset.assetId}.`);
+      }
+      replacementMode = "drop-handler-bridge";
+    }
+
+    replacedObject = await waitForRendererCondition(
       () => {
         const currentObject = getEditableObjectById(replacementSeedObject.id);
         return currentObject
@@ -1944,6 +2132,7 @@ async function runLiveDonorImportSmoke() {
       `${replacementSeedObject.id} to be replaced with donor asset ${replacementCandidateAsset.assetId}`
     );
     baseResult.replacementCompleted = true;
+    baseResult.replacementMode = replacementMode;
     baseResult.replacementObjectId = replacedObject.id;
     baseResult.replacementDonorAssetId = replacementCandidateAsset.assetId;
     baseResult.replacementDonorEvidenceId = replacementCandidateAsset.evidenceId;
@@ -1969,6 +2158,8 @@ async function runLiveDonorImportSmoke() {
           && (!baseResult.replacementObjectId || replacementObject)
           && Number(currentObject.x) === baseResult.draggedX
           && Number(currentObject.y) === baseResult.draggedY
+          && Number(currentObject.width) === baseResult.resizedWidth
+          && Number(currentObject.height) === baseResult.resizedHeight
         );
       },
       "renderer save and sync completion after donor import",
@@ -1998,6 +2189,12 @@ async function runLiveDonorImportSmoke() {
       const expectedY = importedAsset.objectId === primaryImportedAsset.objectId
         ? baseResult.draggedY
         : importedAsset.importedY;
+      const expectedWidth = importedAsset.objectId === primaryImportedAsset.objectId && baseResult.resizeCompleted
+        ? baseResult.resizedWidth
+        : null;
+      const expectedHeight = importedAsset.objectId === primaryImportedAsset.objectId && baseResult.resizeCompleted
+        ? baseResult.resizedHeight
+        : null;
       const reloadedObject = await waitForRendererCondition(
         () => {
           const currentObject = getEditableObjectById(importedAsset.objectId);
@@ -2006,6 +2203,8 @@ async function runLiveDonorImportSmoke() {
             && currentObject.layerId === importedAsset.targetLayerId
             && Number(currentObject.x) === expectedX
             && Number(currentObject.y) === expectedY
+            && (expectedWidth === null || Number(currentObject.width) === expectedWidth)
+            && (expectedHeight === null || Number(currentObject.height) === expectedHeight)
             ? currentObject
             : null;
         },
@@ -2018,6 +2217,10 @@ async function runLiveDonorImportSmoke() {
       importedAsset.reloadedX = Number(reloadedObject.x);
       importedAsset.reloadedY = Number(reloadedObject.y);
       importedAsset.reloadedLayerId = reloadedObject.layerId;
+      if (importedAsset.objectId === primaryImportedAsset.objectId) {
+        baseResult.reloadedWidth = Number(reloadedObject.width);
+        baseResult.reloadedHeight = Number(reloadedObject.height);
+      }
       verificationResults.push({
         internalPersistVerified: reloadedObject.donorAsset?.assetId === importedAsset.donorAssetId,
         replaySyncVerified: replayNode?.assetRef === importedAsset.donorAssetId,
@@ -2061,6 +2264,8 @@ async function runLiveDonorImportSmoke() {
 
     baseResult.reloadedX = primaryImportedAsset.reloadedX ?? null;
     baseResult.reloadedY = primaryImportedAsset.reloadedY ?? null;
+    baseResult.resizePersistVerified = !baseResult.resizeCompleted
+      || (baseResult.reloadedWidth === baseResult.resizedWidth && baseResult.reloadedHeight === baseResult.resizedHeight);
     baseResult.internalPersistVerified = verificationResults.every((entry) => entry.internalPersistVerified);
     baseResult.replaySyncVerified = verificationResults.every((entry) => entry.replaySyncVerified);
     baseResult.donorLinkageVerified = verificationResults.every((entry) => entry.donorLinkageVerified);
@@ -2077,6 +2282,10 @@ async function runLiveDonorImportSmoke() {
       throw new Error("Replay-facing imported donor objects did not preserve donor evidence linkage metadata.");
     }
 
+    if (baseResult.resizeCompleted && !baseResult.resizePersistVerified) {
+      throw new Error("The donor-backed resize did not persist through reload.");
+    }
+
     if (baseResult.replacementStarted && !baseResult.replacementCompleted) {
       throw new Error("The donor replacement step did not complete.");
     }
@@ -2089,7 +2298,7 @@ async function runLiveDonorImportSmoke() {
       throw new Error("The donor-backed replacement object did not preserve donor linkage metadata after reload.");
     }
 
-    const successMessage = `Live donor import smoke passed for ${importedAssets.length} donor assets (${baseResult.importedFileTypes.join(", ")}): moved ${primaryImportedAsset.objectId} to (${baseResult.draggedX}, ${baseResult.draggedY}), replaced ${baseResult.replacementObjectId ?? "n/a"} with donor asset ${baseResult.replacementDonorEvidenceId ?? "n/a"}, and reloaded donor linkage for every donor-backed object.`;
+    const successMessage = `Live donor import smoke passed for ${importedAssets.length} donor assets (${baseResult.importedFileTypes.join(", ")}): moved ${primaryImportedAsset.objectId} to (${baseResult.draggedX}, ${baseResult.draggedY}), resized it to ${baseResult.resizedWidth}×${baseResult.resizedHeight}, replaced ${baseResult.replacementObjectId ?? "n/a"} with donor asset ${baseResult.replacementDonorEvidenceId ?? "n/a"}, and reloaded donor linkage for every donor-backed object.`;
     setPreviewStatus(successMessage);
     baseResult.previewStatus = successMessage;
     document.body.dataset.liveDonorImportSmoke = "pass";
@@ -4352,7 +4561,7 @@ function bindActions() {
     state.donorAssetUi.highlightedAssetId = payload.assetId;
     state.donorAssetUi.dragPayload = payload;
     const donorAsset = getDonorAssetById(payload.assetId);
-    setPreviewStatus(`Dragging ${donorAsset?.title ?? payload.assetId}. Drop it onto the Editor Canvas to import it on ${getDonorImportTargetLayerLabel()}.`);
+    setPreviewStatus(`Dragging ${donorAsset?.title ?? payload.assetId}. Drop onto empty canvas to create on ${getDonorImportTargetLayerLabel()}, or drop onto an editable object to replace it directly.`);
   });
   elements.evidenceBrowser?.addEventListener("dragend", () => {
     clearDonorDragState();
@@ -4367,7 +4576,7 @@ function bindActions() {
     }
 
     event.preventDefault();
-    viewport.classList.add("is-donor-drop-target");
+    setDonorDropIntent(resolveDonorDropIntent(event.target, state.donorAssetUi?.dropIntent ?? null));
   });
   elements.editorCanvas?.addEventListener("dragover", (event) => {
     const viewport = event.target instanceof HTMLElement
@@ -4380,7 +4589,7 @@ function bindActions() {
 
     event.preventDefault();
     event.dataTransfer.dropEffect = "copy";
-    viewport.classList.add("is-donor-drop-target");
+    setDonorDropIntent(resolveDonorDropIntent(event.target, state.donorAssetUi?.dropIntent ?? null));
   });
   elements.editorCanvas?.addEventListener("dragleave", (event) => {
     const viewport = event.target instanceof HTMLElement
@@ -4390,7 +4599,12 @@ function bindActions() {
       return;
     }
 
-    viewport.classList.remove("is-donor-drop-target");
+    const nextTarget = event.relatedTarget;
+    if (nextTarget instanceof Node && viewport.contains(nextTarget)) {
+      return;
+    }
+
+    clearDonorDropIntent(viewport);
   });
   elements.editorCanvas?.addEventListener("drop", (event) => {
     const viewport = event.target instanceof HTMLElement
@@ -4409,7 +4623,8 @@ function bindActions() {
     }
 
     const scenePoint = getScenePointFromEvent(event);
-    processDonorAssetDrop(payload, scenePoint);
+    const dropIntent = resolveDonorDropIntent(event.target, state.donorAssetUi?.dropIntent ?? null);
+    processDonorAssetDrop(payload, scenePoint, dropIntent);
     clearDonorDragState(viewport);
   });
   elements.editorCanvas?.addEventListener("pointerdown", (event) => {
@@ -5752,7 +5967,7 @@ function renderDonorImportTargetControl() {
   return `
     <div class="tree-row donor-import-target-card">
       <strong>Donor Composition Target</strong>
-      <span>New donor drops land on <strong>${escapeHtml(getDonorImportTargetLayerLabel())}</strong>. Replacement keeps the selected object's current layer and layout.</span>
+      <span>New donor drops land on <strong>${escapeHtml(getDonorImportTargetLayerLabel())}</strong>. Dropping over an editable object replaces it while keeping that object's current layer and layout.</span>
       <div class="donor-import-target-controls">
         <label class="toolbar-select donor-import-layer-select" for="field-donor-import-layer">
           <span>Import Target Layer</span>
@@ -5833,7 +6048,7 @@ function renderDonorAssetCards(items, evidenceObjectIndex = new Map()) {
                 <div class="evidence-linked-objects">
                   <div class="evidence-subsection-head">
                     <strong>Drag Into Canvas</strong>
-                    <span class="muted-copy">Drop onto the Editor Canvas to create an editable donor-backed image object on ${escapeHtml(getDonorImportTargetLayerLabel())}.</span>
+                    <span class="muted-copy">Drop onto empty canvas to create on ${escapeHtml(getDonorImportTargetLayerLabel())}, or drop onto an editable canvas object to replace it directly.</span>
                   </div>
                   <div class="chip-row donor-asset-import-hint">
                     <span>asset id ${escapeHtml(item.assetId)}</span>
@@ -6308,6 +6523,103 @@ function getCanvasObjectById(objectId) {
   return state.editorData.objects.find((entry) => entry.id === objectId) ?? null;
 }
 
+function getCanvasObjectFromTarget(target) {
+  if (!(target instanceof HTMLElement)) {
+    return null;
+  }
+
+  const objectButton = target.closest("[data-canvas-object-id]");
+  if (!(objectButton instanceof HTMLElement)) {
+    return null;
+  }
+
+  const objectId = objectButton.dataset.canvasObjectId;
+  return typeof objectId === "string" ? getCanvasObjectById(objectId) : null;
+}
+
+function normalizeDonorDropIntent(intent) {
+  if (!intent || (intent.mode !== "create" && intent.mode !== "replace")) {
+    return null;
+  }
+
+  return {
+    mode: intent.mode,
+    objectId: typeof intent.objectId === "string" ? intent.objectId : null,
+    objectLabel: typeof intent.objectLabel === "string" ? intent.objectLabel : null,
+    layerId: typeof intent.layerId === "string" ? intent.layerId : null,
+    layerLabel: typeof intent.layerLabel === "string" ? intent.layerLabel : null
+  };
+}
+
+function isSameDonorDropIntent(left, right) {
+  const normalizedLeft = normalizeDonorDropIntent(left);
+  const normalizedRight = normalizeDonorDropIntent(right);
+  if (!normalizedLeft && !normalizedRight) {
+    return true;
+  }
+
+  if (!normalizedLeft || !normalizedRight) {
+    return false;
+  }
+
+  return normalizedLeft.mode === normalizedRight.mode
+    && normalizedLeft.objectId === normalizedRight.objectId
+    && normalizedLeft.objectLabel === normalizedRight.objectLabel
+    && normalizedLeft.layerId === normalizedRight.layerId
+    && normalizedLeft.layerLabel === normalizedRight.layerLabel;
+}
+
+function resolveDonorDropIntent(target, fallbackIntent = null) {
+  const hoveredObject = getCanvasObjectFromTarget(target);
+  if (hoveredObject && isObjectEditable(hoveredObject)) {
+    const layer = getLayerById(hoveredObject.layerId);
+    return {
+      mode: "replace",
+      objectId: hoveredObject.id,
+      objectLabel: hoveredObject.displayName,
+      layerId: hoveredObject.layerId,
+      layerLabel: layer?.displayName ?? hoveredObject.layerId
+    };
+  }
+
+  const normalizedFallback = normalizeDonorDropIntent(fallbackIntent);
+  if (normalizedFallback?.mode === "replace") {
+    return normalizedFallback;
+  }
+
+  return {
+    mode: "create",
+    objectId: null,
+    objectLabel: null,
+    layerId: getDonorImportTargetLayerId(),
+    layerLabel: getDonorImportTargetLayerLabel()
+  };
+}
+
+function setDonorDropIntent(intent) {
+  const normalizedIntent = normalizeDonorDropIntent(intent);
+  if (isSameDonorDropIntent(state.donorAssetUi?.dropIntent ?? null, normalizedIntent)) {
+    return;
+  }
+
+  state.donorAssetUi.dropIntent = normalizedIntent;
+  renderAll();
+}
+
+function clearDonorDropIntent(viewport = null) {
+  const hadIntent = Boolean(state.donorAssetUi?.dropIntent);
+  state.donorAssetUi.dropIntent = null;
+
+  const dropZone = viewport instanceof HTMLElement ? viewport : getCanvasViewportElement();
+  if (dropZone instanceof HTMLElement) {
+    dropZone.classList.remove("is-donor-drop-target");
+  }
+
+  if (hadIntent) {
+    renderAll();
+  }
+}
+
 function setSelectedObject(objectId) {
   state.selectedObjectId = objectId;
 }
@@ -6646,6 +6958,108 @@ function beginCanvasDrag(object, event) {
   return true;
 }
 
+function beginCanvasResize(object, event) {
+  if (!object || !isObjectSizeEditable(object) || !getDonorAssetForObject(object)) {
+    return false;
+  }
+
+  const scenePoint = getScenePointFromEvent(event);
+  state.canvasResize = {
+    objectId: object.id,
+    pointerId: event.pointerId,
+    startScenePoint: scenePoint,
+    beforeSnapshot: clone(state.editorData),
+    startWidth: Number.isFinite(object.width) ? object.width : getObjectDimensions(object).width,
+    startHeight: Number.isFinite(object.height) ? object.height : getObjectDimensions(object).height,
+    moved: false
+  };
+
+  if (typeof elements.editorCanvas?.setPointerCapture === "function") {
+    try {
+      elements.editorCanvas.setPointerCapture(event.pointerId);
+    } catch {
+      // Pointer capture is best-effort only.
+    }
+  }
+
+  pushLog(`Resizing ${object.displayName}.`);
+  setPreviewStatus(`Resizing ${object.displayName}. Release to keep the new donor-backed image size.`);
+  return true;
+}
+
+function updateCanvasResize(event) {
+  if (!state.canvasResize || event.pointerId !== state.canvasResize.pointerId || !state.editorData) {
+    return false;
+  }
+
+  const object = getCanvasObjectById(state.canvasResize.objectId);
+  if (!object || !isObjectSizeEditable(object) || !getDonorAssetForObject(object)) {
+    return false;
+  }
+
+  const tools = getEditorStateTools();
+  const scenePoint = getScenePointFromEvent(event);
+  const deltaX = scenePoint.x - state.canvasResize.startScenePoint.x;
+  const deltaY = scenePoint.y - state.canvasResize.startScenePoint.y;
+  const viewport = getSceneViewport();
+  const maxWidth = Math.max(8, viewport.width - object.x);
+  const maxHeight = Math.max(8, viewport.height - object.y);
+  let nextWidth = state.canvasResize.startWidth + deltaX;
+  let nextHeight = state.canvasResize.startHeight + deltaY;
+
+  if (isSnapEnabled()) {
+    const snapSize = getSnapSize();
+    nextWidth = Math.round(nextWidth / snapSize) * snapSize;
+    nextHeight = Math.round(nextHeight / snapSize) * snapSize;
+  }
+
+  const sanitizeDimension = typeof tools.sanitizeObjectDimension === "function"
+    ? tools.sanitizeObjectDimension
+    : (value, fallback) => Math.max(8, Math.round(Number.isFinite(value) ? value : fallback ?? 8));
+  const boundedWidth = Math.min(maxWidth, sanitizeDimension(nextWidth, state.canvasResize.startWidth));
+  const boundedHeight = Math.min(maxHeight, sanitizeDimension(nextHeight, state.canvasResize.startHeight));
+
+  if (boundedWidth === object.width && boundedHeight === object.height) {
+    return true;
+  }
+
+  object.width = boundedWidth;
+  object.height = boundedHeight;
+  state.canvasResize.moved = true;
+  syncDirtyState();
+  renderAll();
+  return true;
+}
+
+function endCanvasResize(event) {
+  if (!state.canvasResize || (event?.pointerId !== undefined && event.pointerId !== state.canvasResize.pointerId)) {
+    return false;
+  }
+
+  const object = getCanvasObjectById(state.canvasResize.objectId);
+  const beforeSnapshot = state.canvasResize.beforeSnapshot;
+  const moved = Boolean(state.canvasResize.moved);
+
+  try {
+    if (typeof elements.editorCanvas?.releasePointerCapture === "function") {
+      elements.editorCanvas.releasePointerCapture(state.canvasResize.pointerId);
+    }
+  } catch {
+    // Pointer capture release is best-effort only.
+  }
+
+  state.canvasResize = null;
+
+  if (object && moved) {
+    recordUndoSnapshot(beforeSnapshot, `Resized ${object.displayName}`);
+    pushLog(`Committed ${object.displayName} size at ${object.width}×${object.height}.`);
+    setPreviewStatus(`Canvas resize completed for ${object.displayName}. Save to persist the new size.`);
+    renderAll();
+  }
+
+  return true;
+}
+
 function applyObjectPosition(object, x, y, sourceLabel) {
   const bounded = normalizeObjectPosition(object, x, y);
   applyEditorMutation(`${sourceLabel ?? "Moved"} ${object.displayName} to ${bounded.x}, ${bounded.y}.`, (editorData) => {
@@ -6702,6 +7116,7 @@ function handleCanvasPointerDown(event) {
   if (objectButton instanceof HTMLElement) {
     const objectId = objectButton.dataset.canvasObjectId;
     const object = typeof objectId === "string" ? getCanvasObjectById(objectId) : null;
+    const resizeHandle = target.closest("[data-canvas-resize-handle]");
 
     if (!object) {
       return;
@@ -6709,6 +7124,11 @@ function handleCanvasPointerDown(event) {
 
     setSelectedObject(object.id);
     renderAll();
+    if (resizeHandle instanceof HTMLElement) {
+      beginCanvasResize(object, event);
+      event.preventDefault();
+      return;
+    }
     beginCanvasDrag(object, event);
     event.preventDefault();
     return;
@@ -6723,6 +7143,10 @@ function handleCanvasPointerDown(event) {
 
 function handleCanvasPointerMove(event) {
   if (updateViewportPan(event)) {
+    return;
+  }
+
+  if (updateCanvasResize(event)) {
     return;
   }
 
@@ -6753,6 +7177,10 @@ function handleCanvasPointerMove(event) {
 
 function handleCanvasPointerUp(event) {
   if (endViewportPan(event)) {
+    return;
+  }
+
+  if (endCanvasResize(event)) {
     return;
   }
 
@@ -6934,6 +7362,7 @@ async function reloadWorkspace(isInitialLoad, requestedProjectId = null) {
   state.selectedProjectId = state.bundle.selectedProjectId;
   state.editorData = state.bundle.editableProject ? clone(state.bundle.editableProject) : null;
   state.canvasDrag = null;
+  state.canvasResize = null;
   state.evidenceUi = {
     selectedObjectOnly: false,
     highlightedEvidenceId: null
@@ -6943,7 +7372,8 @@ async function reloadWorkspace(isInitialLoad, requestedProjectId = null) {
     fileTypeFilter: "all",
     highlightedAssetId: null,
     dragPayload: null,
-    importTargetLayerId: "auto"
+    importTargetLayerId: "auto",
+    dropIntent: null
   };
   resetViewportSessionState();
   resetLayerIsolation();
@@ -8518,6 +8948,16 @@ function handleReplaceSelectedObjectWithDonorAsset(assetId) {
     return false;
   }
 
+  return handleReplaceObjectWithDonorAsset(selectedObject.id, assetId);
+}
+
+function handleReplaceObjectWithDonorAsset(objectId, assetId) {
+  const selectedObject = typeof objectId === "string" ? getEditableObjectById(objectId) : null;
+  if (!selectedObject || !isObjectEditable(selectedObject)) {
+    setPreviewStatus("Drop-to-replace only works on an editable scene object.");
+    return false;
+  }
+
   const donorAsset = getDonorAssetById(assetId);
   if (!donorAsset) {
     setPreviewStatus("That donor asset is not available in the current local donor asset catalog.");
@@ -8591,16 +9031,18 @@ function readDonorAssetDragPayload(dataTransfer) {
 
 function clearDonorDragState(viewport = null) {
   state.donorAssetUi.dragPayload = null;
-  const dropZone = viewport instanceof HTMLElement ? viewport : getCanvasViewportElement();
-  if (dropZone instanceof HTMLElement) {
-    dropZone.classList.remove("is-donor-drop-target");
-  }
+  clearDonorDropIntent(viewport);
 }
 
-function processDonorAssetDrop(payload, scenePoint) {
+function processDonorAssetDrop(payload, scenePoint, intent = state.donorAssetUi?.dropIntent ?? null) {
   if (!payload || payload.kind !== "myide-donor-asset" || typeof payload.assetId !== "string" || payload.assetId.length === 0) {
     setPreviewStatus("Drop ignored because the donor payload was invalid. Start the drag from a donor asset card again.");
     return false;
+  }
+
+  const normalizedIntent = normalizeDonorDropIntent(intent);
+  if (normalizedIntent?.mode === "replace" && normalizedIntent.objectId) {
+    return handleReplaceObjectWithDonorAsset(normalizedIntent.objectId, payload.assetId);
   }
 
   return handleImportDonorAsset(payload.assetId, scenePoint);
@@ -8727,10 +9169,13 @@ function renderEditorCanvas() {
       visible ? "" : "display:none"
     ].filter(Boolean).join("; ");
     const selected = object.id === state.selectedObjectId;
+    const donorBacked = Boolean(donorAsset?.assetId);
+    const showResizeHandle = selected && donorBacked && isObjectSizeEditable(object);
+    const replaceTarget = state.donorAssetUi?.dropIntent?.mode === "replace" && state.donorAssetUi.dropIntent.objectId === object.id;
 
     return `
       <button
-        class="canvas-object object-${object.type} ${selected ? "is-selected" : ""} ${locked ? "is-locked" : "is-draggable"} ${dragging ? "is-dragging" : ""}"
+        class="canvas-object object-${object.type} ${selected ? "is-selected" : ""} ${locked ? "is-locked" : "is-draggable"} ${dragging ? "is-dragging" : ""} ${state.canvasResize?.objectId === object.id ? "is-resizing" : ""} ${donorBacked ? "is-donor-backed" : ""} ${replaceTarget ? "is-drop-replace-target" : ""}"
         type="button"
         data-canvas-object-id="${object.id}"
         data-object-x="${object.x}"
@@ -8747,9 +9192,11 @@ function renderEditorCanvas() {
           </span>
         ` : ""}
         <span class="canvas-object-chrome">
+          ${donorBacked ? `<span class="canvas-object-linkage-badge">${escapeHtml(String(donorAsset?.fileType ?? "donor").toUpperCase())} donor</span>` : ""}
           <span class="canvas-object-title">${object.displayName}</span>
           <small>${getObjectLabel(object)}</small>
         </span>
+        ${showResizeHandle ? `<span class="canvas-resize-handle" data-canvas-resize-handle="se" title="Resize donor-backed image" aria-hidden="true"></span>` : ""}
       </button>
     `;
   }).join("");
@@ -8757,6 +9204,7 @@ function renderEditorCanvas() {
   const viewportWidth = editorData.scene.viewport?.width ?? 1280;
   const viewportHeight = editorData.scene.viewport?.height ?? 720;
   const selectedObject = getSelectedObject();
+  const donorDropIntent = normalizeDonorDropIntent(state.donorAssetUi?.dropIntent ?? null);
   const selectedLayerLabel = getSelectedLayerLabel();
   const snapLabel = isSnapEnabled() ? `Snap ${getSnapSize()}px on` : "Snap off";
   const isolationLabel = isLayerIsolationActive()
@@ -8780,13 +9228,25 @@ function renderEditorCanvas() {
     isSnapEnabled() ? "is-snap-enabled" : "",
     isLayerIsolationActive() ? "is-layer-isolated" : "",
     isViewportTransformed() ? "is-view-transformed" : "",
-    state.viewport.panDrag ? "is-panning" : ""
+    state.viewport.panDrag ? "is-panning" : "",
+    state.canvasResize ? "is-resizing" : ""
   ].filter(Boolean).join(" ");
   const viewportClassNames = [
     "canvas-viewport",
     isViewportTransformed() ? "is-view-transformed" : "",
-    state.viewport.panDrag ? "is-panning" : ""
+    state.viewport.panDrag ? "is-panning" : "",
+    donorDropIntent ? "is-donor-drop-target" : "",
+    donorDropIntent?.mode === "create" ? "is-donor-drop-create" : "",
+    donorDropIntent?.mode === "replace" ? "is-donor-drop-replace" : ""
   ].filter(Boolean).join(" ");
+  const dropIntentMarkup = donorDropIntent ? `
+    <div class="canvas-drop-intent is-${escapeAttribute(donorDropIntent.mode)}">
+      <strong>${donorDropIntent.mode === "replace" ? `Drop to replace ${escapeHtml(donorDropIntent.objectLabel ?? "selected object")}` : "Drop to create donor-backed image"}</strong>
+      <span>${donorDropIntent.mode === "replace"
+        ? `Keep ${escapeHtml(donorDropIntent.layerLabel ?? donorDropIntent.layerId ?? "current")} layout and donor linkage.`
+        : `Create a new donor-backed image object on ${escapeHtml(donorDropIntent.layerLabel ?? donorDropIntent.layerId ?? "the chosen target layer")}.`}</span>
+    </div>
+  ` : "";
 
   elements.editorCanvas.innerHTML = `
     <div class="canvas-meta">
@@ -8804,6 +9264,7 @@ function renderEditorCanvas() {
     </div>
     <div class="${viewportClassNames}" tabindex="0" aria-label="Project editor canvas" data-donor-drop-zone="1" style="${viewportInlineStyle}">
       <div class="${stageClassNames}">
+        ${dropIntentMarkup}
         <div class="canvas-camera" style="${cameraInlineStyle}">
           ${objectMarkup}
         </div>

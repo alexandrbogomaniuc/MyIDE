@@ -29,13 +29,14 @@ Current editable workflow:
 - select objects from the scene list or canvas
 - create placeholder objects from the preset picker
 - choose the donor import target layer in **Donor Assets & Evidence**
-- drag one supported donor image asset from **Donor Assets & Evidence** into the canvas to create a new internal image object on that target layer
+- drag one supported donor image asset from **Donor Assets & Evidence** into empty canvas space to create a new internal image object on that target layer
 - drag a second supported donor image asset into the canvas if you want to confirm multiple donor-backed imports in one session
-- select one existing editable object and use **Replace Selected Object** on a donor asset card if you want to swap its visuals while keeping the same object slot and layout
+- drag one supported donor image asset directly over an editable canvas object if you want to replace it while keeping the same object slot, layer, and layout
+- use **Replace Selected Object** on a donor asset card if you want the bounded button path instead of direct drop-to-replace
 - move objects on the canvas
 - change bounded inspector fields
 - resize placeholder-backed objects
-- resize donor-backed imported image objects
+- resize donor-backed imported image objects with the small bottom-right canvas handle on the selected donor-backed image
 - align placeholder-backed objects to the viewport
 - reassign objects between unlocked layers
 - reorder objects within the current layer
@@ -66,13 +67,14 @@ The donor file remains read-only evidence. Drag/drop creates a new internal scen
 
 ## 6. Save / Reload Loop
 1. Optionally choose a donor import target layer first.
-2. Drag one donor image into the canvas.
+2. Drag one donor image into empty canvas space.
 3. If both `png` and `webp` donor assets are visible in the palette, import one of each for the stronger bounded donor proof.
-4. Optionally select an existing editable object and replace it with a donor asset.
-5. Click **Save Scene Changes** or use `Ctrl/Cmd+S`.
-6. Check that the editor state returns to **Saved**.
-7. Click **Reload From Disk**.
-8. Confirm the imported or replaced donor-backed objects still appear after reload, on the intended layer, with donor linkage details intact.
+4. Optionally drag a donor image over an existing editable object to replace it directly.
+5. Select an imported donor-backed image and drag its small bottom-right resize handle if you want to test bounded direct manipulation.
+6. Click **Save Scene Changes** or use `Ctrl/Cmd+S`.
+7. Check that the editor state returns to **Saved**.
+8. Click **Reload From Disk**.
+9. Confirm the imported or replaced donor-backed objects still appear after reload, on the intended layer, with donor linkage details intact.
 
 ## 7. If You Hit A Bug
 1. Stop after the first clear failure.

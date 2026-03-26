@@ -17,6 +17,8 @@ interface LiveDonorImportPayload {
   projectId?: string;
   availableDonorAssetCount?: number | null;
   availableFileTypes?: string[];
+  createDropIntentVisible?: boolean;
+  replaceDropIntentVisible?: boolean;
   importedAssetCount?: number | null;
   importedFileTypes?: string[];
   importModes?: string[];
@@ -39,6 +41,7 @@ interface LiveDonorImportPayload {
   }>;
   replacementStarted?: boolean;
   replacementCompleted?: boolean;
+  replacementMode?: string | null;
   replacementPersistVerified?: boolean;
   replacementLinkageVerified?: boolean;
   replacementObjectId?: string | null;
@@ -62,6 +65,9 @@ interface LiveDonorImportPayload {
   dragStarted?: boolean;
   dragMoved?: boolean;
   dragCompleted?: boolean;
+  resizeStarted?: boolean;
+  resizeCompleted?: boolean;
+  resizePersistVerified?: boolean;
   saveSucceeded?: boolean;
   reloadSucceeded?: boolean;
   internalPersistVerified?: boolean;
@@ -74,8 +80,12 @@ interface LiveDonorImportPayload {
   importedY?: number | null;
   draggedX?: number | null;
   draggedY?: number | null;
+  resizedWidth?: number | null;
+  resizedHeight?: number | null;
   reloadedX?: number | null;
   reloadedY?: number | null;
+  reloadedWidth?: number | null;
+  reloadedHeight?: number | null;
   syncStatus?: string | null;
   replayPath?: string | null;
   previewStatus?: string | null;
@@ -353,9 +363,13 @@ async function main(): Promise<void> {
     assert.equal(payload.assetPaletteReady, true, "Renderer did not render the donor asset palette.");
     assert.equal(payload.importStarted, true, "Renderer did not begin donor import drag/drop.");
     assert.equal(payload.importCompleted, true, "Renderer did not import a donor asset.");
+    assert.equal(payload.createDropIntentVisible, true, "Renderer did not surface the create drop intent on empty canvas.");
     assert.equal(payload.dragStarted, true, "Renderer did not start dragging the imported object.");
     assert.equal(payload.dragMoved, true, "Renderer did not move the imported object.");
     assert.equal(payload.dragCompleted, true, "Renderer did not complete the imported object drag.");
+    assert.equal(payload.resizeStarted, true, "Renderer did not start the donor-backed resize interaction.");
+    assert.equal(payload.resizeCompleted, true, "Renderer did not complete the donor-backed resize interaction.");
+    assert.equal(payload.resizePersistVerified, true, "Renderer did not preserve the donor-backed resize through reload.");
     assert.equal(payload.saveSucceeded, true, "Renderer did not save after donor import.");
     assert.equal(payload.reloadSucceeded, true, "Renderer did not reload after donor import.");
     assert.equal(payload.internalPersistVerified, true, "Renderer did not confirm internal donor linkage after reload.");
@@ -386,10 +400,23 @@ async function main(): Promise<void> {
       assert.equal(importedAsset.reloadedLayerId, importedAsset.targetLayerId, `Reloaded donor object ${importedAsset.objectId ?? "unknown"} did not stay on its intended layer.`);
     }
     assert.equal(payload.replacementStarted, true, "Renderer did not attempt the donor-backed replacement proof.");
+    assert.equal(payload.replaceDropIntentVisible, true, "Renderer did not surface the replace drop intent on an editable object.");
     assert.equal(payload.replacementCompleted, true, "Renderer did not complete the donor-backed replacement proof.");
+    assert(
+      payload.replacementMode === "synthetic-drop" || payload.replacementMode === "drop-handler-bridge",
+      "Renderer relied on a replacement path outside the bounded donor drop workflow."
+    );
     assert.equal(payload.replacementPersistVerified, true, "Renderer did not preserve the donor-backed replacement layout/layer after reload.");
     assert.equal(payload.replacementLinkageVerified, true, "Renderer did not preserve donor linkage for the donor-backed replacement after reload.");
     assert.equal(payload.replacementReloadedLayerId, payload.replacementLayerId, "Renderer reloaded the donor-backed replacement on a different layer.");
+    assert(
+      typeof payload.resizedWidth === "number" && typeof payload.resizedHeight === "number",
+      "Renderer did not report resized donor-backed image dimensions."
+    );
+    assert(
+      payload.reloadedWidth === payload.resizedWidth && payload.reloadedHeight === payload.resizedHeight,
+      "Renderer did not preserve the resized donor-backed image dimensions after reload."
+    );
 
     const internalDocument = await readJson(path.join(internalRoot, "objects.json"));
     const replayProject = await readJson(replayProjectPath);
@@ -416,6 +443,10 @@ async function main(): Promise<void> {
       assert.equal(replayDonorAsset.evidenceId, donorEvidenceId, `Replay node ${objectId} did not persist donor evidence metadata.`);
       assert(replayEvidenceRefs.includes(donorEvidenceId), `Replay node ${objectId} did not persist donor evidenceRefs.`);
       assert.equal(internalObject.layerId, importedAsset.targetLayerId, `Editable object ${objectId} did not persist its intended donor layer.`);
+      if (objectId === payload.objectId && payload.resizedWidth && payload.resizedHeight) {
+        assert.equal(internalObject.width, payload.resizedWidth, `Editable object ${objectId} did not persist the resized width.`);
+        assert.equal(internalObject.height, payload.resizedHeight, `Editable object ${objectId} did not persist the resized height.`);
+      }
     }
     if (payload.replacementObjectId && payload.replacementDonorAssetId && payload.replacementDonorEvidenceId) {
       const replacementInternalObject = getInternalObject(internalDocument, payload.replacementObjectId);

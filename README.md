@@ -101,9 +101,10 @@ Public publication rules are defined in [`00_control/PUBLIC_REPO_POLICY.md`](./0
 - The current shell is still a bounded internal scene editor for `40_projects/project_001/internal`, but `project_001` now has a stronger bounded donor composition slice on top of it.
 - After `npm run donor-assets:index:project_001`, the left column shows **Donor Assets & Evidence** with a donor asset palette for supported local donor images found on this machine.
 - Supported import types in this slice are static donor images only: `png`, `webp`, `jpg`, `jpeg`, and `svg` when those files exist locally for `project_001`.
-- The donor palette now supports search plus file-type filters, a visible import-target layer selector, and a bounded replace-selected-object path for the current editable selection.
-- Dragging donor asset cards into the canvas creates new editable internal scene objects with donor linkage on the chosen target layer. If an editable scene object is selected, a donor asset card can also replace that object while preserving its layout and switching it to donor-backed linkage.
-- The current bounded proof now covers more than one real donor image import on `project_001`, including `png` and `webp` when both are present locally, plus one bounded donor-backed object replacement that survives save/reload.
+- The donor palette now supports search plus file-type filters, a visible import-target layer selector, direct create-vs-replace drop intent in the canvas, and the earlier bounded replace-selected-object path for the current editable selection.
+- Dragging donor asset cards into empty canvas space creates new editable internal scene objects with donor linkage on the chosen target layer. Dropping a donor asset directly over an editable scene object now replaces that object while preserving its layout and switching it to donor-backed linkage.
+- Selected donor-backed image objects now expose one bounded direct-manipulation improvement: a small bottom-right resize handle that persists through save/reload.
+- The current bounded proof now covers more than one real donor image import on `project_001`, including `png` and `webp` when both are present locally, plus one bounded donor-backed object replacement and one bounded donor-backed resize path that survive save/reload.
 - Raw donor files under `10_donors/` remain read-only evidence. The editable source of truth is still the internal scene, not the donor file itself.
 - `npm run manual:prepare:project_001` resets `project_001` to the current tracked baseline, refreshes derived/synced outputs, validates the project slice, and tells the tester what to run next.
 - `npm run manual:status` prints the exact local/public/handoff context the tester is using.
