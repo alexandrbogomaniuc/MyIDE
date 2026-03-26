@@ -8,7 +8,8 @@ Use this tooling before any automation sends a MyIDE project report.
   - Writes gitignored files:
     - `00_control/AUTOMATION_STATUS_SNAPSHOT.json`
     - `00_control/AUTOMATION_STATUS_SNAPSHOT.md`
-  - Also refreshes `00_control/LOCAL_PUBLIC_GAP.md` from the same publication truth source.
+  - Does not rewrite tracked publication docs.
+  - If you need a fresh tracked local/public gap snapshot, run `npm run publication:compare` separately.
 - `npm run automation:check-freshness`
   - Prints exactly one leading status line:
     - `CURRENT`

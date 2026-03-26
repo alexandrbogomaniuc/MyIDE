@@ -6,7 +6,7 @@ async function main(): Promise<void> {
 
   console.log(`Snapshot JSON: ${source.jsonPath}`);
   console.log(`Snapshot Markdown: ${source.markdownPath}`);
-  console.log(`Local/Public Gap: ${source.gapPath}`);
+  console.log(`Tracked Local/Public Gap reference: ${source.gapPath}`);
   console.log(`Snapshot state SHA: ${source.snapshot.snapshotStateSha}`);
   console.log(`Local HEAD: ${source.snapshot.localHead}`);
   console.log(`Public HEAD: ${source.snapshot.publicHead}`);
@@ -16,7 +16,7 @@ async function main(): Promise<void> {
   console.log(
     `Files updated: json=${writeResult.jsonUpdated ? "yes" : "no"}, markdown=${
       writeResult.markdownUpdated ? "yes" : "no"
-    }, gap=${writeResult.gapUpdated ? "yes" : "no"}`
+    }`
   );
 }
 

@@ -84,7 +84,6 @@ type SnapshotBuildSource = {
   markdownPath: string;
   gapPath: string;
   markdown: string;
-  gapMarkdown: string;
 };
 
 const SNAPSHOT_SCHEMA_VERSION = "2026-03-26.automation-truth-a";
@@ -270,8 +269,7 @@ export async function collectAutomationSnapshotSource(): Promise<SnapshotBuildSo
     jsonPath,
     markdownPath,
     gapPath,
-    markdown: renderAutomationSnapshotMarkdown(snapshot),
-    gapMarkdown: renderGapMarkdown(publicationState)
+    markdown: renderAutomationSnapshotMarkdown(snapshot)
   };
 }
 
@@ -350,15 +348,12 @@ export function writeIfChanged(filePath: string, contents: string): boolean {
 export function writeAutomationSnapshotFiles(source: SnapshotBuildSource): {
   jsonUpdated: boolean;
   markdownUpdated: boolean;
-  gapUpdated: boolean;
 } {
   const jsonUpdated = writeIfChanged(source.jsonPath, JSON.stringify(source.snapshot, null, 2));
   const markdownUpdated = writeIfChanged(source.markdownPath, source.markdown);
-  const gapUpdated = writeIfChanged(source.gapPath, source.gapMarkdown);
   return {
     jsonUpdated,
-    markdownUpdated,
-    gapUpdated
+    markdownUpdated
   };
 }
 
