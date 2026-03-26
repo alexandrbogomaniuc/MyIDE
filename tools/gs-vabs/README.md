@@ -81,3 +81,28 @@ These commands manage the project-local GS VABS scaffold without coupling VABS i
 - Deterministic.
 - Scaffold, captured-row and captured-session intake guidance, sanitization, captured-vs-derived fixture tracking, export, preview, local page-shell mock, local browser smoke, local session-row mock, local row-click replay proof, local replay-summary harness, comparison, and verification only.
 - No production VABS renderer build in this phase.
+
+## Hard-Stop Rule
+- If no real sanitized archived `playerBets` row or `playerBets[]` session exists, stop at the strongest derived-truth proof chain.
+- Do not add new generic VABS tooling just to keep moving.
+- Use the operator handoff docs instead:
+  - `40_projects/project_001/vabs/contract/operator-row-capture-request.md`
+  - `40_projects/project_001/vabs/contract/operator-session-capture-request.md`
+
+## After A Real Data Drop
+- Row only:
+  - `npm run vabs:intake:project_001 -- --source /absolute/path/to/raw-row.json`
+  - `npm run vabs:sanitize:project_001`
+  - `npm run vabs:verify:captured:project_001`
+- Session:
+  - `npm run vabs:intake:session:project_001 -- --source /absolute/path/to/raw-session.json`
+  - `npm run vabs:sanitize:session:project_001`
+  - `npm run vabs:verify:captured-session:project_001`
+- Then re-run:
+  - `npm run vabs:compare:project_001`
+  - `npm run vabs:replay:project_001`
+  - `npm run vabs:export:project_001`
+  - `npm run vabs:verify:export:project_001`
+  - `npm run vabs:preview:project_001`
+  - `npm run vabs:mock:project_001`
+  - `npm run vabs:smoke:project_001`

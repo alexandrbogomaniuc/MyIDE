@@ -7,6 +7,7 @@ This file records the exact sources checked for a real archived `playerBets` row
 - No full Mystery Garden archived `playerBets[]` session is currently available in the accessible local workspace or canonical GS reference material.
 - The strongest grounded project-specific capture remains `MG-EV-20260320-LIVE-A-005__runtime_init_response.json`.
 - That file confirms a real live `flow.round_id=14099735306`, but it is not itself an archived history row.
+- GS-VABS-L intentionally stops here instead of widening VABS mechanics again until one real sanitized archived row or session exists.
 
 ## Sources Checked
 
@@ -54,6 +55,24 @@ This file records the exact sources checked for a real archived `playerBets` row
   - proves archived row storage exists for other games
   - not valid project_001 captured provenance
 
+### Reserved project-local raw intake paths
+- Files checked:
+  - `40_projects/project_001/vabs/contract/captured-playerBets-row.json`
+  - `40_projects/project_001/vabs/contract/captured-playerBets-session.json`
+- Result:
+  - neither raw intake file exists yet
+  - no previously dropped local archived row/session was waiting for sanitization
+
+### Wider local GS/runtime search
+- Path families:
+  - `/Users/alexb/Documents/Dev/Doker/runtime-gs/webapps/gs/ROOT`
+  - `/Users/alexb/Documents/Dev/mq-gs-clean-version`
+  - `/Users/alexb/Documents/Dev/_worktrees/7000-release-pack-skeleton-20260322-1858/Gamesv1/games/7000/release-packs/dev-canary-001/proofs`
+- Result:
+  - no Mystery Garden archived `playerBets[]` session
+  - no Mystery Garden archived `playerBets` row
+  - only generic or other-game history proof artifacts
+
 ## Intake Rule
 - Local-only raw archived rows belong at:
   - `contract/captured-playerBets-row.json`
@@ -65,3 +84,7 @@ This file records the exact sources checked for a real archived `playerBets` row
   - `contract/captured-playerBets-session.sanitized.json`
 - `auto` selection must only promote the sanitized path.
 - Raw local-only rows may only be used intentionally via explicit captured selection or sanitization commands.
+- Until a real archived row/session is dropped into those intake paths, the strongest honest state remains:
+  - derived row fixture
+  - derived session fixture
+  - captured live `ROUND_ID` only

@@ -14,6 +14,7 @@ Use this for each project that will eventually ship GS VABS / visual round histo
 - [ ] Define the raw local session-capture drop path and the sanitized commit-safe session-capture path.
 - [ ] Define whether `auto` replay selection may use only sanitized captured rows or some broader fallback.
 - [ ] Define the local GS-style export package shape.
+- [ ] If no captured row/session exists yet, stop and issue the minimum operator capture request instead of widening VABS scaffolding.
 
 ## Renderer Scaffold
 - [ ] Create `renderer/code.template.js`.
@@ -65,3 +66,4 @@ Use this for each project that will eventually ship GS VABS / visual round histo
 - Current export rule: the local export package mirrors `common/vabs/mysterygarden/` but remains a stub-only non-production package
 - Current shell-mock rule: the local shell mock approximates `/vabs/show.jsp` boot with the exported package, but it is still not live JSP deployment proof
 - Current session-mock rule: the row list and row-click replay flow are derived local support/history scaffolding until a real captured archived session exists
+- Current hard-stop rule: if no real sanitized archived row/session exists, use the operator capture request docs and stop there instead of adding more generic VABS mechanics

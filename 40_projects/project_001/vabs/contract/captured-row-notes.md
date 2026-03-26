@@ -6,6 +6,7 @@ This file tracks the strongest grounded row-adjacent evidence currently availabl
 - No full captured `playerBets` archived row was found in the accessible local donor/canonical data for this run.
 - The deterministic replay fixture therefore remains `contract/sample-playerBets-row.json`.
 - That fixture is still derived, not captured.
+- GS-VABS-L stops at that truth on purpose instead of adding more renderer/mock mechanics without real archived row data.
 
 ## Intake Paths
 - Local-only raw intake path: `contract/captured-playerBets-row.json`
@@ -21,6 +22,8 @@ This file tracks the strongest grounded row-adjacent evidence currently availabl
   - `-- captured` may use `captured-playerBets-row.sanitized.json`
   - if no sanitized row exists yet, `-- captured` may use local `captured-playerBets-row.json`
   - this keeps raw intake opt-in and local-only
+- Operator handoff doc:
+  - `contract/operator-row-capture-request.md`
 
 ## Captured Evidence Found
 - Capture session: `MG-CS-20260320-LIVE-A`
@@ -52,3 +55,4 @@ This file tracks the strongest grounded row-adjacent evidence currently availabl
 ## Exact Blocker
 - A real/sanitizable archived `playerBets` row for the target Mystery Garden history path is still not present in the accessible local reference material.
 - Until one is captured and sanitized, the default replay harness should keep reporting the row as `derived-contract-fixture` with `captured-round-id-only` provenance.
+- The next meaningful improvement is therefore one real sanitized archived row drop, not more generic VABS scaffolding.

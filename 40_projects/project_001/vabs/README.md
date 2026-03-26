@@ -54,7 +54,7 @@ This folder is the GS VABS workspace scaffold for `project_001`.
 - `contract/captured-playerBets-session.json` is the local-only raw session intake path and is gitignored.
 - `contract/captured-playerBets-session.sanitized.json` is the reserved future commit-safe captured-session path.
 - `auto` fixture selection only promotes the sanitized captured path; it will not silently use the local raw intake file.
-- `contract/operator-session-capture-request.md` and `contract/captured-session-redaction-guidelines.md` now document the smallest honest capture pack while no real archived session is available.
+- `contract/operator-session-capture-request.md`, `contract/operator-row-capture-request.md`, and `contract/captured-session-redaction-guidelines.md` now document the smallest honest capture pack while no real archived row/session is available.
 - `contract/fixture-comparison.md` records which fields are confirmed from captured data vs derived from GS examples vs still provisional.
 - The renderer folder now contains one project-specific stub package under `renderer/mysterygarden/`.
 - The local replay harness now supports fixture provenance reporting and writes deterministic replay-summary artifacts under `/tmp/myide-vabs-project_001-replay/<fixture-kind>/`.
@@ -64,3 +64,4 @@ This folder is the GS VABS workspace scaffold for `project_001`.
 - The local shell mock now stages a browser-facing shell under `/tmp/myide-vabs-project_001-shell-mock/<fixture-kind>/`, loads that same exported package through relative `common/vabs/mysterygarden/` paths, shows a row list, and updates the replay panel when a row is selected.
 - The local browser smoke now opens that shell mock through a headless local browser and confirms a non-default row selection updated the replay-summary stub inside the mock shell.
 - The stub now renders a stronger replay-summary panel, but it is still not a finished production GS renderer.
+- GS-VABS-L now makes the stop condition explicit: until one real sanitized archived row or session is dropped in, this repo should keep using the derived proof chain and the operator handoff docs instead of adding more generic VABS scaffolding.

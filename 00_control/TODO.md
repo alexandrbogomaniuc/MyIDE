@@ -249,6 +249,13 @@
 - [ ] Capture one real sanitized Mystery Garden archived `playerBets[]` session.
 - [ ] Promote captured-session-backed fields from provisional to confirmed only when that session exists.
 
+## GS-VABS-L
+- [x] Re-run the wider real-data hunt across donor, canonical, and local GS sources.
+- [x] Stop cleanly when no stronger real archived row/session truth exists.
+- [x] Add the minimum operator row/session capture handoff docs with exact post-drop commands.
+- [ ] Capture one real sanitized Mystery Garden archived `playerBets` row or `playerBets[]` session.
+- [ ] Re-run the full VABS proof chain on captured truth once that data exists.
+
 ## GS-VABS-A
 - [x] Audit accessible GS/VABS reference files and document grounded patterns.
 - [x] Document VABS as an additional MyIDE module rather than an editor replacement.

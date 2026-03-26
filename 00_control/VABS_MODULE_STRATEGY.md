@@ -175,3 +175,16 @@ This run still does not add:
 - a finished production GS VABS renderer
 - a committed full captured Mystery Garden archived `playerBets[]` session
 - any change to the current internal-scene editor model
+
+## Current GS-VABS-L Scope
+This run adds:
+- one explicit hard-stop rule: no more generic VABS scaffolding until a real sanitized archived Mystery Garden row or session exists
+- one broader recorded source hunt that confirms no stronger archived row/session truth is currently accessible
+- one row-specific operator capture request alongside the existing session capture request
+- one clearer operator handoff path with exact post-drop commands
+
+This run still does not add:
+- a finished production GS VABS renderer
+- a committed full captured Mystery Garden archived `playerBets` row
+- a committed full captured Mystery Garden archived `playerBets[]` session
+- any change to the current internal-scene editor model

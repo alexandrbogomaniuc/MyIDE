@@ -107,6 +107,7 @@ Public publication rules are defined in [`00_control/PUBLIC_REPO_POLICY.md`](./0
 - `npm run vabs:parse:project_001` prints the parsed row-contract summary for the current fixture.
 - `npm run vabs:compare:project_001` prints the current captured-vs-derived comparison view for `project_001`.
 - `project_001` now tracks captured-vs-derived truth explicitly: no full captured archived `playerBets` row or `playerBets[]` session is stored yet, but the current derived fixture carries one confirmed live `ROUND_ID` from `MG-EV-20260320-LIVE-A-005`, the repo now reserves both gitignored raw captured-row/session intake paths and future commit-safe sanitized captured row/session paths, and `auto` selection only promotes sanitized captured data.
+- GS-VABS-L hard-stops the lane there for now: until one real sanitized archived row or session exists, the repo should use the derived proof chain plus the operator capture request docs instead of adding more generic VABS scaffolding.
 - `npm run vabs:replay:project_001` writes deterministic replay-summary artifacts to `/tmp/myide-vabs-project_001-replay/<fixture-kind>/`.
 - `npm run vabs:export:project_001` writes a deterministic GS-style local package to `/tmp/myide-vabs-project_001-export/common/vabs/mysterygarden/`.
 - `npm run vabs:preview:project_001` proves that exported package can be exercised locally without JSP hosting or live GS deployment.
