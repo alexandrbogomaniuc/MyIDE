@@ -34,6 +34,7 @@ const state = {
   },
   donorAssetUi: {
     searchQuery: "",
+    fileTypeFilter: "all",
     highlightedAssetId: null,
     dragPayload: null
   },
@@ -1531,6 +1532,12 @@ async function runLiveDonorImportSmoke() {
   const baseResult = {
     startedAt,
     projectId: targetProjectId,
+    availableDonorAssetCount: null,
+    availableFileTypes: [],
+    importedAssetCount: 0,
+    importedFileTypes: [],
+    importModes: [],
+    importedAssets: [],
     donorAssetId: null,
     donorEvidenceId: null,
     objectId: null,
@@ -1609,88 +1616,154 @@ async function runLiveDonorImportSmoke() {
         "default viewport state"
       );
     }
+    const donorAssetCatalog = getDonorAssetCatalog();
+    const usableDonorAssets = Array.isArray(donorAssetCatalog?.assets)
+      ? donorAssetCatalog.assets
+        .filter((asset) => Boolean(asset?.previewUrl))
+        .slice()
+        .sort((left, right) => {
+          const typeDiff = String(left.fileType ?? "").localeCompare(String(right.fileType ?? ""));
+          if (typeDiff !== 0) {
+            return typeDiff;
+          }
 
-    const donorAssetCard = await waitForRendererCondition(
-      () => elements.evidenceBrowser?.querySelector("[data-donor-asset-id]") ?? null,
-      "donor asset card in the evidence browser"
-    );
-    baseResult.assetPaletteReady = true;
-    const donorAssetId = donorAssetCard.dataset.donorAssetId ?? "";
-    const donorAsset = getDonorAssetById(donorAssetId);
-    if (!donorAssetId || !donorAsset?.previewUrl) {
-      throw new Error("No usable donor asset with a local preview is available for import.");
+          return String(left.assetId ?? "").localeCompare(String(right.assetId ?? ""));
+        })
+      : [];
+    const availableFileTypes = uniqueStrings(usableDonorAssets.map((asset) => String(asset.fileType ?? "").toLowerCase()).filter(Boolean));
+    const selectedDonorAssets = [];
+    const selectedAssetIds = new Set();
+    for (const preferredType of ["png", "webp"]) {
+      const candidate = usableDonorAssets.find((asset) => String(asset.fileType ?? "").toLowerCase() === preferredType);
+      if (candidate && !selectedAssetIds.has(candidate.assetId)) {
+        selectedDonorAssets.push(candidate);
+        selectedAssetIds.add(candidate.assetId);
+      }
+    }
+    for (const asset of usableDonorAssets) {
+      if (selectedDonorAssets.length >= Math.min(2, usableDonorAssets.length)) {
+        break;
+      }
+      if (!selectedAssetIds.has(asset.assetId)) {
+        selectedDonorAssets.push(asset);
+        selectedAssetIds.add(asset.assetId);
+      }
     }
 
-    baseResult.donorAssetId = donorAssetId;
-    baseResult.donorEvidenceId = donorAsset.evidenceId;
+    baseResult.availableDonorAssetCount = usableDonorAssets.length;
+    baseResult.availableFileTypes = availableFileTypes;
+
+    if (usableDonorAssets.length === 0 || selectedDonorAssets.length === 0) {
+      throw new Error("No usable donor assets with local previews are available for live donor import.");
+    }
+
+    if (usableDonorAssets.length >= 2 && selectedDonorAssets.length < 2) {
+      throw new Error("At least two donor assets are available, but the renderer could not select two deterministic import candidates.");
+    }
 
     const viewport = await waitForRendererCondition(
       () => elements.editorCanvas?.querySelector("[data-donor-drop-zone]") ?? null,
       "editor canvas donor drop zone"
     );
     const viewportRect = viewport.getBoundingClientRect();
-    const dropPoint = {
-      x: viewportRect.left + viewportRect.width * 0.42,
-      y: viewportRect.top + viewportRect.height * 0.38
-    };
-    const dataTransfer = new DataTransfer();
-    const payload = buildDonorAssetDragPayload(donorAssetId);
-    if (!payload) {
-      throw new Error(`Could not build a drag payload for ${donorAssetId}.`);
-    }
-
-    state.donorAssetUi.dragPayload = payload;
-    dataTransfer.setData("application/x-myide-donor-asset", JSON.stringify(payload));
-    dataTransfer.setData("text/plain", JSON.stringify(payload));
-    dispatchRendererDragEvent(donorAssetCard, "dragstart", {
-      dataTransfer,
-      clientX: viewportRect.left + 24,
-      clientY: viewportRect.top + 24
-    });
+    baseResult.assetPaletteReady = true;
     baseResult.importStarted = true;
 
-    dispatchRendererDragEvent(viewport, "dragover", {
-      dataTransfer,
-      clientX: dropPoint.x,
-      clientY: dropPoint.y
-    });
-    dispatchRendererDragEvent(viewport, "drop", {
-      dataTransfer,
-      clientX: dropPoint.x,
-      clientY: dropPoint.y
-    });
+    const importedAssets = [];
+    const importTargets = selectedDonorAssets.map((asset, index) => ({
+      asset,
+      dropPoint: {
+        x: viewportRect.left + viewportRect.width * Math.min(0.72, 0.34 + (index * 0.22)),
+        y: viewportRect.top + viewportRect.height * Math.min(0.72, 0.32 + (index * 0.18))
+      }
+    }));
 
-    await sleep(250);
-    const existingImportedObject = Array.isArray(state.editorData?.objects)
-      ? state.editorData.objects.find((entry) => entry.donorAsset?.assetId === donorAssetId)
-      : null;
-    if (!existingImportedObject) {
-      const fallbackScenePoint = getScenePointFromEvent({
-        clientX: dropPoint.x,
-        clientY: dropPoint.y
+    for (const [index, target] of importTargets.entries()) {
+      const donorAssetCard = await waitForRendererCondition(
+        () => elements.evidenceBrowser?.querySelector(`[data-donor-asset-id="${target.asset.assetId}"]`) ?? null,
+        `donor asset card ${target.asset.assetId} in the evidence browser`
+      );
+      const dataTransfer = new DataTransfer();
+      const payload = buildDonorAssetDragPayload(target.asset.assetId);
+      if (!payload) {
+        throw new Error(`Could not build a drag payload for ${target.asset.assetId}.`);
+      }
+
+      state.donorAssetUi.highlightedAssetId = target.asset.assetId;
+      state.donorAssetUi.dragPayload = payload;
+      dataTransfer.setData("application/x-myide-donor-asset", JSON.stringify(payload));
+      dataTransfer.setData("text/plain", JSON.stringify(payload));
+      dispatchRendererDragEvent(donorAssetCard, "dragstart", {
+        dataTransfer,
+        clientX: viewportRect.left + 24,
+        clientY: viewportRect.top + 24 + (index * 16)
       });
-      handleImportDonorAsset(payload.assetId, fallbackScenePoint);
-      baseResult.importMode = "renderer-import-fallback";
-    } else {
-      baseResult.importMode = "synthetic-drop";
+
+      dispatchRendererDragEvent(viewport, "dragover", {
+        dataTransfer,
+        clientX: target.dropPoint.x,
+        clientY: target.dropPoint.y
+      });
+      dispatchRendererDragEvent(viewport, "drop", {
+        dataTransfer,
+        clientX: target.dropPoint.x,
+        clientY: target.dropPoint.y
+      });
+
+      await sleep(250);
+      const existingImportedObject = Array.isArray(state.editorData?.objects)
+        ? state.editorData.objects.find((entry) => entry.donorAsset?.assetId === target.asset.assetId)
+        : null;
+      let importMode = "synthetic-drop";
+      if (!existingImportedObject) {
+        const fallbackScenePoint = getScenePointFromEvent({
+          clientX: target.dropPoint.x,
+          clientY: target.dropPoint.y
+        });
+        handleImportDonorAsset(payload.assetId, fallbackScenePoint);
+        importMode = "renderer-import-fallback";
+      }
+
+      const importedObject = await waitForRendererCondition(
+        () => {
+          const objects = Array.isArray(state.editorData?.objects) ? state.editorData.objects : [];
+          return objects.find((entry) => entry.donorAsset?.assetId === target.asset.assetId) ?? null;
+        },
+        `donor asset ${target.asset.assetId} to import into the editable scene`
+      );
+      importedAssets.push({
+        donorAssetId: target.asset.assetId,
+        donorEvidenceId: target.asset.evidenceId,
+        fileType: String(target.asset.fileType ?? "").toLowerCase(),
+        filename: target.asset.filename,
+        objectId: importedObject.id,
+        importMode,
+        importedX: Number(importedObject.x),
+        importedY: Number(importedObject.y),
+        draggedX: null,
+        draggedY: null,
+        reloadedX: null,
+        reloadedY: null
+      });
     }
 
-    const importedObject = await waitForRendererCondition(
-      () => {
-        const objects = Array.isArray(state.editorData?.objects) ? state.editorData.objects : [];
-        return objects.find((entry) => entry.donorAsset?.assetId === donorAssetId) ?? null;
-      },
-      `donor asset ${donorAssetId} to import into the editable scene`
-    );
-    baseResult.importCompleted = true;
-    baseResult.objectId = importedObject.id;
+    baseResult.importCompleted = importedAssets.length === importTargets.length;
+    baseResult.importedAssetCount = importedAssets.length;
+    baseResult.importedAssets = importedAssets;
+    baseResult.importModes = uniqueStrings(importedAssets.map((entry) => entry.importMode));
+    baseResult.importedFileTypes = uniqueStrings(importedAssets.map((entry) => entry.fileType));
+    const primaryImportedAsset = importedAssets[0];
+    baseResult.donorAssetId = primaryImportedAsset?.donorAssetId ?? null;
+    baseResult.donorEvidenceId = primaryImportedAsset?.donorEvidenceId ?? null;
+    baseResult.objectId = primaryImportedAsset?.objectId ?? null;
+    baseResult.importMode = primaryImportedAsset?.importMode ?? null;
     baseResult.objectCountAfterImport = Array.isArray(state.editorData?.objects) ? state.editorData.objects.length : null;
-    baseResult.importedX = Number(importedObject.x);
-    baseResult.importedY = Number(importedObject.y);
+    baseResult.importedX = primaryImportedAsset?.importedX ?? null;
+    baseResult.importedY = primaryImportedAsset?.importedY ?? null;
 
     const importedCanvasObject = await waitForRendererCondition(
-      () => getCanvasObjectElementById(importedObject.id),
-      `${importedObject.id} on the editor canvas`
+      () => getCanvasObjectElementById(primaryImportedAsset.objectId),
+      `${primaryImportedAsset.objectId} on the editor canvas`
     );
     const importedRect = importedCanvasObject.getBoundingClientRect();
     const startPoint = {
@@ -1711,8 +1784,8 @@ async function runLiveDonorImportSmoke() {
     });
 
     await waitForRendererCondition(
-      () => state.selectedObjectId === importedObject.id && state.canvasDrag?.objectId === importedObject.id,
-      `${importedObject.id} to start a canvas drag`
+      () => state.selectedObjectId === primaryImportedAsset.objectId && state.canvasDrag?.objectId === primaryImportedAsset.objectId,
+      `${primaryImportedAsset.objectId} to start a canvas drag`
     );
     baseResult.dragStarted = true;
 
@@ -1727,7 +1800,7 @@ async function runLiveDonorImportSmoke() {
 
     const movedObject = await waitForRendererCondition(
       () => {
-        const currentObject = getEditableObjectById(importedObject.id);
+        const currentObject = getEditableObjectById(primaryImportedAsset.objectId);
         if (!currentObject || !state.canvasDrag?.moved) {
           return null;
         }
@@ -1736,11 +1809,13 @@ async function runLiveDonorImportSmoke() {
         }
         return currentObject;
       },
-      `${importedObject.id} to move after donor import`
+      `${primaryImportedAsset.objectId} to move after donor import`
     );
     baseResult.dragMoved = true;
     baseResult.draggedX = Number(movedObject.x);
     baseResult.draggedY = Number(movedObject.y);
+    primaryImportedAsset.draggedX = baseResult.draggedX;
+    primaryImportedAsset.draggedY = baseResult.draggedY;
 
     dispatchRendererPointerEvent(window, "pointerup", {
       pointerId,
@@ -1765,7 +1840,7 @@ async function runLiveDonorImportSmoke() {
     clickRendererElement(elements.actionSave);
     await waitForRendererCondition(
       () => {
-        const currentObject = getEditableObjectById(importedObject.id);
+        const currentObject = getEditableObjectById(primaryImportedAsset.objectId);
         return Boolean(
           !state.dirty
           && state.syncStatus?.status === "synced"
@@ -1788,47 +1863,65 @@ async function runLiveDonorImportSmoke() {
       () => state.selectedProjectId === targetProjectId && Boolean(state.editorData),
       `${targetProjectId} reload after donor import save`
     );
-    const reloadedObject = await waitForRendererCondition(
-      () => {
-        const currentObject = getEditableObjectById(importedObject.id);
-        return currentObject
-          && currentObject.donorAsset?.assetId === donorAssetId
-          && Number(currentObject.x) === baseResult.draggedX
-          && Number(currentObject.y) === baseResult.draggedY
-          ? currentObject
-          : null;
-      },
-      `${importedObject.id} donor import data after reload`
-    );
     baseResult.reloadSucceeded = true;
     baseResult.objectCountAfterReload = Array.isArray(state.editorData?.objects) ? state.editorData.objects.length : null;
-    baseResult.reloadedX = Number(reloadedObject.x);
-    baseResult.reloadedY = Number(reloadedObject.y);
     baseResult.syncStatus = state.syncStatus?.status ?? null;
     baseResult.replayPath = toRepoRelativePath(state.syncStatus?.replayPath ?? getReplayTargetPath() ?? "");
+    const verificationResults = [];
+    for (const importedAsset of importedAssets) {
+      const donorAsset = getDonorAssetById(importedAsset.donorAssetId);
+      const expectedX = importedAsset.objectId === primaryImportedAsset.objectId
+        ? baseResult.draggedX
+        : importedAsset.importedX;
+      const expectedY = importedAsset.objectId === primaryImportedAsset.objectId
+        ? baseResult.draggedY
+        : importedAsset.importedY;
+      const reloadedObject = await waitForRendererCondition(
+        () => {
+          const currentObject = getEditableObjectById(importedAsset.objectId);
+          return currentObject
+            && currentObject.donorAsset?.assetId === importedAsset.donorAssetId
+            && Number(currentObject.x) === expectedX
+            && Number(currentObject.y) === expectedY
+            ? currentObject
+            : null;
+        },
+        `${importedAsset.objectId} donor import data after reload`
+      );
+      const replayNode = getReplayNodeById(importedAsset.objectId);
+      const replayEvidenceRefs = normalizeEvidenceRefs(asJsonObject(replayNode?.extensions)?.evidenceRefs);
+      const replayDonorAsset = asJsonObject(replayNode?.extensions)?.donorAsset;
 
-    const replayNode = getReplayNodeById(importedObject.id);
-    const replayEvidenceRefs = normalizeEvidenceRefs(asJsonObject(replayNode?.extensions)?.evidenceRefs);
-    const replayDonorAsset = asJsonObject(replayNode?.extensions)?.donorAsset;
-    baseResult.internalPersistVerified = reloadedObject.donorAsset?.assetId === donorAssetId;
-    baseResult.replaySyncVerified = replayNode?.assetRef === donorAssetId;
-    baseResult.donorLinkageVerified = replayEvidenceRefs.includes(donorAsset.evidenceId)
-      && replayDonorAsset?.evidenceId === donorAsset.evidenceId
-      && replayDonorAsset?.repoRelativePath === donorAsset.repoRelativePath;
+      importedAsset.reloadedX = Number(reloadedObject.x);
+      importedAsset.reloadedY = Number(reloadedObject.y);
+      verificationResults.push({
+        internalPersistVerified: reloadedObject.donorAsset?.assetId === importedAsset.donorAssetId,
+        replaySyncVerified: replayNode?.assetRef === importedAsset.donorAssetId,
+        donorLinkageVerified: replayEvidenceRefs.includes(importedAsset.donorEvidenceId)
+          && replayDonorAsset?.evidenceId === importedAsset.donorEvidenceId
+          && replayDonorAsset?.repoRelativePath === donorAsset?.repoRelativePath
+      });
+    }
+
+    baseResult.reloadedX = primaryImportedAsset.reloadedX ?? null;
+    baseResult.reloadedY = primaryImportedAsset.reloadedY ?? null;
+    baseResult.internalPersistVerified = verificationResults.every((entry) => entry.internalPersistVerified);
+    baseResult.replaySyncVerified = verificationResults.every((entry) => entry.replaySyncVerified);
+    baseResult.donorLinkageVerified = verificationResults.every((entry) => entry.donorLinkageVerified);
 
     if (!baseResult.internalPersistVerified) {
-      throw new Error("Reloaded imported object lost its donor asset linkage.");
+      throw new Error("Reloaded imported donor objects lost their donor asset linkage.");
     }
 
     if (!baseResult.replaySyncVerified) {
-      throw new Error("Replay-facing imported object lost its donor asset reference.");
+      throw new Error("Replay-facing imported donor objects lost their donor asset references.");
     }
 
     if (!baseResult.donorLinkageVerified) {
-      throw new Error("Replay-facing imported object did not preserve donor evidence linkage metadata.");
+      throw new Error("Replay-facing imported donor objects did not preserve donor evidence linkage metadata.");
     }
 
-    const successMessage = `Live donor import smoke passed for ${importedObject.id}: imported ${donorAsset.evidenceId}, moved it to (${baseResult.draggedX}, ${baseResult.draggedY}), and reloaded the donor linkage successfully.`;
+    const successMessage = `Live donor import smoke passed for ${importedAssets.length} donor assets (${baseResult.importedFileTypes.join(", ")}): moved ${primaryImportedAsset.objectId} to (${baseResult.draggedX}, ${baseResult.draggedY}) and reloaded donor linkage for every imported object.`;
     setPreviewStatus(successMessage);
     baseResult.previewStatus = successMessage;
     document.body.dataset.liveDonorImportSmoke = "pass";
@@ -3963,6 +4056,18 @@ function bindActions() {
       return;
     }
 
+    const donorAssetTypeFilter = target.closest("[data-donor-asset-type-filter]");
+    if (donorAssetTypeFilter instanceof HTMLElement) {
+      event.preventDefault();
+      state.donorAssetUi.fileTypeFilter = donorAssetTypeFilter.dataset.donorAssetTypeFilter || "all";
+      renderAll();
+      const filterLabel = state.donorAssetUi.fileTypeFilter === "all"
+        ? "all donor image formats"
+        : `${state.donorAssetUi.fileTypeFilter.toUpperCase()} donor images`;
+      setPreviewStatus(`Showing ${filterLabel} in the donor asset palette.`);
+      return;
+    }
+
     const donorAssetCard = target.closest("[data-donor-asset-id]");
     if (donorAssetCard instanceof HTMLElement && donorAssetCard.dataset.donorAssetId) {
       state.donorAssetUi.highlightedAssetId = donorAssetCard.dataset.donorAssetId;
@@ -4825,18 +4930,65 @@ function getDonorAssetById(assetId) {
 function getVisibleDonorAssetItems() {
   const items = getDonorAssetCatalogItems();
   const searchQuery = String(state.donorAssetUi?.searchQuery ?? "").trim().toLowerCase();
-  if (!searchQuery) {
-    return items;
+  const fileTypeFilter = String(state.donorAssetUi?.fileTypeFilter ?? "all").trim().toLowerCase();
+
+  return items.filter((item) => {
+    const matchesSearch = !searchQuery || [
+      item.title,
+      item.filename,
+      item.evidenceId,
+      item.captureSessionId,
+      item.fileType,
+      item.sourceCategory
+    ].some((value) => String(value ?? "").toLowerCase().includes(searchQuery));
+    const matchesFileType = fileTypeFilter === "all"
+      || String(item.fileType ?? "").toLowerCase() === fileTypeFilter;
+    return matchesSearch && matchesFileType;
+  });
+}
+
+function getDonorAssetFileTypeOptions() {
+  const catalog = getDonorAssetCatalog();
+  return Array.isArray(catalog?.availableFileTypes)
+    ? catalog.availableFileTypes
+    : [];
+}
+
+function getDonorAssetFileTypeCount(fileType) {
+  const catalog = getDonorAssetCatalog();
+  return Number(catalog?.countsByFileType?.[fileType] ?? 0);
+}
+
+function groupVisibleDonorAssetsByFileType(items) {
+  const groups = new Map();
+  for (const item of items) {
+    const key = String(item.fileType ?? "other").toLowerCase();
+    const current = groups.get(key) ?? [];
+    current.push(item);
+    groups.set(key, current);
   }
 
-  return items.filter((item) => [
-    item.title,
-    item.filename,
-    item.evidenceId,
-    item.captureSessionId,
-    item.fileType,
-    item.sourceCategory
-  ].some((value) => String(value ?? "").toLowerCase().includes(searchQuery)));
+  const preferredOrder = getDonorAssetFileTypeOptions();
+  const sortedKeys = Array.from(groups.keys()).sort((left, right) => {
+    const leftIndex = preferredOrder.indexOf(left);
+    const rightIndex = preferredOrder.indexOf(right);
+    if (leftIndex >= 0 && rightIndex >= 0) {
+      return leftIndex - rightIndex;
+    }
+    if (leftIndex >= 0) {
+      return -1;
+    }
+    if (rightIndex >= 0) {
+      return 1;
+    }
+    return left.localeCompare(right);
+  });
+
+  return sortedKeys.map((key) => ({
+    fileType: key,
+    count: groups.get(key)?.length ?? 0,
+    items: groups.get(key) ?? []
+  }));
 }
 
 function getEvidenceCatalogItems() {
@@ -4984,6 +5136,18 @@ function getObjectEvidenceLinkage(selectedObject) {
     donorAssetLabel: typeof localDonorAsset?.title === "string"
       ? localDonorAsset.title
       : null,
+    donorAssetId: typeof localDonorAsset?.assetId === "string"
+      ? localDonorAsset.assetId
+      : null,
+    donorAssetFilename: typeof localDonorAsset?.filename === "string"
+      ? localDonorAsset.filename
+      : null,
+    donorAssetFileType: typeof localDonorAsset?.fileType === "string"
+      ? localDonorAsset.fileType
+      : null,
+    donorAssetCaptureSessionId: typeof localDonorAsset?.captureSessionId === "string"
+      ? localDonorAsset.captureSessionId
+      : null,
     donorAssetPath: typeof localDonorAsset?.repoRelativePath === "string"
       ? localDonorAsset.repoRelativePath
       : null,
@@ -5049,6 +5213,7 @@ function buildEvidenceToObjectIndex() {
       ["importer node", linkage.importNodeEvidenceRefs],
       ["replay asset", linkage.replayAssetEvidenceRefs],
       ["importer asset", linkage.importAssetEvidenceRefs],
+      ["local donor", linkage.localDonorEvidenceRefs],
       ["state", linkage.stateEvidenceRefs],
       ["animation", linkage.animationEvidenceRefs]
     ];
@@ -5322,7 +5487,54 @@ function renderEvidencePreview(item) {
   `;
 }
 
-function renderDonorAssetCards(items) {
+function renderDonorAssetFilterBar(donorAssetCatalog, visibleCount) {
+  if (!donorAssetCatalog || donorAssetCatalog.assetCount <= 0) {
+    return "";
+  }
+
+  const selectedFilter = String(state.donorAssetUi?.fileTypeFilter ?? "all").trim().toLowerCase();
+  const filterOptions = [
+    {
+      key: "all",
+      label: "All",
+      count: donorAssetCatalog.assetCount
+    },
+    ...donorAssetCatalog.availableFileTypes.map((fileType) => ({
+      key: fileType,
+      label: fileType.toUpperCase(),
+      count: donorAssetCatalog.countsByFileType?.[fileType] ?? 0
+    }))
+  ];
+  const sourceSummary = Object.entries(donorAssetCatalog.countsBySourceCategory ?? {})
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([label, count]) => `<span>${escapeHtml(label)}: ${count}</span>`)
+    .join("");
+
+  return `
+    <div class="donor-asset-filter-toolbar">
+      <div class="donor-asset-filter-buttons" role="toolbar" aria-label="Donor asset type filter">
+        ${filterOptions.map((option) => `
+          <button
+            type="button"
+            class="donor-asset-filter-button ${selectedFilter === option.key ? "is-active" : ""}"
+            data-donor-asset-type-filter="${escapeAttribute(option.key)}"
+            aria-pressed="${selectedFilter === option.key ? "true" : "false"}"
+          >
+            <span>${escapeHtml(option.label)}</span>
+            <strong>${option.count}</strong>
+          </button>
+        `).join("")}
+      </div>
+      <div class="chip-row donor-asset-summary-chips">
+        <span>${visibleCount} visible</span>
+        ${sourceSummary || "<span>No grounded source categories indexed.</span>"}
+      </div>
+    </div>
+  `;
+}
+
+function renderDonorAssetCards(items, evidenceObjectIndex = new Map()) {
+  const groupedItems = groupVisibleDonorAssetsByFileType(items);
   if (!Array.isArray(items) || items.length === 0) {
     const searchQuery = String(state.donorAssetUi?.searchQuery ?? "").trim();
     return searchQuery
@@ -5331,50 +5543,72 @@ function renderDonorAssetCards(items) {
   }
 
   return `
-    <div class="donor-asset-grid">
-      ${items.map((item) => `
-        <article
-          class="evidence-item-card donor-asset-card ${item.assetId === state.donorAssetUi?.highlightedAssetId ? "is-highlighted" : ""}"
-          data-donor-asset-id="${escapeAttribute(item.assetId)}"
-          draggable="true"
-        >
-          <div class="evidence-item-head">
-            <div>
-              <strong>${escapeHtml(item.title)}</strong>
-              <small><code>${escapeHtml(item.evidenceId)}</code></small>
-            </div>
-            <div class="evidence-actions">
-              ${renderCopyButton(item.assetId, `donor asset id ${item.assetId}`)}
-              ${renderCopyButton(item.absolutePath, `donor asset path ${item.assetId}`, "Copy Path")}
-            </div>
+    <div class="donor-asset-groups">
+      ${groupedItems.map((group) => `
+        <section class="donor-asset-group">
+          <div class="donor-asset-group-head">
+            <strong>${escapeHtml(group.fileType.toUpperCase())} Assets</strong>
+            <span>${group.count} item${group.count === 1 ? "" : "s"}</span>
           </div>
-          <div class="chip-row">
-            <span>${escapeHtml(item.fileType)}</span>
-            <span>${escapeHtml(item.sourceCategory)}</span>
-            <span>${escapeHtml(item.captureSessionId)}</span>
-            <span>${item.width && item.height ? `${item.width}×${item.height}` : "size unknown"}</span>
+          <div class="donor-asset-grid">
+            ${group.items.map((item) => {
+              const linkedObjects = evidenceObjectIndex.get(item.evidenceId) ?? [];
+              return `
+              <article
+                class="evidence-item-card donor-asset-card ${item.assetId === state.donorAssetUi?.highlightedAssetId ? "is-highlighted" : ""}"
+                data-donor-asset-id="${escapeAttribute(item.assetId)}"
+                draggable="true"
+              >
+                <div class="evidence-item-head">
+                  <div>
+                    <strong>${escapeHtml(item.title)}</strong>
+                    <small><code>${escapeHtml(item.evidenceId)}</code></small>
+                  </div>
+                  <div class="evidence-actions">
+                    ${renderCopyButton(item.assetId, `donor asset id ${item.assetId}`)}
+                    ${renderCopyButton(item.absolutePath, `donor asset path ${item.assetId}`, "Copy Path")}
+                  </div>
+                </div>
+                <div class="chip-row donor-asset-chip-row">
+                  <span class="asset-format-badge">${escapeHtml(item.fileType.toUpperCase())}</span>
+                  <span>${escapeHtml(item.sourceCategory)}</span>
+                  <span>${escapeHtml(item.captureSessionId)}</span>
+                  <span>${item.width && item.height ? `${item.width}×${item.height}` : "size unknown"}</span>
+                </div>
+                ${item.previewUrl ? `
+                  <div class="evidence-preview evidence-preview-image donor-asset-preview">
+                    <img src="${escapeAttribute(item.previewUrl)}" alt="${escapeAttribute(item.title)} donor asset preview" loading="lazy" />
+                  </div>
+                ` : `
+                  <div class="evidence-preview evidence-preview-fallback donor-asset-preview">
+                    <span>No local preview is available for this donor asset on this machine.</span>
+                  </div>
+                `}
+                <div class="evidence-item-body">
+                  <p class="muted-copy">${escapeHtml(item.filename)} · ${escapeHtml(item.previewLabel)}</p>
+                  ${item.notes ? `<p class="muted-copy">${escapeHtml(item.notes)}</p>` : ""}
+                  <p class="muted-copy"><code>${escapeHtml(item.repoRelativePath)}</code></p>
+                </div>
+                <div class="evidence-linked-objects">
+                  <div class="evidence-subsection-head">
+                    <strong>Drag Into Canvas</strong>
+                    <span class="muted-copy">Drop onto the Editor Canvas to create an editable donor-backed image object.</span>
+                  </div>
+                  <div class="chip-row donor-asset-import-hint">
+                    <span>asset id ${escapeHtml(item.assetId)}</span>
+                    <span>filename ${escapeHtml(item.filename)}</span>
+                  </div>
+                  <div class="evidence-subsection-head">
+                    <strong>Imported Scene Objects</strong>
+                    ${linkedObjects.length > 0 ? renderCopyButton(linkedObjects.map((entry) => entry.objectId).join("\n"), `linked object ids for donor asset ${item.assetId}`, "Copy IDs") : ""}
+                  </div>
+                  ${renderEvidenceLinkedObjectButtons(linkedObjects)}
+                </div>
+              </article>
+              `;
+            }).join("")}
           </div>
-          ${item.previewUrl ? `
-            <div class="evidence-preview evidence-preview-image donor-asset-preview">
-              <img src="${escapeAttribute(item.previewUrl)}" alt="${escapeAttribute(item.title)} donor asset preview" loading="lazy" />
-            </div>
-          ` : `
-            <div class="evidence-preview evidence-preview-fallback donor-asset-preview">
-              <span>No local preview is available for this donor asset on this machine.</span>
-            </div>
-          `}
-          <div class="evidence-item-body">
-            <p class="muted-copy">${escapeHtml(item.filename)} · ${escapeHtml(item.previewLabel)}</p>
-            ${item.notes ? `<p class="muted-copy">${escapeHtml(item.notes)}</p>` : ""}
-            <p class="muted-copy"><code>${escapeHtml(item.repoRelativePath)}</code></p>
-          </div>
-          <div class="evidence-linked-objects">
-            <div class="evidence-subsection-head">
-              <strong>Drag Into Canvas</strong>
-              <span class="muted-copy">Drop onto the Editor Canvas to create an editable donor-backed image object.</span>
-            </div>
-          </div>
-        </article>
+        </section>
       `).join("")}
     </div>
   `;
@@ -5517,6 +5751,14 @@ function renderSelectedObjectEvidenceDrilldown(linkage) {
       title: "Importer Asset Refs",
       refs: linkage.importAssetEvidenceRefs,
       detail: linkage.importAssetLabel ?? "No importer asset provenance recorded."
+    },
+    {
+      key: "local-donor",
+      title: "Local Donor Import Refs",
+      refs: linkage.localDonorEvidenceRefs,
+      detail: linkage.donorAssetLabel
+        ? `${linkage.donorAssetLabel}${linkage.donorAssetFileType ? ` · ${linkage.donorAssetFileType.toUpperCase()}` : ""}${linkage.donorAssetPath ? ` · ${linkage.donorAssetPath}` : ""}`
+        : "No local donor import linkage recorded."
     },
     {
       key: "state",
@@ -6449,6 +6691,12 @@ async function reloadWorkspace(isInitialLoad, requestedProjectId = null) {
     selectedObjectOnly: false,
     highlightedEvidenceId: null
   };
+  state.donorAssetUi = {
+    searchQuery: "",
+    fileTypeFilter: "all",
+    highlightedAssetId: null,
+    dragPayload: null
+  };
   resetViewportSessionState();
   resetLayerIsolation();
   resetEditorHistory();
@@ -7134,7 +7382,8 @@ function renderEvidenceBrowser() {
             value="${escapeAttribute(state.donorAssetUi.searchQuery ?? "")}"
           />
         </label>
-        ${renderDonorAssetCards(visibleDonorAssets)}
+        ${renderDonorAssetFilterBar(donorAssetCatalog, visibleDonorAssets.length)}
+        ${renderDonorAssetCards(visibleDonorAssets, evidenceObjectIndex)}
       </div>
     </details>
     <details class="evidence-section" open>
@@ -7250,13 +7499,23 @@ function renderSceneExplorer() {
   const layerMarkup = displayedLayers.map((layer) => {
     const objects = getLayerObjectsInOrder(layer.id, editorData);
     const objectMarkup = objects.length > 0
-      ? objects.map((object, index) => `
+      ? objects.map((object, index) => {
+        const donorAsset = getDonorAssetForObject(object);
+        return `
         <button class="object-row ${object.id === state.selectedObjectId ? "is-selected" : ""}" type="button" data-object-id="${object.id}">
           <strong>${object.displayName}</strong>
+          ${donorAsset ? `
+            <div class="chip-row object-row-badges">
+              <span class="object-row-badge is-donor">Donor-backed</span>
+              ${donorAsset.fileType ? `<span class="asset-format-badge">${escapeHtml(String(donorAsset.fileType).toUpperCase())}</span>` : ""}
+              ${donorAsset.evidenceId ? `<span><code>${escapeHtml(donorAsset.evidenceId)}</code></span>` : ""}
+            </div>
+          ` : ""}
           <span>${object.type}</span>
           <small>${object.visible ? "visible" : "hidden"} · ${object.locked ? "locked" : "editable"} · stack ${index + 1}/${objects.length} · ${object.id}</small>
         </button>
-      `).join("")
+        `;
+      }).join("")
       : `<p class="muted-copy">No objects on this layer.</p>`;
 
     return `
@@ -7577,7 +7836,7 @@ function getDonorAssetForObject(object) {
 }
 
 function getObjectLabel(object) {
-  return object.donorAsset?.evidenceId ?? object.placeholderRef ?? object.assetRef ?? object.type;
+  return object.donorAsset?.filename ?? object.donorAsset?.evidenceId ?? object.placeholderRef ?? object.assetRef ?? object.type;
 }
 
 function createStableDuplicateId(sourceObject, objects) {
@@ -8579,7 +8838,53 @@ function renderInspector() {
   const propertyPanel = typeof window.myideApi?.buildPropertyPanelViewModel === "function"
     ? window.myideApi.buildPropertyPanelViewModel(inspectorInput)
     : inspectorInput;
+  const donorAsset = getDonorAssetForObject(selectedObject);
   const evidenceDrilldownMarkup = renderSelectedObjectEvidenceDrilldown(evidenceLinkage);
+  const donorSummaryMarkup = donorAsset
+    ? `
+      <div class="donor-linkage-summary">
+        <div class="donor-linkage-summary-head">
+          <div>
+            <strong>Imported Donor Asset</strong>
+            <small>This object is backed by read-only donor image evidence. Editing still happens on the internal scene object only.</small>
+          </div>
+          <div class="evidence-actions">
+            ${renderCopyButton(donorAsset.assetId, "donor asset id")}
+            ${renderCopyButton(donorAsset.absolutePath ?? donorAsset.repoRelativePath ?? "", "donor source path", "Copy Path")}
+          </div>
+        </div>
+        ${donorAsset.previewUrl ? `
+          <div class="evidence-preview evidence-preview-image donor-linkage-preview">
+            <img src="${escapeAttribute(donorAsset.previewUrl)}" alt="${escapeAttribute(donorAsset.title ?? selectedObject.displayName)} donor import preview" loading="lazy" />
+          </div>
+        ` : ""}
+        <div class="chip-row donor-asset-chip-row">
+          <span class="object-row-badge is-donor">Donor-backed object</span>
+          ${donorAsset.fileType ? `<span class="asset-format-badge">${escapeHtml(String(donorAsset.fileType).toUpperCase())}</span>` : ""}
+          ${donorAsset.captureSessionId ? `<span>${escapeHtml(donorAsset.captureSessionId)}</span>` : ""}
+          ${donorAsset.evidenceId ? `<span><code>${escapeHtml(donorAsset.evidenceId)}</code></span>` : ""}
+        </div>
+        <div class="detail-grid donor-linkage-grid">
+          <div class="detail-card">
+            <span>Donor Asset ID</span>
+            <strong><code>${escapeHtml(donorAsset.assetId ?? selectedObject.assetRef ?? "unknown")}</code></strong>
+          </div>
+          <div class="detail-card">
+            <span>Filename</span>
+            <strong>${escapeHtml(donorAsset.filename ?? donorAsset.title ?? "unknown")}</strong>
+          </div>
+          <div class="detail-card">
+            <span>Source Path</span>
+            <strong><code>${escapeHtml(donorAsset.repoRelativePath ?? "unknown")}</code></strong>
+          </div>
+          <div class="detail-card">
+            <span>Source Category</span>
+            <strong>${escapeHtml(donorAsset.sourceCategory ?? "unknown")}</strong>
+          </div>
+        </div>
+      </div>
+    `
+    : "";
   const evidenceSummaryMarkup = propertyPanel.evidenceRefs.length > 0
     ? `
       <div class="inspector-evidence-summary">
@@ -8617,6 +8922,7 @@ function renderInspector() {
       <span>${locked ? "locked by object/layer" : "local-first editor"}</span>
       <span>${viewportAlignable ? "viewport alignable" : "alignment locked"}</span>
     </div>
+    ${donorSummaryMarkup}
     ${evidenceSummaryMarkup}
     ${evidenceDrilldownMarkup}
     ${groupsMarkup}

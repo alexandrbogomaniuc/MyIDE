@@ -21,11 +21,13 @@ Use this when testing the current local MyIDE build by hand.
    - `project_001` appears in the project list and loads without error.
    - The **Donor Assets & Evidence** panel appears in the left column below Project Browser, so scroll the left column if you do not see it immediately.
    - The donor asset palette shows at least one supported local donor image card after indexing.
+   - If both `png` and `webp` donor images exist locally, the palette filter buttons should show both formats.
    - At least one donor asset card shows filename/type/provenance and a lightweight preview or honest preview fallback.
    - Expand at least one donor evidence drill-down section and confirm copy helpers are visible for donor IDs, paths, sessions, or refs.
 4. Create and edit
    - Create one placeholder object from the preset picker.
    - Drag one donor asset card into the canvas and confirm a new donor-backed image object appears.
+   - If a second grounded donor image is available, drag a second donor asset card into the canvas too.
    - Select it and change at least one inspector field such as `displayName`, `width`, or `height`.
 5. Move and layout
    - Drag the new object on the canvas.
@@ -45,7 +47,8 @@ Use this when testing the current local MyIDE build by hand.
 9. Evidence linkage
    - With an object selected, inspect the read-only Evidence Linkage section.
    - If linkage is grounded, grouped linkage rows and evidence refs should be visible.
-   - For the imported donor image object, confirm donor evidence id and donor source path are shown.
+   - For the imported donor image object, confirm the donor summary card shows donor asset id, donor evidence id, file type, filename, and donor-relative path.
+   - In the scene list, imported donor-backed objects should be visibly marked as donor-backed rather than generic placeholders.
    - Use one linkage helper to focus that evidence in the Donor Evidence panel or to filter the donor evidence view down to the selected object.
    - Copying one grounded evidence ref or linkage id should work when a copy button is shown.
    - If linkage is not grounded, the shell should say so plainly instead of inventing provenance.
@@ -56,7 +59,7 @@ Use this when testing the current local MyIDE build by hand.
 - `project_001` loads.
 - The created object remains editable.
 - At least one donor asset is visible in the donor asset palette.
-- One donor asset can be imported into the scene as an editable internal image object.
+- More than one donor asset can be imported into the scene as editable internal image objects when multiple grounded donor images are available locally.
 - Donor source files stay read-only even after import.
 - Drag, resize, align, reassign, reorder, duplicate/delete, and undo/redo behave coherently.
 - Save/reload keeps the final intended state.

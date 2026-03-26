@@ -408,6 +408,15 @@ button:disabled {
   font-size: 0.84rem;
 }
 
+.object-row-badges {
+  margin-top: 8px;
+  align-items: center;
+}
+
+.object-row-badges code {
+  color: inherit;
+}
+
 .status-chip {
   display: inline-flex;
   align-items: center;
@@ -881,6 +890,85 @@ button:disabled {
   color: var(--text);
 }
 
+.donor-asset-filter-toolbar,
+.donor-asset-groups,
+.donor-linkage-summary {
+  display: grid;
+  gap: 12px;
+}
+
+.donor-asset-filter-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.donor-asset-filter-button {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0.5rem 0.8rem;
+  border-radius: 999px;
+  border: 1px solid rgba(179, 209, 186, 0.16);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.donor-asset-filter-button strong {
+  color: var(--accent);
+}
+
+.donor-asset-filter-button.is-active {
+  border-color: rgba(230, 191, 100, 0.54);
+  background: rgba(230, 191, 100, 0.1);
+}
+
+.donor-asset-summary-chips {
+  align-items: center;
+}
+
+.donor-asset-group {
+  display: grid;
+  gap: 12px;
+}
+
+.donor-asset-group-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: baseline;
+}
+
+.donor-asset-group-head span {
+  color: var(--muted);
+}
+
+.asset-format-badge,
+.object-row-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.28rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid rgba(110, 169, 216, 0.28);
+  background: rgba(110, 169, 216, 0.1);
+  color: #d7e9f7;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.object-row-badge.is-donor {
+  border-color: rgba(230, 191, 100, 0.34);
+  background: rgba(230, 191, 100, 0.12);
+  color: var(--accent);
+}
+
+.donor-asset-import-hint {
+  align-items: center;
+}
+
 .evidence-item-card,
 .evidence-linkage-card {
   display: grid;
@@ -1014,6 +1102,35 @@ button:disabled {
   border-radius: 14px;
   border: 1px solid rgba(110, 169, 216, 0.22);
   background: rgba(110, 169, 216, 0.08);
+}
+
+.donor-linkage-summary {
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(230, 191, 100, 0.28);
+  background: rgba(230, 191, 100, 0.08);
+}
+
+.donor-linkage-summary-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.donor-linkage-summary-head small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.donor-linkage-preview {
+  min-height: 140px;
+}
+
+.donor-linkage-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .evidence-chip-row span {

@@ -20,6 +20,7 @@ Use this when you want to test the current MyIDE build exactly as it works today
 5. The donor area now has two bounded parts:
    - a donor asset palette for supported local donor images
    - the existing read-only donor evidence drill-down for refs, sessions, and linkage
+6. The donor asset palette now supports quick search plus format filters such as `PNG` and `WEBP`.
 
 ## 4. What You Can Edit Today
 You can edit the reconstructed internal scene for `project_001`, including new donor-backed image objects created from the donor asset palette.
@@ -28,6 +29,7 @@ Current editable workflow:
 - select objects from the scene list or canvas
 - create placeholder objects from the preset picker
 - drag one supported donor image asset from **Donor Assets & Evidence** into the canvas to create a new internal image object
+- drag a second supported donor image asset into the canvas if you want to confirm multiple donor-backed imports in one session
 - move objects on the canvas
 - change bounded inspector fields
 - resize placeholder-backed objects
@@ -62,10 +64,11 @@ The donor file remains read-only evidence. Drag/drop creates a new internal scen
 
 ## 6. Save / Reload Loop
 1. Optionally drag one donor image into the canvas.
-2. Click **Save Scene Changes** or use `Ctrl/Cmd+S`.
-3. Check that the editor state returns to **Saved**.
-4. Click **Reload From Disk**.
-5. Confirm the imported donor-backed object and any later edits still appear after reload.
+2. If both `png` and `webp` donor assets are visible in the palette, import one of each for the stronger bounded donor proof.
+3. Click **Save Scene Changes** or use `Ctrl/Cmd+S`.
+4. Check that the editor state returns to **Saved**.
+5. Click **Reload From Disk**.
+6. Confirm the imported donor-backed objects and their donor linkage details still appear after reload.
 
 ## 7. If You Hit A Bug
 1. Stop after the first clear failure.

@@ -66,6 +66,9 @@ export interface DonorAssetCatalog {
   indexPath: string;
   localIndexExists: boolean;
   assetCount: number;
+  availableFileTypes: IndexedDonorAsset["fileType"][];
+  countsByFileType: Record<string, number>;
+  countsBySourceCategory: Record<string, number>;
   blocker: string | null;
   assets: DonorAssetItem[];
 }
@@ -360,6 +363,9 @@ async function loadDonorAssetCatalog(selectedProjectId: string): Promise<DonorAs
       indexPath: "40_projects/project_001/donor-assets/local-index.json",
       localIndexExists: false,
       assetCount: 0,
+      availableFileTypes: [],
+      countsByFileType: {},
+      countsBySourceCategory: {},
       blocker: "No local donor asset index is available yet. Run npm run donor-assets:index:project_001 on this machine first.",
       assets: []
     };
@@ -376,6 +382,29 @@ async function loadDonorAssetCatalog(selectedProjectId: string): Promise<DonorAs
         : "local file missing"
     };
   });
+  const countsByFileType = assets.reduce<Record<string, number>>((counts, asset) => {
+    counts[asset.fileType] = (counts[asset.fileType] ?? 0) + 1;
+    return counts;
+  }, {});
+  const countsBySourceCategory = assets.reduce<Record<string, number>>((counts, asset) => {
+    counts[asset.sourceCategory] = (counts[asset.sourceCategory] ?? 0) + 1;
+    return counts;
+  }, {});
+  const fileTypeOrder = ["png", "webp", "jpg", "jpeg", "svg"];
+  const availableFileTypes = Object.keys(countsByFileType).sort((left, right) => {
+    const leftIndex = fileTypeOrder.indexOf(left);
+    const rightIndex = fileTypeOrder.indexOf(right);
+    if (leftIndex >= 0 && rightIndex >= 0) {
+      return leftIndex - rightIndex;
+    }
+    if (leftIndex >= 0) {
+      return -1;
+    }
+    if (rightIndex >= 0) {
+      return 1;
+    }
+    return left.localeCompare(right);
+  }) as IndexedDonorAsset["fileType"][];
 
   return {
     projectId: index.projectId,
@@ -386,6 +415,9 @@ async function loadDonorAssetCatalog(selectedProjectId: string): Promise<DonorAs
     indexPath: index.indexPath,
     localIndexExists,
     assetCount: assets.length,
+    availableFileTypes,
+    countsByFileType,
+    countsBySourceCategory,
     blocker: assets.length > 0
       ? null
       : "No usable local donor image assets are available for this project on this machine.",

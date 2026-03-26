@@ -98,10 +98,11 @@ Public publication rules are defined in [`00_control/PUBLIC_REPO_POLICY.md`](./0
 - [`00_control/MANUAL_TEST_PLAYBOOK.md`](./00_control/MANUAL_TEST_PLAYBOOK.md) is the plain-English tester checklist.
 - [`00_control/MANUAL_TEST_MATRIX.md`](./00_control/MANUAL_TEST_MATRIX.md) is the fast pass/fail matrix.
 - [`00_control/MANUAL_BUG_TEMPLATE.md`](./00_control/MANUAL_BUG_TEMPLATE.md) is the copy/paste bug report format.
-- The current shell is still a bounded internal scene editor for `40_projects/project_001/internal`, but `project_001` now has a first bounded donor image import slice on top of it.
+- The current shell is still a bounded internal scene editor for `40_projects/project_001/internal`, but `project_001` now has a stronger bounded donor image import slice on top of it.
 - After `npm run donor-assets:index:project_001`, the left column shows **Donor Assets & Evidence** with a donor asset palette for supported local donor images found on this machine.
 - Supported import types in this slice are static donor images only: `png`, `webp`, `jpg`, `jpeg`, and `svg` when those files exist locally for `project_001`.
-- Dragging one donor asset card into the canvas creates a new editable internal scene object with donor linkage. The imported object can then be moved, resized, saved, and reloaded through the normal editor flow.
+- The donor palette now supports search plus file-type filters, and imported donor-backed objects now surface clearer donor linkage in both the scene list and the inspector.
+- Dragging donor asset cards into the canvas creates new editable internal scene objects with donor linkage. The current bounded proof now covers more than one real donor image import on `project_001`, including `png` and `webp` when both are present locally.
 - Raw donor files under `10_donors/` remain read-only evidence. The editable source of truth is still the internal scene, not the donor file itself.
 - `npm run manual:prepare:project_001` resets `project_001` to the current tracked baseline, refreshes derived/synced outputs, validates the project slice, and tells the tester what to run next.
 - `npm run manual:status` prints the exact local/public/handoff context the tester is using.

@@ -1,7 +1,7 @@
 # Manual QA Tooling
 
 Manual QA helpers are for local testing against the current tracked `project_001` baseline.
-The current shell edits reconstructed internal scene data under `40_projects/project_001/internal`; it now also supports one bounded donor image import slice for `project_001`, where supported local donor images appear in the in-app donor asset palette and can be dragged into the canvas as donor-linked internal scene objects.
+The current shell edits reconstructed internal scene data under `40_projects/project_001/internal`; it now also supports a stronger bounded donor image import slice for `project_001`, where supported local donor images appear in the in-app donor asset palette, can be filtered by type, and can be dragged into the canvas as donor-linked internal scene objects.
 Raw donor files remain read-only evidence, and on a typical window size the **Donor Assets & Evidence** panel sits in the left column below Project Browser, so testers may need to scroll the left column to reach it.
 GS VABS support is a separate project-delivery module; the manual commands here are still for the current shell/editor baseline, not a production VABS renderer.
 `project_001` now has one stronger VABS contract/renderer-stub slice with explicit raw-vs-sanitized captured-row intake and captured-vs-derived fixture tracking, but editor QA and VABS verification remain separate flows.
@@ -14,9 +14,10 @@ The shell now shows a read-only VABS status panel for the selected project, but 
 4. Run `npm run donor-assets:index:project_001` before opening the shell if you want to test donor import.
 5. Open `project_001` in Project Browser, then scroll the left column down if you need to inspect **Donor Assets & Evidence**.
 6. Drag one supported donor image into the canvas if you want to test the donor import slice.
-7. If you hit a bug, run `npm run manual:bug-bundle` to create a timestamped folder outside the repo with a prefilled bug note, current context, and an `attachments/` folder.
-8. If you only need a quick paste-friendly text block, run `npm run manual:bug-context`.
-9. Use `npm run manual:reset:project_001` again when you want to clean up after a session without running the full prepare flow.
+7. If both `png` and `webp` donor assets are present, drag one of each to prove the stronger bounded import slice.
+8. If you hit a bug, run `npm run manual:bug-bundle` to create a timestamped folder outside the repo with a prefilled bug note, current context, and an `attachments/` folder.
+9. If you only need a quick paste-friendly text block, run `npm run manual:bug-context`.
+10. Use `npm run manual:reset:project_001` again when you want to clean up after a session without running the full prepare flow.
 
 ## Commands
 - `npm run manual:status`

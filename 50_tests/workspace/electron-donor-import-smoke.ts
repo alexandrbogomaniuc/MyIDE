@@ -15,6 +15,25 @@ interface LiveDonorImportPayload {
   error?: string;
   startedAt?: string;
   projectId?: string;
+  availableDonorAssetCount?: number | null;
+  availableFileTypes?: string[];
+  importedAssetCount?: number | null;
+  importedFileTypes?: string[];
+  importModes?: string[];
+  importedAssets?: Array<{
+    donorAssetId?: string | null;
+    donorEvidenceId?: string | null;
+    fileType?: string | null;
+    filename?: string | null;
+    objectId?: string | null;
+    importMode?: string | null;
+    importedX?: number | null;
+    importedY?: number | null;
+    draggedX?: number | null;
+    draggedY?: number | null;
+    reloadedX?: number | null;
+    reloadedY?: number | null;
+  }>;
   donorAssetId?: string | null;
   donorEvidenceId?: string | null;
   objectId?: string | null;
@@ -326,30 +345,44 @@ async function main(): Promise<void> {
     assert.equal(payload.internalPersistVerified, true, "Renderer did not confirm internal donor linkage after reload.");
     assert.equal(payload.replaySyncVerified, true, "Renderer did not confirm replay asset ref sync after donor import.");
     assert.equal(payload.donorLinkageVerified, true, "Renderer did not confirm replay donor linkage metadata after donor import.");
-
-    const objectId = payload.objectId;
-    const donorAssetId = payload.donorAssetId;
-    const donorEvidenceId = payload.donorEvidenceId;
-    assert(objectId, "Renderer did not report the imported object id.");
-    assert(donorAssetId, "Renderer did not report the donor asset id.");
-    assert(donorEvidenceId, "Renderer did not report the donor evidence id.");
+    assert(Array.isArray(payload.availableFileTypes), "Renderer did not report available donor file types.");
+    assert(Array.isArray(payload.importedFileTypes), "Renderer did not report imported donor file types.");
+    assert(Array.isArray(payload.importedAssets), "Renderer did not report imported donor assets.");
+    assert.equal(payload.importedAssets.length, payload.importedAssetCount, "Imported asset count did not match the payload list.");
+    assert(payload.importedAssets.length >= 1, "Renderer did not report any imported donor assets.");
+    if ((payload.availableDonorAssetCount ?? 0) >= 2) {
+      assert(payload.importedAssets.length >= 2, "Renderer did not prove more than one donor asset import even though multiple donor assets were available.");
+    }
+    if ((payload.availableFileTypes ?? []).includes("png") && (payload.availableFileTypes ?? []).includes("webp")) {
+      assert((payload.importedFileTypes ?? []).includes("png"), "Renderer did not import a grounded PNG donor asset.");
+      assert((payload.importedFileTypes ?? []).includes("webp"), "Renderer did not import a grounded WEBP donor asset.");
+    }
 
     const internalDocument = await readJson(path.join(internalRoot, "objects.json"));
     const replayProject = await readJson(replayProjectPath);
-    const internalObject = getInternalObject(internalDocument, objectId);
-    const replayNode = getReplayNode(replayProject, objectId);
-    const internalDonorAsset = (internalObject.donorAsset ?? {}) as Record<string, unknown>;
-    const replayExtensions = (replayNode.extensions ?? {}) as Record<string, unknown>;
-    const replayDonorAsset = (replayExtensions.donorAsset ?? {}) as Record<string, unknown>;
-    const replayEvidenceRefs = Array.isArray(replayExtensions.evidenceRefs) ? replayExtensions.evidenceRefs : [];
+    for (const importedAsset of payload.importedAssets) {
+      const objectId = importedAsset.objectId;
+      const donorAssetId = importedAsset.donorAssetId;
+      const donorEvidenceId = importedAsset.donorEvidenceId;
+      assert(objectId, "Renderer did not report an imported object id.");
+      assert(donorAssetId, "Renderer did not report an imported donor asset id.");
+      assert(donorEvidenceId, "Renderer did not report an imported donor evidence id.");
 
-    assert.equal(internalObject.assetRef, donorAssetId, "Editable object did not persist donor assetRef.");
-    assert.equal(internalDonorAsset.assetId, donorAssetId, "Editable object did not persist donor asset metadata.");
-    assert.equal(internalDonorAsset.evidenceId, donorEvidenceId, "Editable object did not persist donor evidence metadata.");
-    assert.equal(replayNode.assetRef, donorAssetId, "Replay node did not persist donor assetRef.");
-    assert.equal(replayDonorAsset.assetId, donorAssetId, "Replay node did not persist donor asset metadata.");
-    assert.equal(replayDonorAsset.evidenceId, donorEvidenceId, "Replay node did not persist donor evidence metadata.");
-    assert(replayEvidenceRefs.includes(donorEvidenceId), "Replay node did not persist donor evidenceRefs.");
+      const internalObject = getInternalObject(internalDocument, objectId);
+      const replayNode = getReplayNode(replayProject, objectId);
+      const internalDonorAsset = (internalObject.donorAsset ?? {}) as Record<string, unknown>;
+      const replayExtensions = (replayNode.extensions ?? {}) as Record<string, unknown>;
+      const replayDonorAsset = (replayExtensions.donorAsset ?? {}) as Record<string, unknown>;
+      const replayEvidenceRefs = Array.isArray(replayExtensions.evidenceRefs) ? replayExtensions.evidenceRefs : [];
+
+      assert.equal(internalObject.assetRef, donorAssetId, `Editable object ${objectId} did not persist donor assetRef.`);
+      assert.equal(internalDonorAsset.assetId, donorAssetId, `Editable object ${objectId} did not persist donor asset metadata.`);
+      assert.equal(internalDonorAsset.evidenceId, donorEvidenceId, `Editable object ${objectId} did not persist donor evidence metadata.`);
+      assert.equal(replayNode.assetRef, donorAssetId, `Replay node ${objectId} did not persist donor assetRef.`);
+      assert.equal(replayDonorAsset.assetId, donorAssetId, `Replay node ${objectId} did not persist donor asset metadata.`);
+      assert.equal(replayDonorAsset.evidenceId, donorEvidenceId, `Replay node ${objectId} did not persist donor evidence metadata.`);
+      assert(replayEvidenceRefs.includes(donorEvidenceId), `Replay node ${objectId} did not persist donor evidenceRefs.`);
+    }
     assert.equal(
       result.exitCode,
       0,
@@ -389,7 +422,7 @@ async function main(): Promise<void> {
   });
 
   console.log("PASS smoke:electron-donor-import");
-  console.log(`Imported donor asset: ${payload?.donorAssetId} -> ${payload?.objectId}`);
+  console.log(`Imported donor assets: ${(payload?.importedAssets ?? []).map((entry) => `${entry.donorAssetId} -> ${entry.objectId}`).join(", ")}`);
   console.log(`Replay path: ${payload?.replayPath}`);
   console.log(`Artifact: ${getArtifactPath()}`);
   console.log(`Repo status restored: ${restoredStatus || "<clean>"}`);
