@@ -2,7 +2,15 @@ import { copyFileSync, mkdirSync, rmSync, writeFileSync } from "fs";
 import path from "path";
 
 import { getRepoRoot } from "../publication/shared";
-import { buildReplaySummary, FixtureSelection, getProjectConfig, parseFixtureSelectionArg, parseProjectIdArg } from "./shared";
+import {
+  buildReplaySummary,
+  buildSessionFixture,
+  FixtureSelection,
+  getProjectConfig,
+  parseFixtureSelectionArg,
+  parseProjectIdArg,
+  parseRowIndexArg
+} from "./shared";
 import { buildExportManifest, ExportManifest, getExportManifestPath, getExportPackageRoot, getExportRoot } from "./exportManifest";
 
 export type ExportPackageResult = {
@@ -28,9 +36,12 @@ function getRendererSourcePaths(projectId: string, repoRoot: string): { codeSour
 export function runExportPackage(
   projectId: string,
   repoRoot = getRepoRoot(),
-  selection: FixtureSelection = "auto"
+  selection: FixtureSelection = "auto",
+  sessionRowIndex?: number
 ): ExportPackageResult {
-  const summary = buildReplaySummary(projectId, repoRoot, selection);
+  const summary = buildReplaySummary(projectId, repoRoot, selection, sessionRowIndex);
+  const session =
+    typeof sessionRowIndex === "number" ? buildSessionFixture(projectId, repoRoot, selection) : undefined;
   const exportRoot = getExportRoot(projectId);
   const packageRoot = getExportPackageRoot(projectId, repoRoot);
   const manifestPath = getExportManifestPath(projectId, repoRoot);
@@ -45,7 +56,10 @@ export function runExportPackage(
   copyFileSync(stringsSourcePath, stringsPath);
 
   const exportedFiles = ["code.js", "strings_en.js", "manifest.json"];
-  const manifest = buildExportManifest(summary, exportedFiles);
+  const manifest =
+    typeof sessionRowIndex === "number" && session
+      ? buildExportManifest(summary, exportedFiles, { session, selectedRowIndex: sessionRowIndex })
+      : buildExportManifest(summary, exportedFiles);
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
 
   return {
@@ -64,7 +78,8 @@ function main(): void {
   const repoRoot = getRepoRoot();
   const projectId = parseProjectIdArg();
   const selection = parseFixtureSelectionArg();
-  const result = runExportPackage(projectId, repoRoot, selection);
+  const rowIndex = parseRowIndexArg();
+  const result = runExportPackage(projectId, repoRoot, selection, rowIndex);
 
   console.log(`Local GS-style VABS export passed for ${projectId}`);
   console.log(`- Export root: ${result.exportRoot}`);
@@ -76,6 +91,9 @@ function main(): void {
   console.log(`- Fixture path: ${result.manifest.fixturePath}`);
   console.log(`- ROUND_ID: ${result.manifest.roundId}`);
   console.log(`- Capture status: ${result.manifest.captureStatus}`);
+  if (typeof rowIndex === "number") {
+    console.log(`- Session row index: ${rowIndex}`);
+  }
   console.log(`- Renderer status: ${result.manifest.rendererStatus}`);
   console.log(`- Exported files: ${result.exportedFiles.join(", ")}`);
   console.log(`- Manifest: ${result.manifestPath}`);

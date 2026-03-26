@@ -1,7 +1,7 @@
 import path from "path";
 
 import { getRepoRoot } from "../publication/shared";
-import { FixtureKind, FixtureSelection, ReplaySummary, getProjectConfig } from "./shared";
+import { FixtureKind, FixtureSelection, ParsedSessionFixture, ReplaySummary, getProjectConfig } from "./shared";
 
 export type ExportManifest = {
   schemaVersion: string;
@@ -24,6 +24,14 @@ export type ExportManifest = {
   comparisonMode: string;
   confirmedFromCaptured: string[];
   provisionalFields: string[];
+  sessionId?: string;
+  sessionFixturePath?: string;
+  sessionFixtureKind?: string;
+  sessionFixtureProvenance?: string;
+  sessionCaptureStatus?: string;
+  sessionRowCount?: number;
+  selectedSessionRowIndex?: number;
+  selectedSessionRowRoundId?: string;
   exportedFiles: string[];
   rendererStatus: string;
   packagePurpose: string;
@@ -51,7 +59,11 @@ export function getExportPreviewArtifactDirectory(projectId: string, fixtureKind
   return path.join(getExportPreviewRoot(projectId), fixtureKind);
 }
 
-export function buildExportManifest(summary: ReplaySummary, exportedFiles: string[]): ExportManifest {
+export function buildExportManifest(
+  summary: ReplaySummary,
+  exportedFiles: string[],
+  sessionContext?: { session: ParsedSessionFixture; selectedRowIndex: number }
+): ExportManifest {
   return {
     schemaVersion: "0.1.0",
     projectId: summary.projectId,
@@ -73,13 +85,24 @@ export function buildExportManifest(summary: ReplaySummary, exportedFiles: strin
     comparisonMode: summary.comparisonMode,
     confirmedFromCaptured: summary.confirmedFromCaptured,
     provisionalFields: summary.provisionalFields,
+    sessionId: sessionContext?.session.sessionId,
+    sessionFixturePath: sessionContext?.session.relativeFixturePath,
+    sessionFixtureKind: sessionContext?.session.sessionFixtureKind,
+    sessionFixtureProvenance: sessionContext?.session.sessionFixtureProvenance,
+    sessionCaptureStatus: sessionContext?.session.captureStatus,
+    sessionRowCount: sessionContext?.session.rows.length,
+    selectedSessionRowIndex: sessionContext?.selectedRowIndex,
+    selectedSessionRowRoundId:
+      typeof sessionContext?.selectedRowIndex === "number"
+        ? sessionContext.session.rows[sessionContext.selectedRowIndex]?.summary.roundId
+        : undefined,
     exportedFiles,
     rendererStatus: "stub-only-non-production",
     packagePurpose: "local-gs-style-export-preview",
     limitations: [
       "Read-only local export only.",
       "No finished production GS renderer is claimed here.",
-      "Auto export only promotes a sanitized captured row; otherwise it exports the derived fixture."
+      "Auto export only promotes a sanitized captured row or sanitized captured session; otherwise it exports the derived fixture."
     ]
   };
 }

@@ -9,6 +9,7 @@ import {
   getProjectConfig,
   getRendererEntryPath,
   parseFixtureSelectionArg,
+  parseRowIndexArg,
   parseProjectIdArg,
   ReplaySummary
 } from "./shared";
@@ -91,12 +92,13 @@ function wrapHtml(summary: ReplaySummary, innerHtml: string): string {
 export function runLocalReplayHarness(
   projectId: string,
   repoRoot = getRepoRoot(),
-  selection: FixtureSelection = "auto"
+  selection: FixtureSelection = "auto",
+  sessionRowIndex?: number
 ): ReplayHarnessResult {
   const config = getProjectConfig(projectId);
   const rendererPath = getRendererEntryPath(projectId, repoRoot);
   const renderer = loadRenderer(rendererPath);
-  const row = createLocalReplayRow(projectId, repoRoot, selection);
+  const row = createLocalReplayRow(projectId, repoRoot, selection, sessionRowIndex);
 
   if (typeof renderer.start === "function") {
     renderer.start();
@@ -105,7 +107,7 @@ export function runLocalReplayHarness(
   const rowEvent = typeof renderer.createRowEvent === "function" ? renderer.createRowEvent(row) : row;
   const drawResult = typeof renderer.draw === "function" ? renderer.draw(rowEvent) : null;
   const summary = {
-    ...buildReplaySummary(projectId, repoRoot, selection),
+    ...buildReplaySummary(projectId, repoRoot, selection, sessionRowIndex),
     ...(drawResult && typeof drawResult === "object" && !Array.isArray(drawResult) ? drawResult : {})
   } as ReplaySummary;
 
@@ -146,7 +148,8 @@ function main(): void {
   const repoRoot = getRepoRoot();
   const projectId = parseProjectIdArg();
   const selection = parseFixtureSelectionArg();
-  const result = runLocalReplayHarness(projectId, repoRoot, selection);
+  const rowIndex = parseRowIndexArg();
+  const result = runLocalReplayHarness(projectId, repoRoot, selection, rowIndex);
 
   console.log(`Local VABS replay harness passed for ${projectId}`);
   console.log(`- Requested fixture: ${result.summary.requestedFixtureSelection}`);
@@ -171,6 +174,9 @@ function main(): void {
   console.log(`- Captured ROUND_ID: ${result.summary.capturedRoundId}`);
   console.log(`- State: ${result.summary.stateName} (${result.summary.stateId})`);
   console.log(`- Renderer: ${result.rendererPath}`);
+  if (typeof rowIndex === "number") {
+    console.log(`- Session row index: ${rowIndex}`);
+  }
   console.log(`- JSON summary: ${result.jsonPath}`);
   console.log(`- HTML preview: ${result.htmlPath}`);
   console.log(`- Text summary: ${result.textPath}`);

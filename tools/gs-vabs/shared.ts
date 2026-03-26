@@ -4,7 +4,10 @@ import path from "path";
 import { getRepoRoot } from "../publication/shared";
 
 export const DEFAULT_PROJECT_ID = "project_001";
-const RAW_CAPTURE_GITIGNORE_ENTRY = "40_projects/project_001/vabs/contract/captured-playerBets-row.json";
+const RAW_CAPTURE_GITIGNORE_ENTRIES = [
+  "40_projects/project_001/vabs/contract/captured-playerBets-row.json",
+  "40_projects/project_001/vabs/contract/captured-playerBets-session.json"
+];
 
 export type FixtureSelection = "auto" | "derived" | "captured";
 export type ResolvedFixtureSelection = "derived" | "captured";
@@ -48,6 +51,23 @@ type SessionFixtureFile = {
   captureStatus?: string;
   sourceNote?: string;
   playerBets?: RowFixture[];
+};
+
+export type SessionFixtureResolution = {
+  requestedSelection: FixtureSelection;
+  actualSelection: ResolvedFixtureSelection;
+  actualFixtureKind: FixtureKind;
+  fixturePath: string;
+  relativeFixturePath: string;
+  derivedFixturePath: string;
+  relativeDerivedFixturePath: string;
+  capturedSanitizedFixturePath: string;
+  relativeCapturedSanitizedFixturePath: string;
+  capturedRawFixturePath: string;
+  relativeCapturedRawFixturePath: string;
+  capturedSanitizedFixtureAvailable: boolean;
+  capturedRawFixtureAvailable: boolean;
+  capturedFixtureAvailable: boolean;
 };
 
 export type FixtureResolution = {
@@ -121,6 +141,18 @@ export type ParsedSessionFixture = {
   sessionId: string;
   fixturePath: string;
   relativeFixturePath: string;
+  requestedSelection: FixtureSelection;
+  actualSelection: ResolvedFixtureSelection;
+  actualFixtureKind: FixtureKind;
+  derivedFixturePath: string;
+  relativeDerivedFixturePath: string;
+  capturedSanitizedFixturePath: string;
+  relativeCapturedSanitizedFixturePath: string;
+  capturedRawFixturePath: string;
+  relativeCapturedRawFixturePath: string;
+  capturedSanitizedFixtureAvailable: boolean;
+  capturedRawFixtureAvailable: boolean;
+  capturedFixtureAvailable: boolean;
   sessionFixtureKind: SessionFixtureKind;
   sessionFixtureProvenance: string;
   captureStatus: string;
@@ -139,7 +171,9 @@ export type FixtureComparisonResult = {
   targetFolderName: string;
   comparisonMode: "derived-only" | "derived-vs-captured";
   derivedFixturePath: string;
-  sessionFixturePath: string;
+  derivedSessionFixturePath: string;
+  capturedSessionFixturePath: string | null;
+  capturedSessionFixtureAvailable: boolean;
   capturedFixturePath: string | null;
   capturedFixtureKind: FixtureKind | null;
   capturedFixtureAvailable: boolean;
@@ -362,6 +396,21 @@ const REQUIRED_FILES: ScaffoldFile[] = [
       "# Fixture Comparison\n\nDocument how captured, sanitized, and derived row truth currently compare.\n"
   },
   {
+    relativePath: "contract/session-notes.md",
+    contents: () =>
+      "# Session Fixture Notes\n\nDocument whether the current `playerBets[]` session fixture is derived, mixed, or captured.\n"
+  },
+  {
+    relativePath: "contract/operator-session-capture-request.md",
+    contents: () =>
+      "# Operator Session Capture Request\n\nDocument the smallest safe request for a sanitized archived `playerBets[]` session capture here.\n"
+  },
+  {
+    relativePath: "contract/captured-session-redaction-guidelines.md",
+    contents: () =>
+      "# Captured Session Redaction Guidelines\n\nDocument how to sanitize a captured archived `playerBets[]` session before committing it.\n"
+  },
+  {
     relativePath: "contract/sample-playerBets-row.json",
     contents: () =>
       JSON.stringify(
@@ -499,6 +548,29 @@ export function parseFixtureSelectionArg(args = process.argv.slice(2)): FixtureS
   return "auto";
 }
 
+export function parseRowIndexArg(args = process.argv.slice(2)): number | undefined {
+  const selectionArgs = args.slice(1);
+  for (let index = 0; index < selectionArgs.length; index += 1) {
+    const arg = selectionArgs[index];
+    if (arg.startsWith("--row-index=")) {
+      const value = Number(arg.slice("--row-index=".length));
+      if (!Number.isInteger(value) || value < 0) {
+        throw new Error(`Invalid --row-index value: ${arg.slice("--row-index=".length)}`);
+      }
+      return value;
+    }
+    if (arg === "--row-index") {
+      const next = selectionArgs[index + 1];
+      const value = Number(next);
+      if (!Number.isInteger(value) || value < 0) {
+        throw new Error(`Invalid --row-index value: ${next ?? ""}`);
+      }
+      return value;
+    }
+  }
+  return undefined;
+}
+
 export function getProjectConfig(projectId: string): ProjectVabsConfig {
   const config = PROJECT_CONFIGS[projectId];
   if (!config) {
@@ -541,6 +613,26 @@ export function getFixtureComparisonPath(projectId: string, repoRoot = getRepoRo
 
 export function getSessionFixturePath(projectId: string, repoRoot = getRepoRoot()): string {
   return path.join(getVabsRoot(projectId, repoRoot), "contract", "sample-playerBets-session.json");
+}
+
+export function getCapturedSanitizedSessionFixturePath(projectId: string, repoRoot = getRepoRoot()): string {
+  return path.join(getVabsRoot(projectId, repoRoot), "contract", "captured-playerBets-session.sanitized.json");
+}
+
+export function getCapturedRawSessionFixturePath(projectId: string, repoRoot = getRepoRoot()): string {
+  return path.join(getVabsRoot(projectId, repoRoot), "contract", "captured-playerBets-session.json");
+}
+
+export function getSessionNotesPath(projectId: string, repoRoot = getRepoRoot()): string {
+  return path.join(getVabsRoot(projectId, repoRoot), "contract", "session-notes.md");
+}
+
+export function getOperatorSessionCaptureRequestPath(projectId: string, repoRoot = getRepoRoot()): string {
+  return path.join(getVabsRoot(projectId, repoRoot), "contract", "operator-session-capture-request.md");
+}
+
+export function getCapturedSessionRedactionGuidelinesPath(projectId: string, repoRoot = getRepoRoot()): string {
+  return path.join(getVabsRoot(projectId, repoRoot), "contract", "captured-session-redaction-guidelines.md");
 }
 
 export function getRowFixturePath(
@@ -610,6 +702,57 @@ export function resolveFixtureSelection(
     relativeCapturedNotesPath: path.relative(repoRoot, capturedNotesPath),
     comparisonPath,
     relativeComparisonPath: path.relative(repoRoot, comparisonPath)
+  };
+}
+
+export function resolveSessionFixtureSelection(
+  projectId: string,
+  repoRoot = getRepoRoot(),
+  selection: FixtureSelection = "auto"
+): SessionFixtureResolution {
+  const derivedPath = getSessionFixturePath(projectId, repoRoot);
+  const capturedSanitizedPath = getCapturedSanitizedSessionFixturePath(projectId, repoRoot);
+  const capturedRawPath = getCapturedRawSessionFixturePath(projectId, repoRoot);
+  const capturedSanitizedFixtureAvailable = existsSync(capturedSanitizedPath);
+  const capturedRawFixtureAvailable = existsSync(capturedRawPath);
+  const capturedFixtureAvailable = capturedSanitizedFixtureAvailable || capturedRawFixtureAvailable;
+
+  if (selection === "captured" && !capturedFixtureAvailable) {
+    throw new Error(
+      `No captured playerBets session is available yet for ${projectId}; use the derived session fixture or add a captured session intake.`
+    );
+  }
+
+  let actualFixtureKind: FixtureKind = "derived";
+  if (selection === "captured") {
+    actualFixtureKind = capturedSanitizedFixtureAvailable ? "captured-sanitized" : "captured-raw-local";
+  } else if (selection === "auto" && capturedSanitizedFixtureAvailable) {
+    actualFixtureKind = "captured-sanitized";
+  }
+
+  const actualSelection: ResolvedFixtureSelection = actualFixtureKind === "derived" ? "derived" : "captured";
+  const fixturePath =
+    actualFixtureKind === "captured-sanitized"
+      ? capturedSanitizedPath
+      : actualFixtureKind === "captured-raw-local"
+        ? capturedRawPath
+        : derivedPath;
+
+  return {
+    requestedSelection: selection,
+    actualSelection,
+    actualFixtureKind,
+    fixturePath,
+    relativeFixturePath: path.relative(repoRoot, fixturePath),
+    derivedFixturePath: derivedPath,
+    relativeDerivedFixturePath: path.relative(repoRoot, derivedPath),
+    capturedSanitizedFixturePath: capturedSanitizedPath,
+    relativeCapturedSanitizedFixturePath: path.relative(repoRoot, capturedSanitizedPath),
+    capturedRawFixturePath: capturedRawPath,
+    relativeCapturedRawFixturePath: path.relative(repoRoot, capturedRawPath),
+    capturedSanitizedFixtureAvailable,
+    capturedRawFixtureAvailable,
+    capturedFixtureAvailable
   };
 }
 
@@ -763,6 +906,81 @@ export function extractCapturedRowFixture(
   );
 }
 
+export function extractCapturedSessionFixture(
+  source: unknown,
+  projectId = DEFAULT_PROJECT_ID
+): { fixture: SessionFixtureFile; sourceShape: string; candidateCount: number } {
+  if (isRecord(source) && Array.isArray(source.playerBets)) {
+    const rows = source.playerBets.filter((entry) => hasRequiredTopLevelFields(entry, projectId)) as RowFixture[];
+    if (rows.length > 0) {
+      return {
+        fixture: {
+          sessionId: typeof source.sessionId === "string" ? source.sessionId : undefined,
+          sessionFixtureKind: typeof source.sessionFixtureKind === "string" ? source.sessionFixtureKind : undefined,
+          sessionFixtureProvenance:
+            typeof source.sessionFixtureProvenance === "string" ? source.sessionFixtureProvenance : undefined,
+          captureStatus: typeof source.captureStatus === "string" ? source.captureStatus : undefined,
+          sourceNote: typeof source.sourceNote === "string" ? source.sourceNote : undefined,
+          playerBets: rows
+        },
+        sourceShape: "playerBets-session",
+        candidateCount: rows.length
+      };
+    }
+  }
+
+  if (Array.isArray(source)) {
+    const rows = source.filter((entry) => hasRequiredTopLevelFields(entry, projectId)) as RowFixture[];
+    if (rows.length > 0) {
+      return {
+        fixture: {
+          playerBets: rows
+        },
+        sourceShape: "row-array",
+        candidateCount: rows.length
+      };
+    }
+  }
+
+  if (
+    isRecord(source) &&
+    isRecord(source.response) &&
+    isRecord(source.response.body) &&
+    Array.isArray(source.response.body.playerBets)
+  ) {
+    const rows = source.response.body.playerBets.filter((entry) => hasRequiredTopLevelFields(entry, projectId)) as RowFixture[];
+    if (rows.length > 0) {
+      return {
+        fixture: {
+          playerBets: rows
+        },
+        sourceShape: "response.body.playerBets-array",
+        candidateCount: rows.length
+      };
+    }
+  }
+
+  if (hasRequiredTopLevelFields(source, projectId)) {
+    return {
+      fixture: {
+        playerBets: [source as RowFixture]
+      },
+      sourceShape: "single-row-fallback",
+      candidateCount: 1
+    };
+  }
+
+  if (isRecord(source) && isRecord(source.history) && Array.isArray(source.history.items)) {
+    throw new Error(
+      "Input looks like a generic browser gethistory fixture (`history.items`), not a legacy archived playerBets[] session."
+    );
+  }
+
+  throw new Error(
+    "Could not extract a playerBets[] session fixture with at least one PlayerBet-shaped row."
+  );
+}
+
 export function serializeKeyValueBag(record: Record<string, string>, preferredOrder: string[] = []): string {
   const seen = new Set<string>();
   const orderedKeys = [
@@ -910,17 +1128,31 @@ export function parseRowFixture(
 export function createLocalReplayRow(
   projectId: string,
   repoRoot = getRepoRoot(),
-  selection: FixtureSelection = "auto"
+  selection: FixtureSelection = "auto",
+  sessionRowIndex?: number
 ): LocalReplayRow {
-  const { rowSnapshot } = buildSerializableReplayRow(projectId, repoRoot, selection);
+  const { rowSnapshot } = buildSerializableReplayRow(projectId, repoRoot, selection, sessionRowIndex);
   return createLocalReplayRowFromSnapshot(rowSnapshot);
 }
 
 export function buildSerializableReplayRow(
   projectId: string,
   repoRoot = getRepoRoot(),
-  selection: FixtureSelection = "auto"
+  selection: FixtureSelection = "auto",
+  sessionRowIndex?: number
 ): { parsed: ParsedRowFixture; rowSnapshot: SerializableReplayRow } {
+  if (typeof sessionRowIndex === "number") {
+    const session = buildSessionFixture(projectId, repoRoot, selection);
+    const row = session.rows[sessionRowIndex];
+    if (!row) {
+      throw new Error(`Session row ${sessionRowIndex} is unavailable for ${projectId}.`);
+    }
+    return {
+      parsed: row.parsed,
+      rowSnapshot: row.rowSnapshot
+    };
+  }
+
   const parsed = parseRowFixture(projectId, repoRoot, selection);
   return {
     parsed,
@@ -971,12 +1203,15 @@ export function buildFixtureComparison(
   const config = getProjectConfig(projectId);
   const derived = parseRowFixture(projectId, repoRoot, "derived");
   const resolution = resolveFixtureSelection(projectId, repoRoot, "auto");
+  const sessionResolution = resolveSessionFixtureSelection(projectId, repoRoot, "auto");
   const notes = [
     "The compare lane is deterministic and local-first.",
-    "The current session-level `playerBets[]` shell-mock rows are also derived and exist only to emulate support/history selection flow locally.",
+    "The session-level `playerBets[]` shell-mock rows are validated separately from the row-level replay fixture.",
     "A captured raw fixture should stay local-only and is expected at contract/captured-playerBets-row.json.",
     "A public-safe sanitized captured fixture should be committed only at contract/captured-playerBets-row.sanitized.json.",
-    "Auto fixture selection only promotes a sanitized captured row; a raw local intake remains opt-in via `-- captured` until it is sanitized."
+    "A captured raw session should stay local-only and is expected at contract/captured-playerBets-session.json.",
+    "A public-safe sanitized captured session should be committed only at contract/captured-playerBets-session.sanitized.json.",
+    "Auto fixture selection only promotes sanitized captured row/session fixtures; raw local intake remains opt-in via `-- captured` until it is sanitized."
   ];
 
   if (!resolution.capturedFixtureAvailable) {
@@ -985,7 +1220,11 @@ export function buildFixtureComparison(
       targetFolderName: config.targetFolderName,
       comparisonMode: "derived-only",
       derivedFixturePath: resolution.relativeDerivedFixturePath,
-      sessionFixturePath: path.relative(repoRoot, getSessionFixturePath(projectId, repoRoot)),
+      derivedSessionFixturePath: sessionResolution.relativeDerivedFixturePath,
+      capturedSessionFixturePath: sessionResolution.capturedFixtureAvailable
+        ? sessionResolution.relativeFixturePath
+        : null,
+      capturedSessionFixtureAvailable: sessionResolution.capturedFixtureAvailable,
       capturedFixturePath: null,
       capturedFixtureKind: null,
       capturedFixtureAvailable: false,
@@ -1000,6 +1239,9 @@ export function buildFixtureComparison(
       capturedOnlyFields: [],
       notes: notes.concat([
         "No captured archived playerBets row is available yet.",
+        sessionResolution.capturedFixtureAvailable
+          ? `A captured playerBets[] session is available at ${sessionResolution.relativeFixturePath}, but the row-level compare lane remains derived-first until a sanitized captured row is also available.`
+          : "No captured archived playerBets[] session is available yet.",
         "The strongest grounded capture is MG-EV-20260320-LIVE-A-005, which confirms ROUND_ID=14099735306 from a live init response rather than a history row.",
         "That same live init response reports currency code FUN, while the current derived fixture still uses CURRENCY=EUR until a captured archived row confirms the transport value."
       ])
@@ -1045,7 +1287,11 @@ export function buildFixtureComparison(
       targetFolderName: config.targetFolderName,
       comparisonMode: "derived-vs-captured",
       derivedFixturePath: resolution.relativeDerivedFixturePath,
-      sessionFixturePath: path.relative(repoRoot, getSessionFixturePath(projectId, repoRoot)),
+      derivedSessionFixturePath: sessionResolution.relativeDerivedFixturePath,
+      capturedSessionFixturePath: sessionResolution.capturedFixtureAvailable
+        ? sessionResolution.relativeFixturePath
+        : null,
+      capturedSessionFixtureAvailable: sessionResolution.capturedFixtureAvailable,
       capturedFixturePath: captured.resolution.relativeFixturePath,
     capturedFixtureKind: captured.resolution.actualFixtureKind,
     capturedFixtureAvailable: true,
@@ -1073,7 +1319,11 @@ export function renderFixtureComparisonMarkdown(comparison: FixtureComparisonRes
     "",
     "## Fixture Inputs",
     `- Derived fixture: \`${comparison.derivedFixturePath}\``,
-    `- Derived session fixture: \`${comparison.sessionFixturePath}\``,
+    `- Derived session fixture: \`${comparison.derivedSessionFixturePath}\``,
+    comparison.capturedSessionFixturePath
+      ? `- Captured session fixture: \`${comparison.capturedSessionFixturePath}\``
+      : "- Captured session fixture: none committed yet",
+    `- Captured session fixture available: ${comparison.capturedSessionFixtureAvailable ? "yes" : "no"}`,
     comparison.capturedFixturePath
       ? `- Captured fixture: \`${comparison.capturedFixturePath}\``
       : "- Captured fixture: none committed yet",
@@ -1149,8 +1399,17 @@ export function renderFixtureComparisonMarkdown(comparison: FixtureComparisonRes
 export function buildReplaySummary(
   projectId: string,
   repoRoot = getRepoRoot(),
-  selection: FixtureSelection = "auto"
+  selection: FixtureSelection = "auto",
+  sessionRowIndex?: number
 ): ReplaySummary {
+  if (typeof sessionRowIndex === "number") {
+    const session = buildSessionFixture(projectId, repoRoot, selection);
+    const row = session.rows[sessionRowIndex];
+    if (!row) {
+      throw new Error(`Session row ${sessionRowIndex} is unavailable for ${projectId}.`);
+    }
+    return row.summary;
+  }
   const parsed = parseRowFixture(projectId, repoRoot, selection);
   const comparison = buildFixtureComparison(projectId, repoRoot);
   return buildReplaySummaryFromParsedFixture(projectId, parsed, comparison, repoRoot);
@@ -1161,8 +1420,8 @@ export function buildSessionFixture(
   repoRoot = getRepoRoot(),
   selection: FixtureSelection = "auto"
 ): ParsedSessionFixture {
-  const sessionFixturePath = getSessionFixturePath(projectId, repoRoot);
-  const resolution = resolveFixtureSelection(projectId, repoRoot, selection);
+  const sessionResolution = resolveSessionFixtureSelection(projectId, repoRoot, selection);
+  const sessionFixturePath = sessionResolution.fixturePath;
   const comparison = buildFixtureComparison(projectId, repoRoot);
 
   if (!existsSync(sessionFixturePath)) {
@@ -1172,6 +1431,18 @@ export function buildSessionFixture(
       sessionId: `${projectId}-single-row-fallback`,
       fixturePath: sessionFixturePath,
       relativeFixturePath: path.relative(repoRoot, sessionFixturePath),
+      requestedSelection: sessionResolution.requestedSelection,
+      actualSelection: sessionResolution.actualSelection,
+      actualFixtureKind: sessionResolution.actualFixtureKind,
+      derivedFixturePath: sessionResolution.derivedFixturePath,
+      relativeDerivedFixturePath: sessionResolution.relativeDerivedFixturePath,
+      capturedSanitizedFixturePath: sessionResolution.capturedSanitizedFixturePath,
+      relativeCapturedSanitizedFixturePath: sessionResolution.relativeCapturedSanitizedFixturePath,
+      capturedRawFixturePath: sessionResolution.capturedRawFixturePath,
+      relativeCapturedRawFixturePath: sessionResolution.relativeCapturedRawFixturePath,
+      capturedSanitizedFixtureAvailable: sessionResolution.capturedSanitizedFixtureAvailable,
+      capturedRawFixtureAvailable: sessionResolution.capturedRawFixtureAvailable,
+      capturedFixtureAvailable: sessionResolution.capturedFixtureAvailable,
       sessionFixtureKind: "derived",
       sessionFixtureProvenance: "fallback-single-row-session",
       captureStatus: parsed.captureStatus,
@@ -1188,20 +1459,31 @@ export function buildSessionFixture(
     };
   }
 
-  const raw = JSON.parse(readFileSync(sessionFixturePath, "utf8")) as SessionFixtureFile;
+  const parsedSource = JSON.parse(readFileSync(sessionFixturePath, "utf8")) as unknown;
+  const raw =
+    sessionResolution.actualSelection === "captured"
+      ? extractCapturedSessionFixture(parsedSource, projectId).fixture
+      : (parsedSource as SessionFixtureFile);
   const playerBets = Array.isArray(raw.playerBets) ? raw.playerBets : [];
   if (playerBets.length === 0) {
     throw new Error(`Session fixture ${path.relative(repoRoot, sessionFixturePath)} does not contain playerBets[].`);
   }
 
-  const sessionResolution: FixtureResolution = {
-    ...resolution,
+  const baseRowResolution = resolveFixtureSelection(projectId, repoRoot, "auto");
+  const rowResolution: FixtureResolution = {
+    ...baseRowResolution,
+    requestedSelection: sessionResolution.requestedSelection,
+    actualSelection: sessionResolution.actualSelection,
+    actualFixtureKind: sessionResolution.actualFixtureKind,
     fixturePath: sessionFixturePath,
-    relativeFixturePath: path.relative(repoRoot, sessionFixturePath)
+    relativeFixturePath: path.relative(repoRoot, sessionFixturePath),
+    capturedSanitizedFixtureAvailable: sessionResolution.capturedSanitizedFixtureAvailable,
+    capturedRawFixtureAvailable: sessionResolution.capturedRawFixtureAvailable,
+    capturedFixtureAvailable: sessionResolution.capturedFixtureAvailable
   };
 
   const rows = playerBets.map((fixture, rowIndex) => {
-    const parsed = parseRowFixtureRecord(fixture, sessionResolution);
+    const parsed = parseRowFixtureRecord(fixture, rowResolution);
     return {
       rowIndex,
       rowKey: `row-${rowIndex}`,
@@ -1216,13 +1498,29 @@ export function buildSessionFixture(
     sessionId: raw.sessionId ?? `${projectId}-local-session`,
     fixturePath: sessionFixturePath,
     relativeFixturePath: path.relative(repoRoot, sessionFixturePath),
+    requestedSelection: sessionResolution.requestedSelection,
+    actualSelection: sessionResolution.actualSelection,
+    actualFixtureKind: sessionResolution.actualFixtureKind,
+    derivedFixturePath: sessionResolution.derivedFixturePath,
+    relativeDerivedFixturePath: sessionResolution.relativeDerivedFixturePath,
+    capturedSanitizedFixturePath: sessionResolution.capturedSanitizedFixturePath,
+    relativeCapturedSanitizedFixturePath: sessionResolution.relativeCapturedSanitizedFixturePath,
+    capturedRawFixturePath: sessionResolution.capturedRawFixturePath,
+    relativeCapturedRawFixturePath: sessionResolution.relativeCapturedRawFixturePath,
+    capturedSanitizedFixtureAvailable: sessionResolution.capturedSanitizedFixtureAvailable,
+    capturedRawFixtureAvailable: sessionResolution.capturedRawFixtureAvailable,
+    capturedFixtureAvailable: sessionResolution.capturedFixtureAvailable,
     sessionFixtureKind: normalizeSessionFixtureKind(raw.sessionFixtureKind),
     sessionFixtureProvenance:
       raw.sessionFixtureProvenance ??
-      "derived-session-fixture-around-one-grounded-round-id",
+      (sessionResolution.actualSelection === "captured"
+        ? "captured-session-fixture"
+        : "derived-session-fixture-around-one-grounded-round-id"),
     captureStatus:
       raw.captureStatus ??
-      (resolution.capturedFixtureAvailable ? "mixed-session-fixture" : "derived-session-fixture"),
+      (sessionResolution.actualSelection === "captured"
+        ? "captured-session-fixture"
+        : "derived-session-fixture"),
     sourceNote: raw.sourceNote ?? "",
     rows
   };
@@ -1398,11 +1696,13 @@ export function verifyScaffold(projectId: string, repoRoot = getRepoRoot()): Ver
   const gitignorePath = path.join(repoRoot, ".gitignore");
   if (existsSync(gitignorePath)) {
     const text = readFileSync(gitignorePath, "utf8");
-    if (!text.includes(RAW_CAPTURE_GITIGNORE_ENTRY)) {
-      problems.push({
-        relativePath: path.relative(repoRoot, gitignorePath),
-        message: "Raw captured row intake path is not gitignored"
-      });
+    for (const entry of RAW_CAPTURE_GITIGNORE_ENTRIES) {
+      if (!text.includes(entry)) {
+        problems.push({
+          relativePath: path.relative(repoRoot, gitignorePath),
+          message: `Raw captured intake path is not gitignored: ${entry}`
+        });
+      }
     }
   }
 
@@ -1413,6 +1713,23 @@ export function verifyScaffold(projectId: string, repoRoot = getRepoRoot()): Ver
 
   if (resolveFixtureSelection(projectId, repoRoot, "auto").capturedSanitizedFixtureAvailable) {
     verifyRowFixture(projectId, repoRoot, problems, "captured");
+  }
+
+  const sessionNotesPath = getSessionNotesPath(projectId, repoRoot);
+  if (existsSync(sessionNotesPath)) {
+    const text = readFileSync(sessionNotesPath, "utf8");
+    if (!text.toLowerCase().includes("captured")) {
+      problems.push({
+        relativePath: path.relative(repoRoot, sessionNotesPath),
+        message: "Session notes do not mention captured session status"
+      });
+    }
+    if (!text.includes("captured-playerBets-session.sanitized.json")) {
+      problems.push({
+        relativePath: path.relative(repoRoot, sessionNotesPath),
+        message: "Session notes do not mention the sanitized captured session path"
+      });
+    }
   }
 
   const folderNameMappingPath = path.join(vabsRoot, "contract", "folder-name-mapping.md");
@@ -1452,12 +1769,12 @@ export function verifyScaffold(projectId: string, repoRoot = getRepoRoot()): Ver
 
 export function verifySessionFixture(projectId: string, repoRoot = getRepoRoot()): VerificationProblem[] {
   const problems: VerificationProblem[] = [];
-  const relativePath = path.relative(repoRoot, getSessionFixturePath(projectId, repoRoot));
-  const sessionFixturePath = getSessionFixturePath(projectId, repoRoot);
+  const derivedRelativePath = path.relative(repoRoot, getSessionFixturePath(projectId, repoRoot));
+  const derivedSessionFixturePath = getSessionFixturePath(projectId, repoRoot);
 
-  if (!existsSync(sessionFixturePath)) {
+  if (!existsSync(derivedSessionFixturePath)) {
     problems.push({
-      relativePath,
+      relativePath: derivedRelativePath,
       message: "Session fixture file is missing"
     });
     return problems;
@@ -1465,17 +1782,17 @@ export function verifySessionFixture(projectId: string, repoRoot = getRepoRoot()
 
   let raw: SessionFixtureFile;
   try {
-    raw = JSON.parse(readFileSync(sessionFixturePath, "utf8")) as SessionFixtureFile;
+    raw = JSON.parse(readFileSync(derivedSessionFixturePath, "utf8")) as SessionFixtureFile;
   } catch (error) {
     problems.push({
-      relativePath,
+      relativePath: derivedRelativePath,
       message: error instanceof Error ? `Session fixture could not be parsed: ${error.message}` : String(error)
     });
     return problems;
   }
   if (!Array.isArray(raw.playerBets) || raw.playerBets.length < 2) {
     problems.push({
-      relativePath,
+      relativePath: derivedRelativePath,
       message: "Session fixture must contain at least two playerBets rows"
     });
     return problems;
@@ -1483,40 +1800,73 @@ export function verifySessionFixture(projectId: string, repoRoot = getRepoRoot()
 
   if (!raw.sessionFixtureKind) {
     problems.push({
-      relativePath,
+      relativePath: derivedRelativePath,
       message: "Session fixture kind is not documented"
     });
   }
 
   if (!raw.sessionFixtureProvenance) {
     problems.push({
-      relativePath,
+      relativePath: derivedRelativePath,
       message: "Session fixture provenance is not documented"
     });
   }
 
   if (!raw.captureStatus) {
     problems.push({
-      relativePath,
+      relativePath: derivedRelativePath,
       message: "Session fixture capture status is not documented"
     });
   }
 
   try {
-    const session = buildSessionFixture(projectId, repoRoot, "auto");
+    const session = buildSessionFixture(projectId, repoRoot, "derived");
     session.rows.forEach((row) => {
       if (!row.summary.roundId || !/^\d+$/.test(row.summary.roundId)) {
         problems.push({
-          relativePath,
+          relativePath: derivedRelativePath,
           message: `Session row ${row.rowIndex} is missing a numeric ROUND_ID`
         });
       }
     });
   } catch (error) {
     problems.push({
-      relativePath,
+      relativePath: derivedRelativePath,
       message: error instanceof Error ? error.message : String(error)
     });
+  }
+
+  const capturedSanitizedSessionPath = getCapturedSanitizedSessionFixturePath(projectId, repoRoot);
+  if (existsSync(capturedSanitizedSessionPath)) {
+    const relativePath = path.relative(repoRoot, capturedSanitizedSessionPath);
+    try {
+      const session = buildSessionFixture(projectId, repoRoot, "captured");
+      if (session.rows.length < 1) {
+        problems.push({
+          relativePath,
+          message: "Captured session fixture must contain at least one playerBets row"
+        });
+      }
+      if (session.actualSelection !== "captured") {
+        problems.push({
+          relativePath,
+          message: "Captured session fixture did not resolve to captured selection"
+        });
+      }
+      session.rows.forEach((row) => {
+        if (!row.summary.roundId || !/^\d+$/.test(row.summary.roundId)) {
+          problems.push({
+            relativePath,
+            message: `Captured session row ${row.rowIndex} is missing a numeric ROUND_ID`
+          });
+        }
+      });
+    } catch (error) {
+      problems.push({
+        relativePath,
+        message: error instanceof Error ? error.message : String(error)
+      });
+    }
   }
 
   return problems;

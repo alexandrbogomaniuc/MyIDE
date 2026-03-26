@@ -241,6 +241,14 @@
 - [x] Prove row-click replay updates through the browser smoke path.
 - [ ] Re-run the session shell mock and row-click flow against a real sanitized captured archived row once one exists.
 
+## GS-VABS-K
+- [x] Add explicit raw vs sanitized captured-session intake paths for `project_001`.
+- [x] Add session-specific intake, sanitize, and verify commands.
+- [x] Let replay/export/preview consume an explicit session row when validating captured-session drop-in.
+- [x] Add a small operator capture pack for the next real archived `playerBets[]` session.
+- [ ] Capture one real sanitized Mystery Garden archived `playerBets[]` session.
+- [ ] Promote captured-session-backed fields from provisional to confirmed only when that session exists.
+
 ## GS-VABS-A
 - [x] Audit accessible GS/VABS reference files and document grounded patterns.
 - [x] Document VABS as an additional MyIDE module rather than an editor replacement.

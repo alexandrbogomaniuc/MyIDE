@@ -163,3 +163,15 @@ This run still does not add:
 - live JSP/static-host deployment proof
 - a committed full captured Mystery Garden archived `playerBets` row or archived session
 - any change to the current internal-scene editor model
+
+## Current GS-VABS-K Scope
+This run adds:
+- one first-class captured-session intake, sanitize, and verify lane parallel to the existing captured-row lane
+- one explicit rule that session auto-selection only promotes a sanitized captured `playerBets[]` session
+- one stronger replay/export/preview/mock seam that can validate a selected session row when a sanitized captured session becomes available
+- one small operator capture pack so the next real archived session can be dropped in without ambiguity
+
+This run still does not add:
+- a finished production GS VABS renderer
+- a committed full captured Mystery Garden archived `playerBets[]` session
+- any change to the current internal-scene editor model

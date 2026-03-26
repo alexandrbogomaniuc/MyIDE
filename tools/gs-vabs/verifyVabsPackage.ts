@@ -71,9 +71,14 @@ function main(): void {
   console.log(`- Comparison notes: ${comparison.notes.join(" | ")}`);
   console.log(`- Comparison doc: ${parsed.resolution.relativeComparisonPath}`);
   console.log(`- Session fixture: ${session.relativeFixturePath}`);
+  console.log(`- Session requested fixture: ${session.requestedSelection}`);
+  console.log(`- Session actual fixture: ${session.actualSelection}`);
+  console.log(`- Session actual fixture kind: ${session.actualFixtureKind}`);
   console.log(`- Session fixture kind: ${session.sessionFixtureKind}`);
   console.log(`- Session row count: ${session.rows.length}`);
   console.log(`- Session source note: ${session.sourceNote || "-"}`);
+  console.log(`- Captured session sanitized available: ${session.capturedSanitizedFixtureAvailable ? "yes" : "no"}`);
+  console.log(`- Captured session raw local available: ${session.capturedRawFixtureAvailable ? "yes" : "no"}`);
   console.log(`- Result state: ${parsed.betData.RESULT_STATE}`);
   console.log(`- Renderer stub: 40_projects/${projectId}/vabs/renderer/${config.targetFolderName}/code.js`);
   console.log(`- Replay harness HTML: ${harness.htmlPath}`);

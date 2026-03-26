@@ -27,6 +27,9 @@ This folder is the GS VABS workspace scaffold for `project_001`.
 - `npm run vabs:intake:project_001`
 - `npm run vabs:sanitize:project_001`
 - `npm run vabs:verify:captured:project_001`
+- `npm run vabs:intake:session:project_001`
+- `npm run vabs:sanitize:session:project_001`
+- `npm run vabs:verify:captured-session:project_001`
 - `npm run vabs:parse:project_001`
 - `npm run vabs:compare:project_001`
 - `npm run vabs:export:project_001`
@@ -48,7 +51,10 @@ This folder is the GS VABS workspace scaffold for `project_001`.
 - `contract/capture-source-log.md` records the exact donor/canonical sources checked for a real archived row and what was or was not found.
 - `contract/captured-playerBets-row.json` is the local-only raw intake path and is gitignored.
 - `contract/captured-playerBets-row.sanitized.json` is the reserved future commit-safe captured-row path.
+- `contract/captured-playerBets-session.json` is the local-only raw session intake path and is gitignored.
+- `contract/captured-playerBets-session.sanitized.json` is the reserved future commit-safe captured-session path.
 - `auto` fixture selection only promotes the sanitized captured path; it will not silently use the local raw intake file.
+- `contract/operator-session-capture-request.md` and `contract/captured-session-redaction-guidelines.md` now document the smallest honest capture pack while no real archived session is available.
 - `contract/fixture-comparison.md` records which fields are confirmed from captured data vs derived from GS examples vs still provisional.
 - The renderer folder now contains one project-specific stub package under `renderer/mysterygarden/`.
 - The local replay harness now supports fixture provenance reporting and writes deterministic replay-summary artifacts under `/tmp/myide-vabs-project_001-replay/<fixture-kind>/`.

@@ -11,6 +11,7 @@ Use this for each project that will eventually ship GS VABS / visual round histo
 - [ ] Add one deterministic sample archived row.
 - [ ] Record whether that row is captured, derived, or mixed provenance.
 - [ ] Define the raw local capture-drop path and the sanitized commit-safe capture path.
+- [ ] Define the raw local session-capture drop path and the sanitized commit-safe session-capture path.
 - [ ] Define whether `auto` replay selection may use only sanitized captured rows or some broader fallback.
 - [ ] Define the local GS-style export package shape.
 
@@ -37,6 +38,7 @@ Use this for each project that will eventually ship GS VABS / visual round histo
 - [ ] One deterministic archived row sample replays consistently.
 - [ ] Captured-vs-derived provenance is explicit for the active fixture.
 - [ ] Raw local-only captured rows stay out of Git and do not become the default replay input accidentally.
+- [ ] Raw local-only captured sessions stay out of Git and do not become the default replay input accidentally.
 - [ ] Captured-vs-derived comparison exists and is readable.
 - [ ] One deterministic local replay harness run emits a replay-summary artifact for review/debug.
 - [ ] One deterministic local export package can be built for `common/vabs/<folder>/`.
@@ -59,7 +61,7 @@ Use this for each project that will eventually ship GS VABS / visual round histo
 - Intended folder name: `mysterygarden`
 - Decision status: provisional but intended
 - Current concrete slice: stronger derived free-spins-trigger row fixture plus captured-round-id tracking plus explicit captured-row intake/comparison plus local replay harness plus stronger replay-summary renderer stub
-- Current intake rule: `auto` uses the sanitized captured row if present, otherwise falls back to the derived fixture
+- Current intake rule: `auto` uses the sanitized captured row or sanitized captured session if present, otherwise falls back to the derived fixture/session
 - Current export rule: the local export package mirrors `common/vabs/mysterygarden/` but remains a stub-only non-production package
 - Current shell-mock rule: the local shell mock approximates `/vabs/show.jsp` boot with the exported package, but it is still not live JSP deployment proof
 - Current session-mock rule: the row list and row-click replay flow are derived local support/history scaffolding until a real captured archived session exists

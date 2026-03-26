@@ -1,9 +1,10 @@
 # Capture Source Log
 
-This file records the exact sources checked for a real archived `playerBets` row for `project_001`.
+This file records the exact sources checked for a real archived `playerBets` row or `playerBets[]` session for `project_001`.
 
 ## Current Outcome
 - No full Mystery Garden archived `playerBets` row is currently available in the accessible local workspace or canonical GS reference material.
+- No full Mystery Garden archived `playerBets[]` session is currently available in the accessible local workspace or canonical GS reference material.
 - The strongest grounded project-specific capture remains `MG-EV-20260320-LIVE-A-005__runtime_init_response.json`.
 - That file confirms a real live `flow.round_id=14099735306`, but it is not itself an archived history row.
 
@@ -58,5 +59,9 @@ This file records the exact sources checked for a real archived `playerBets` row
   - `contract/captured-playerBets-row.json`
 - Commit-safe sanitized archived rows belong at:
   - `contract/captured-playerBets-row.sanitized.json`
+- Local-only raw archived sessions belong at:
+  - `contract/captured-playerBets-session.json`
+- Commit-safe sanitized archived sessions belong at:
+  - `contract/captured-playerBets-session.sanitized.json`
 - `auto` selection must only promote the sanitized path.
 - Raw local-only rows may only be used intentionally via explicit captured selection or sanitization commands.

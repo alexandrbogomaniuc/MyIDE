@@ -2,7 +2,15 @@ import { mkdirSync, writeFileSync } from "fs";
 import path from "path";
 
 import { getRepoRoot } from "../publication/shared";
-import { buildReplaySummary, createLocalReplayRow, FixtureSelection, parseFixtureSelectionArg, parseProjectIdArg, ReplaySummary } from "./shared";
+import {
+  buildReplaySummary,
+  createLocalReplayRow,
+  FixtureSelection,
+  parseFixtureSelectionArg,
+  parseProjectIdArg,
+  parseRowIndexArg,
+  ReplaySummary
+} from "./shared";
 import { getExportPreviewArtifactDirectory } from "./exportManifest";
 import { ExportPackageResult, runExportPackage } from "./exportPackage";
 
@@ -24,6 +32,11 @@ export type ExportPreviewSummary = {
   fixtureProvenance: string;
   captureStatus: string;
   roundId: string;
+  sessionId?: string;
+  sessionFixturePath?: string;
+  sessionFixtureKind?: string;
+  sessionRowCount?: number;
+  selectedSessionRowIndex?: number;
   previewUsedExportedPackage: boolean;
   rendererExecuted: boolean;
   packageRoot: string;
@@ -131,11 +144,12 @@ function wrapHtml(preview: ExportPreviewSummary, innerHtml: string): string {
 export function runExportPreview(
   projectId: string,
   repoRoot = getRepoRoot(),
-  selection: FixtureSelection = "auto"
+  selection: FixtureSelection = "auto",
+  sessionRowIndex?: number
 ): ExportPreviewResult {
-  const exportResult = runExportPackage(projectId, repoRoot, selection);
+  const exportResult = runExportPackage(projectId, repoRoot, selection, sessionRowIndex);
   const renderer = loadExportedRenderer(exportResult.stringsPath, exportResult.codePath);
-  const row = createLocalReplayRow(projectId, repoRoot, selection);
+  const row = createLocalReplayRow(projectId, repoRoot, selection, sessionRowIndex);
 
   if (typeof renderer.start === "function") {
     renderer.start();
@@ -144,7 +158,7 @@ export function runExportPreview(
   const rowEvent = typeof renderer.createRowEvent === "function" ? renderer.createRowEvent(row) : row;
   const drawResult = typeof renderer.draw === "function" ? renderer.draw(rowEvent) : null;
   const summary = {
-    ...buildReplaySummary(projectId, repoRoot, selection),
+    ...buildReplaySummary(projectId, repoRoot, selection, sessionRowIndex),
     ...(drawResult && typeof drawResult === "object" && !Array.isArray(drawResult) ? drawResult : {})
   } as ReplaySummary;
   const rendererExecuted = Boolean(drawResult);
@@ -159,6 +173,11 @@ export function runExportPreview(
     fixtureProvenance: exportResult.manifest.fixtureProvenance,
     captureStatus: exportResult.manifest.captureStatus,
     roundId: exportResult.manifest.roundId,
+    sessionId: exportResult.manifest.sessionId,
+    sessionFixturePath: exportResult.manifest.sessionFixturePath,
+    sessionFixtureKind: exportResult.manifest.sessionFixtureKind,
+    sessionRowCount: exportResult.manifest.sessionRowCount,
+    selectedSessionRowIndex: exportResult.manifest.selectedSessionRowIndex,
     previewUsedExportedPackage: true,
     rendererExecuted,
     packageRoot: exportResult.packageRoot,
@@ -184,7 +203,7 @@ export function runExportPreview(
 
   mkdirSync(artifactDirectory, { recursive: true });
   writeFileSync(jsonPath, `${JSON.stringify(previewSummary, null, 2)}\n`, "utf8");
-  writeFileSync(textPath, `GS-Style Export Preview\nPackage: ${previewSummary.staticPackagePath}\nRequested Fixture: ${previewSummary.requestedFixtureSelection}\nActual Fixture: ${previewSummary.actualFixtureSelection} / ${previewSummary.actualFixtureKind}\nFixture Provenance: ${previewSummary.fixtureProvenance}\nCapture Status: ${previewSummary.captureStatus}\nROUND_ID: ${previewSummary.roundId}\nRenderer Executed: ${previewSummary.rendererExecuted ? "yes" : "no"}\nManifest: ${previewSummary.manifestPath}\n\n${text}\n`, "utf8");
+  writeFileSync(textPath, `GS-Style Export Preview\nPackage: ${previewSummary.staticPackagePath}\nRequested Fixture: ${previewSummary.requestedFixtureSelection}\nActual Fixture: ${previewSummary.actualFixtureSelection} / ${previewSummary.actualFixtureKind}\nFixture Provenance: ${previewSummary.fixtureProvenance}\nCapture Status: ${previewSummary.captureStatus}\nROUND_ID: ${previewSummary.roundId}\nSession ID: ${previewSummary.sessionId ?? "-"}\nSession Fixture: ${previewSummary.sessionFixturePath ?? "-"}\nSession Kind: ${previewSummary.sessionFixtureKind ?? "-"}\nSession Row Count: ${previewSummary.sessionRowCount ?? "-"}\nSelected Session Row Index: ${previewSummary.selectedSessionRowIndex ?? "-"}\nRenderer Executed: ${previewSummary.rendererExecuted ? "yes" : "no"}\nManifest: ${previewSummary.manifestPath}\n\n${text}\n`, "utf8");
   writeFileSync(htmlPath, wrapHtml(previewSummary, innerHtml), "utf8");
 
   return {
@@ -201,7 +220,8 @@ function main(): void {
   const repoRoot = getRepoRoot();
   const projectId = parseProjectIdArg();
   const selection = parseFixtureSelectionArg();
-  const result = runExportPreview(projectId, repoRoot, selection);
+  const rowIndex = parseRowIndexArg();
+  const result = runExportPreview(projectId, repoRoot, selection, rowIndex);
 
   console.log(`Local GS-style export preview passed for ${projectId}`);
   console.log(`- Export root: ${result.exportResult.exportRoot}`);
@@ -212,6 +232,9 @@ function main(): void {
   console.log(`- Actual fixture kind: ${result.previewSummary.actualFixtureKind}`);
   console.log(`- Fixture provenance: ${result.previewSummary.fixtureProvenance}`);
   console.log(`- Renderer executed: ${result.previewSummary.rendererExecuted ? "yes" : "no"}`);
+  if (typeof rowIndex === "number") {
+    console.log(`- Session row index: ${rowIndex}`);
+  }
   console.log(`- Preview JSON: ${result.jsonPath}`);
   console.log(`- Preview HTML: ${result.htmlPath}`);
   console.log(`- Preview text: ${result.textPath}`);

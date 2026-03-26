@@ -549,8 +549,9 @@ export function runLocalShellMock(
   repoRoot = getRepoRoot(),
   selection: FixtureSelection = "auto"
 ): ShellMockResult {
-  const exportResult = runExportPackage(projectId, repoRoot, selection);
   const session = buildSessionFixture(projectId, repoRoot, selection);
+  const defaultSelectedRowIndex = 0;
+  const exportResult = runExportPackage(projectId, repoRoot, selection, defaultSelectedRowIndex);
   const sessionRows = buildShellMockRows(projectId, repoRoot, selection);
   const firstRow = sessionRows[0];
   if (!firstRow) {
@@ -605,7 +606,7 @@ export function runLocalShellMock(
     sessionCaptureStatus: session.captureStatus,
     sessionSourceNote: session.sourceNote,
     rowCount: sessionRows.length,
-    defaultSelectedRowIndex: 0
+    defaultSelectedRowIndex
   };
 
   writeFileSync(htmlPath, renderShellMockHtml(shellSummary, sessionRows), "utf8");
@@ -632,7 +633,7 @@ export function runLocalShellMock(
   );
   writeFileSync(
     textPath,
-    `Local VABS Session Shell Mock\nPackage: ${shellSummary.staticPackagePath}\nRequested Fixture: ${shellSummary.requestedFixtureSelection}\nActual Fixture: ${shellSummary.actualFixtureSelection} / ${shellSummary.actualFixtureKind}\nFixture Provenance: ${shellSummary.fixtureProvenance}\nCapture Status: ${shellSummary.captureStatus}\nSession Fixture: ${shellSummary.sessionFixturePath}\nSession Kind: ${shellSummary.sessionFixtureKind}\nSession Provenance: ${shellSummary.sessionFixtureProvenance}\nRow Count: ${shellSummary.rowCount}\nDefault Selected Row: ${shellSummary.defaultSelectedRowIndex}\nDefault ROUND_ID: ${shellSummary.roundId}\nComparison Mode: ${shellSummary.comparisonMode}\nProvisional Fields: ${shellSummary.provisionalFields.join(", ") || "none"}\nMock HTML: ${htmlPath}\nPackage Root: ${packageRoot}\n\nThis artifact approximates show.jsp boot with a local static package, a derived session-level playerBets list, and row-click replay behavior. It does not prove live JSP deployment.\n`,
+    `Local VABS Session Shell Mock\nPackage: ${shellSummary.staticPackagePath}\nRequested Fixture: ${shellSummary.requestedFixtureSelection}\nActual Fixture: ${shellSummary.actualFixtureSelection} / ${shellSummary.actualFixtureKind}\nFixture Provenance: ${shellSummary.fixtureProvenance}\nCapture Status: ${shellSummary.captureStatus}\nSession Fixture: ${shellSummary.sessionFixturePath}\nSession Kind: ${shellSummary.sessionFixtureKind}\nSession Provenance: ${shellSummary.sessionFixtureProvenance}\nRow Count: ${shellSummary.rowCount}\nDefault Selected Row: ${shellSummary.defaultSelectedRowIndex}\nDefault ROUND_ID: ${shellSummary.roundId}\nComparison Mode: ${shellSummary.comparisonMode}\nProvisional Fields: ${shellSummary.provisionalFields.join(", ") || "none"}\nMock HTML: ${htmlPath}\nPackage Root: ${packageRoot}\n\nThis artifact approximates show.jsp boot with a local static package, a ${shellSummary.sessionFixtureKind} session-level playerBets list, and row-click replay behavior. It does not prove live JSP deployment.\n`,
     "utf8"
   );
 

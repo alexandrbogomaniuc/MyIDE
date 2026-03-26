@@ -24,6 +24,16 @@ These commands manage the project-local GS VABS scaffold without coupling VABS i
   - Report whether raw and/or sanitized captured rows exist.
   - Verify the sanitized captured row when present.
   - Run the local replay harness against the captured selection when the sanitized row is valid.
+- `npm run vabs:intake:session:project_001`
+  - Copy a raw local archived-session candidate into the local-only intake path when a `--source` file is provided.
+  - Otherwise print the current raw/sanitized captured-session intake status for `project_001`.
+- `npm run vabs:sanitize:session:project_001`
+  - Read the local-only raw session intake when present.
+  - Preserve the full `playerBets[]` array, redact unsafe row fields, and write a commit-safe `captured-playerBets-session.sanitized.json` when possible.
+- `npm run vabs:verify:captured-session:project_001`
+  - Report whether raw and/or sanitized captured sessions exist.
+  - Verify the sanitized captured session when present.
+  - Run replay/export/preview/mock/smoke against a selected captured session row when the sanitized session is valid.
 - `npm run vabs:export:project_001`
   - Build a deterministic local GS-style export package under `/tmp/myide-vabs-project_001-export/common/vabs/mysterygarden/`.
   - Export `code.js`, `strings_en.js`, and a manifest with fixture provenance and package limitations.
@@ -32,12 +42,12 @@ These commands manage the project-local GS VABS scaffold without coupling VABS i
   - Verify the expected `common/vabs/mysterygarden/` structure and manifest fields are present.
 - `npm run vabs:preview:project_001`
   - Load the exported package rather than the source renderer path.
-  - Run the local row fixture through the exported stub.
+  - Run the local row fixture, or an explicit session row when requested, through the exported stub.
   - Write deterministic preview artifacts to `/tmp/myide-vabs-project_001-export-preview/<fixture-kind>/`.
 - `npm run vabs:mock:project_001`
   - Build a local browser-facing shell mock around the exported package.
   - Stage a fixture-specific shell under `/tmp/myide-vabs-project_001-shell-mock/<fixture-kind>/`.
-  - Render a derived session-level `playerBets[]` row list and feed row clicks into the replay panel.
+  - Render a session-level `playerBets[]` row list and feed row clicks into the replay panel.
   - Approximate the `/vabs/show.jsp` boot seam without claiming a real JSP environment.
 - `npm run vabs:smoke:project_001`
   - Open the shell mock through a headless local browser.
@@ -46,6 +56,7 @@ These commands manage the project-local GS VABS scaffold without coupling VABS i
 - `npm run vabs:replay:project_001`
   - Load the `project_001` row fixture through the shared parser path.
   - Default fixture selection is `auto`; re-run with `-- captured` or `-- derived` to force a specific tier.
+  - Optional `--row-index <n>` lets replay/export/preview validate a selected session row when a captured session exists.
   - Load the project-specific `renderer/mysterygarden/code.js` stub locally.
   - Write deterministic replay-summary artifacts to `/tmp/myide-vabs-project_001-replay/<fixture-kind>/`.
 - `npm run vabs:verify:project_001`
@@ -55,7 +66,7 @@ These commands manage the project-local GS VABS scaffold without coupling VABS i
   - Check `ROUND_ID` is documented and parses numerically.
   - Check required `betData` and `servletData` keys exist in the row fixture.
   - Check captured-vs-derived tracking is explicit through `captured-row-notes.md` and `fixture-comparison.md` when no full captured row exists yet.
-  - Check the local raw captured-row intake path is gitignored.
+  - Check the local raw captured-row and captured-session intake paths are gitignored.
   - Check the project-specific renderer stub package exists.
   - Check the acceptance checklist exists.
   - Build and verify the GS-style export package.
@@ -63,10 +74,10 @@ These commands manage the project-local GS VABS scaffold without coupling VABS i
   - Build the local page-shell mock with a session-level row list.
   - Run the local browser smoke against that shell mock and confirm row-click replay updates.
   - Run the local replay harness and confirm the replay-summary artifact can be produced successfully.
-  - Report whether a sanitized captured row is available and whether a local raw-only row is present.
+  - Report whether a sanitized captured row or sanitized captured session is available and whether local raw-only intake files are present.
 
 ## Scope
 - Local-first.
 - Deterministic.
-- Scaffold, captured-row intake guidance, sanitization, captured-vs-derived fixture tracking, export, preview, local page-shell mock, local browser smoke, local session-row mock, local row-click replay proof, local replay-summary harness, comparison, and verification only.
+- Scaffold, captured-row and captured-session intake guidance, sanitization, captured-vs-derived fixture tracking, export, preview, local page-shell mock, local browser smoke, local session-row mock, local row-click replay proof, local replay-summary harness, comparison, and verification only.
 - No production VABS renderer build in this phase.

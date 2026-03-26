@@ -11,6 +11,8 @@ This document describes the first concrete `project_001` archived row contract s
 - Reserved captured intake paths:
   - local raw: `captured-playerBets-row.json` (gitignored)
   - sanitized commit-safe: `captured-playerBets-row.sanitized.json`
+  - local raw session: `captured-playerBets-session.json` (gitignored)
+  - sanitized commit-safe session: `captured-playerBets-session.sanitized.json`
 - Grounded parts come from:
   - the audited GS servlet + `TRow` row/parse contract
   - the canonical GS `gethistory.response.json` example for free-spins feature-mode/counter structure
@@ -28,6 +30,7 @@ This document describes the first concrete `project_001` archived row contract s
 - Captured target evidence found so far:
   - one sanitized live init response proving `flow.round_id=14099735306`
   - no full archived `playerBets` row with the complete GS history shape
+  - no full archived `playerBets[]` session with the complete GS history shape
 - Captured-row intake rule:
   - local raw archived rows belong only in `captured-playerBets-row.json`
   - commit-safe captured rows belong only in `captured-playerBets-row.sanitized.json`
@@ -46,6 +49,10 @@ This document describes the first concrete `project_001` archived row contract s
 - Session mock doc:
   - `contract/session-notes.md`
   - records how the derived row list supports the local support/history shell mock without claiming captured session truth
+- Operator capture docs:
+  - `contract/operator-session-capture-request.md`
+  - `contract/captured-session-redaction-guidelines.md`
+  - document the smallest safe captured-session intake flow while no real session payload is available yet
 
 ## Source Shape
 The audited GS history servlet returns JSON rows under `playerBets[]` with the following fields:

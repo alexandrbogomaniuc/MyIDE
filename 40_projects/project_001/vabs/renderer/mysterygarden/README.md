@@ -24,5 +24,6 @@ This is the first project-specific GS VABS renderer stub package for `project_00
 - is now exported and previewed through a local GS-style `common/vabs/mysterygarden/` package layout
 - is now also exercised through a local page-shell mock and hidden-browser smoke that approximate the `/vabs/show.jsp` boot seam without claiming real JSP proof
 - now updates inside that shell when a different session-row entry is selected from the local mock row list
+- can now be re-run against an explicit sanitized captured-session row when one becomes available through the captured-session intake flow
 - does not depend on live runtime APIs beyond the normal GS VABS row/engine surface
 - remains a stub and does not claim the final VABS art or gameplay renderer
