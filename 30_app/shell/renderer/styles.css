@@ -659,6 +659,54 @@ button:disabled {
   color: #d5e7f5;
 }
 
+.vabs-summary {
+  gap: 12px;
+}
+
+.vabs-detail-card {
+  align-content: start;
+}
+
+.vabs-detail-card.is-alert {
+  border-color: rgba(232, 138, 93, 0.36);
+  background: rgba(232, 138, 93, 0.1);
+}
+
+.vabs-detail-card.is-positive {
+  border-color: rgba(147, 201, 133, 0.34);
+  background: rgba(147, 201, 133, 0.08);
+}
+
+.vabs-next-step,
+.vabs-commands {
+  gap: 10px;
+}
+
+.vabs-path-list,
+.vabs-command-list {
+  display: grid;
+  gap: 8px;
+}
+
+.vabs-path,
+.vabs-command {
+  display: block;
+  padding: 0.72rem 0.86rem;
+  border-radius: 12px;
+  border: 1px solid rgba(179, 209, 186, 0.16);
+  background: rgba(255, 255, 255, 0.04);
+  color: #f5e3a4;
+  font-family: "SFMono-Regular", "Menlo", "Consolas", monospace;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.vabs-path {
+  color: #d7e9f7;
+}
+
 .evidence-actions {
   display: flex;
   flex-wrap: wrap;

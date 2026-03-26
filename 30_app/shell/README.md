@@ -8,6 +8,7 @@ Electron desktop shell for MyIDE.
 - Create a new project scaffold from the shell through a bounded local IPC bridge.
 - Support a simple workspace rescan so newly added project folders can appear after discovery refreshes the derived registry.
 - Show the selected project's donor, target/resulting game, lifecycle stage summary, phase, verification status, folder path, and notes.
+- Show the selected project's read-only GS VABS status when a project-local `vabs/` workspace exists, including current fixture provenance, captured row/session presence, export/mock/smoke readiness, current blocker, and the next operator capture step.
 - Show a scene/layer/object explorer for the selected project's editable internal scene files.
 - Render the editor canvas from the deterministic preview scene bridged from `internal/scene.json`, `layers.json`, and `objects.json` when those files exist.
 - Support object selection from the list and canvas, direct canvas move, snap-assisted drag and nudge, selected-object layer reassignment, preset-based placeholder object creation, bounded placeholder width/height editing, layer-local ordering controls, a read-only order-position cue, previous/next sibling selection within the current layer, quick session-only layer isolation, session-only viewport zoom/pan/reset/fit controls, duplicate/delete for editable objects, bounded property editing, bounded undo/redo, bounded viewport alignment, layer visible/locked toggles, save, and reload for the validated `project_001` editor slice.
@@ -27,6 +28,7 @@ Electron desktop shell for MyIDE.
 - Support a dedicated Electron live-undo-redo smoke mode that uses the real renderer preset selection + new-placeholder action + canvas drag path + undo/redo toolbar path to load `project_001`, create a placeholder object, drag it, undo it, redo it, save, reload, verify replay-facing sync, and write `/tmp/myide-electron-live-undo-redo.json` while the outer smoke harness restores the touched project files and logs.
 - Keep the validated `project_001` replay slice intact.
 - Keep donor decoding and server integration out of this phase.
+- Keep the new VABS panel read-only and outside the editor save path; it is workflow visibility only, not JSP/deployment proof.
 
 ## Bounded Shortcuts
 - `Ctrl/Cmd+S`: save and sync replay-facing output.

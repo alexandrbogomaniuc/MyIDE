@@ -219,6 +219,10 @@
 ## QA-B
 - [x] Add `manual:prepare:project_001` for one-command manual session prep.
 
+## VABS-UX-A
+- [x] Surface a read-only VABS status panel inside the shell for the selected project.
+- [ ] Switch that panel from derived truth to captured truth when a real sanitized archived row or session is finally dropped in.
+
 ## GS-VABS-F
 - [x] Add explicit raw vs sanitized captured-row intake paths for `project_001`.
 - [x] Add stronger provenance-aware compare/verify/replay reporting.

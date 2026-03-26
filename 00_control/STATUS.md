@@ -24,6 +24,7 @@
 - Donor evidence remains read-only.
 - `40_projects/project_001/vabs/` now contains one concrete `project_001` slice with a provisional intended folder-name decision, one stronger derived row-contract fixture, explicit raw-vs-sanitized captured-row and captured-session intake paths, explicit captured-vs-derived comparison, parser verification, one local replay harness, and one project-specific stronger replay-summary stub.
 - The same `project_001` slice now also supports a deterministic local GS-style export package, a local preview dry-run against that exported package, a local page-shell mock that approximates `show.jsp` boot, and a local browser smoke that confirms a non-default row selection updates the stub inside that shell.
+- The shell now surfaces that VABS lane as a read-only project panel so an operator can see fixture provenance, captured row/session presence, export/mock/smoke readiness, the current blocker, and the next capture command without changing the editor flow.
 - Those export, preview, shell-mock, and browser-smoke outputs are local validation artifacts only; they are not yet production deployment proof or live JSP proof.
 - `auto` replay/session selection now promotes only sanitized captured paths; the raw local-only intake files are intentionally opt-in.
 - GS-VABS-L searched wider local and canonical sources again and still found no real archived Mystery Garden `playerBets` row or `playerBets[]` session beyond the known live init evidence.

@@ -464,10 +464,23 @@ async function runBridgeSmoke() {
     const selectedProjectId = typeof bundle?.selectedProjectId === "string" ? bundle.selectedProjectId : "";
     const project001 = workspaceProjects.find((entry) => entry?.projectId === "project_001") ?? null;
     const projectShapeValid = Boolean(bundle?.project && typeof bundle.project === "object" && !Array.isArray(bundle.project));
+    const vabsStatus = bundle?.vabs && typeof bundle.vabs === "object" && !Array.isArray(bundle.vabs)
+      ? bundle.vabs
+      : null;
+    const vabsStatusReady = Boolean(
+      vabsStatus
+      && typeof vabsStatus.currentBlocker === "string"
+      && typeof vabsStatus.nextRecommendedAction === "string"
+      && typeof vabsStatus.targetFolderToken === "string"
+    );
     const propertyPanelApiReady = typeof api.buildPropertyPanelViewModel === "function";
 
     if (!projectShapeValid) {
       throw new Error("project slice returned an invalid project object.");
+    }
+
+    if (!vabsStatusReady) {
+      throw new Error("project slice returned no usable VABS status summary for project_001.");
     }
 
     if (propertyPanelApiReady) {
@@ -494,6 +507,8 @@ async function runBridgeSmoke() {
       project001LoadSucceeded: Boolean(project001),
       selectedProjectId,
       workspaceProjectCount: workspaceProjects.length,
+      vabsStatusReady,
+      vabsActiveFixtureSource: vabsStatus?.activeFixtureSource ?? null,
       propertyPanelBridgeReady: propertyPanelApiReady,
       preloadExists: Boolean(health?.preloadExists),
       preloadPath: health?.preloadPath ?? null
@@ -4138,6 +4153,10 @@ function getSelectedProject() {
   return projects.find((entry) => entry.projectId === state.selectedProjectId) ?? projects[0];
 }
 
+function getSelectedProjectVabsStatus() {
+  return state.bundle?.vabs ?? null;
+}
+
 function getSelectedObject() {
   if (!state.editorData || !Array.isArray(state.editorData.objects)) {
     return null;
@@ -6691,6 +6710,7 @@ function renderProjectSummary() {
   const evidenceRefSummary = evidenceRefs.length > 0
     ? `${evidenceRefs.length} indexed evidence refs`
     : "No evidence refs indexed yet.";
+  const vabsStatusMarkup = renderVabsStatusSummary();
 
   const lifecycleChips = lifecycleStageOrder.map((stageId) => {
     const stage = selectedProject.lifecycle?.stages?.[stageId];
@@ -6737,6 +6757,7 @@ function renderProjectSummary() {
         <span>validated slice: project_001</span>
       </div>
     </div>
+    ${vabsStatusMarkup}
     <div class="tree-row">
       <strong>Read-only Donor Evidence Summary</strong>
       <span>${escapeHtml(selectedProject.donor.donorName)} evidence explains provenance for this project. It is not the live editable source in this build.</span>
@@ -6767,6 +6788,129 @@ function renderProjectSummary() {
       <strong>Lifecycle Summary</strong>
       <span>One project = one donor-to-release cycle.</span>
       <div class="lifecycle-grid">${lifecycleChips}</div>
+    </div>
+  `;
+}
+
+function getVabsCaptureStateLabel(entry) {
+  if (!entry) {
+    return "missing";
+  }
+
+  if (entry.sanitizedExists) {
+    return "sanitized captured ready";
+  }
+
+  if (entry.rawExists) {
+    return "raw local-only present";
+  }
+
+  return "missing";
+}
+
+function getVabsProofChainLabel(vabsStatus) {
+  const checks = [
+    ["export", vabsStatus?.commands?.exportPackage],
+    ["preview", vabsStatus?.commands?.preview],
+    ["mock", vabsStatus?.commands?.mock],
+    ["smoke", vabsStatus?.commands?.smoke]
+  ];
+
+  const available = checks
+    .filter(([, enabled]) => Boolean(enabled))
+    .map(([label]) => label);
+
+  return available.length > 0
+    ? `${available.join(" + ")} commands present`
+    : "no local VABS proof commands indexed";
+}
+
+function renderVabsCodeList(items, className) {
+  return items
+    .map((item) => `<code class="${className}">${escapeHtml(item)}</code>`)
+    .join("");
+}
+
+function renderVabsStatusSummary() {
+  const selectedProject = getSelectedProject();
+  if (!selectedProject) {
+    return "";
+  }
+
+  const vabsStatus = getSelectedProjectVabsStatus();
+  if (!vabsStatus) {
+    return `
+      <div class="tree-row scope-summary vabs-summary" data-vabs-available="no">
+        <strong>VABS Module</strong>
+        <span>No project-local VABS workspace is indexed for this project yet. The current shell/editor workflow stays unchanged.</span>
+        <div class="chip-row">
+          <span>vabs: not started</span>
+          <span>editor: unchanged</span>
+        </div>
+      </div>
+    `;
+  }
+
+  const blockerToneClass = vabsStatus.activeFixtureSource === "captured"
+    ? "vabs-detail-card is-positive"
+    : "vabs-detail-card is-alert";
+
+  return `
+    <div class="tree-row scope-summary vabs-summary" data-vabs-available="yes" data-vabs-fixture-source="${escapeHtml(vabsStatus.activeFixtureSource)}">
+      <strong>VABS Module</strong>
+      <span>Read-only archived-history status for the selected project. This panel surfaces the current VABS truth without changing the editor/save path.</span>
+      <div class="chip-row">
+        <span>status: ${escapeHtml(vabsStatus.currentStatus)}</span>
+        <span>folder: ${escapeHtml(vabsStatus.targetFolderToken ?? "not decided")}</span>
+        <span>fixture: ${escapeHtml(vabsStatus.activeFixtureSummary)}</span>
+        <span>selection: ${escapeHtml(vabsStatus.selectionMode)}</span>
+      </div>
+      <div class="detail-grid">
+        <div class="detail-card vabs-detail-card">
+          <span>Current VABS Stage</span>
+          <strong>${escapeHtml(vabsStatus.currentStatus)}</strong>
+          <small>Folder decision: ${escapeHtml(vabsStatus.folderDecisionStatus ?? "not recorded")}. Project-local visibility only. The shell still edits internal scene files and keeps VABS read-only.</small>
+        </div>
+        <div class="detail-card vabs-detail-card">
+          <span>Fixture Provenance</span>
+          <strong>${escapeHtml(vabsStatus.activeFixtureSummary)}</strong>
+          <small>${vabsStatus.confirmedRoundId ? `Confirmed live ROUND_ID ${escapeHtml(vabsStatus.confirmedRoundId)} from ${escapeHtml(vabsStatus.confirmedRoundEvidence ?? "captured evidence")}.` : "No confirmed live ROUND_ID is indexed yet."}</small>
+        </div>
+        <div class="detail-card vabs-detail-card">
+          <span>Captured Row</span>
+          <strong>${escapeHtml(getVabsCaptureStateLabel(vabsStatus.capturedRow))}</strong>
+          <small>Raw: ${vabsStatus.capturedRow.rawExists ? "yes" : "no"} · Sanitized: ${vabsStatus.capturedRow.sanitizedExists ? "yes" : "no"}</small>
+        </div>
+        <div class="detail-card vabs-detail-card">
+          <span>Captured Session</span>
+          <strong>${escapeHtml(getVabsCaptureStateLabel(vabsStatus.capturedSession))}</strong>
+          <small>Raw: ${vabsStatus.capturedSession.rawExists ? "yes" : "no"} · Sanitized: ${vabsStatus.capturedSession.sanitizedExists ? "yes" : "no"}</small>
+        </div>
+        <div class="detail-card vabs-detail-card">
+          <span>Export / Proof Chain</span>
+          <strong>${vabsStatus.exportPackageExists ? "local export package present" : "local export package not built yet"}</strong>
+          <small>${escapeHtml(getVabsProofChainLabel(vabsStatus))} · ${escapeHtml(vabsStatus.exportPackagePath)}</small>
+        </div>
+        <div class="detail-card ${blockerToneClass}">
+          <span>Current Blocker</span>
+          <strong>${vabsStatus.activeFixtureSource === "captured" ? "Captured truth available" : "Real archived data still missing"}</strong>
+          <small>${escapeHtml(vabsStatus.currentBlocker)}</small>
+        </div>
+      </div>
+      <div class="tree-row vabs-next-step">
+        <strong>Next Operator Action</strong>
+        <span>${escapeHtml(vabsStatus.nextRecommendedAction)}</span>
+        <div class="vabs-path-list">
+          ${renderVabsCodeList(vabsStatus.operatorPaths, "vabs-path")}
+        </div>
+      </div>
+      <div class="tree-row vabs-commands">
+        <strong>Copy/Paste Commands</strong>
+        <span>Use the existing local VABS tooling. This panel does not execute commands for you.</span>
+        <div class="vabs-command-list">
+          ${renderVabsCodeList(vabsStatus.operatorCommands, "vabs-command")}
+        </div>
+      </div>
     </div>
   `;
 }
@@ -7938,6 +8082,15 @@ window.render_game_to_text = () => JSON.stringify({
   selectedProjectId: state.selectedProjectId,
   selectedObjectId: state.selectedObjectId,
   dirty: state.dirty,
+  vabs: state.bundle?.vabs ? {
+    currentStatus: state.bundle.vabs.currentStatus,
+    activeFixtureSource: state.bundle.vabs.activeFixtureSource,
+    activeFixtureSummary: state.bundle.vabs.activeFixtureSummary,
+    capturedRow: state.bundle.vabs.capturedRow,
+    capturedSession: state.bundle.vabs.capturedSession,
+    currentBlocker: state.bundle.vabs.currentBlocker,
+    nextRecommendedAction: state.bundle.vabs.nextRecommendedAction
+  } : null,
   undoCount: state.history?.undoStack?.length ?? 0,
   redoCount: state.history?.redoStack?.length ?? 0,
   syncStatus: state.syncStatus ? {

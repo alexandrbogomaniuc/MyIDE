@@ -1,6 +1,7 @@
 # GS VABS Tooling
 
 These commands manage the project-local GS VABS scaffold without coupling VABS into the current editor runtime.
+The shell can now mirror the current VABS truth as a read-only project panel, but these commands remain the source of truth for intake, sanitize, verify, export, preview, mock, smoke, and replay work.
 
 ## Commands
 - `npm run vabs:scaffold:project_001`

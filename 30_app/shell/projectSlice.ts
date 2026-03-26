@@ -9,6 +9,7 @@ import {
   type EditablePreviewScene,
   type EditableProjectData
 } from "../workspace/editableProject";
+import { buildProjectVabsStatus, type ProjectVabsStatus } from "./vabsStatus";
 
 type JsonValue = null | boolean | number | string | JsonObject | JsonValue[];
 type JsonObject = { [key: string]: JsonValue | undefined };
@@ -52,6 +53,7 @@ export interface ProjectSliceBundle {
   evidenceCatalog: DonorEvidenceCatalog | null;
   previewScene: EditablePreviewScene | null;
   editableProject: EditableProjectData | null;
+  vabs: ProjectVabsStatus | null;
   fixtures: {
     normalSpin: JsonObject;
     freeSpinsTrigger: JsonObject;
@@ -363,8 +365,16 @@ export async function loadProjectSlice(requestedProjectId?: string): Promise<Pro
   assertPreviewAssetsStayInternal(project);
 
   const selectedProjectId = resolveSelectedProjectId(workspace, requestedProjectId);
+  const selectedProject = workspace.projects.find((entry) => entry.projectId === selectedProjectId) ?? null;
   const evidenceCatalog = await loadDonorEvidenceCatalog(importArtifact);
   const editableProject = await loadSelectedEditableProject(workspace, selectedProjectId);
+  const vabs = selectedProject
+    ? await buildProjectVabsStatus({
+      workspaceRoot,
+      projectId: selectedProjectId,
+      projectRoot: path.join(workspaceRoot, selectedProject.keyPaths.projectRoot)
+    })
+    : null;
   const previewScene = editableProject ? buildPreviewSceneFromEditableProject(editableProject) : null;
   const replayProject = editableProject
     ? buildReplayProjectFromEditableProject(project as Parameters<typeof buildReplayProjectFromEditableProject>[0], editableProject)
@@ -378,6 +388,7 @@ export async function loadProjectSlice(requestedProjectId?: string): Promise<Pro
     evidenceCatalog,
     previewScene,
     editableProject,
+    vabs,
     fixtures: {
       normalSpin,
       freeSpinsTrigger,

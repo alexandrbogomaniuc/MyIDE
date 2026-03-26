@@ -67,3 +67,4 @@ Use this for each project that will eventually ship GS VABS / visual round histo
 - Current shell-mock rule: the local shell mock approximates `/vabs/show.jsp` boot with the exported package, but it is still not live JSP deployment proof
 - Current session-mock rule: the row list and row-click replay flow are derived local support/history scaffolding until a real captured archived session exists
 - Current hard-stop rule: if no real sanitized archived row/session exists, use the operator capture request docs and stop there instead of adding more generic VABS mechanics
+- Current shell-visibility rule: the app may surface VABS readiness as a read-only project panel, but that visibility does not count as delivery proof or editor coupling

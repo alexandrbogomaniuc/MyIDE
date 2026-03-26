@@ -188,3 +188,14 @@ This run still does not add:
 - a committed full captured Mystery Garden archived `playerBets` row
 - a committed full captured Mystery Garden archived `playerBets[]` session
 - any change to the current internal-scene editor model
+
+## Current VABS-UX-A Scope
+This run adds:
+- one read-only VABS project-status panel inside the shell for the selected project
+- one preload-side VABS readiness summary so the shell can show fixture truth, captured row/session presence, export/mock/smoke readiness, current blocker, and the next operator capture step
+
+This run still does not add:
+- a finished production GS VABS renderer
+- a committed full captured Mystery Garden archived `playerBets` row
+- a committed full captured Mystery Garden archived `playerBets[]` session
+- any change to the current internal-scene editor model
