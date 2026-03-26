@@ -1,5 +1,8 @@
 # MyIDE TODO
 
+## Current Tester Blockers
+- [ ] If donor-asset editing becomes a real requirement, add an explicit donor asset browser/palette, a donor drag payload contract, a donor-to-scene import bridge path, and canvas drop/import behavior instead of implying the current donor evidence browser already does that.
+
 ## PHASE 0
 - [x] Create the required folder tree.
 - [x] Create the core control docs.

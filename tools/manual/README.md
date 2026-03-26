@@ -2,6 +2,7 @@
 
 Manual QA helpers are for local testing against the current tracked `project_001` baseline.
 The current shell edits reconstructed internal scene data under `40_projects/project_001/internal`; donor evidence stays read-only, is visible through the in-app donor evidence browser drill-down with item-level cards, lightweight previews where local artifacts already exist, object linkage drill-down, and small navigation/copy helpers, and is not a drag/drop asset browser in this build.
+On a typical window size, the Donor Evidence panel sits in the left column below Project Browser, so testers may need to scroll the left column to reach it.
 GS VABS support is a separate project-delivery module; the manual commands here are still for the current shell/editor baseline, not a production VABS renderer.
 `project_001` now has one stronger VABS contract/renderer-stub slice with explicit raw-vs-sanitized captured-row intake and captured-vs-derived fixture tracking, but editor QA and VABS verification remain separate flows.
 The shell now shows a read-only VABS status panel for the selected project, but manual editor prep and proof still use the same bounded shell/editor commands as before.
@@ -10,9 +11,10 @@ The shell now shows a read-only VABS status panel for the selected project, but 
 1. Run `npm run manual:status` for a quick LOCAL vs PUBLIC vs HANDOFF check.
 2. Run `npm run manual:prepare:project_001` to reset, sync, and validate the `project_001` baseline before testing.
 3. Launch the shell with `npm run dev`.
-4. If you hit a bug, run `npm run manual:bug-bundle` to create a timestamped folder outside the repo with a prefilled bug note, current context, and an `attachments/` folder.
-5. If you only need a quick paste-friendly text block, run `npm run manual:bug-context`.
-6. Use `npm run manual:reset:project_001` again when you want to clean up after a session without running the full prepare flow.
+4. Open `project_001` in Project Browser, then scroll the left column down if you need to inspect Donor Evidence.
+5. If you hit a bug, run `npm run manual:bug-bundle` to create a timestamped folder outside the repo with a prefilled bug note, current context, and an `attachments/` folder.
+6. If you only need a quick paste-friendly text block, run `npm run manual:bug-context`.
+7. Use `npm run manual:reset:project_001` again when you want to clean up after a session without running the full prepare flow.
 
 ## Commands
 - `npm run manual:status`

@@ -19,6 +19,7 @@ Use this when testing the current local MyIDE build by hand.
 3. `project_001` load
    - `project_001` appears in the project list and loads without error.
    - The read-only Donor Evidence panel shows donor/capture context for the project.
+   - On a typical window size, Donor Evidence sits in the left column below Project Browser, so scroll the left column if you do not see it immediately.
    - Expand at least one donor evidence drill-down section and confirm copy helpers are visible for donor IDs, paths, sessions, or refs.
    - Open at least one item-level evidence card and confirm it shows either a small preview or an honest non-preview fallback.
 4. Create and edit
@@ -51,8 +52,17 @@ Use this when testing the current local MyIDE build by hand.
 - Bridge health stays good.
 - `project_001` loads.
 - The created object remains editable.
+- Donor evidence is visible as read-only context only.
 - Drag, resize, align, reassign, reorder, duplicate/delete, and undo/redo behave coherently.
 - Save/reload keeps the final intended state.
+
+## Explicit Current Blocker
+- The shell does **not** let a tester drag/drop donor assets into the scene today.
+- Missing pieces:
+  - no donor asset browser or palette
+  - no donor drag payload from the evidence panel
+  - no donor-asset drop/import path into editable scene objects
+- Current editing stays limited to reconstructed internal scene objects and placeholder-backed creation.
 
 ## If Something Fails
 1. Stop after the first clear failure.

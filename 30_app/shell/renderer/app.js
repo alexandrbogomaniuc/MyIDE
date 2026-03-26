@@ -6279,7 +6279,7 @@ function renderOnboardingCard() {
     </div>
     <div class="tree-row">
       <strong>Where donor material fits</strong>
-      <span>Raw donor captures stay read-only evidence. The live preview and save loop use internal <code>scene.json</code>, <code>layers.json</code>, and <code>objects.json</code>. Open the Donor Evidence panel for item-level evidence cards, grounded linked-object context, and copyable donor refs behind this slice.</span>
+      <span>Raw donor captures stay read-only evidence. The live preview and save loop use internal <code>scene.json</code>, <code>layers.json</code>, and <code>objects.json</code>. Open the Donor Evidence panel in the left column below Project Browser for item-level evidence cards, grounded linked-object context, and copyable donor refs behind this slice. If you do not see it, scroll the left column down.</span>
     </div>
     <div class="tree-row">
       <strong>First 3 steps</strong>
@@ -6750,7 +6750,7 @@ function renderProjectSummary() {
     </div>
     <div class="tree-row scope-summary">
       <strong>Current Scope</strong>
-      <span>This shell edits reconstructed internal scene objects for the selected project. The Donor Evidence panel shows read-only provenance and capture context, but this build still does not expose a donor asset browser or donor drag/drop placement workflow.</span>
+      <span>This shell edits reconstructed internal scene objects for the selected project. The Donor Evidence panel sits in the left column below Project Browser on smaller windows and shows read-only provenance and capture context, but this build still does not expose a donor asset browser or donor drag/drop placement workflow.</span>
       <div class="chip-row">
         <span>editable source: internal scene</span>
         <span>donor evidence: read-only</span>
