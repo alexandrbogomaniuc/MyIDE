@@ -10,6 +10,7 @@ const isBridgeSmokeMode = process.env.MYIDE_BRIDGE_SMOKE === "1";
 const isLivePersistSmokeMode = process.env.MYIDE_LIVE_PERSIST_SMOKE === "1";
 const isLiveDragSmokeMode = process.env.MYIDE_LIVE_DRAG_SMOKE === "1";
 const isLiveCreateDragSmokeMode = process.env.MYIDE_LIVE_CREATE_DRAG_SMOKE === "1";
+const isLiveDonorImportSmokeMode = process.env.MYIDE_LIVE_DONOR_IMPORT_SMOKE === "1";
 const isLiveDuplicateDeleteSmokeMode = process.env.MYIDE_LIVE_DUPLICATE_DELETE_SMOKE === "1";
 const isLiveReorderSmokeMode = process.env.MYIDE_LIVE_REORDER_SMOKE === "1";
 const isLiveLayerReassignSmokeMode = process.env.MYIDE_LIVE_LAYER_REASSIGN_SMOKE === "1";
@@ -70,6 +71,11 @@ interface LiveCreateDragSmokePayload {
   error?: string;
 }
 
+interface LiveDonorImportSmokePayload {
+  status?: string;
+  error?: string;
+}
+
 interface LiveDuplicateDeleteSmokePayload {
   status?: string;
   error?: string;
@@ -105,6 +111,7 @@ let activeBridgeSmokeReporter: ((payload: BridgeSmokePayload) => void) | null = 
 let activeLivePersistSmokeReporter: ((payload: LivePersistSmokePayload) => void) | null = null;
 let activeLiveDragSmokeReporter: ((payload: LiveDragSmokePayload) => void) | null = null;
 let activeLiveCreateDragSmokeReporter: ((payload: LiveCreateDragSmokePayload) => void) | null = null;
+let activeLiveDonorImportSmokeReporter: ((payload: LiveDonorImportSmokePayload) => void) | null = null;
 let activeLiveDuplicateDeleteSmokeReporter: ((payload: LiveDuplicateDeleteSmokePayload) => void) | null = null;
 let activeLiveReorderSmokeReporter: ((payload: LiveReorderSmokePayload) => void) | null = null;
 let activeLiveLayerReassignSmokeReporter: ((payload: LiveLayerReassignSmokePayload) => void) | null = null;
@@ -195,6 +202,18 @@ function finishLiveCreateDragSmoke(exitCode: number, message: string): void {
 
   if (shouldKeepLiveCreateDragWindowOpen && exitCode === 0) {
     return;
+  }
+
+  setTimeout(() => {
+    app.exit(exitCode);
+  }, 0);
+}
+
+function finishLiveDonorImportSmoke(exitCode: number, message: string): void {
+  if (exitCode === 0) {
+    console.log(message);
+  } else {
+    console.error(message);
   }
 
   setTimeout(() => {
@@ -447,6 +466,43 @@ function attachLiveCreateDragSmokeHandlers(window: BrowserWindow): void {
   };
 }
 
+function attachLiveDonorImportSmokeHandlers(window: BrowserWindow): void {
+  if (!isLiveDonorImportSmokeMode) {
+    return;
+  }
+
+  console.log("MYIDE_LIVE_DONOR_IMPORT_MAIN_READY");
+  const timeoutMs = Number.parseInt(process.env.MYIDE_LIVE_DONOR_IMPORT_TIMEOUT_MS ?? "45000", 10);
+  const smokeTimeout = setTimeout(() => {
+    finishLiveDonorImportSmoke(1, "FAIL smoke:electron-donor-import - timeout waiting for renderer donor import payload");
+  }, Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 45000);
+
+  const clearSmokeTimeout = () => {
+    clearTimeout(smokeTimeout);
+  };
+
+  window.webContents.on("did-fail-load", (_event, errorCode, errorDescription) => {
+    clearSmokeTimeout();
+    finishLiveDonorImportSmoke(1, `FAIL smoke:electron-donor-import - renderer failed to load (${errorCode} ${errorDescription})`);
+  });
+
+  window.webContents.on("render-process-gone", (_event, details) => {
+    clearSmokeTimeout();
+    finishLiveDonorImportSmoke(1, `FAIL smoke:electron-donor-import - renderer process exited (${details.reason})`);
+  });
+
+  activeLiveDonorImportSmokeReporter = (payload) => {
+    clearSmokeTimeout();
+    console.log(`MYIDE_LIVE_DONOR_IMPORT_RESULT:${JSON.stringify(payload)}`);
+    if (payload.status === "pass") {
+      finishLiveDonorImportSmoke(0, "PASS smoke:electron-donor-import");
+      return;
+    }
+
+    finishLiveDonorImportSmoke(1, `FAIL smoke:electron-donor-import - ${payload.error ?? "renderer reported failure"}`);
+  };
+}
+
 function attachLiveDuplicateDeleteSmokeHandlers(window: BrowserWindow): void {
   if (!isLiveDuplicateDeleteSmokeMode) {
     return;
@@ -686,6 +742,8 @@ function createWindow(): void {
               ? shouldShowLiveDragWindow
               : (isLiveCreateDragSmokeMode
                   ? shouldShowLiveCreateDragWindow
+                  : (isLiveDonorImportSmokeMode
+                      ? false
                   : (isLiveDuplicateDeleteSmokeMode
                       ? shouldShowLiveDuplicateDeleteWindow
                       : (isLiveReorderSmokeMode
@@ -696,7 +754,7 @@ function createWindow(): void {
                                   ? shouldShowLiveResizeWindow
                                   : (isLiveAlignSmokeMode
                                       ? shouldShowLiveAlignWindow
-                                      : (isLiveUndoRedoSmokeMode ? shouldShowLiveUndoRedoWindow : true))))))))),
+                                      : (isLiveUndoRedoSmokeMode ? shouldShowLiveUndoRedoWindow : true)))))))))),
     backgroundColor: "#0b1017",
     title: "MyIDE",
     webPreferences: {
@@ -712,6 +770,7 @@ function createWindow(): void {
   attachLivePersistSmokeHandlers(window);
   attachLiveDragSmokeHandlers(window);
   attachLiveCreateDragSmokeHandlers(window);
+  attachLiveDonorImportSmokeHandlers(window);
   attachLiveDuplicateDeleteSmokeHandlers(window);
   attachLiveReorderSmokeHandlers(window);
   attachLiveLayerReassignSmokeHandlers(window);
@@ -726,6 +785,7 @@ function createWindow(): void {
     ...(shouldKeepLiveDragWindowOpen ? { liveDragKeepOpen: "1" } : {}),
     ...(isLiveCreateDragSmokeMode ? { liveCreateDragSmoke: "1" } : {}),
     ...(shouldKeepLiveCreateDragWindowOpen ? { liveCreateDragKeepOpen: "1" } : {}),
+    ...(isLiveDonorImportSmokeMode ? { liveDonorImportSmoke: "1" } : {}),
     ...(isLiveDuplicateDeleteSmokeMode ? { liveDuplicateDeleteSmoke: "1" } : {}),
     ...(shouldKeepLiveDuplicateDeleteWindowOpen ? { liveDuplicateDeleteKeepOpen: "1" } : {}),
     ...(isLiveReorderSmokeMode ? { liveReorderSmoke: "1" } : {}),
@@ -789,6 +849,12 @@ ipcMain.on("myide:live-drag-smoke-result", (_event, payload: LiveDragSmokePayloa
 ipcMain.on("myide:live-create-drag-smoke-result", (_event, payload: LiveCreateDragSmokePayload) => {
   if (typeof activeLiveCreateDragSmokeReporter === "function") {
     activeLiveCreateDragSmokeReporter(payload ?? {});
+  }
+});
+
+ipcMain.on("myide:live-donor-import-smoke-result", (_event, payload: LiveDonorImportSmokePayload) => {
+  if (typeof activeLiveDonorImportSmokeReporter === "function") {
+    activeLiveDonorImportSmokeReporter(payload ?? {});
   }
 });
 

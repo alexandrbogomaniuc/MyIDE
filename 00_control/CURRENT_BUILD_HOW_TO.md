@@ -13,26 +13,25 @@ Use this when you want to test the current MyIDE build exactly as it works today
 3. If the list looks stale, click **Rescan Workspace**.
 
 ## 3. Where Donor Evidence Appears
-1. Donor evidence is shown in the **Donor Evidence** panel.
-2. On a typical window size, that panel sits in the **left column below Project Browser**.
-3. If you do not see it immediately, scroll the left column down.
-4. The donor area is read-only context:
-   - donor/capture summary
-   - evidence refs
-   - capture sessions
-   - item-level evidence cards
-   - lightweight previews where local preview artifacts already exist
-   - copy helpers and linkage helpers
+1. Before launching the shell, run `npm run donor-assets:index:project_001`.
+2. In the shell, donor content appears in **Donor Assets & Evidence**.
+3. On a typical window size, that panel sits in the **left column below Project Browser**.
+4. If you do not see it immediately, scroll the left column down.
+5. The donor area now has two bounded parts:
+   - a donor asset palette for supported local donor images
+   - the existing read-only donor evidence drill-down for refs, sessions, and linkage
 
 ## 4. What You Can Edit Today
-You can edit the reconstructed internal scene for `project_001`, not donor assets.
+You can edit the reconstructed internal scene for `project_001`, including new donor-backed image objects created from the donor asset palette.
 
 Current editable workflow:
 - select objects from the scene list or canvas
 - create placeholder objects from the preset picker
+- drag one supported donor image asset from **Donor Assets & Evidence** into the canvas to create a new internal image object
 - move objects on the canvas
 - change bounded inspector fields
 - resize placeholder-backed objects
+- resize donor-backed imported image objects
 - align placeholder-backed objects to the viewport
 - reassign objects between unlocked layers
 - reorder objects within the current layer
@@ -49,22 +48,24 @@ Save still syncs the replay-facing:
 - `40_projects/project_001/project.json`
 
 ## 5. What You Cannot Edit Yet
-You cannot directly drag/drop donor assets into the scene today.
+You still cannot edit the donor source files themselves.
 
-This build does **not** currently have:
-- a donor asset browser or palette
-- draggable donor asset items
-- a donor-asset drop target on the canvas
-- a bridge/import path that turns a donor evidence item into a new editable scene object
+Current hard limits:
+- only `project_001` is supported in this slice
+- only static donor image files are supported
+- no atlas slicing
+- no animation import
+- no audio/video import
+- no raw donor file mutation
 
-Donor evidence is visible for provenance only.
+The donor file remains read-only evidence. Drag/drop creates a new internal scene object that preserves donor linkage.
 
 ## 6. Save / Reload Loop
-1. Make your bounded edit.
+1. Optionally drag one donor image into the canvas.
 2. Click **Save Scene Changes** or use `Ctrl/Cmd+S`.
 3. Check that the editor state returns to **Saved**.
 4. Click **Reload From Disk**.
-5. Confirm the final state still appears after reload.
+5. Confirm the imported donor-backed object and any later edits still appear after reload.
 
 ## 7. If You Hit A Bug
 1. Stop after the first clear failure.

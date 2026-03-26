@@ -417,8 +417,24 @@
     );
   }
 
+  function isDonorAssetObject(object) {
+    return Boolean(
+      object
+      && object.type === "image"
+      && object.donorAsset
+      && typeof object.donorAsset.assetId === "string"
+      && object.donorAsset.assetId.length > 0
+    );
+  }
+
   function isObjectSizeEditable(object) {
-    return Boolean(object && typeof object.placeholderRef === "string" && object.placeholderRef.length > 0);
+    return Boolean(
+      object
+      && (
+        (typeof object.placeholderRef === "string" && object.placeholderRef.length > 0)
+        || isDonorAssetObject(object)
+      )
+    );
   }
 
   function sanitizeObjectDimension(value, fallback = MIN_OBJECT_SIZE) {
@@ -519,6 +535,72 @@
       locked: false,
       placeholderRef: preset.placeholderRef,
       notes: `${preset.notes} Created inside MyIDE from the ${preset.label} preset.`
+    };
+  }
+
+  function fitDonorAssetDimensions(asset, viewportWidth, viewportHeight) {
+    const sourceWidth = sanitizeObjectDimension(asset?.width, 240);
+    const sourceHeight = sanitizeObjectDimension(asset?.height, 160);
+    const maxWidth = Math.max(MIN_OBJECT_SIZE, Math.round(viewportWidth * 0.42));
+    const maxHeight = Math.max(MIN_OBJECT_SIZE, Math.round(viewportHeight * 0.42));
+    const ratio = Math.min(maxWidth / sourceWidth, maxHeight / sourceHeight, 1);
+
+    return {
+      width: sanitizeObjectDimension(Math.round(sourceWidth * ratio), sourceWidth),
+      height: sanitizeObjectDimension(Math.round(sourceHeight * ratio), sourceHeight)
+    };
+  }
+
+  function createDonorAssetObject(editorData, options = {}) {
+    if (!editorData || !Array.isArray(editorData.objects) || !options.asset) {
+      return null;
+    }
+
+    const layer = resolveCreationLayer(editorData.layers, options.selectedLayerId);
+    if (!layer) {
+      return null;
+    }
+
+    const viewportWidth = Number.isFinite(options.viewport?.width) ? options.viewport.width : 1280;
+    const viewportHeight = Number.isFinite(options.viewport?.height) ? options.viewport.height : 720;
+    const dimensions = fitDonorAssetDimensions(options.asset, viewportWidth, viewportHeight);
+    const objectId = createNumberedObjectId(editorData.objects, "node.donor-image");
+    const baseX = Number.isFinite(options.position?.x) ? options.position.x : Math.round((viewportWidth - dimensions.width) / 2);
+    const baseY = Number.isFinite(options.position?.y) ? options.position.y : Math.round((viewportHeight - dimensions.height) / 2);
+    const clamped = {
+      x: Math.max(0, Math.min(Math.round(baseX), Math.max(0, viewportWidth - dimensions.width))),
+      y: Math.max(0, Math.min(Math.round(baseY), Math.max(0, viewportHeight - dimensions.height)))
+    };
+
+    return {
+      id: objectId,
+      displayName: options.asset.title || options.asset.filename || "Donor Image",
+      type: "image",
+      layerId: layer.id,
+      x: clamped.x,
+      y: clamped.y,
+      width: dimensions.width,
+      height: dimensions.height,
+      scaleX: 1,
+      scaleY: 1,
+      visible: true,
+      locked: false,
+      assetRef: options.asset.assetId,
+      donorAsset: {
+        assetId: options.asset.assetId,
+        evidenceId: options.asset.evidenceId,
+        captureSessionId: options.asset.captureSessionId,
+        donorId: options.asset.donorId,
+        donorName: options.asset.donorName,
+        title: options.asset.title,
+        filename: options.asset.filename,
+        fileType: options.asset.fileType,
+        sourceCategory: options.asset.sourceCategory,
+        repoRelativePath: options.asset.repoRelativePath,
+        width: options.asset.width ?? null,
+        height: options.asset.height ?? null
+      },
+      notes: `Imported from donor asset ${options.asset.evidenceId} (${options.asset.filename}) inside MyIDE.`
     };
   }
 
@@ -921,6 +1003,7 @@
     getPlaceholderPresets,
     getPlaceholderPreset,
     createPlaceholderObject,
+    createDonorAssetObject,
     duplicateObject,
     deleteObject,
     reassignObjectLayer,

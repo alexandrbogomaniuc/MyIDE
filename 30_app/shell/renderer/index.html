@@ -12,7 +12,7 @@
         <div class="brand">
           <p class="eyebrow">Local-first reconstruction studio</p>
           <h1>MyIDE</h1>
-          <p class="lede">Current build: a bounded internal scene editor for the validated <code>project_001</code> Mystery Garden slice. Raw donor captures stay read-only evidence in this shell.</p>
+          <p class="lede">Current build: a bounded internal scene editor for the validated <code>project_001</code> Mystery Garden slice. Raw donor captures stay read-only, but supported local donor images can be imported into the internal scene.</p>
         </div>
         <div class="chips" aria-label="Project constraints">
           <span>MULTI PROJECT</span>
@@ -46,10 +46,10 @@
 
           <article class="panel">
             <div class="panel-head">
-              <h2>Donor Evidence</h2>
-              <span>Read-only context</span>
+              <h2>Donor Assets & Evidence</h2>
+              <span>Read-only source + bounded import</span>
             </div>
-            <p class="context-hint">This panel surfaces donor capture, report, and importer evidence context for the selected project. Expand sections to drill into sessions, refs, item-level evidence cards, grounded linked objects, and importer provenance, and use Copy helpers when you need to carry donor IDs or evidence refs into notes. It is not a donor asset browser or drag/drop donor editing surface in this build.</p>
+            <p class="context-hint">This panel surfaces donor capture, report, importer provenance, and a first donor image asset palette for the selected project. Supported local donor images can be dragged from here into the Editor Canvas to create editable internal scene objects. Raw donor files still stay read-only.</p>
             <div id="evidence-browser" class="browser-stack" aria-live="polite"></div>
           </article>
 
@@ -110,7 +110,7 @@
             <h2>Editor Canvas</h2>
             <span>Internal scene data only</span>
           </div>
-          <p class="context-hint">You are editing reconstructed internal scene objects here. “Preview Source: Editable Internal Scene” means the canvas is driven by <code>internal/scene.json</code>, <code>layers.json</code>, and <code>objects.json</code>, not raw donor assets.</p>
+          <p class="context-hint">You are editing reconstructed internal scene objects here. “Preview Source: Editable Internal Scene” means the canvas is driven by <code>internal/scene.json</code>, <code>layers.json</code>, and <code>objects.json</code>. Donor image import creates new internal objects; it does not mutate raw donor files.</p>
           <div id="editor-toolbar" class="editor-toolbar">
             <button id="action-undo" type="button">Undo</button>
             <button id="action-redo" type="button">Redo</button>

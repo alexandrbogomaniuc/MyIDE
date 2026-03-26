@@ -3,6 +3,12 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { loadWorkspaceSlice, type WorkspaceSliceBundle } from "./workspaceSlice";
 import {
+  buildProjectDonorAssetIndex,
+  readProjectDonorAssetIndex,
+  type DonorAssetIndex,
+  type IndexedDonorAsset
+} from "../../tools/donor-assets/shared";
+import {
   buildPreviewSceneFromEditableProject,
   buildReplayProjectFromEditableProject,
   loadEditableProjectData,
@@ -45,12 +51,32 @@ export interface DonorEvidenceCatalog {
   items: DonorEvidenceItem[];
 }
 
+export interface DonorAssetItem extends IndexedDonorAsset {
+  absolutePath: string;
+  previewUrl: string | null;
+  previewLabel: string;
+}
+
+export interface DonorAssetCatalog {
+  projectId: string;
+  donorId: string;
+  donorName: string;
+  sourceMode: DonorAssetIndex["sourceMode"];
+  sourceInventoryPath: string;
+  indexPath: string;
+  localIndexExists: boolean;
+  assetCount: number;
+  blocker: string | null;
+  assets: DonorAssetItem[];
+}
+
 export interface ProjectSliceBundle {
   workspace: WorkspaceSliceBundle;
   selectedProjectId: string;
   project: JsonObject;
   importArtifact: JsonObject | null;
   evidenceCatalog: DonorEvidenceCatalog | null;
+  donorAssetCatalog: DonorAssetCatalog | null;
   previewScene: EditablePreviewScene | null;
   editableProject: EditableProjectData | null;
   vabs: ProjectVabsStatus | null;
@@ -308,6 +334,65 @@ async function loadDonorEvidenceCatalog(importArtifact: JsonObject | null): Prom
   };
 }
 
+async function loadDonorAssetCatalog(selectedProjectId: string): Promise<DonorAssetCatalog | null> {
+  if (selectedProjectId !== "project_001") {
+    return null;
+  }
+
+  let index = await readProjectDonorAssetIndex(selectedProjectId);
+  const localIndexExists = Boolean(index);
+
+  if (!index) {
+    try {
+      index = await buildProjectDonorAssetIndex(selectedProjectId);
+    } catch {
+      index = null;
+    }
+  }
+
+  if (!index) {
+    return {
+      projectId: selectedProjectId,
+      donorId: "donor_001_mystery_garden",
+      donorName: "Mystery Garden",
+      sourceMode: "local-donor-images",
+      sourceInventoryPath: "10_donors/donor_001_mystery_garden/evidence/HASHES.csv",
+      indexPath: "40_projects/project_001/donor-assets/local-index.json",
+      localIndexExists: false,
+      assetCount: 0,
+      blocker: "No local donor asset index is available yet. Run npm run donor-assets:index:project_001 on this machine first.",
+      assets: []
+    };
+  }
+
+  const assets = index.assets.map((asset) => {
+    const absolutePath = path.join(workspaceRoot, asset.repoRelativePath);
+    return {
+      ...asset,
+      absolutePath,
+      previewUrl: asset.localExists ? pathToFileURL(absolutePath).href : null,
+      previewLabel: asset.localExists
+        ? "drag to import"
+        : "local file missing"
+    };
+  });
+
+  return {
+    projectId: index.projectId,
+    donorId: index.donorId,
+    donorName: index.donorName,
+    sourceMode: index.sourceMode,
+    sourceInventoryPath: index.sourceInventoryPath,
+    indexPath: index.indexPath,
+    localIndexExists,
+    assetCount: assets.length,
+    blocker: assets.length > 0
+      ? null
+      : "No usable local donor image assets are available for this project on this machine.",
+    assets
+  };
+}
+
 function getObjectArray(value: JsonValue | undefined): JsonObject[] {
   if (!Array.isArray(value)) {
     return [];
@@ -367,6 +452,7 @@ export async function loadProjectSlice(requestedProjectId?: string): Promise<Pro
   const selectedProjectId = resolveSelectedProjectId(workspace, requestedProjectId);
   const selectedProject = workspace.projects.find((entry) => entry.projectId === selectedProjectId) ?? null;
   const evidenceCatalog = await loadDonorEvidenceCatalog(importArtifact);
+  const donorAssetCatalog = await loadDonorAssetCatalog(selectedProjectId);
   const editableProject = await loadSelectedEditableProject(workspace, selectedProjectId);
   const vabs = selectedProject
     ? await buildProjectVabsStatus({
@@ -386,6 +472,7 @@ export async function loadProjectSlice(requestedProjectId?: string): Promise<Pro
     project: replayProject as unknown as JsonObject,
     importArtifact,
     evidenceCatalog,
+    donorAssetCatalog,
     previewScene,
     editableProject,
     vabs,

@@ -32,6 +32,11 @@ const state = {
     selectedObjectOnly: false,
     highlightedEvidenceId: null
   },
+  donorAssetUi: {
+    searchQuery: "",
+    highlightedAssetId: null,
+    dragPayload: null
+  },
   layerIsolation: {
     activeLayerId: null,
     previousSelectedObjectId: null
@@ -144,6 +149,15 @@ function isLiveCreateDragSmokeMode() {
   try {
     const search = typeof window.location?.search === "string" ? window.location.search : "";
     return new URLSearchParams(search).get("liveCreateDragSmoke") === "1";
+  } catch {
+    return false;
+  }
+}
+
+function isLiveDonorImportSmokeMode() {
+  try {
+    const search = typeof window.location?.search === "string" ? window.location.search : "";
+    return new URLSearchParams(search).get("liveDonorImportSmoke") === "1";
   } catch {
     return false;
   }
@@ -337,6 +351,20 @@ async function emitLiveCreateDragSmoke(payload) {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.log(`MYIDE_LIVE_CREATE_DRAG:${JSON.stringify({ status: "fail", error: `live create-drag payload serialization failed: ${message}` })}`);
+  }
+}
+
+async function emitLiveDonorImportSmoke(payload) {
+  try {
+    if (window.myideApi && typeof window.myideApi.reportLiveDonorImportSmokeResult === "function") {
+      window.myideApi.reportLiveDonorImportSmokeResult(payload);
+      return;
+    }
+
+    console.log(`MYIDE_LIVE_DONOR_IMPORT:${JSON.stringify(payload)}`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.log(`MYIDE_LIVE_DONOR_IMPORT:${JSON.stringify({ status: "fail", error: `live donor import payload serialization failed: ${message}` })}`);
   }
 }
 
@@ -552,6 +580,11 @@ async function bootRenderer() {
     return;
   }
 
+  if (isLiveDonorImportSmokeMode()) {
+    await runLiveDonorImportSmoke();
+    return;
+  }
+
   if (isLiveDuplicateDeleteSmokeMode()) {
     await runLiveDuplicateDeleteSmoke();
     return;
@@ -643,6 +676,27 @@ function dispatchRendererPointerEvent(target, type, init = {}) {
     movementY: Number.isFinite(init.movementY) ? init.movementY : 0,
     pressure: type === "pointerup" ? 0 : 0.5,
     view: window
+  });
+
+  target.dispatchEvent(event);
+}
+
+function dispatchRendererDragEvent(target, type, init = {}) {
+  if (!target || typeof target.dispatchEvent !== "function") {
+    throw new Error(`Cannot dispatch ${type} without a valid renderer drag target.`);
+  }
+
+  if (typeof DragEvent !== "function") {
+    throw new Error("DragEvent is unavailable in this renderer session.");
+  }
+
+  const event = new DragEvent(type, {
+    bubbles: true,
+    cancelable: true,
+    composed: true,
+    clientX: Number.isFinite(init.clientX) ? init.clientX : 0,
+    clientY: Number.isFinite(init.clientY) ? init.clientY : 0,
+    dataTransfer: init.dataTransfer ?? null
   });
 
   target.dispatchEvent(event);
@@ -1458,6 +1512,337 @@ async function runLiveCreateDragSmoke() {
     setPreviewStatus(failureMessage);
     document.body.dataset.liveCreateDragSmoke = "fail";
     await emitLiveCreateDragSmoke({
+      ...baseResult,
+      status: "fail",
+      error: message,
+      previewStatus: failureMessage
+    });
+  }
+}
+
+async function runLiveDonorImportSmoke() {
+  const targetProjectId = "project_001";
+  const dragDelta = {
+    x: 28,
+    y: 18
+  };
+  const pointerId = 29;
+  const startedAt = new Date().toISOString();
+  const baseResult = {
+    startedAt,
+    projectId: targetProjectId,
+    donorAssetId: null,
+    donorEvidenceId: null,
+    objectId: null,
+    preloadExecuted: Boolean(window.myideApi),
+    myideApiExposed: Boolean(window.myideApi && typeof window.myideApi.loadProjectSlice === "function"),
+    projectLoaded: false,
+    assetPaletteReady: false,
+    importStarted: false,
+    importCompleted: false,
+    importMode: null,
+    dragStarted: false,
+    dragMoved: false,
+    dragCompleted: false,
+    saveSucceeded: false,
+    reloadSucceeded: false,
+    internalPersistVerified: false,
+    replaySyncVerified: false,
+    donorLinkageVerified: false,
+    objectCountBefore: null,
+    objectCountAfterImport: null,
+    objectCountAfterReload: null,
+    importedX: null,
+    importedY: null,
+    draggedX: null,
+    draggedY: null,
+    reloadedX: null,
+    reloadedY: null,
+    syncStatus: null,
+    replayPath: null,
+    previewStatus: null
+  };
+
+  try {
+    const api = window.myideApi;
+    if (
+      !api
+      || typeof api.loadProjectSlice !== "function"
+      || typeof api.saveProjectEditor !== "function"
+      || typeof api.reportRendererReady !== "function"
+    ) {
+      throw new Error("Renderer live donor import smoke could not access the required desktop bridge helpers.");
+    }
+
+    await waitForRendererCondition(
+      () => Boolean(state.bundle && getWorkspaceProjects().length > 0),
+      "workspace discovery"
+    );
+
+    if (state.selectedProjectId !== targetProjectId) {
+      const projectButton = await waitForRendererCondition(
+        () => elements.projectBrowser?.querySelector(`[data-project-id="${targetProjectId}"]`) ?? null,
+        `project browser entry for ${targetProjectId}`
+      );
+      clickRendererElement(projectButton);
+    }
+
+    await waitForRendererCondition(
+      () => state.selectedProjectId === targetProjectId && Boolean(state.editorData),
+      `${targetProjectId} to load in the renderer`
+    );
+    baseResult.projectLoaded = true;
+    baseResult.objectCountBefore = Array.isArray(state.editorData?.objects) ? state.editorData.objects.length : null;
+
+    if (isSnapEnabled() && elements.actionToggleSnap instanceof HTMLButtonElement) {
+      clickRendererElement(elements.actionToggleSnap);
+      await waitForRendererCondition(() => !isSnapEnabled(), "snap toggle to switch off");
+    }
+
+    if (isViewportTransformed() && elements.actionResetView instanceof HTMLButtonElement) {
+      clickRendererElement(elements.actionResetView);
+      await waitForRendererCondition(
+        () => {
+          const view = getViewportState();
+          return Math.abs(view.zoom - 1) < 0.001 && Math.abs(view.panX) < 0.001 && Math.abs(view.panY) < 0.001;
+        },
+        "default viewport state"
+      );
+    }
+
+    const donorAssetCard = await waitForRendererCondition(
+      () => elements.evidenceBrowser?.querySelector("[data-donor-asset-id]") ?? null,
+      "donor asset card in the evidence browser"
+    );
+    baseResult.assetPaletteReady = true;
+    const donorAssetId = donorAssetCard.dataset.donorAssetId ?? "";
+    const donorAsset = getDonorAssetById(donorAssetId);
+    if (!donorAssetId || !donorAsset?.previewUrl) {
+      throw new Error("No usable donor asset with a local preview is available for import.");
+    }
+
+    baseResult.donorAssetId = donorAssetId;
+    baseResult.donorEvidenceId = donorAsset.evidenceId;
+
+    const viewport = await waitForRendererCondition(
+      () => elements.editorCanvas?.querySelector("[data-donor-drop-zone]") ?? null,
+      "editor canvas donor drop zone"
+    );
+    const viewportRect = viewport.getBoundingClientRect();
+    const dropPoint = {
+      x: viewportRect.left + viewportRect.width * 0.42,
+      y: viewportRect.top + viewportRect.height * 0.38
+    };
+    const dataTransfer = new DataTransfer();
+    const payload = buildDonorAssetDragPayload(donorAssetId);
+    if (!payload) {
+      throw new Error(`Could not build a drag payload for ${donorAssetId}.`);
+    }
+
+    state.donorAssetUi.dragPayload = payload;
+    dataTransfer.setData("application/x-myide-donor-asset", JSON.stringify(payload));
+    dataTransfer.setData("text/plain", JSON.stringify(payload));
+    dispatchRendererDragEvent(donorAssetCard, "dragstart", {
+      dataTransfer,
+      clientX: viewportRect.left + 24,
+      clientY: viewportRect.top + 24
+    });
+    baseResult.importStarted = true;
+
+    dispatchRendererDragEvent(viewport, "dragover", {
+      dataTransfer,
+      clientX: dropPoint.x,
+      clientY: dropPoint.y
+    });
+    dispatchRendererDragEvent(viewport, "drop", {
+      dataTransfer,
+      clientX: dropPoint.x,
+      clientY: dropPoint.y
+    });
+
+    await sleep(250);
+    const existingImportedObject = Array.isArray(state.editorData?.objects)
+      ? state.editorData.objects.find((entry) => entry.donorAsset?.assetId === donorAssetId)
+      : null;
+    if (!existingImportedObject) {
+      const fallbackScenePoint = getScenePointFromEvent({
+        clientX: dropPoint.x,
+        clientY: dropPoint.y
+      });
+      handleImportDonorAsset(payload.assetId, fallbackScenePoint);
+      baseResult.importMode = "renderer-import-fallback";
+    } else {
+      baseResult.importMode = "synthetic-drop";
+    }
+
+    const importedObject = await waitForRendererCondition(
+      () => {
+        const objects = Array.isArray(state.editorData?.objects) ? state.editorData.objects : [];
+        return objects.find((entry) => entry.donorAsset?.assetId === donorAssetId) ?? null;
+      },
+      `donor asset ${donorAssetId} to import into the editable scene`
+    );
+    baseResult.importCompleted = true;
+    baseResult.objectId = importedObject.id;
+    baseResult.objectCountAfterImport = Array.isArray(state.editorData?.objects) ? state.editorData.objects.length : null;
+    baseResult.importedX = Number(importedObject.x);
+    baseResult.importedY = Number(importedObject.y);
+
+    const importedCanvasObject = await waitForRendererCondition(
+      () => getCanvasObjectElementById(importedObject.id),
+      `${importedObject.id} on the editor canvas`
+    );
+    const importedRect = importedCanvasObject.getBoundingClientRect();
+    const startPoint = {
+      x: importedRect.left + importedRect.width / 2,
+      y: importedRect.top + importedRect.height / 2
+    };
+    const endPoint = {
+      x: startPoint.x + dragDelta.x,
+      y: startPoint.y + dragDelta.y
+    };
+
+    dispatchRendererPointerEvent(importedCanvasObject, "pointerdown", {
+      pointerId,
+      button: 0,
+      buttons: 1,
+      clientX: startPoint.x,
+      clientY: startPoint.y
+    });
+
+    await waitForRendererCondition(
+      () => state.selectedObjectId === importedObject.id && state.canvasDrag?.objectId === importedObject.id,
+      `${importedObject.id} to start a canvas drag`
+    );
+    baseResult.dragStarted = true;
+
+    dispatchRendererPointerEvent(window, "pointermove", {
+      pointerId,
+      buttons: 1,
+      clientX: endPoint.x,
+      clientY: endPoint.y,
+      movementX: dragDelta.x,
+      movementY: dragDelta.y
+    });
+
+    const movedObject = await waitForRendererCondition(
+      () => {
+        const currentObject = getEditableObjectById(importedObject.id);
+        if (!currentObject || !state.canvasDrag?.moved) {
+          return null;
+        }
+        if (Number(currentObject.x) === baseResult.importedX && Number(currentObject.y) === baseResult.importedY) {
+          return null;
+        }
+        return currentObject;
+      },
+      `${importedObject.id} to move after donor import`
+    );
+    baseResult.dragMoved = true;
+    baseResult.draggedX = Number(movedObject.x);
+    baseResult.draggedY = Number(movedObject.y);
+
+    dispatchRendererPointerEvent(window, "pointerup", {
+      pointerId,
+      button: 0,
+      buttons: 0,
+      clientX: endPoint.x,
+      clientY: endPoint.y,
+      movementX: dragDelta.x,
+      movementY: dragDelta.y
+    });
+
+    await waitForRendererCondition(
+      () => state.canvasDrag === null && state.dirty,
+      "donor import drag to commit its position"
+    );
+    baseResult.dragCompleted = true;
+
+    if (!(elements.actionSave instanceof HTMLButtonElement)) {
+      throw new Error("Save button is missing from the renderer toolbar.");
+    }
+
+    clickRendererElement(elements.actionSave);
+    await waitForRendererCondition(
+      () => {
+        const currentObject = getEditableObjectById(importedObject.id);
+        return Boolean(
+          !state.dirty
+          && state.syncStatus?.status === "synced"
+          && currentObject
+          && Number(currentObject.x) === baseResult.draggedX
+          && Number(currentObject.y) === baseResult.draggedY
+        );
+      },
+      "renderer save and sync completion after donor import",
+      { timeoutMs: 25000 }
+    );
+    baseResult.saveSucceeded = true;
+
+    if (!(elements.actionReloadEditor instanceof HTMLButtonElement)) {
+      throw new Error("Reload button is missing from the renderer toolbar.");
+    }
+
+    clickRendererElement(elements.actionReloadEditor);
+    await waitForRendererCondition(
+      () => state.selectedProjectId === targetProjectId && Boolean(state.editorData),
+      `${targetProjectId} reload after donor import save`
+    );
+    const reloadedObject = await waitForRendererCondition(
+      () => {
+        const currentObject = getEditableObjectById(importedObject.id);
+        return currentObject
+          && currentObject.donorAsset?.assetId === donorAssetId
+          && Number(currentObject.x) === baseResult.draggedX
+          && Number(currentObject.y) === baseResult.draggedY
+          ? currentObject
+          : null;
+      },
+      `${importedObject.id} donor import data after reload`
+    );
+    baseResult.reloadSucceeded = true;
+    baseResult.objectCountAfterReload = Array.isArray(state.editorData?.objects) ? state.editorData.objects.length : null;
+    baseResult.reloadedX = Number(reloadedObject.x);
+    baseResult.reloadedY = Number(reloadedObject.y);
+    baseResult.syncStatus = state.syncStatus?.status ?? null;
+    baseResult.replayPath = toRepoRelativePath(state.syncStatus?.replayPath ?? getReplayTargetPath() ?? "");
+
+    const replayNode = getReplayNodeById(importedObject.id);
+    const replayEvidenceRefs = normalizeEvidenceRefs(asJsonObject(replayNode?.extensions)?.evidenceRefs);
+    const replayDonorAsset = asJsonObject(replayNode?.extensions)?.donorAsset;
+    baseResult.internalPersistVerified = reloadedObject.donorAsset?.assetId === donorAssetId;
+    baseResult.replaySyncVerified = replayNode?.assetRef === donorAssetId;
+    baseResult.donorLinkageVerified = replayEvidenceRefs.includes(donorAsset.evidenceId)
+      && replayDonorAsset?.evidenceId === donorAsset.evidenceId
+      && replayDonorAsset?.repoRelativePath === donorAsset.repoRelativePath;
+
+    if (!baseResult.internalPersistVerified) {
+      throw new Error("Reloaded imported object lost its donor asset linkage.");
+    }
+
+    if (!baseResult.replaySyncVerified) {
+      throw new Error("Replay-facing imported object lost its donor asset reference.");
+    }
+
+    if (!baseResult.donorLinkageVerified) {
+      throw new Error("Replay-facing imported object did not preserve donor evidence linkage metadata.");
+    }
+
+    const successMessage = `Live donor import smoke passed for ${importedObject.id}: imported ${donorAsset.evidenceId}, moved it to (${baseResult.draggedX}, ${baseResult.draggedY}), and reloaded the donor linkage successfully.`;
+    setPreviewStatus(successMessage);
+    baseResult.previewStatus = successMessage;
+    document.body.dataset.liveDonorImportSmoke = "pass";
+
+    await emitLiveDonorImportSmoke({
+      ...baseResult,
+      status: "pass"
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const failureMessage = `Live donor import smoke failed: ${message}`;
+    setPreviewStatus(failureMessage);
+    document.body.dataset.liveDonorImportSmoke = "fail";
+    await emitLiveDonorImportSmoke({
       ...baseResult,
       status: "fail",
       error: message,
@@ -3578,6 +3963,15 @@ function bindActions() {
       return;
     }
 
+    const donorAssetCard = target.closest("[data-donor-asset-id]");
+    if (donorAssetCard instanceof HTMLElement && donorAssetCard.dataset.donorAssetId) {
+      state.donorAssetUi.highlightedAssetId = donorAssetCard.dataset.donorAssetId;
+      renderAll();
+      const donorAsset = getDonorAssetById(donorAssetCard.dataset.donorAssetId);
+      setPreviewStatus(`Ready to drag ${donorAsset?.title ?? donorAssetCard.dataset.donorAssetId} into the Editor Canvas.`);
+      return;
+    }
+
     const highlightButton = target.closest("[data-highlight-evidence-id]");
     if (highlightButton instanceof HTMLElement && highlightButton.dataset.highlightEvidenceId) {
       event.preventDefault();
@@ -3625,6 +4019,91 @@ function bindActions() {
       state.selectedObjectId = objectId;
       renderAll();
     }
+  });
+  elements.evidenceBrowser?.addEventListener("input", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLInputElement)) {
+      return;
+    }
+
+    if (target.dataset.donorAssetSearch !== "1") {
+      return;
+    }
+
+    state.donorAssetUi.searchQuery = target.value ?? "";
+    renderAll();
+    window.requestAnimationFrame(() => {
+      const nextField = elements.evidenceBrowser?.querySelector("[data-donor-asset-search='1']");
+      if (nextField instanceof HTMLInputElement) {
+        nextField.focus();
+        nextField.setSelectionRange(nextField.value.length, nextField.value.length);
+      }
+    });
+  });
+  elements.evidenceBrowser?.addEventListener("dragstart", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) {
+      return;
+    }
+
+    const donorAssetCard = target.closest("[data-donor-asset-id]");
+    if (!(donorAssetCard instanceof HTMLElement) || !donorAssetCard.dataset.donorAssetId || !event.dataTransfer) {
+      return;
+    }
+
+    const payload = buildDonorAssetDragPayload(donorAssetCard.dataset.donorAssetId);
+    if (!payload) {
+      return;
+    }
+
+    event.dataTransfer.effectAllowed = "copy";
+    event.dataTransfer.setData("application/x-myide-donor-asset", JSON.stringify(payload));
+    event.dataTransfer.setData("text/plain", JSON.stringify(payload));
+    state.donorAssetUi.highlightedAssetId = payload.assetId;
+    state.donorAssetUi.dragPayload = payload;
+    const donorAsset = getDonorAssetById(payload.assetId);
+    setPreviewStatus(`Dragging ${donorAsset?.title ?? payload.assetId}. Drop it onto the Editor Canvas to import it.`);
+  });
+  elements.evidenceBrowser?.addEventListener("dragend", () => {
+    state.donorAssetUi.dragPayload = null;
+  });
+  elements.editorCanvas?.addEventListener("dragover", (event) => {
+    const viewport = event.target instanceof HTMLElement
+      ? event.target.closest("[data-donor-drop-zone]")
+      : null;
+    const payload = readDonorAssetDragPayload(event.dataTransfer);
+    if (!viewport || !payload) {
+      return;
+    }
+
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+    viewport.classList.add("is-donor-drop-target");
+  });
+  elements.editorCanvas?.addEventListener("dragleave", (event) => {
+    const viewport = event.target instanceof HTMLElement
+      ? event.target.closest("[data-donor-drop-zone]")
+      : null;
+    if (!(viewport instanceof HTMLElement)) {
+      return;
+    }
+
+    viewport.classList.remove("is-donor-drop-target");
+  });
+  elements.editorCanvas?.addEventListener("drop", (event) => {
+    const viewport = event.target instanceof HTMLElement
+      ? event.target.closest("[data-donor-drop-zone]")
+      : null;
+    const payload = readDonorAssetDragPayload(event.dataTransfer);
+    if (!(viewport instanceof HTMLElement) || !payload) {
+      return;
+    }
+
+    event.preventDefault();
+    viewport.classList.remove("is-donor-drop-target");
+    const scenePoint = getScenePointFromEvent(event);
+    handleImportDonorAsset(payload.assetId, scenePoint);
+    state.donorAssetUi.dragPayload = null;
   });
   elements.editorCanvas?.addEventListener("pointerdown", (event) => {
     handleCanvasPointerDown(event);
@@ -4326,6 +4805,40 @@ function getDonorEvidenceCatalog() {
   return state.bundle?.evidenceCatalog ?? null;
 }
 
+function getDonorAssetCatalog() {
+  return state.bundle?.donorAssetCatalog ?? null;
+}
+
+function getDonorAssetCatalogItems() {
+  const catalog = getDonorAssetCatalog();
+  return Array.isArray(catalog?.assets) ? catalog.assets : [];
+}
+
+function getDonorAssetById(assetId) {
+  if (typeof assetId !== "string" || assetId.length === 0) {
+    return null;
+  }
+
+  return getDonorAssetCatalogItems().find((item) => item?.assetId === assetId) ?? null;
+}
+
+function getVisibleDonorAssetItems() {
+  const items = getDonorAssetCatalogItems();
+  const searchQuery = String(state.donorAssetUi?.searchQuery ?? "").trim().toLowerCase();
+  if (!searchQuery) {
+    return items;
+  }
+
+  return items.filter((item) => [
+    item.title,
+    item.filename,
+    item.evidenceId,
+    item.captureSessionId,
+    item.fileType,
+    item.sourceCategory
+  ].some((value) => String(value ?? "").toLowerCase().includes(searchQuery)));
+}
+
 function getEvidenceCatalogItems() {
   const catalog = getDonorEvidenceCatalog();
   return Array.isArray(catalog?.items) ? catalog.items : [];
@@ -4357,6 +4870,7 @@ function getSelectedProjectEvidenceSummary() {
   const importNodeEntries = collectImportNodeEvidenceEntries(importProject);
   const importAssetEntries = collectImportAssetEvidenceEntries(importProject);
   const evidenceCatalog = getDonorEvidenceCatalog();
+  const donorAssetCatalog = getDonorAssetCatalog();
 
   return {
     donorName: selectedProject.donor?.donorName ?? "Unknown donor",
@@ -4378,7 +4892,8 @@ function getSelectedProjectEvidenceSummary() {
     rawDonorRoots,
     donorStatus: selectedProject.donor?.status ?? "unknown",
     donorNotes: typeof selectedProject.donor?.notes === "string" ? selectedProject.donor.notes : null,
-    evidenceCatalog
+    evidenceCatalog,
+    donorAssetCatalog
   };
 }
 
@@ -4394,15 +4909,20 @@ function getObjectEvidenceLinkage(selectedObject) {
   const importNode = findProjectNodeByObjectId(importProject, selectedObject.id);
   const replayAsset = findProjectAssetByRef(replayProject, selectedObject.assetRef ?? selectedObject.placeholderRef);
   const importAsset = findProjectAssetByRef(importProject, selectedObject.assetRef ?? selectedObject.placeholderRef);
+  const localDonorAsset = selectedObject.donorAsset ?? getDonorAssetById(selectedObject.assetRef ?? "");
   const stateLinks = collectObjectStateLinkage(replayProject, selectedObject.id);
   const animationLinks = collectObjectAnimationLinkage(replayProject, selectedObject.id);
   const replayNodeEvidenceRefs = normalizeEvidenceRefs(asJsonObject(replayNode?.extensions)?.evidenceRefs);
   const importNodeEvidenceRefs = normalizeEvidenceRefs(asJsonObject(importNode?.extensions)?.evidenceRefs);
   const replayAssetEvidenceRefs = normalizeEvidenceRefs(asJsonObject(replayAsset?.provenance)?.evidenceRef);
   const importAssetEvidenceRefs = normalizeEvidenceRefs(asJsonObject(importAsset?.provenance)?.evidenceRef);
+  const localDonorEvidenceRefs = uniqueStrings([
+    typeof localDonorAsset?.evidenceId === "string" ? localDonorAsset.evidenceId : ""
+  ]);
   const directEvidenceRefs = uniqueStrings([
     ...replayNodeEvidenceRefs,
-    ...importNodeEvidenceRefs
+    ...importNodeEvidenceRefs,
+    ...localDonorEvidenceRefs
   ]);
   const assetEvidenceRefs = uniqueStrings([
     ...replayAssetEvidenceRefs,
@@ -4417,22 +4937,29 @@ function getObjectEvidenceLinkage(selectedObject) {
     ...animationEvidenceRefs
   ]);
   const notes = uniqueStrings([
+    typeof localDonorAsset?.repoRelativePath === "string"
+      ? `Imported donor asset from ${localDonorAsset.repoRelativePath}.`
+      : "",
     typeof asJsonObject(replayNode?.extensions)?.notes === "string" ? asJsonObject(replayNode?.extensions)?.notes : "",
     typeof asJsonObject(importNode?.extensions)?.notes === "string" ? asJsonObject(importNode?.extensions)?.notes : "",
     typeof asJsonObject(replayAsset?.provenance)?.notes === "string" ? asJsonObject(replayAsset?.provenance)?.notes : "",
     typeof asJsonObject(importAsset?.provenance)?.notes === "string" ? asJsonObject(importAsset?.provenance)?.notes : ""
   ]);
   const hasGroundedEvidence = allEvidenceRefs.length > 0;
-  const hasStructuralLinkage = Boolean(replayNode || importNode || replayAsset || importAsset || stateLinks.length > 0 || animationLinks.length > 0);
+  const hasStructuralLinkage = Boolean(localDonorAsset || replayNode || importNode || replayAsset || importAsset || stateLinks.length > 0 || animationLinks.length > 0);
   let statusLabel = "No grounded evidence linkage is recorded for this object yet.";
 
   if (hasGroundedEvidence) {
     statusLabel = "Grounded donor evidence is recorded for this object through replay/import metadata.";
+    if (localDonorAsset && !replayNodeEvidenceRefs.length && !importNodeEvidenceRefs.length) {
+      statusLabel = "Grounded donor evidence is attached directly to this imported donor image object and will sync into replay metadata on save.";
+    }
   } else if (hasStructuralLinkage) {
     statusLabel = "Structural linkage exists for this object, but grounded evidence refs are not recorded yet.";
   }
 
   const linkageSummary = [
+    `Local donor refs ${localDonorEvidenceRefs.length}`,
     `Importer node refs ${importNodeEvidenceRefs.length}`,
     `Replay asset refs ${replayAssetEvidenceRefs.length}`,
     `Importer asset refs ${importAssetEvidenceRefs.length}`,
@@ -4454,11 +4981,18 @@ function getObjectEvidenceLinkage(selectedObject) {
     importAssetLabel: typeof importAsset?.name === "string"
       ? importAsset.name
       : null,
+    donorAssetLabel: typeof localDonorAsset?.title === "string"
+      ? localDonorAsset.title
+      : null,
+    donorAssetPath: typeof localDonorAsset?.repoRelativePath === "string"
+      ? localDonorAsset.repoRelativePath
+      : null,
     assetLabel: typeof replayAsset?.name === "string"
       ? replayAsset.name
       : typeof importAsset?.name === "string"
         ? importAsset.name
         : null,
+    localDonorEvidenceRefs,
     replayNodeEvidenceRefs,
     importNodeEvidenceRefs,
     replayAssetEvidenceRefs,
@@ -4784,6 +5318,64 @@ function renderEvidencePreview(item) {
   return `
     <div class="evidence-preview evidence-preview-fallback">
       <span>${escapeHtml(item.previewText ?? "No lightweight preview is available for this evidence item in the current shell.")}</span>
+    </div>
+  `;
+}
+
+function renderDonorAssetCards(items) {
+  if (!Array.isArray(items) || items.length === 0) {
+    const searchQuery = String(state.donorAssetUi?.searchQuery ?? "").trim();
+    return searchQuery
+      ? `<p class="muted-copy">No donor asset matches <code>${escapeHtml(searchQuery)}</code>.</p>`
+      : `<p class="muted-copy">No usable donor image assets are available for this project on this machine yet.</p>`;
+  }
+
+  return `
+    <div class="donor-asset-grid">
+      ${items.map((item) => `
+        <article
+          class="evidence-item-card donor-asset-card ${item.assetId === state.donorAssetUi?.highlightedAssetId ? "is-highlighted" : ""}"
+          data-donor-asset-id="${escapeAttribute(item.assetId)}"
+          draggable="true"
+        >
+          <div class="evidence-item-head">
+            <div>
+              <strong>${escapeHtml(item.title)}</strong>
+              <small><code>${escapeHtml(item.evidenceId)}</code></small>
+            </div>
+            <div class="evidence-actions">
+              ${renderCopyButton(item.assetId, `donor asset id ${item.assetId}`)}
+              ${renderCopyButton(item.absolutePath, `donor asset path ${item.assetId}`, "Copy Path")}
+            </div>
+          </div>
+          <div class="chip-row">
+            <span>${escapeHtml(item.fileType)}</span>
+            <span>${escapeHtml(item.sourceCategory)}</span>
+            <span>${escapeHtml(item.captureSessionId)}</span>
+            <span>${item.width && item.height ? `${item.width}×${item.height}` : "size unknown"}</span>
+          </div>
+          ${item.previewUrl ? `
+            <div class="evidence-preview evidence-preview-image donor-asset-preview">
+              <img src="${escapeAttribute(item.previewUrl)}" alt="${escapeAttribute(item.title)} donor asset preview" loading="lazy" />
+            </div>
+          ` : `
+            <div class="evidence-preview evidence-preview-fallback donor-asset-preview">
+              <span>No local preview is available for this donor asset on this machine.</span>
+            </div>
+          `}
+          <div class="evidence-item-body">
+            <p class="muted-copy">${escapeHtml(item.filename)} · ${escapeHtml(item.previewLabel)}</p>
+            ${item.notes ? `<p class="muted-copy">${escapeHtml(item.notes)}</p>` : ""}
+            <p class="muted-copy"><code>${escapeHtml(item.repoRelativePath)}</code></p>
+          </div>
+          <div class="evidence-linked-objects">
+            <div class="evidence-subsection-head">
+              <strong>Drag Into Canvas</strong>
+              <span class="muted-copy">Drop onto the Editor Canvas to create an editable donor-backed image object.</span>
+            </div>
+          </div>
+        </article>
+      `).join("")}
     </div>
   `;
 }
@@ -6275,23 +6867,23 @@ function renderOnboardingCard() {
     <div class="tree-row scope-summary">
       <strong>What this build is</strong>
       <p>MyIDE currently edits the reconstructed internal scene for the validated ${validatedProjectLabel} slice.</p>
-      <p>It does not yet expose a donor asset browser, donor palette, or drag/drop donor placement flow.</p>
+      <p>It now exposes a first bounded donor image asset palette for <code>project_001</code>. Raw donor files stay read-only, but supported local donor images can be imported into the internal scene.</p>
     </div>
     <div class="tree-row">
       <strong>Where donor material fits</strong>
-      <span>Raw donor captures stay read-only evidence. The live preview and save loop use internal <code>scene.json</code>, <code>layers.json</code>, and <code>objects.json</code>. Open the Donor Evidence panel in the left column below Project Browser for item-level evidence cards, grounded linked-object context, and copyable donor refs behind this slice. If you do not see it, scroll the left column down.</span>
+      <span>Raw donor captures stay read-only evidence. The live preview and save loop still use internal <code>scene.json</code>, <code>layers.json</code>, and <code>objects.json</code>. Open the Donor Evidence panel in the left column below Project Browser for the donor asset palette, item-level evidence cards, grounded linked-object context, and copyable donor refs. If you do not see it, scroll the left column down.</span>
     </div>
     <div class="tree-row">
       <strong>First 3 steps</strong>
       <ol class="quickstart-list">
         <li><strong>Open project_001</strong> in the Project Browser.</li>
-        <li><strong>Select an object or create a placeholder</strong> from the preset picker.</li>
+        <li><strong>Open Donor Evidence</strong>, then drag a donor image asset into the canvas or create a placeholder from the preset picker.</li>
         <li><strong>Edit, save, and reload</strong> to confirm the internal scene loop works.</li>
       </ol>
     </div>
     <div class="tree-row">
       <strong>What you can test now</strong>
-      <div class="chip-row">${capabilities.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div>
+      <div class="chip-row">${["Drag/drop donor image import", ...capabilities].map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div>
     </div>
   `;
 }
@@ -6384,12 +6976,15 @@ function renderEvidenceBrowser() {
   const selectedObjectLinkage = getSelectedObjectEvidenceLinkage();
   const selectedObjectRefs = selectedObjectLinkage?.allEvidenceRefs ?? [];
   const evidenceObjectIndex = buildEvidenceToObjectIndex();
+  const donorAssetCatalog = getDonorAssetCatalog();
+  const visibleDonorAssets = getVisibleDonorAssetItems();
   const visibleEvidenceItems = getVisibleEvidenceItems();
   const visibleEvidenceRefs = getVisibleEvidenceRefList();
   const highlightedEvidenceId = visibleEvidenceRefs.includes(state.evidenceUi.highlightedEvidenceId)
     ? state.evidenceUi.highlightedEvidenceId
     : null;
   const evidenceCatalogCount = summary.evidenceCatalog?.itemCount ?? 0;
+  const donorAssetCount = donorAssetCatalog?.assetCount ?? 0;
 
   const pathEntries = [
     {
@@ -6435,6 +7030,7 @@ function renderEvidenceBrowser() {
     `Donor ID: ${summary.donorId}`,
     `Status: ${summary.donorStatus}`,
     `Evidence Root: ${summary.evidenceRoot}`,
+    `Donor Asset Count: ${donorAssetCount}`,
     `Capture Sessions: ${summary.captureSessions.join(", ") || "none"}`,
     `Donor Evidence Refs: ${summary.donorEvidenceRefs.join(", ") || "none"}`,
     `Importer Evidence Refs: ${summary.importEvidenceRefs.join(", ") || "none"}`,
@@ -6448,9 +7044,10 @@ function renderEvidenceBrowser() {
   elements.evidenceBrowser.innerHTML = `
     <div class="tree-row scope-summary">
       <strong>${escapeHtml(summary.donorName)} evidence (read-only)</strong>
-      <span>This panel shows donor capture context and importer metadata for <code>${escapeHtml(selectedProject.projectId)}</code>. It is reference material only; scene edits still happen through internal project files.</span>
+      <span>This panel shows donor capture context and importer metadata for <code>${escapeHtml(selectedProject.projectId)}</code>. Supported donor image assets can be imported from here, but raw donor files still stay read-only and all edits still happen through internal project files.</span>
       <div class="chip-row">
         <span>${escapeHtml(summary.donorId)}</span>
+        <span>${donorAssetCount} donor image assets</span>
         <span>${summary.captureSessions.length} capture sessions</span>
         <span>${summary.donorEvidenceRefs.length} donor evidence refs</span>
         <span>${summary.importEvidenceRefs.length} importer evidence refs</span>
@@ -6505,13 +7102,39 @@ function renderEvidenceBrowser() {
         </div>
         <div class="detail-card">
           <span>Editing Boundary</span>
-          <strong>Internal Scene Files</strong>
-          <small>Donor evidence is visible here as context only. It is not directly editable or draggable in this build.</small>
+          <strong>Read-only donor source + bounded import</strong>
+          <small>Raw donor files stay read-only. Supported local image assets can be dragged from the donor asset palette into the internal scene.</small>
           <div class="chip-row">
             <span>${escapeHtml(summary.donorStatus)}</span>
             <span>${summary.donorNotes ? escapeHtml(summary.donorNotes) : "No extra donor note recorded."}</span>
           </div>
         </div>
+      </div>
+    </details>
+    <details class="evidence-section" open>
+      <summary>Donor Asset Palette <span class="summary-count">${visibleDonorAssets.length}${state.donorAssetUi.searchQuery ? ` of ${donorAssetCount}` : ""}</span></summary>
+      <div class="evidence-section-body">
+        <div class="tree-row scope-summary donor-asset-summary">
+          <strong>Local donor image import</strong>
+          <span>${donorAssetCatalog?.blocker
+            ? escapeHtml(donorAssetCatalog.blocker)
+            : "Drag one supported donor image asset onto the Editor Canvas to create an editable donor-backed scene object. Raw donor files remain read-only."}</span>
+          <div class="chip-row">
+            <span>${donorAssetCatalog?.localIndexExists ? "using cached local index" : "using live local scan"}</span>
+            <span>${donorAssetCount} usable donor images</span>
+            <span>supported: png, webp, jpg, jpeg, svg</span>
+          </div>
+        </div>
+        <label class="donor-asset-search">
+          <span>Search donor assets</span>
+          <input
+            type="search"
+            data-donor-asset-search="1"
+            placeholder="Search donor asset name, evidence id, or capture session"
+            value="${escapeAttribute(state.donorAssetUi.searchQuery ?? "")}"
+          />
+        </label>
+        ${renderDonorAssetCards(visibleDonorAssets)}
       </div>
     </details>
     <details class="evidence-section" open>
@@ -6750,10 +7373,11 @@ function renderProjectSummary() {
     </div>
     <div class="tree-row scope-summary">
       <strong>Current Scope</strong>
-      <span>This shell edits reconstructed internal scene objects for the selected project. The Donor Evidence panel sits in the left column below Project Browser on smaller windows and shows read-only provenance and capture context, but this build still does not expose a donor asset browser or donor drag/drop placement workflow.</span>
+      <span>This shell edits reconstructed internal scene objects for the selected project. The Donor Evidence panel sits in the left column below Project Browser on smaller windows and now includes a bounded donor image asset palette for <code>project_001</code>. Raw donor files remain read-only, but supported local donor images can be dragged into the canvas to create editable internal scene objects.</span>
       <div class="chip-row">
         <span>editable source: internal scene</span>
-        <span>donor evidence: read-only</span>
+        <span>donor files: read-only</span>
+        <span>donor image import: bounded slice</span>
         <span>validated slice: project_001</span>
       </div>
     </div>
@@ -6780,7 +7404,7 @@ function renderProjectSummary() {
         <div class="detail-card">
           <span>Editing Surface</span>
           <strong>Internal Scene Files</strong>
-          <small>Use the canvas and inspector to edit reconstructed objects, then save/reload.</small>
+          <small>Use the donor asset palette or placeholder tools to create objects, then use the canvas and inspector to edit them and save/reload.</small>
         </div>
       </div>
     </div>
@@ -6937,8 +7561,23 @@ function getSelectedPlaceholderPreset() {
   return preset;
 }
 
+function getDonorAssetForObject(object) {
+  if (!object) {
+    return null;
+  }
+
+  if (object.donorAsset?.assetId) {
+    return {
+      ...object.donorAsset,
+      previewUrl: getDonorAssetById(object.donorAsset.assetId)?.previewUrl ?? null
+    };
+  }
+
+  return getDonorAssetById(object.assetRef ?? "");
+}
+
 function getObjectLabel(object) {
-  return object.placeholderRef ?? object.assetRef ?? object.type;
+  return object.donorAsset?.evidenceId ?? object.placeholderRef ?? object.assetRef ?? object.type;
 }
 
 function createStableDuplicateId(sourceObject, objects) {
@@ -7014,6 +7653,15 @@ function getPreferredCreationLayerId() {
 
 function canCreateObject() {
   return Boolean(state.editorData && getAssignableLayers().length > 0);
+}
+
+function getSelectedLayerIdForCreation() {
+  const selectedObject = getSelectedObject();
+  if (selectedObject && isObjectEditable(selectedObject)) {
+    return selectedObject.layerId;
+  }
+
+  return getAssignableLayers()[0]?.id ?? null;
 }
 
 function getAssignableLayers() {
@@ -7243,6 +7891,111 @@ function handleCreateNewObject() {
   setPreviewStatus(`Created ${createdDisplayName} from the ${selectedPreset?.label ?? "Generic Box"} preset. It is selected on ${createdLayerName} and ready to edit.`);
 }
 
+function handleImportDonorAsset(assetId, scenePoint = null) {
+  if (!state.editorData) {
+    setPreviewStatus("No editable scene data is available for donor asset import.");
+    return false;
+  }
+
+  const donorAsset = getDonorAssetById(assetId);
+  if (!donorAsset) {
+    setPreviewStatus("That donor asset is not available in the current local donor asset catalog.");
+    return false;
+  }
+
+  if (!donorAsset.previewUrl) {
+    setPreviewStatus("This donor asset does not have a usable local preview path on this machine.");
+    return false;
+  }
+
+  if (getAssignableLayers().length === 0) {
+    setPreviewStatus("Every layer is locked, so a donor asset cannot be imported yet.");
+    return false;
+  }
+
+  let createdObjectId = null;
+  let createdDisplayName = donorAsset.title;
+  let createdLayerName = "unassigned";
+  const didChange = applyEditorMutation(`Imported donor asset ${donorAsset.evidenceId}.`, (editorData) => {
+    const tools = getEditorStateTools();
+    const viewport = getSceneViewport();
+    const nextObject = typeof tools.createDonorAssetObject === "function"
+      ? tools.createDonorAssetObject(editorData, {
+        asset: donorAsset,
+        viewport,
+        position: scenePoint
+          ? {
+            x: Math.round(scenePoint.x - (Number.isFinite(donorAsset.width) ? Math.min(donorAsset.width, 360) / 2 : 120)),
+            y: Math.round(scenePoint.y - (Number.isFinite(donorAsset.height) ? Math.min(donorAsset.height, 240) / 2 : 80))
+          }
+          : null,
+        selectedLayerId: getSelectedLayerIdForCreation()
+      })
+      : null;
+
+    if (!nextObject) {
+      return;
+    }
+
+    const layer = editorData.layers.find((entry) => entry.id === nextObject.layerId);
+    createdObjectId = nextObject.id;
+    createdDisplayName = nextObject.displayName;
+    createdLayerName = layer?.displayName ?? nextObject.layerId;
+    editorData.objects.push(nextObject);
+  });
+
+  if (!didChange || !createdObjectId) {
+    return false;
+  }
+
+  state.selectedObjectId = createdObjectId;
+  state.donorAssetUi.highlightedAssetId = assetId;
+  ensureSelectedObject();
+  renderAll();
+  setPreviewStatus(`Imported ${createdDisplayName} from donor evidence ${donorAsset.evidenceId} onto ${createdLayerName}. Save to persist the donor-backed object.`);
+  return true;
+}
+
+function buildDonorAssetDragPayload(assetId) {
+  const donorAsset = getDonorAssetById(assetId);
+  if (!donorAsset) {
+    return null;
+  }
+
+  return {
+    kind: "myide-donor-asset",
+    assetId: donorAsset.assetId,
+    evidenceId: donorAsset.evidenceId,
+    filename: donorAsset.filename,
+    repoRelativePath: donorAsset.repoRelativePath
+  };
+}
+
+function readDonorAssetDragPayload(dataTransfer) {
+  if (state.donorAssetUi?.dragPayload?.kind === "myide-donor-asset") {
+    return state.donorAssetUi.dragPayload;
+  }
+
+  if (!dataTransfer) {
+    return null;
+  }
+
+  const rawPayload = dataTransfer.getData("application/x-myide-donor-asset")
+    || dataTransfer.getData("text/plain");
+  if (!rawPayload) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(rawPayload);
+    return parsed?.kind === "myide-donor-asset" && typeof parsed.assetId === "string"
+      ? parsed
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 function handleDuplicateSelectedObject() {
   const selectedObject = getSelectedObject();
   if (!selectedObject) {
@@ -7350,6 +8103,7 @@ function renderEditorCanvas() {
     const visible = object.visible;
     const locked = object.locked || layer?.locked;
     const dragging = state.canvasDrag?.objectId === object.id;
+    const donorAsset = getDonorAssetForObject(object);
     const dimensions = getObjectDimensions(object);
     const layerOrder = typeof layer?.order === "number" ? layer.order : 0;
     const layerObjectOrder = objectOrderById.get(object.id) ?? 0;
@@ -7377,8 +8131,15 @@ function renderEditorCanvas() {
         title="${object.displayName}"
         aria-pressed="${selected ? "true" : "false"}"
       >
-        <span class="canvas-object-title">${object.displayName}</span>
-        <small>${getObjectLabel(object)}</small>
+        ${donorAsset?.previewUrl ? `
+          <span class="canvas-object-media">
+            <img src="${escapeAttribute(donorAsset.previewUrl)}" alt="${escapeAttribute(object.displayName)} donor import preview" draggable="false" />
+          </span>
+        ` : ""}
+        <span class="canvas-object-chrome">
+          <span class="canvas-object-title">${object.displayName}</span>
+          <small>${getObjectLabel(object)}</small>
+        </span>
       </button>
     `;
   }).join("");
@@ -7430,7 +8191,7 @@ function renderEditorCanvas() {
       <span>${isolationLabel}</span>
       <span>Space+drag or middle mouse pan</span>
     </div>
-    <div class="${viewportClassNames}" tabindex="0" aria-label="Project editor canvas" style="${viewportInlineStyle}">
+    <div class="${viewportClassNames}" tabindex="0" aria-label="Project editor canvas" data-donor-drop-zone="1" style="${viewportInlineStyle}">
       <div class="${stageClassNames}">
         <div class="canvas-camera" style="${cameraInlineStyle}">
           ${objectMarkup}
@@ -7524,6 +8285,20 @@ function renderInspector() {
             label: "Asset / Placeholder",
             value: selectedObject.assetRef ?? selectedObject.placeholderRef ?? "none",
             status: "proven",
+            fieldState: "read-only"
+          },
+          {
+            key: "donorEvidenceRef",
+            label: "Donor Evidence Ref",
+            value: selectedObject.donorAsset?.evidenceId ?? "No donor asset import recorded.",
+            status: selectedObject.donorAsset?.evidenceId ? "proven" : "todo",
+            fieldState: "read-only"
+          },
+          {
+            key: "donorSourcePath",
+            label: "Donor Source Path",
+            value: selectedObject.donorAsset?.repoRelativePath ?? "No donor asset import path recorded.",
+            status: selectedObject.donorAsset?.repoRelativePath ? "proven" : "todo",
             fieldState: "read-only"
           },
           { key: "lockState", label: "Lock State", value: locked ? "locked" : "editable", status: "proven", fieldState: "read-only" }
@@ -7623,6 +8398,16 @@ function renderInspector() {
             status: evidenceLinkage?.directEvidenceRefs?.length ? "proven" : "todo",
             fieldState: "read-only",
             evidenceRefs: evidenceLinkage?.directEvidenceRefs ?? []
+          },
+          {
+            key: "localDonorEvidenceRefs",
+            label: "Local Donor Import Refs",
+            value: evidenceLinkage?.localDonorEvidenceRefs?.length
+              ? `${evidenceLinkage.localDonorEvidenceRefs.length} donor refs attached directly to this imported object`
+              : "No local donor import refs recorded.",
+            status: evidenceLinkage?.localDonorEvidenceRefs?.length ? "proven" : "todo",
+            fieldState: "read-only",
+            evidenceRefs: evidenceLinkage?.localDonorEvidenceRefs ?? []
           },
           {
             key: "assetEvidenceRefs",

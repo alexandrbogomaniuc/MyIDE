@@ -853,6 +853,34 @@ button:disabled {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.donor-asset-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.donor-asset-search {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.donor-asset-search span {
+  font-size: 0.76rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.donor-asset-search input {
+  width: 100%;
+  padding: 0.7rem 0.85rem;
+  border-radius: 12px;
+  border: 1px solid rgba(179, 209, 186, 0.16);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+}
+
 .evidence-item-card,
 .evidence-linkage-card {
   display: grid;
@@ -867,6 +895,14 @@ button:disabled {
   border-color: rgba(230, 191, 100, 0.54);
   background: rgba(230, 191, 100, 0.08);
   box-shadow: 0 0 0 1px rgba(230, 191, 100, 0.18);
+}
+
+.donor-asset-card {
+  cursor: grab;
+}
+
+.donor-asset-card:active {
+  cursor: grabbing;
 }
 
 .evidence-item-head {
@@ -1067,6 +1103,11 @@ button:disabled {
   box-shadow: inset 0 0 0 1px rgba(110, 169, 216, 0.14);
 }
 
+.canvas-viewport.is-donor-drop-target .canvas-stage {
+  border-color: rgba(230, 191, 100, 0.72);
+  box-shadow: 0 0 0 2px rgba(230, 191, 100, 0.2), inset 0 0 0 1px rgba(230, 191, 100, 0.18);
+}
+
 .canvas-stage.is-view-transformed {
   border-color: rgba(110, 169, 216, 0.3);
 }
@@ -1090,13 +1131,14 @@ button:disabled {
 .canvas-object {
   position: absolute;
   display: grid;
-  align-content: start;
+  align-content: stretch;
   gap: 6px;
-  padding: 10px 12px;
+  padding: 0;
   border-radius: 18px;
   cursor: grab;
   transform-origin: top left;
   box-shadow: 0 14px 24px rgba(0, 0, 0, 0.22);
+  overflow: hidden;
 }
 
 .canvas-object:active,
@@ -1107,6 +1149,30 @@ button:disabled {
 .canvas-object-title {
   font-weight: 700;
   letter-spacing: 0.04em;
+}
+
+.canvas-object-media {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+.canvas-object-media img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+}
+
+.canvas-object-chrome {
+  display: grid;
+  gap: 4px;
+  align-content: start;
+  padding: 10px 12px;
+  background: linear-gradient(180deg, rgba(8, 12, 14, 0), rgba(8, 12, 14, 0.74));
+  min-height: 52px;
 }
 
 .canvas-object small {

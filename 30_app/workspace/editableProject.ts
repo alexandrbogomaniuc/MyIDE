@@ -43,7 +43,23 @@ export interface EditableObject {
   locked: boolean;
   assetRef?: string;
   placeholderRef?: string;
+  donorAsset?: EditableDonorAssetLink;
   notes?: string;
+}
+
+export interface EditableDonorAssetLink {
+  assetId: string;
+  evidenceId: string;
+  captureSessionId: string;
+  donorId: string;
+  donorName: string;
+  title: string;
+  filename: string;
+  fileType: string;
+  sourceCategory: string;
+  repoRelativePath: string;
+  width?: number | null;
+  height?: number | null;
 }
 
 export interface EditableLayerCollection {
@@ -334,10 +350,24 @@ export function buildReplayProjectFromEditableProject(baseProject: JsonObject, d
       node.assetRef = assetRef;
     }
 
+    const donorEvidenceRefs = object.donorAsset?.evidenceId
+      ? [object.donorAsset.evidenceId]
+      : [];
+
     if (object.notes) {
       node.extensions = {
         ...node.extensions,
         notes: object.notes
+      };
+    }
+
+    if (object.donorAsset) {
+      node.extensions = {
+        ...node.extensions,
+        donorAsset: {
+          ...object.donorAsset
+        },
+        evidenceRefs: donorEvidenceRefs
       };
     }
 

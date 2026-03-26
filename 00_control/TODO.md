@@ -1,7 +1,8 @@
 # MyIDE TODO
 
 ## Current Tester Blockers
-- [ ] If donor-asset editing becomes a real requirement, add an explicit donor asset browser/palette, a donor drag payload contract, a donor-to-scene import bridge path, and canvas drop/import behavior instead of implying the current donor evidence browser already does that.
+- [ ] Widen the new donor import slice beyond `project_001` local static images to additional projects and donor formats without weakening the current bounded save/reload flow.
+- [ ] Add a richer donor asset workflow on top of the current bounded slice only if testers need it: stronger search/filtering, more image classes, and clearer donor-linkage inspector detail.
 
 ## PHASE 0
 - [x] Create the required folder tree.

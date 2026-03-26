@@ -121,6 +121,9 @@ contextBridge.exposeInMainWorld("myideApi", {
   reportLiveCreateDragSmokeResult: (payload: unknown): void => {
     ipcRenderer.send("myide:live-create-drag-smoke-result", payload);
   },
+  reportLiveDonorImportSmokeResult: (payload: unknown): void => {
+    ipcRenderer.send("myide:live-donor-import-smoke-result", payload);
+  },
   reportLiveDuplicateDeleteSmokeResult: (payload: unknown): void => {
     ipcRenderer.send("myide:live-duplicate-delete-smoke-result", payload);
   },

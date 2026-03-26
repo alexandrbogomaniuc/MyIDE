@@ -3,13 +3,14 @@
 Use this when testing the current local MyIDE build by hand.
 
 ## Before You Start
-1. This test edits reconstructed internal scene data under `40_projects/project_001/internal`; donor evidence under `10_donors/` is read-only in the current shell.
+1. This test edits reconstructed internal scene data under `40_projects/project_001/internal`; raw donor files under `10_donors/` stay read-only even when a donor image is imported.
 2. Run `npm run manual:prepare:project_001`.
-3. If you only need a quick context check, run `npm run manual:status`.
-4. Launch the shell with `npm run dev`.
-5. Test the LOCAL build on this machine, not the public GitHub snapshot.
-6. If you do not want the full prepare flow, `npm run manual:reset:project_001` still restores only the `project_001` baseline.
-7. GS VABS validation is a separate delivery lane; it does not replace the current shell manual QA flow.
+3. Run `npm run donor-assets:index:project_001`.
+4. If you only need a quick context check, run `npm run manual:status`.
+5. Launch the shell with `npm run dev`.
+6. Test the LOCAL build on this machine, not the public GitHub snapshot.
+7. If you do not want the full prepare flow, `npm run manual:reset:project_001` still restores only the `project_001` baseline.
+8. GS VABS validation is a separate delivery lane; it does not replace the current shell manual QA flow.
 
 ## Core Checklist
 1. App launch
@@ -18,16 +19,17 @@ Use this when testing the current local MyIDE build by hand.
    - The bridge health card shows the preload bridge is healthy.
 3. `project_001` load
    - `project_001` appears in the project list and loads without error.
-   - The read-only Donor Evidence panel shows donor/capture context for the project.
-   - On a typical window size, Donor Evidence sits in the left column below Project Browser, so scroll the left column if you do not see it immediately.
+   - The **Donor Assets & Evidence** panel appears in the left column below Project Browser, so scroll the left column if you do not see it immediately.
+   - The donor asset palette shows at least one supported local donor image card after indexing.
+   - At least one donor asset card shows filename/type/provenance and a lightweight preview or honest preview fallback.
    - Expand at least one donor evidence drill-down section and confirm copy helpers are visible for donor IDs, paths, sessions, or refs.
-   - Open at least one item-level evidence card and confirm it shows either a small preview or an honest non-preview fallback.
 4. Create and edit
    - Create one placeholder object from the preset picker.
+   - Drag one donor asset card into the canvas and confirm a new donor-backed image object appears.
    - Select it and change at least one inspector field such as `displayName`, `width`, or `height`.
 5. Move and layout
    - Drag the new object on the canvas.
-   - Try one alignment action.
+   - Try one alignment action on a placeholder-backed object.
    - Try one layer reassignment.
    - Try one reorder action within the current layer.
 6. Lifecycle actions
@@ -43,6 +45,7 @@ Use this when testing the current local MyIDE build by hand.
 9. Evidence linkage
    - With an object selected, inspect the read-only Evidence Linkage section.
    - If linkage is grounded, grouped linkage rows and evidence refs should be visible.
+   - For the imported donor image object, confirm donor evidence id and donor source path are shown.
    - Use one linkage helper to focus that evidence in the Donor Evidence panel or to filter the donor evidence view down to the selected object.
    - Copying one grounded evidence ref or linkage id should work when a copy button is shown.
    - If linkage is not grounded, the shell should say so plainly instead of inventing provenance.
@@ -52,17 +55,19 @@ Use this when testing the current local MyIDE build by hand.
 - Bridge health stays good.
 - `project_001` loads.
 - The created object remains editable.
-- Donor evidence is visible as read-only context only.
+- At least one donor asset is visible in the donor asset palette.
+- One donor asset can be imported into the scene as an editable internal image object.
+- Donor source files stay read-only even after import.
 - Drag, resize, align, reassign, reorder, duplicate/delete, and undo/redo behave coherently.
 - Save/reload keeps the final intended state.
 
 ## Explicit Current Blocker
-- The shell does **not** let a tester drag/drop donor assets into the scene today.
-- Missing pieces:
-  - no donor asset browser or palette
-  - no donor drag payload from the evidence panel
-  - no donor-asset drop/import path into editable scene objects
-- Current editing stays limited to reconstructed internal scene objects and placeholder-backed creation.
+- The shell now supports one bounded donor import slice, but it is still limited.
+- Remaining blockers:
+  - only `project_001` is supported
+  - only supported local donor image files are importable
+  - no atlas slicing, animation import, audio/video import, or generic donor format pipeline
+  - imported objects are internal scene objects with donor linkage, not editable raw donor assets
 
 ## If Something Fails
 1. Stop after the first clear failure.

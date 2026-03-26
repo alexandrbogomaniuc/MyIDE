@@ -41,6 +41,7 @@ Public publication rules are defined in [`00_control/PUBLIC_REPO_POLICY.md`](./0
 - `npm run manual:bug-context`
 - `npm run manual:bug-bundle`
 - `npm run manual:reset:project_001`
+- `npm run donor-assets:index:project_001`
 - `npm run vabs:scaffold:project_001`
 - `npm run vabs:intake:project_001`
 - `npm run vabs:sanitize:project_001`
@@ -79,6 +80,7 @@ Public publication rules are defined in [`00_control/PUBLIC_REPO_POLICY.md`](./0
 - `npm run smoke:electron-live-resize`
 - `npm run smoke:electron-live-align`
 - `npm run smoke:electron-live-undo-redo`
+- `npm run smoke:electron-donor-import`
 - `npm run import:mystery-garden`
 - `npm run validate:workspace`
 - `npm run verify:workspace`
@@ -96,9 +98,11 @@ Public publication rules are defined in [`00_control/PUBLIC_REPO_POLICY.md`](./0
 - [`00_control/MANUAL_TEST_PLAYBOOK.md`](./00_control/MANUAL_TEST_PLAYBOOK.md) is the plain-English tester checklist.
 - [`00_control/MANUAL_TEST_MATRIX.md`](./00_control/MANUAL_TEST_MATRIX.md) is the fast pass/fail matrix.
 - [`00_control/MANUAL_BUG_TEMPLATE.md`](./00_control/MANUAL_BUG_TEMPLATE.md) is the copy/paste bug report format.
-- The current shell is a bounded internal scene editor for `40_projects/project_001/internal`; donor evidence under `10_donors/` now appears in a read-only donor evidence browser with item-level cards, lightweight previews where local artifacts already exist, copyable refs/paths, selected-object linkage drill-down, and small navigation helpers back to the internal scene, but it remains reference material rather than directly editable assets in this build.
-- The donor evidence browser is part of the live app today, but on a typical window size it sits in the left column below Project Browser and may require scrolling to reach it.
-- A tester cannot directly drag/drop donor assets into the scene today. The current build has no donor asset browser/palette, no donor drag payload, and no donor-to-scene drop/import path.
+- The current shell is still a bounded internal scene editor for `40_projects/project_001/internal`, but `project_001` now has a first bounded donor image import slice on top of it.
+- After `npm run donor-assets:index:project_001`, the left column shows **Donor Assets & Evidence** with a donor asset palette for supported local donor images found on this machine.
+- Supported import types in this slice are static donor images only: `png`, `webp`, `jpg`, `jpeg`, and `svg` when those files exist locally for `project_001`.
+- Dragging one donor asset card into the canvas creates a new editable internal scene object with donor linkage. The imported object can then be moved, resized, saved, and reloaded through the normal editor flow.
+- Raw donor files under `10_donors/` remain read-only evidence. The editable source of truth is still the internal scene, not the donor file itself.
 - `npm run manual:prepare:project_001` resets `project_001` to the current tracked baseline, refreshes derived/synced outputs, validates the project slice, and tells the tester what to run next.
 - `npm run manual:status` prints the exact local/public/handoff context the tester is using.
 - `npm run manual:bug-context` prints a paste-friendly bug context block with current local/public/handoff details.

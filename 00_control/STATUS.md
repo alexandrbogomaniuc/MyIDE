@@ -18,8 +18,8 @@
 - Current control run: QA-B manual session prep and bug context support.
 - Local manual testing should use the LOCAL checkout plus `npm run manual:status`.
 - `npm run manual:prepare:project_001` now gives testers one command for reset -> sync -> validate -> next-step output before launching the shell.
-- The current tester-facing donor evidence surface is real but read-only; on a typical window size it sits below Project Browser in the left column and may require scrolling to reach.
-- The current tester-facing blocker is explicit: there is still no donor asset browser/palette, no donor drag payload, and no donor-to-scene drag/drop editing path in this build.
+- The current tester-facing donor surface now includes a first bounded donor asset palette for supported local `project_001` images; on a typical window size it sits below Project Browser in the left column and may require scrolling to reach.
+- The current tester-facing donor import slice is bounded and honest: supported local static donor images can be dragged into the canvas to create donor-linked internal scene objects, but raw donor files remain read-only and broader donor formats are still unsupported.
 - `npm run manual:bug-context` now gives testers one paste-friendly context block for bug notes.
 - `npm run manual:bug-bundle` now gives testers one timestamped folder for notes, context, and attachments outside the repo.
 - `npm run manual:reset:project_001` restores the current tracked `project_001` baseline and clears only the known local-only editor logs.
