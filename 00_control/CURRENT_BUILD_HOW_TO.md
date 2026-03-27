@@ -58,7 +58,7 @@ You still cannot edit the donor source files themselves.
 Current hard limits:
 - only `project_001` is supported in this slice
 - only static donor image files are supported
-- no atlas slicing
+- atlas/frame donor import is blocked in this build because no local atlas text or sprite-sheet metadata source exists for `project_001` yet
 - no animation import
 - no audio/video import
 - no raw donor file mutation

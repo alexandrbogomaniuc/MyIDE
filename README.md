@@ -105,6 +105,7 @@ Public publication rules are defined in [`00_control/PUBLIC_REPO_POLICY.md`](./0
 - Dragging donor asset cards into empty canvas space creates new editable internal scene objects with donor linkage on the chosen target layer. Dropping a donor asset directly over an editable scene object now replaces that object while preserving its layout and switching it to donor-backed linkage.
 - Selected donor-backed image objects now expose one bounded direct-manipulation improvement: a small bottom-right resize handle that persists through save/reload.
 - The current bounded proof now covers more than one real donor image import on `project_001`, including `png` and `webp` when both are present locally, plus one bounded donor-backed object replacement and one bounded donor-backed resize path that survive save/reload.
+- Atlas/frame donor import is still blocked for `project_001` on this machine because no local atlas text, sprite-sheet JSON, plist, or other grounded frame metadata source has been captured yet, so the donor palette remains limited to loose donor images for now.
 - Raw donor files under `10_donors/` remain read-only evidence. The editable source of truth is still the internal scene, not the donor file itself.
 - `npm run manual:prepare:project_001` resets `project_001` to the current tracked baseline, refreshes derived/synced outputs, validates the project slice, and tells the tester what to run next.
 - `npm run manual:status` prints the exact local/public/handoff context the tester is using.

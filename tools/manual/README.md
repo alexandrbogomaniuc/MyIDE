@@ -3,6 +3,7 @@
 Manual QA helpers are for local testing against the current tracked `project_001` baseline.
 The current shell edits reconstructed internal scene data under `40_projects/project_001/internal`; it now also supports a stronger bounded donor composition slice for `project_001`, where supported local donor images appear in the in-app donor asset palette, can be filtered by type, can target an explicit layer, can be dropped into empty canvas space to create donor-linked internal scene objects, can be dropped directly over an editable object to replace it, and give selected donor-backed images a small bottom-right resize handle.
 Raw donor files remain read-only evidence, and on a typical window size the **Donor Assets & Evidence** panel sits in the left column below Project Browser, so testers may need to scroll the left column to reach it.
+Atlas/frame donor import is still blocked in this build because no local atlas text or sprite-sheet metadata source exists for `project_001` yet.
 GS VABS support is a separate project-delivery module; the manual commands here are still for the current shell/editor baseline, not a production VABS renderer.
 `project_001` now has one stronger VABS contract/renderer-stub slice with explicit raw-vs-sanitized captured-row intake and captured-vs-derived fixture tracking, but editor QA and VABS verification remain separate flows.
 The shell now shows a read-only VABS status panel for the selected project, but manual editor prep and proof still use the same bounded shell/editor commands as before.

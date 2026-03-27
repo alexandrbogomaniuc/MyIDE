@@ -75,7 +75,8 @@ Use this when testing the current local MyIDE build by hand.
 - Remaining blockers:
   - only `project_001` is supported
   - only supported local donor image files are importable
-  - no atlas slicing, animation import, audio/video import, or generic donor format pipeline
+  - atlas/frame donor import is blocked on this machine because no local atlas text or sprite-sheet metadata source exists for `project_001` yet
+  - no animation import, audio/video import, or generic donor format pipeline
   - imported objects are internal scene objects with donor linkage, not editable raw donor assets
   - automated Electron smoke still uses a bounded drag/drop bridge in this environment when synthetic DOM drag events do not surface the live canvas intent cleanly enough on their own
 

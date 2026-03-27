@@ -9,6 +9,13 @@ Grounded usable image classes currently present on this machine:
 - published donor screenshots in `webp` (`6`)
 - live runtime screenshots in `png` (`3`)
 
+Atlas/frame reality check for `DONOR-ATLAS-A`:
+- searched `10_donors/donor_001_mystery_garden/evidence/local_only/`, `evidence/`, `raw/`, and `reports/`
+- found loose donor image files plus supporting donor JSON/articles only
+- found `0` local atlas text files, `0` local sprite-sheet JSON manifests, `0` local plist frame manifests, and `0` paired local atlas sheet sources with grounded frame metadata
+- current atlas/frame donor import blocker is therefore source availability, not parser code
+- next atlas/frame run should start only after one real local atlas/json sprite-sheet source is captured into the donor evidence boundary
+
 Current stronger bounded proof assets:
 - `10_donors/donor_001_mystery_garden/evidence/local_only/capture_sessions/MG-CS-20260320-LIVE-A/downloads/MG-EV-20260320-LIVE-A-002__runtime_base_idle_after_start.png`
 - `10_donors/donor_001_mystery_garden/evidence/local_only/capture_sessions/MG-CS-20260320-WEB-A/downloads/MG-EV-20260320-WEB-A-004__base_game_gallery.webp`

@@ -29,7 +29,7 @@ Electron desktop shell for MyIDE.
 - Support a dedicated Electron live-undo-redo smoke mode that uses the real renderer preset selection + new-placeholder action + canvas drag path + undo/redo toolbar path to load `project_001`, create a placeholder object, drag it, undo it, redo it, save, reload, verify replay-facing sync, and write `/tmp/myide-electron-live-undo-redo.json` while the outer smoke harness restores the touched project files and logs.
 - Keep the validated `project_001` replay slice intact.
 - Keep donor decoding and server integration out of this phase.
-- Keep this donor import slice bounded to `project_001` and supported local static images only; the stronger proof now covers more than one donor image import, explicit target-layer placement, direct drop-to-replace on editable objects, and one bounded donor-backed resize-handle path when grounded assets exist locally, but there is still no atlas slicing, no animation import, no audio/video import, and no raw donor file mutation.
+- Keep this donor import slice bounded to `project_001` and supported local static images only; the stronger proof now covers more than one donor image import, explicit target-layer placement, direct drop-to-replace on editable objects, and one bounded donor-backed resize-handle path when grounded assets exist locally, but atlas/frame donor import is still blocked on this machine because no local atlas text or sprite-sheet metadata source has been captured yet, and there is still no animation import, no audio/video import, and no raw donor file mutation.
 - Keep the new VABS panel read-only and outside the editor save path; it is workflow visibility only, not JSP/deployment proof.
 
 ## Bounded Shortcuts
