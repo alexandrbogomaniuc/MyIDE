@@ -22,3 +22,5 @@ Local-first tooling for the donor image import slice and the first bounded runti
 - Local runtime mirror files: `40_projects/project_001/runtime/local-mirror/files/`
 
 The donor index, runtime mirror, and runtime override outputs are local-only and intentionally gitignored. They record importable donor image metadata plus bounded local runtime/override state for the current machine without publishing raw donor binaries or mutating donor source files.
+
+The current shell also surfaces a bounded runtime request map for the active launch/reload cycle so testers can see which runtime URLs actually resolved to local mirror files or active override files. The current honest blocker is narrower than before: the request map is real, but the mirrored static override candidate still does not prove a reload-time hit yet.

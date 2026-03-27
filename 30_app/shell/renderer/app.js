@@ -58,6 +58,7 @@ const state = {
     currentUrl: null,
     pageTitle: null,
     diagnostics: null,
+    resourceMap: null,
     overrideStatus: null,
     controlSupport: {
       pause: false,
@@ -767,6 +768,25 @@ function getRuntimeOverrideStatus() {
 function getRuntimeMirrorStatus() {
   const runtimeMirror = state.bundle?.runtimeMirror;
   return runtimeMirror && typeof runtimeMirror === "object" ? runtimeMirror : null;
+}
+
+function getRuntimeResourceMapStatus() {
+  const resourceMap = state.runtimeUi.resourceMap ?? state.bundle?.runtimeResourceMap;
+  return resourceMap && typeof resourceMap === "object" ? resourceMap : null;
+}
+
+function getRuntimeResourceMapEntries() {
+  const resourceMap = getRuntimeResourceMapStatus();
+  return Array.isArray(resourceMap?.entries) ? resourceMap.entries : [];
+}
+
+function getRuntimeResourceMapEntry(runtimeSourceUrl) {
+  if (typeof runtimeSourceUrl !== "string" || runtimeSourceUrl.length === 0) {
+    return null;
+  }
+
+  const canonicalSourceUrl = getRuntimeCanonicalSourceUrl(runtimeSourceUrl) ?? runtimeSourceUrl;
+  return getRuntimeResourceMapEntries().find((entry) => entry.canonicalSourceUrl === canonicalSourceUrl) ?? null;
 }
 
 function getRuntimeMirrorEntry(sourceUrl) {
@@ -1495,6 +1515,7 @@ function handleRuntimeConsoleMessage(message) {
       title: payload.title ?? state.runtimeUi.pageTitle,
       support: state.runtimeUi.diagnostics?.support ?? null
     });
+    void refreshRuntimeResourceMap({ silent: true });
     renderAll();
     const targetSummary = payload.topDisplayObject?.name
       ?? payload.topDisplayObject?.label
@@ -1574,6 +1595,7 @@ async function refreshRuntimeDiagnostics() {
   const result = await callRuntimeBridge("getStatus");
   if (result && typeof result === "object" && !Array.isArray(result)) {
     applyRuntimeBridgeStatus(result);
+    await refreshRuntimeResourceMap({ silent: true });
     renderAll();
   }
 }
@@ -1597,6 +1619,7 @@ async function handleRuntimeLaunch() {
     return false;
   }
 
+  await resetRuntimeResourceMapForCurrentProject({ silent: true });
   setRuntimeLaunched(true);
   renderAll();
   setPreviewStatus(runtimeLaunch.localRuntimePackageAvailable
@@ -1612,6 +1635,7 @@ async function handleRuntimeReload() {
     return handleRuntimeLaunch();
   }
 
+  await resetRuntimeResourceMapForCurrentProject({ silent: true });
   state.runtimeUi.loading = true;
   state.runtimeUi.ready = false;
   state.runtimeUi.lastError = null;
@@ -1704,6 +1728,54 @@ async function refreshRuntimeOverrideStatus(options = {}) {
       setPreviewStatus(error instanceof Error ? error.message : "Runtime override status refresh failed.");
     }
     return state.runtimeUi.overrideStatus ?? state.bundle?.runtimeOverrides ?? null;
+  }
+}
+
+async function refreshRuntimeResourceMap(options = {}) {
+  const api = window.myideApi;
+  if (!api || typeof api.getRuntimeResourceMap !== "function" || !state.selectedProjectId) {
+    return state.runtimeUi.resourceMap ?? state.bundle?.runtimeResourceMap ?? null;
+  }
+
+  try {
+    const resourceMap = await api.getRuntimeResourceMap(state.selectedProjectId);
+    state.runtimeUi.resourceMap = resourceMap ?? null;
+    if (state.bundle) {
+      state.bundle.runtimeResourceMap = resourceMap ?? null;
+    }
+    if (!options.silent) {
+      renderAll();
+    }
+    return resourceMap ?? null;
+  } catch (error) {
+    if (!options.silent) {
+      setPreviewStatus(error instanceof Error ? error.message : "Runtime resource map refresh failed.");
+    }
+    return state.runtimeUi.resourceMap ?? state.bundle?.runtimeResourceMap ?? null;
+  }
+}
+
+async function resetRuntimeResourceMapForCurrentProject(options = {}) {
+  const api = window.myideApi;
+  if (!api || typeof api.resetRuntimeResourceMap !== "function" || !state.selectedProjectId) {
+    return state.runtimeUi.resourceMap ?? state.bundle?.runtimeResourceMap ?? null;
+  }
+
+  try {
+    const resourceMap = await api.resetRuntimeResourceMap(state.selectedProjectId);
+    state.runtimeUi.resourceMap = resourceMap ?? null;
+    if (state.bundle) {
+      state.bundle.runtimeResourceMap = resourceMap ?? null;
+    }
+    if (!options.silent) {
+      renderAll();
+    }
+    return resourceMap ?? null;
+  } catch (error) {
+    if (!options.silent) {
+      setPreviewStatus(error instanceof Error ? error.message : "Runtime resource map reset failed.");
+    }
+    return state.runtimeUi.resourceMap ?? state.bundle?.runtimeResourceMap ?? null;
   }
 }
 
@@ -4297,10 +4369,13 @@ async function runLiveRuntimeSmoke() {
     runtimeBridgeAssetFocusSucceeded: false,
     runtimeBridgeEvidenceFocusSucceeded: false,
     runtimeObservedResourceCount: 0,
+    runtimeResourceMapCount: 0,
+    runtimeResourceLatestRequestUrl: null,
     runtimeOverrideEligible: false,
     runtimeOverrideSourceUrl: null,
     runtimeOverrideRelativePath: null,
     runtimeLocalMirrorSourcePath: null,
+    runtimeOverrideRequestSource: null,
     runtimeOverrideDonorAssetId: null,
     runtimeOverrideRepoRelativePath: null,
     runtimeOverrideHitCountAfterReload: 0,
@@ -4396,6 +4471,23 @@ async function runLiveRuntimeSmoke() {
       baseResult.stepBlocked = status.support?.blockers?.step ?? null;
       baseResult.runtimeObservedResourceCount = Array.isArray(status.resourceEntries) ? status.resourceEntries.length : 0;
     }
+    await refreshRuntimeResourceMap({ silent: true });
+    baseResult.runtimeResourceMapCount = Number(getRuntimeResourceMapStatus()?.entryCount ?? 0);
+    baseResult.runtimeResourceLatestRequestUrl = getRuntimeResourceMapEntries()?.[0]?.latestRequestUrl ?? null;
+    baseResult.runtimeObservedResourceCount = Math.max(
+      baseResult.runtimeObservedResourceCount,
+      baseResult.runtimeResourceMapCount
+    );
+
+    await handleRuntimeAction("enter");
+    await sleep(1500);
+    await refreshRuntimeResourceMap({ silent: true });
+    baseResult.runtimeResourceMapCount = Number(getRuntimeResourceMapStatus()?.entryCount ?? 0);
+    baseResult.runtimeResourceLatestRequestUrl = getRuntimeResourceMapEntries()?.[0]?.latestRequestUrl ?? null;
+    baseResult.runtimeObservedResourceCount = Math.max(
+      baseResult.runtimeObservedResourceCount,
+      baseResult.runtimeResourceMapCount
+    );
 
     const inspectResult = await callRuntimeBridge("setInspectEnabled", true);
     if (!inspectResult?.enabled) {
@@ -4461,6 +4553,7 @@ async function runLiveRuntimeSmoke() {
     baseResult.runtimeOverrideSourceUrl = runtimeOverrideCandidate.runtimeSourceUrl;
     baseResult.runtimeOverrideRelativePath = runtimeOverrideCandidate.runtimeRelativePath;
     baseResult.runtimeLocalMirrorSourcePath = runtimeOverrideCandidate.localMirrorEntry?.repoRelativePath ?? null;
+    baseResult.runtimeOverrideRequestSource = runtimeOverrideCandidate.resourceMapEntry?.requestSource ?? null;
     baseResult.runtimeOverrideDonorAssetId = runtimeOverrideCandidate.donorAsset?.assetId ?? null;
     clickRendererElement(createOverrideButton);
     await waitForRendererCondition(
@@ -4475,11 +4568,15 @@ async function runLiveRuntimeSmoke() {
       "runtime reload to finish",
       { timeoutMs: 60000 }
     );
+    await handleRuntimeAction("enter");
+    await sleep(1500);
+    await refreshRuntimeResourceMap({ silent: true });
+    await refreshRuntimeOverrideStatus({ silent: true });
     try {
       await waitForRendererCondition(
         () => {
-          const activeEntry = state.runtimeUi.overrideStatus?.entries?.find((entry) => entry.runtimeSourceUrl === baseResult.runtimeOverrideSourceUrl);
-          return activeEntry && activeEntry.hitCount > 0 ? activeEntry : null;
+          const activeEntry = getRuntimeResourceMapEntry(baseResult.runtimeOverrideSourceUrl);
+          return activeEntry && activeEntry.overrideRepoRelativePath && activeEntry.hitCount > 0 ? activeEntry : null;
         },
         "runtime override to be applied after reload",
         { timeoutMs: 30000 }
@@ -4491,9 +4588,12 @@ async function runLiveRuntimeSmoke() {
         throw error;
       }
     }
+    await refreshRuntimeResourceMap({ silent: true });
+    await refreshRuntimeOverrideStatus({ silent: true });
     const activeOverrideEntry = state.runtimeUi.overrideStatus?.entries?.find((entry) => entry.runtimeSourceUrl === baseResult.runtimeOverrideSourceUrl) ?? null;
+    const activeResourceEntry = getRuntimeResourceMapEntry(baseResult.runtimeOverrideSourceUrl);
     baseResult.runtimeOverrideRepoRelativePath = activeOverrideEntry?.overrideRepoRelativePath ?? null;
-    baseResult.runtimeOverrideHitCountAfterReload = activeOverrideEntry?.hitCount ?? 0;
+    baseResult.runtimeOverrideHitCountAfterReload = activeResourceEntry?.hitCount ?? activeOverrideEntry?.hitCount ?? 0;
     baseResult.reloadSucceeded = true;
 
     const clearOverrideButton = elements.runtimeToolbar?.querySelector('[data-runtime-action="clear-override"]')
@@ -6229,6 +6329,7 @@ function bindActions() {
       state.runtimeUi.loading = false;
       state.runtimeUi.currentUrl = elements.runtimeWebview.getURL?.() || state.runtimeUi.currentUrl;
       renderAll();
+      void refreshRuntimeResourceMap({ silent: true });
       void refreshRuntimeOverrideStatus({ silent: true });
     });
     elements.runtimeWebview.addEventListener("did-fail-load", (event) => {
@@ -6252,6 +6353,7 @@ function bindActions() {
     });
     elements.runtimeWebview.addEventListener("dom-ready", () => {
       state.runtimeUi.currentUrl = elements.runtimeWebview.getURL?.() || state.runtimeUi.currentUrl;
+      void refreshRuntimeResourceMap({ silent: true });
       void refreshRuntimeOverrideStatus({ silent: true });
       void installRuntimeBridge();
     });
@@ -7548,6 +7650,22 @@ function getRuntimeOverrideCandidate() {
       }
     : null;
 
+  const resourceMapResources = getRuntimeResourceMapEntries()
+    .filter((entry) => (
+      Boolean(entry.canonicalSourceUrl)
+      && Boolean(entry.fileType)
+      && ["png", "webp", "jpg", "jpeg", "svg"].includes(String(entry.fileType ?? "").toLowerCase())
+      && (!preferredFileType || entry.fileType === preferredFileType)
+    ))
+    .map((entry) => ({
+      url: entry.canonicalSourceUrl,
+      observedUrl: entry.latestRequestUrl,
+      fileType: entry.fileType,
+      relativePath: entry.runtimeRelativePath,
+      filename: entry.runtimeFilename ?? "",
+      initiatorType: "runtime-resource-map",
+      resourceMapEntry: entry
+    }));
   const observedResources = getObservedRuntimeResources()
     .filter((entry) => !preferredFileType || entry.fileType === preferredFileType);
   const mirroredResources = (getRuntimeMirrorStatus()?.entries ?? [])
@@ -7584,8 +7702,12 @@ function getRuntimeOverrideCandidate() {
     : [/img\/ui\//i, /preloader-assets\//i];
   const observedEntry = directEntry
     ?? phaseMatchers
+      .map((matcher) => resourceMapResources.find((entry) => matcher.test(entry.relativePath ?? "")))
+      .find(Boolean)
+    ?? phaseMatchers
       .map((matcher) => observedResources.find((entry) => matcher.test(entry.relativePath ?? "")))
       .find(Boolean)
+    ?? resourceMapResources[0]
     ?? observedResources[0]
     ?? phaseMatchers
       .map((matcher) => mirroredResources.find((entry) => matcher.test(entry.relativePath ?? "")))
@@ -7594,6 +7716,7 @@ function getRuntimeOverrideCandidate() {
     ?? null;
   const activeOverride = observedEntry ? getRuntimeOverrideEntry(observedEntry.url) : null;
   const localMirrorEntry = observedEntry ? getRuntimeMirrorEntry(observedEntry.url) : null;
+  const resourceMapEntry = observedEntry?.resourceMapEntry ?? (observedEntry ? getRuntimeResourceMapEntry(observedEntry.url) : null);
 
   if (!observedEntry) {
     return {
@@ -7605,6 +7728,7 @@ function getRuntimeOverrideCandidate() {
       donorAsset,
       activeOverride: null,
       localMirrorEntry: null,
+      resourceMapEntry: null,
       note: "No grounded runtime-loaded static image resource is available for an override in this slice yet."
     };
   }
@@ -7619,6 +7743,7 @@ function getRuntimeOverrideCandidate() {
       donorAsset: null,
       activeOverride,
       localMirrorEntry,
+      resourceMapEntry,
       note: localMirrorEntry
         ? `A runtime-loaded static resource was observed and resolved to local mirror path ${localMirrorEntry.repoRelativePath}, but the current runtime pick does not yet expose a grounded donor asset to use as the override source.`
         : "A runtime-loaded static resource was observed, but the current runtime pick does not yet expose a grounded donor asset to use as the override source."
@@ -7638,10 +7763,15 @@ function getRuntimeOverrideCandidate() {
     donorAsset,
     activeOverride,
     localMirrorEntry,
+    resourceMapEntry,
     note: directEntry
       ? localMirrorEntry
         ? `The live runtime exposed a direct texture/resource URL for this static image, and that source resolves to local mirror path ${localMirrorEntry.repoRelativePath}.`
         : "The live runtime exposed a direct texture/resource URL for this static image."
+      : resourceMapEntry
+        ? localMirrorEntry
+          ? `The current runtime cycle requested this ${observedEntry.fileType} source ${resourceMapEntry.hitCount} time${resourceMapEntry.hitCount === 1 ? "" : "s"} through ${resourceMapEntry.requestSource}, and it resolves to local mirror path ${localMirrorEntry.repoRelativePath}.`
+          : `The current runtime cycle requested this ${observedEntry.fileType} source ${resourceMapEntry.hitCount} time${resourceMapEntry.hitCount === 1 ? "" : "s"} through ${resourceMapEntry.requestSource}.`
       : observedResources.some((entry) => entry.url === observedEntry.url)
         ? localMirrorEntry
           ? `A grounded runtime-loaded ${observedEntry.fileType} resource was observed for the current runtime phase, matches the bridged donor asset file type, and resolves to local mirror path ${localMirrorEntry.repoRelativePath}.`
@@ -10042,6 +10172,7 @@ async function reloadWorkspace(isInitialLoad, requestedProjectId = null) {
     currentUrl: null,
     pageTitle: null,
     diagnostics: null,
+    resourceMap: state.bundle.runtimeResourceMap ?? null,
     overrideStatus: state.bundle.runtimeOverrides ?? null,
     controlSupport: {
       pause: false,
@@ -12797,6 +12928,8 @@ function renderRuntimeWorkbench() {
   const runtimeWebview = getRuntimeWebview();
   const runtimeOverrideStatus = getRuntimeOverrideStatus();
   const runtimeMirrorStatus = getRuntimeMirrorStatus();
+  const runtimeResourceMap = getRuntimeResourceMapStatus();
+  const latestResourceEntry = getRuntimeResourceMapEntries()[0] ?? null;
 
   if (elements.runtimeWorkbench) {
     elements.runtimeWorkbench.hidden = !runtimeModeActive;
@@ -12906,6 +13039,13 @@ function renderRuntimeWorkbench() {
           ? `${runtimeMirrorStatus.manifestRepoRelativePath} · ${runtimeMirrorStatus.resourceVersion ? `v${runtimeMirrorStatus.resourceVersion}` : "version unknown"}`
           : runtimeMirrorStatus?.blocker ?? "Capture the local runtime mirror to prefer a local host path.")}</small>
       </div>
+      <div class="detail-card ${runtimeResourceMap?.entryCount ? "is-positive" : ""}">
+        <span>Runtime Resource Map</span>
+        <strong>${runtimeResourceMap?.entryCount ? `${runtimeResourceMap.entryCount} recorded runtime source${runtimeResourceMap.entryCount === 1 ? "" : "s"}` : "No runtime requests recorded yet"}</strong>
+        <small>${escapeHtml(latestResourceEntry
+          ? `${latestResourceEntry.runtimeRelativePath ?? latestResourceEntry.canonicalSourceUrl} · ${latestResourceEntry.hitCount} hit${latestResourceEntry.hitCount === 1 ? "" : "s"} · ${latestResourceEntry.requestSource}`
+          : "Launch or reload Runtime Mode to capture requested URLs, local mirror files, override redirects, and hit counts.")}</small>
+      </div>
       <div class="detail-card ${runtimeOverrideStatus?.entryCount ? "is-positive" : ""}">
         <span>Project-local Overrides</span>
         <strong>${runtimeOverrideStatus?.entryCount ? `${runtimeOverrideStatus.entryCount} active override${runtimeOverrideStatus.entryCount === 1 ? "" : "s"}` : "No active runtime override"}</strong>
@@ -12930,6 +13070,8 @@ function renderRuntimeInspector() {
   const runtimeOverrideCandidate = getRuntimeOverrideCandidate();
   const runtimeOverrideStatus = getRuntimeOverrideStatus();
   const runtimeMirrorStatus = getRuntimeMirrorStatus();
+  const runtimeResourceMap = getRuntimeResourceMapStatus();
+  const activeResourceRecord = runtimeOverrideCandidate.resourceMapEntry ?? null;
   const candidateSummaries = Array.isArray(lastPick?.candidateApps) && lastPick.candidateApps.length > 0
     ? lastPick.candidateApps.map((entry) => `${entry.key}${entry.childCount != null ? ` · ${entry.childCount} stage children` : ""}`).join("; ")
     : Array.isArray(diagnostics?.candidateApps) && diagnostics.candidateApps.length > 0
@@ -13019,6 +13161,17 @@ function renderRuntimeInspector() {
           : runtimeMirrorStatus?.available
             ? "A local mirror exists, but this picked runtime trace has not resolved to one of the mirrored local files yet."
             : runtimeMirrorStatus?.blocker ?? "No local mirror is available yet.")}</small>
+      </div>
+      <div class="detail-card ${activeResourceRecord ? "is-positive" : runtimeResourceMap?.entryCount ? "is-alert" : ""}">
+        <span>Resource Map Record</span>
+        <strong>${escapeHtml(activeResourceRecord
+          ? `${activeResourceRecord.hitCount} runtime hit${activeResourceRecord.hitCount === 1 ? "" : "s"}`
+          : "No recorded runtime request for this source yet")}</strong>
+        <small>${escapeHtml(activeResourceRecord
+          ? `${activeResourceRecord.latestRequestUrl} · ${activeResourceRecord.requestSource}${activeResourceRecord.overrideRepoRelativePath ? ` · override ${activeResourceRecord.overrideRepoRelativePath}` : activeResourceRecord.localMirrorRepoRelativePath ? ` · local ${activeResourceRecord.localMirrorRepoRelativePath}` : ""}`
+          : runtimeResourceMap?.entryCount
+            ? "Runtime requests have been recorded this cycle, but the current picked source has not been matched to one of those records yet."
+            : "Launch or reload Runtime Mode to capture requested URLs, local mirror paths, override redirects, and hit counts.")}</small>
       </div>
       <div class="detail-card">
         <span>Active Override</span>

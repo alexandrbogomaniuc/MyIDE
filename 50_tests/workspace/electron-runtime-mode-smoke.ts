@@ -40,10 +40,13 @@ interface RuntimeSmokePayload {
   runtimeBridgeAssetFocusSucceeded?: boolean;
   runtimeBridgeEvidenceFocusSucceeded?: boolean;
   runtimeObservedResourceCount?: number;
+  runtimeResourceMapCount?: number;
+  runtimeResourceLatestRequestUrl?: string | null;
   runtimeOverrideEligible?: boolean;
   runtimeOverrideSourceUrl?: string | null;
   runtimeOverrideRelativePath?: string | null;
   runtimeLocalMirrorSourcePath?: string | null;
+  runtimeOverrideRequestSource?: string | null;
   runtimeOverrideDonorAssetId?: string | null;
   runtimeOverrideRepoRelativePath?: string | null;
   runtimeOverrideHitCountAfterReload?: number;
@@ -245,6 +248,10 @@ async function main(): Promise<void> {
   assert.equal(payload.runtimeBridgeEvidenceFocusSucceeded, true, "Runtime donor evidence bridge did not focus the donor evidence panel.");
   if (payload.runtimeSourceLabel === "Local mirror") {
     assert.ok(
+      Number(payload.runtimeResourceMapCount ?? 0) > 0,
+      "Runtime Mode used the local mirror, but no launch/reload-time runtime resource map entries were recorded."
+    );
+    assert.ok(
       Number(payload.runtimeObservedResourceCount ?? 0) > 0
       || (typeof payload.runtimeLocalMirrorSourcePath === "string" && payload.runtimeLocalMirrorSourcePath.length > 0),
       "Runtime trace did not capture a grounded local-mirror-backed static source."
@@ -292,6 +299,9 @@ async function main(): Promise<void> {
   }
   if (payload.runtimeLocalMirrorSourcePath) {
     console.log(`Runtime local mirror source: ${payload.runtimeLocalMirrorSourcePath}`);
+  }
+  if (payload.runtimeResourceLatestRequestUrl) {
+    console.log(`Runtime latest request: ${payload.runtimeResourceLatestRequestUrl}`);
   }
   if (payload.runtimeOverrideBlocked) {
     console.log(`Runtime override blocker: ${payload.runtimeOverrideBlocked}`);

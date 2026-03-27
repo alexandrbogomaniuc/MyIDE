@@ -4,7 +4,7 @@ Manual QA helpers are for local testing against the current tracked `project_001
 The current shell is now runtime-first for `project_001`: Runtime Mode launches the strongest grounded Mystery Garden donor runtime source inside the shell, keeps the live runtime surface front and center, and exposes bounded runtime launch/reload/inspect controls plus one bounded project-local static image override path when the runtime trace proves an eligible source URL. Compose Mode still edits reconstructed internal scene data under `40_projects/project_001/internal`; it also keeps the stronger bounded donor composition slice for `project_001`, where supported local donor images appear in the in-app donor asset palette, can be filtered by type, can target an explicit layer, can be dropped into empty canvas space to create donor-linked internal scene objects, can be dropped directly over an editable object to replace it, can be multi-selected with a bounded marquee/additive workflow, can be aligned/distributed with nearby composition controls, and give selected donor-backed images a small bottom-right resize handle.
 The shell now includes a workflow hub and left-side context rail so Runtime, Donor, Compose, VABS, and Project setup behave like one flow instead of one long stack of unrelated panels.
 Raw donor files remain read-only evidence, and on a typical window size the **Donor Assets & Evidence** panel sits in the left column below Project Browser, so testers may need to scroll the left column to reach it.
-There is still no captured full local donor runtime package for `project_001`, but Runtime Mode can now prefer a bounded partial local runtime mirror on this machine. The first override slice works by creating project-local override files under `40_projects/project_001/overrides/`; raw donor files under `10_donors/` remain untouched. Pause/resume/step only work when the embedded runtime exposes a stable ticker-like hook; otherwise the shell shows that blocker plainly.
+There is still no captured full local donor runtime package for `project_001`, but Runtime Mode can now prefer a bounded partial local runtime mirror on this machine. The first override slice works by creating project-local override files under `40_projects/project_001/overrides/`; raw donor files under `10_donors/` remain untouched. The shell now also records a bounded runtime resource map for the current launch/reload cycle so testers can see which runtime URLs were requested, which local mirror files were used, and whether an override recorded a hit. Pause/resume/step only work when the embedded runtime exposes a stable ticker-like hook; otherwise the shell shows that blocker plainly.
 Atlas/frame donor import is still blocked in this build because no local atlas text or sprite-sheet metadata source exists for `project_001` yet.
 GS VABS support is a separate project-delivery module; the manual commands here are still for the current shell/editor baseline, not a production VABS renderer.
 `project_001` now has one stronger VABS contract/renderer-stub slice with explicit raw-vs-sanitized captured-row intake and captured-vs-derived fixture tracking, but editor QA and VABS verification remain separate flows.
@@ -21,20 +21,21 @@ The shell now shows a read-only VABS status panel for the selected project, but 
 8. If the runtime trace says the current source is override-eligible, use `Create Override`, let Runtime Mode reload, and confirm either:
    - the active override card shows a runtime hit, or
    - the shell reports the current local-mirror override blocker plainly
-9. Use `Clear Override` when you want to restore the original runtime asset.
-10. Use `Show Runtime Note` or `Show Init Response` if you want to jump back to the runtime evidence behind the current runtime slice.
-11. Switch to Compose Mode when you want donor image composition instead of live runtime inspection.
-12. Scroll the left column down if you need to inspect **Donor Assets & Evidence**.
-13. Choose a donor import target layer, then drag one supported donor image into empty canvas space if you want to test donor composition.
-14. If both `png` and `webp` donor assets are present, drag one of each to prove the stronger bounded import slice.
-15. Drag one donor image over an existing editable canvas object if you want to test direct donor-backed replacement, or use **Replace Selected Object** for the bounded button path.
-16. Use a marquee box or `Shift`/`Cmd` selection to build a small multi-object composition.
-17. Try one align or distribute action from the editor toolbar.
-18. Select a donor-backed image and use its bottom-right resize handle if you want to test bounded direct manipulation.
-19. Use **Show Asset In Palette**, **Show Evidence**, or **Open Runtime Context** from the donor summary if you want to trace a donor-backed object back to source context quickly.
-20. If you hit a bug, run `npm run manual:bug-bundle` to create a timestamped folder outside the repo with a prefilled bug note, current context, and an `attachments/` folder.
-21. If you only need a quick paste-friendly text block, run `npm run manual:bug-context`.
-22. Use `npm run manual:reset:project_001` again when you want to clean up after a session without running the full prepare flow.
+9. Use the runtime resource-map record in the inspector to confirm the current launch/reload cycle actually requested the traced source when that evidence exists.
+10. Use `Clear Override` when you want to restore the original runtime asset.
+11. Use `Show Runtime Note` or `Show Init Response` if you want to jump back to the runtime evidence behind the current runtime slice.
+12. Switch to Compose Mode when you want donor image composition instead of live runtime inspection.
+13. Scroll the left column down if you need to inspect **Donor Assets & Evidence**.
+14. Choose a donor import target layer, then drag one supported donor image into empty canvas space if you want to test donor composition.
+15. If both `png` and `webp` donor assets are present, drag one of each to prove the stronger bounded import slice.
+16. Drag one donor image over an existing editable canvas object if you want to test direct donor-backed replacement, or use **Replace Selected Object** for the bounded button path.
+17. Use a marquee box or `Shift`/`Cmd` selection to build a small multi-object composition.
+18. Try one align or distribute action from the editor toolbar.
+19. Select a donor-backed image and use its bottom-right resize handle if you want to test bounded direct manipulation.
+20. Use **Show Asset In Palette**, **Show Evidence**, or **Open Runtime Context** from the donor summary if you want to trace a donor-backed object back to source context quickly.
+21. If you hit a bug, run `npm run manual:bug-bundle` to create a timestamped folder outside the repo with a prefilled bug note, current context, and an `attachments/` folder.
+22. If you only need a quick paste-friendly text block, run `npm run manual:bug-context`.
+23. Use `npm run manual:reset:project_001` again when you want to clean up after a session without running the full prepare flow.
 
 ## Commands
 - `npm run manual:status`

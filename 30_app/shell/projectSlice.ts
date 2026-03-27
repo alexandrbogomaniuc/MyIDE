@@ -23,6 +23,10 @@ import {
   buildLocalRuntimeMirrorStatus,
   type LocalRuntimeMirrorStatus
 } from "../runtime/localRuntimeMirror";
+import {
+  buildRuntimeResourceMapStatus,
+  type RuntimeResourceMapStatus
+} from "../runtime/runtimeResourceMap";
 import { buildProjectVabsStatus, type ProjectVabsStatus } from "./vabsStatus";
 
 type JsonValue = null | boolean | number | string | JsonObject | JsonValue[];
@@ -126,6 +130,7 @@ export interface ProjectSliceBundle {
   };
   runtimeLaunch: RuntimeLaunchStatus | null;
   runtimeMirror: LocalRuntimeMirrorStatus | null;
+  runtimeResourceMap: RuntimeResourceMapStatus | null;
   runtimeOverrides: RuntimeAssetOverrideStatus | null;
 }
 
@@ -730,6 +735,9 @@ export async function loadProjectSlice(requestedProjectId?: string): Promise<Pro
     ? await buildLocalRuntimeMirrorStatus(selectedProjectId)
     : null;
   const runtimeLaunch = await buildRuntimeLaunchStatus(selectedProjectId, runtimeMirror);
+  const runtimeResourceMap = selectedProjectId === "project_001"
+    ? buildRuntimeResourceMapStatus(selectedProjectId)
+    : null;
   const runtimeOverrides = selectedProjectId === "project_001"
     ? await buildRuntimeAssetOverrideStatus(selectedProjectId)
     : null;
@@ -767,6 +775,7 @@ export async function loadProjectSlice(requestedProjectId?: string): Promise<Pro
     },
     runtimeLaunch,
     runtimeMirror,
+    runtimeResourceMap,
     runtimeOverrides
   };
 }

@@ -23,7 +23,7 @@ Use this when you want to test the current MyIDE build exactly as it works today
 6. Use **Click To Start** if the donor runtime needs one bounded pointer click to begin.
 7. Use **Spin / Trigger** if you want the bounded runtime action path that currently sends `Space` to the runtime surface.
 8. Use **Pick / Inspect** and then click the live runtime surface to capture the strongest grounded runtime trace available.
-9. Read the right-hand inspector for picked target, runtime/display-object trace when exposed, texture/frame info when exposed, runtime URL, override eligibility, and supporting evidence refs.
+9. Read the right-hand inspector for picked target, runtime/display-object trace when exposed, texture/frame info when exposed, runtime URL, local mirror file path when grounded, the current runtime resource-map record, override eligibility, and supporting evidence refs.
 10. Use the new runtime bridge actions in the inspector or Workflow Hub to:
    - focus the strongest grounded donor asset card
    - focus the strongest grounded donor evidence entry
@@ -88,7 +88,7 @@ Current hard limits:
 - there is still no captured full local donor runtime package for `project_001`
 - Runtime Mode now prefers a bounded local runtime mirror when it is available, but that mirror still depends on the live donor launch upstream for launch HTML/token/API state
 - the first static override slice works only for grounded static runtime image URLs that the current runtime trace can prove and that match a supported donor image file type
-- when Runtime Mode uses the local mirror, the shell can now trace one grounded static runtime candidate back to a local mirror file path, but the current slice still does not confirm a reload-time hit on that mirrored candidate yet
+- when Runtime Mode uses the local mirror, the shell can now trace one grounded static runtime candidate back to a local mirror file path and show the current request map, but the current slice still does not confirm a reload-time hit on that mirrored static candidate yet
 - pause, resume, and step only work if the embedded runtime exposes a stable ticker-like hook; if it does not, the shell shows the blocker instead of faking the control
 - only `project_001` is supported in this slice
 - only static donor image files are supported
@@ -106,13 +106,15 @@ The donor file remains read-only evidence. Runtime Mode can now create one bound
 4. Confirm the inspector shows:
    - `Runtime Source: Local mirror` when the bounded mirror is available
    - a grounded static runtime source path or the strongest grounded local mirror candidate path
+   - a runtime resource-map record for the current launch/reload cycle when one has been captured
    - whether the current trace is override-eligible
 5. Click **Create Override**.
 6. Wait for Runtime Mode to reload.
 7. Read the **Project-local Overrides** card or the active override detail in the inspector.
 8. If the current slice reports a blocker for the local mirrored candidate instead of a reload-time hit, treat that as the current honest limit rather than a silent failure.
-9. Use **Clear Override** when you want to restore the original runtime asset.
-10. The override file stays under `40_projects/project_001/overrides/`, and raw donor files under `10_donors/` stay untouched.
+9. The current strongest blocker is now narrower and explicit: the request map is real, but the mirrored static override candidate still is not proving a reload-time hit.
+10. Use **Clear Override** when you want to restore the original runtime asset.
+11. The override file stays under `40_projects/project_001/overrides/`, and raw donor files under `10_donors/` stay untouched.
 
 ## 9. Save / Reload Loop For Scene Composition
 1. Switch to **Compose** mode.

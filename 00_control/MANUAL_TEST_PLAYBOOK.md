@@ -33,6 +33,7 @@ Use this when testing the current local MyIDE build by hand.
    - Use one runtime bridge action and confirm the left-side workflow rail moves into the right source context.
    - If the picked trace is override-eligible, use **Create Override** once and confirm Runtime Mode reloads with a project-local override active.
    - If Runtime Mode is using the local mirror, confirm the inspector also shows a grounded local mirror source path for the current runtime candidate.
+   - Confirm the inspector also shows a runtime resource-map record for the current launch/reload cycle.
    - If the active override card shows a blocker instead of a reload-time hit for that mirrored candidate, record that blocker exactly; do not treat it as hidden success.
    - Use **Clear Override** once and confirm the project-local override is removed cleanly.
    - Use **Show Runtime Note** or **Show Init Response** once and confirm the supporting donor evidence is focused.
@@ -96,6 +97,7 @@ Use this when testing the current local MyIDE build by hand.
 - Runtime pick can focus at least one grounded source context such as donor asset or donor evidence.
 - For one grounded static Mystery Garden runtime image source, the shell can create a project-local override and clear it again.
 - When the current runtime slice resolves that source through the bounded local mirror, the shell should also show the grounded local mirror file path.
+- Runtime Mode now also shows the current launch/reload resource-map record when one has been captured.
 - If the mirrored candidate still does not record a reload-time hit, the shell should report that blocker plainly instead of inventing success.
 - The created object remains editable.
 - At least one donor asset is visible in the donor asset palette.
@@ -113,7 +115,7 @@ Use this when testing the current local MyIDE build by hand.
   - there is still no captured full local donor runtime package for `project_001`
   - Runtime Mode can prefer a bounded local runtime mirror on this machine, but that is still not the same as a full captured local donor bundle
   - the bounded runtime override slice only works when the current runtime trace exposes a grounded static image URL and the chosen donor asset matches that file type
-  - the current local-mirror override path still does not confirm a reload-time hit for the mirrored static candidate, so that part remains partially blocked
+  - the current local-mirror override path now has a real request map, but it still does not confirm a reload-time hit for the mirrored static candidate, so that part remains partially blocked
   - pause/resume/step only work when the embedded donor runtime exposes a stable ticker-like hook; otherwise the shell reports that blocker plainly
   - only `project_001` is supported
   - only supported local donor image files are importable
