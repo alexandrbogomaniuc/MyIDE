@@ -26,13 +26,20 @@
         <section class="stack">
           <article class="panel onboarding-panel">
             <div class="panel-head">
-              <h2>Start Here</h2>
-              <span>Current scope</span>
+              <h2>Workflow Hub</h2>
+              <span>Runtime-first project flow</span>
+            </div>
+            <div id="workflow-panelbar" class="mode-bar workflow-panelbar" role="tablist" aria-label="Workflow side panel">
+              <button type="button" data-workflow-panel="runtime" aria-selected="true">Runtime</button>
+              <button type="button" data-workflow-panel="donor" aria-selected="false">Donor</button>
+              <button type="button" data-workflow-panel="compose" aria-selected="false">Compose</button>
+              <button type="button" data-workflow-panel="vabs" aria-selected="false">VABS</button>
+              <button type="button" data-workflow-panel="project" aria-selected="false">Project</button>
             </div>
             <div id="onboarding-card" class="browser-stack" aria-live="polite"></div>
           </article>
 
-          <article class="panel">
+          <article id="panel-project-browser" class="panel">
             <div class="panel-head">
               <h2>Project Browser</h2>
               <span>Folder-discovered workspace</span>
@@ -44,7 +51,7 @@
             <div id="project-browser" class="browser-stack" aria-live="polite"></div>
           </article>
 
-          <article class="panel">
+          <article id="panel-donor" class="panel">
             <div class="panel-head">
               <h2>Donor Assets & Evidence</h2>
               <span>Read-only source + bounded import</span>
@@ -53,15 +60,24 @@
             <div id="evidence-browser" class="browser-stack" aria-live="polite"></div>
           </article>
 
-          <article class="panel">
+          <article id="panel-compose" class="panel">
             <div class="panel-head">
-              <h2>Scene Explorer</h2>
+              <h2>Compose Explorer</h2>
               <span>Scene, layer, object list</span>
             </div>
             <div id="scene-explorer" class="browser-stack" aria-live="polite"></div>
           </article>
 
-          <article class="panel">
+          <article id="panel-vabs" class="panel">
+            <div class="panel-head">
+              <h2>VABS Status</h2>
+              <span>Read-only project gate</span>
+            </div>
+            <p class="context-hint">VABS stays a separate read-only module. Use this panel to see fixture truth, current blocker, and the exact next operator step without changing the runtime or compose workflow.</p>
+            <div id="workflow-vabs-panel" class="browser-stack" aria-live="polite"></div>
+          </article>
+
+          <article id="panel-new-project" class="panel">
             <div class="panel-head">
               <h2>New Project</h2>
               <span>Keep onboarding local-first</span>
@@ -110,10 +126,10 @@
             <h2>Workbench</h2>
             <span>Runtime-first for project_001</span>
           </div>
-          <p class="context-hint">Runtime Mode is the primary donor workflow in this slice. It launches the strongest grounded Mystery Garden donor runtime entry inside the shell when available, surfaces bounded runtime controls, and records the strongest source trace we can prove. Scene Mode keeps the internal compositor, donor import, and save/reload workflow available without mutating raw donor files.</p>
+          <p class="context-hint">Runtime Mode is the primary donor workflow in this slice. It launches the strongest grounded Mystery Garden donor runtime entry inside the shell when available, surfaces bounded runtime controls, and records the strongest source trace we can prove. Compose Mode keeps the internal compositor, donor import, and save/reload workflow available without mutating raw donor files.</p>
           <div id="workbench-modebar" class="mode-bar" role="tablist" aria-label="Workbench mode">
             <button type="button" data-workbench-mode="runtime" aria-selected="true">Runtime</button>
-            <button type="button" data-workbench-mode="scene" aria-selected="false">Scene</button>
+            <button type="button" data-workbench-mode="scene" aria-selected="false">Compose</button>
           </div>
           <div id="runtime-toolbar" class="runtime-toolbar">
             <div class="toolbar-group">
@@ -233,9 +249,9 @@
         <aside class="panel inspector-panel">
           <div class="panel-head">
             <h2>Inspector</h2>
-            <span>Runtime trace or scene object</span>
+            <span>Runtime trace or compose selection</span>
           </div>
-          <p class="context-hint">Runtime Mode uses this panel for picked runtime-element trace and the strongest grounded donor evidence we can surface. Scene Mode uses it for the existing internal object editor and evidence linkage. Raw donor captures remain read-only in both modes.</p>
+          <p class="context-hint">Runtime Mode uses this panel for picked runtime-element trace and the strongest grounded donor evidence we can surface. Compose Mode uses it for the existing internal object editor and evidence linkage. Raw donor captures remain read-only in both modes.</p>
           <div id="inspector" class="inspector-card"></div>
           <div class="panel-head panel-head-tight">
             <h2>Activity</h2>

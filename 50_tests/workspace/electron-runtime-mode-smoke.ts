@@ -34,6 +34,10 @@ interface RuntimeSmokePayload {
   pickedDisplayHitCount?: number;
   pickedDisplayObjectName?: string | null;
   pickedTextureCacheId?: string | null;
+  runtimeBridgeAssetId?: string | null;
+  runtimeBridgeEvidenceId?: string | null;
+  runtimeBridgeAssetFocusSucceeded?: boolean;
+  runtimeBridgeEvidenceFocusSucceeded?: boolean;
   supportingEvidenceIds?: string[];
 }
 
@@ -217,6 +221,10 @@ async function main(): Promise<void> {
   assert.equal(payload.pickSucceeded, true, "Runtime pick/inspect did not succeed.");
   assert.equal(payload.reloadSucceeded, true, "Runtime reload did not succeed.");
   assert.ok(typeof payload.runtimeCurrentUrl === "string" && payload.runtimeCurrentUrl.length > 0, "Runtime current URL is missing.");
+  assert.ok(typeof payload.runtimeBridgeAssetId === "string" && payload.runtimeBridgeAssetId.length > 0, "Runtime pick did not expose a grounded donor asset bridge.");
+  assert.equal(payload.runtimeBridgeAssetFocusSucceeded, true, "Runtime donor asset bridge did not focus the donor asset panel.");
+  assert.ok(typeof payload.runtimeBridgeEvidenceId === "string" && payload.runtimeBridgeEvidenceId.length > 0, "Runtime pick did not expose a grounded donor evidence bridge.");
+  assert.equal(payload.runtimeBridgeEvidenceFocusSucceeded, true, "Runtime donor evidence bridge did not focus the donor evidence panel.");
   assert.ok(Array.isArray(payload.supportingEvidenceIds) && payload.supportingEvidenceIds.length > 0, "Supporting runtime evidence ids are missing.");
 
   const statusAfter = await captureGitStatus(workspaceRoot);
@@ -229,6 +237,9 @@ async function main(): Promise<void> {
   }
   if (payload.pickedTargetTag) {
     console.log(`Picked target: ${payload.pickedTargetTag}`);
+  }
+  if (payload.runtimeBridgeAssetId) {
+    console.log(`Runtime bridge asset: ${payload.runtimeBridgeAssetId}`);
   }
 }
 

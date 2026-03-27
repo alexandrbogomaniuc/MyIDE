@@ -567,6 +567,13 @@ button:disabled {
   gap: 10px;
 }
 
+.workflow-panelbar {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
 .mode-bar button {
   appearance: none;
   border: 1px solid rgba(179, 209, 186, 0.18);
@@ -575,6 +582,12 @@ button:disabled {
   color: var(--text);
   background: rgba(255, 255, 255, 0.04);
   cursor: pointer;
+}
+
+.workflow-panelbar button {
+  width: 100%;
+  justify-content: center;
+  padding-inline: 0.8rem;
 }
 
 .mode-bar button[data-tone="active"] {
@@ -587,6 +600,10 @@ button:disabled {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+}
+
+.onboarding-panel .detail-grid {
+  margin-top: 2px;
 }
 
 .toolbar-group {
@@ -1677,6 +1694,10 @@ button:disabled {
   .evidence-linkage-grid {
     grid-template-columns: 1fr;
   }
+
+  .workflow-panelbar {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 900px) {
@@ -1688,5 +1709,9 @@ button:disabled {
   .topbar {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .workflow-panelbar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

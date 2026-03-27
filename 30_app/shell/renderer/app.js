@@ -44,6 +44,9 @@ const state = {
     importTargetLayerId: "auto",
     dropIntent: null
   },
+  workflowUi: {
+    activePanel: "runtime"
+  },
   runtimeUi: {
     launched: false,
     loading: false,
@@ -100,11 +103,38 @@ const objectSizePresets = {
   container: { width: 240, height: 160 }
 };
 
+const runtimeReferenceScreenDefs = [
+  {
+    key: "intro",
+    label: "Intro / click-to-start",
+    evidenceId: "MG-EV-20260320-LIVE-A-001",
+    note: "Grounded from the runtime observation notes: the intro screen with CLICK TO START is supported by MG-EV-20260320-LIVE-A-001."
+  },
+  {
+    key: "base-idle",
+    label: "Base game after start",
+    evidenceId: "MG-EV-20260320-LIVE-A-002",
+    note: "Grounded from the runtime observation notes: the entered live base-game screen is supported by MG-EV-20260320-LIVE-A-002."
+  },
+  {
+    key: "post-spin",
+    label: "Post-spin board",
+    evidenceId: "MG-EV-20260320-LIVE-A-003",
+    note: "Grounded from the runtime observation notes: the changed post-spin board is supported by MG-EV-20260320-LIVE-A-003."
+  }
+];
+
 const elements = {
   onboardingCard: document.getElementById("onboarding-card"),
+  workflowPanelbar: document.getElementById("workflow-panelbar"),
   projectBrowser: document.getElementById("project-browser"),
   evidenceBrowser: document.getElementById("evidence-browser"),
   sceneExplorer: document.getElementById("scene-explorer"),
+  workflowVabsPanel: document.getElementById("workflow-vabs-panel"),
+  panelDonor: document.getElementById("panel-donor"),
+  panelCompose: document.getElementById("panel-compose"),
+  panelVabs: document.getElementById("panel-vabs"),
+  panelNewProject: document.getElementById("panel-new-project"),
   projectSummary: document.getElementById("project-summary"),
   editorCanvas: document.getElementById("editor-canvas"),
   previewStatus: document.getElementById("preview-status"),
@@ -728,6 +758,61 @@ function canUseRuntimeMode() {
   return Boolean(runtimeLaunch && runtimeLaunch.entryUrl);
 }
 
+function getWorkbenchModeLabel(mode = state.workbenchMode) {
+  return mode === "runtime" ? "Runtime" : "Compose";
+}
+
+function normalizeWorkflowPanel(panel) {
+  const value = String(panel ?? "").trim().toLowerCase();
+  if (["runtime", "donor", "compose", "vabs", "project"].includes(value)) {
+    return value;
+  }
+
+  return state.workbenchMode === "runtime" ? "runtime" : "compose";
+}
+
+function getActiveWorkflowPanel() {
+  return normalizeWorkflowPanel(state.workflowUi?.activePanel);
+}
+
+function getWorkflowPanelLabel(panel = getActiveWorkflowPanel()) {
+  const labels = {
+    runtime: "Runtime",
+    donor: "Donor Assets / Evidence",
+    compose: "Compose",
+    vabs: "VABS",
+    project: "Project"
+  };
+
+  return labels[normalizeWorkflowPanel(panel)] ?? "Runtime";
+}
+
+function syncWorkflowPanelToWorkbenchMode(mode = state.workbenchMode) {
+  const activePanel = getActiveWorkflowPanel();
+  if (mode === "runtime" && (activePanel === "runtime" || activePanel === "compose")) {
+    state.workflowUi.activePanel = "runtime";
+    return;
+  }
+
+  if (mode === "scene" && (activePanel === "runtime" || activePanel === "compose")) {
+    state.workflowUi.activePanel = "compose";
+  }
+}
+
+function setWorkflowPanel(panel, options = {}) {
+  const nextPanel = normalizeWorkflowPanel(panel);
+  if (state.workflowUi.activePanel === nextPanel && !options.force) {
+    return;
+  }
+
+  state.workflowUi.activePanel = nextPanel;
+  renderAll();
+
+  if (!options.silent) {
+    setPreviewStatus(`${getWorkflowPanelLabel(nextPanel)} panel is active in the left workflow rail.`);
+  }
+}
+
 function setWorkbenchMode(mode, options = {}) {
   const requestedMode = mode === "scene" ? "scene" : "runtime";
   const nextMode = requestedMode === "runtime" && !canUseRuntimeMode()
@@ -739,12 +824,13 @@ function setWorkbenchMode(mode, options = {}) {
   }
 
   state.workbenchMode = nextMode;
+  syncWorkflowPanelToWorkbenchMode(nextMode);
   renderAll();
 
   if (!options.silent) {
     setPreviewStatus(nextMode === "runtime"
-      ? "Runtime Mode is active. Launch the recorded donor runtime to work against the live surface."
-      : "Scene Mode is active. Edit the internal scene while donor sources stay read-only.");
+      ? "Runtime Mode is active. Launch the grounded donor runtime, pick a live target, then jump into donor or compose context from the workflow hub."
+      : "Compose Mode is active. Edit the internal scene while donor sources stay read-only, then jump back to Runtime Mode when you need live donor context.");
   }
 
   if (nextMode === "runtime" && state.runtimeUi.launched) {
@@ -759,6 +845,33 @@ function trimRuntimeText(value, maxLength = 160) {
   }
 
   return `${normalized.slice(0, Math.max(0, maxLength - 1))}…`;
+}
+
+function renderWorkflowPanels() {
+  const activePanel = getActiveWorkflowPanel();
+
+  elements.workflowPanelbar?.querySelectorAll("[data-workflow-panel]").forEach((button) => {
+    if (!(button instanceof HTMLButtonElement)) {
+      return;
+    }
+
+    const isActive = normalizeWorkflowPanel(button.dataset.workflowPanel) === activePanel;
+    button.dataset.tone = isActive ? "active" : "default";
+    button.setAttribute("aria-selected", isActive ? "true" : "false");
+  });
+
+  if (elements.panelDonor) {
+    elements.panelDonor.hidden = activePanel !== "donor";
+  }
+  if (elements.panelCompose) {
+    elements.panelCompose.hidden = activePanel !== "compose";
+  }
+  if (elements.panelVabs) {
+    elements.panelVabs.hidden = activePanel !== "vabs";
+  }
+  if (elements.panelNewProject) {
+    elements.panelNewProject.hidden = activePanel !== "project";
+  }
 }
 
 function buildRuntimeGuestBridgeScript() {
@@ -3841,6 +3954,10 @@ async function runLiveRuntimeSmoke() {
     pickedDisplayHitCount: 0,
     pickedDisplayObjectName: null,
     pickedTextureCacheId: null,
+    runtimeBridgeAssetId: null,
+    runtimeBridgeEvidenceId: null,
+    runtimeBridgeAssetFocusSucceeded: false,
+    runtimeBridgeEvidenceFocusSucceeded: false,
     supportingEvidenceIds: [],
     previewStatus: null
   };
@@ -3950,6 +4067,30 @@ async function runLiveRuntimeSmoke() {
     if (!baseResult.pickSucceeded) {
       throw new Error("Runtime inspect mode did not capture a target from the live donor surface.");
     }
+
+    const bridgeAssetButton = elements.inspector?.querySelector("[data-focus-donor-asset-id]");
+    if (!(bridgeAssetButton instanceof HTMLButtonElement) || !bridgeAssetButton.dataset.focusDonorAssetId) {
+      throw new Error("Runtime inspector did not expose a grounded donor asset bridge after picking the live donor surface.");
+    }
+    baseResult.runtimeBridgeAssetId = bridgeAssetButton.dataset.focusDonorAssetId;
+    clickRendererElement(bridgeAssetButton);
+    await waitForRendererCondition(
+      () => state.workflowUi?.activePanel === "donor" && state.donorAssetUi?.highlightedAssetId === baseResult.runtimeBridgeAssetId,
+      "runtime bridge donor asset focus"
+    );
+    baseResult.runtimeBridgeAssetFocusSucceeded = true;
+
+    const bridgeEvidenceButton = elements.inspector?.querySelector("[data-focus-donor-evidence-id]");
+    if (!(bridgeEvidenceButton instanceof HTMLButtonElement) || !bridgeEvidenceButton.dataset.focusDonorEvidenceId) {
+      throw new Error("Runtime inspector did not expose a grounded donor evidence bridge after picking the live donor surface.");
+    }
+    baseResult.runtimeBridgeEvidenceId = bridgeEvidenceButton.dataset.focusDonorEvidenceId;
+    clickRendererElement(bridgeEvidenceButton);
+    await waitForRendererCondition(
+      () => state.workflowUi?.activePanel === "donor" && state.evidenceUi?.highlightedEvidenceId === baseResult.runtimeBridgeEvidenceId,
+      "runtime bridge donor evidence focus"
+    );
+    baseResult.runtimeBridgeEvidenceFocusSucceeded = true;
 
     await handleRuntimeReload();
     await waitForRendererCondition(
@@ -5626,6 +5767,9 @@ function bindActions() {
   elements.actionReloadEditor?.addEventListener("click", () => {
     void reloadWorkspace(false, state.selectedProjectId);
   });
+  elements.workflowPanelbar?.addEventListener("click", (event) => {
+    handleNavigationClick(event);
+  });
   elements.workbenchModebar?.addEventListener("click", (event) => {
     const target = event.target;
     if (!(target instanceof HTMLElement)) {
@@ -5639,6 +5783,9 @@ function bindActions() {
 
     event.preventDefault();
     setWorkbenchMode(modeButton.dataset.workbenchMode);
+  });
+  elements.onboardingCard?.addEventListener("click", (event) => {
+    handleNavigationClick(event);
   });
   elements.runtimeToolbar?.addEventListener("click", (event) => {
     const target = event.target;
@@ -6022,7 +6169,7 @@ function bindActions() {
     handleInspectorEvent(event);
   });
   elements.inspector?.addEventListener("click", (event) => {
-    if (handleCopyEvent(event)) {
+    if (handleNavigationClick(event)) {
       return;
     }
 
@@ -6045,22 +6192,6 @@ function bindActions() {
       }
       const label = focusLinkageButton.dataset.focusLinkageLabel ?? "selected object evidence";
       focusSelectedObjectEvidence(refs, label);
-      return;
-    }
-
-    const focusDonorAssetButton = target.closest("[data-focus-donor-asset-id]");
-    if (focusDonorAssetButton instanceof HTMLElement && focusDonorAssetButton.dataset.focusDonorAssetId) {
-      event.preventDefault();
-      focusDonorAssetCard(focusDonorAssetButton.dataset.focusDonorAssetId);
-      return;
-    }
-
-    const focusDonorEvidenceButton = target.closest("[data-focus-donor-evidence-id]");
-    if (focusDonorEvidenceButton instanceof HTMLElement && focusDonorEvidenceButton.dataset.focusDonorEvidenceId) {
-      event.preventDefault();
-      focusEvidenceItem(focusDonorEvidenceButton.dataset.focusDonorEvidenceId, {
-        selectedObjectOnly: false
-      });
       return;
     }
 
@@ -6778,6 +6909,61 @@ function getDonorAssetById(assetId) {
   return getDonorAssetCatalogItems().find((item) => item?.assetId === assetId) ?? null;
 }
 
+function getSceneObjectsForDonorAssetId(assetId) {
+  if (typeof assetId !== "string" || assetId.length === 0 || !state.editorData || !Array.isArray(state.editorData.objects)) {
+    return [];
+  }
+
+  return state.editorData.objects.filter((object) => getDonorAssetForObject(object)?.assetId === assetId);
+}
+
+function getRuntimeReferenceScreens() {
+  return runtimeReferenceScreenDefs.map((entry) => ({
+    ...entry,
+    donorAsset: getDonorAssetCatalogItems().find((asset) => asset.evidenceId === entry.evidenceId) ?? null,
+    evidenceItem: getEvidenceItemById(entry.evidenceId),
+    sceneObjects: getSceneObjectsForDonorAssetId(
+      getDonorAssetCatalogItems().find((asset) => asset.evidenceId === entry.evidenceId)?.assetId ?? ""
+    )
+  }));
+}
+
+function getRuntimePhaseReferenceKey() {
+  if (state.runtimeUi.lastCommand === "spin") {
+    return "post-spin";
+  }
+
+  if (state.runtimeUi.lastCommand === "enter") {
+    return "base-idle";
+  }
+
+  return "intro";
+}
+
+function matchDonorAssetFromRuntimePick(lastPick = state.runtimeUi.lastPick) {
+  const signals = uniqueStrings([
+    typeof lastPick?.topDisplayObject?.texture?.resourceUrl === "string" ? lastPick.topDisplayObject.texture.resourceUrl : "",
+    typeof lastPick?.topDisplayObject?.texture?.cacheId === "string" ? lastPick.topDisplayObject.texture.cacheId : "",
+    typeof lastPick?.topDisplayObject?.name === "string" ? lastPick.topDisplayObject.name : "",
+    typeof lastPick?.topDisplayObject?.label === "string" ? lastPick.topDisplayObject.label : ""
+  ]).map((value) => value.toLowerCase());
+
+  if (signals.length === 0) {
+    return null;
+  }
+
+  return getDonorAssetCatalogItems().find((asset) => {
+    const filename = String(asset.filename ?? "").toLowerCase();
+    const stem = filename.replace(/\.[^.]+$/, "");
+    const evidenceId = String(asset.evidenceId ?? "").toLowerCase();
+    return signals.some((signal) => (
+      (filename.length > 0 && signal.includes(filename))
+      || (stem.length > 0 && signal.includes(stem))
+      || (evidenceId.length > 0 && signal.includes(evidenceId))
+    ));
+  }) ?? null;
+}
+
 function getVisibleDonorAssetItems() {
   const items = getDonorAssetCatalogItems();
   const searchQuery = String(state.donorAssetUi?.searchQuery ?? "").trim().toLowerCase();
@@ -6853,6 +7039,71 @@ function getEvidenceItemById(evidenceId) {
   }
 
   return getEvidenceCatalogItems().find((item) => item?.evidenceId === evidenceId) ?? null;
+}
+
+function getRuntimeWorkflowBridge() {
+  const runtimeLaunch = getRuntimeLaunchInfo();
+  const directAssetMatch = matchDonorAssetFromRuntimePick();
+  const referenceScreens = getRuntimeReferenceScreens();
+  const phaseReference = referenceScreens.find((entry) => entry.key === getRuntimePhaseReferenceKey()) ?? null;
+  const matchedAsset = directAssetMatch ?? phaseReference?.donorAsset ?? null;
+  const matchedEvidenceId = directAssetMatch?.evidenceId
+    ?? phaseReference?.evidenceId
+    ?? runtimeLaunch?.evidenceIds?.[0]
+    ?? null;
+  const matchedEvidence = matchedEvidenceId ? getEvidenceItemById(matchedEvidenceId) : null;
+  const relatedSceneObjects = matchedAsset ? getSceneObjectsForDonorAssetId(matchedAsset.assetId) : [];
+  const selectedObject = getSelectedObject();
+  const selectedObjectMatches = Boolean(
+    selectedObject
+    && matchedAsset
+    && getDonorAssetForObject(selectedObject)?.assetId === matchedAsset.assetId
+  );
+  const primarySceneObject = selectedObjectMatches
+    ? selectedObject
+    : relatedSceneObjects[0] ?? null;
+
+  if (!runtimeLaunch?.entryUrl) {
+    return {
+      strength: "blocked",
+      heading: "Runtime launch is blocked",
+      note: runtimeLaunch?.blocker ?? "No grounded donor runtime entry is indexed for this project yet.",
+      donorAsset: null,
+      evidenceItem: null,
+      sceneObject: null
+    };
+  }
+
+  if (directAssetMatch) {
+    return {
+      strength: "direct",
+      heading: "Direct runtime-to-donor asset hint",
+      note: `The live runtime exposed a texture or display-object signal that matches donor asset ${directAssetMatch.assetId}.`,
+      donorAsset: directAssetMatch,
+      evidenceItem: directAssetMatch.evidenceId ? getEvidenceItemById(directAssetMatch.evidenceId) : null,
+      sceneObject: primarySceneObject
+    };
+  }
+
+  if (phaseReference?.donorAsset) {
+    return {
+      strength: "phase-supporting",
+      heading: `Best supporting runtime screenshot: ${phaseReference.label}`,
+      note: `${phaseReference.note} This is a grounded runtime-phase inference, not a live display-object id match.`,
+      donorAsset: phaseReference.donorAsset,
+      evidenceItem: phaseReference.evidenceItem,
+      sceneObject: primarySceneObject
+    };
+  }
+
+  return {
+    strength: "evidence-only",
+    heading: "Runtime evidence is available",
+    note: "The embedded donor runtime does not expose a stable display-object or texture id in this slice, so only runtime notes/init evidence can be focused honestly.",
+    donorAsset: null,
+    evidenceItem: matchedEvidence,
+    sceneObject: null
+  };
 }
 
 function getSelectedProjectEvidenceSummary() {
@@ -7132,6 +7383,7 @@ function focusEvidenceItem(evidenceId, {
     return;
   }
 
+  state.workflowUi.activePanel = "donor";
   setEvidenceFilterMode(selectedObjectOnly);
   state.evidenceUi.highlightedEvidenceId = evidenceId;
   renderAll();
@@ -7175,6 +7427,7 @@ function focusDonorAssetCard(assetId, {
     return;
   }
 
+  state.workflowUi.activePanel = "donor";
   state.donorAssetUi.highlightedAssetId = assetId;
   renderAll();
   scrollDonorAssetCardIntoView(assetId);
@@ -7199,12 +7452,16 @@ function focusSelectedObjectEvidence(refs, label = "selected object evidence") {
   });
 }
 
-function selectObjectFromEvidence(objectId) {
+function focusSceneObjectInWorkflow(objectId, {
+  statusMessage = null
+} = {}) {
   if (!getEditableObjectById(objectId)) {
     setPreviewStatus(`Could not find ${objectId} in the current internal scene.`);
     return;
   }
 
+  setWorkbenchMode("scene", { silent: true });
+  state.workflowUi.activePanel = "compose";
   setSelectedObject(objectId);
   renderAll();
   window.requestAnimationFrame(() => {
@@ -7218,7 +7475,69 @@ function selectObjectFromEvidence(objectId) {
   });
 
   const selectedObject = getSelectedObject();
-  setPreviewStatus(`Selected ${selectedObject?.displayName ?? objectId} from donor evidence linkage.`);
+  setPreviewStatus(statusMessage ?? `Selected ${selectedObject?.displayName ?? objectId} in Compose Mode.`);
+}
+
+function selectObjectFromEvidence(objectId) {
+  focusSceneObjectInWorkflow(objectId, {
+    statusMessage: `Selected ${getEditableObjectById(objectId)?.displayName ?? objectId} from donor evidence linkage.`
+  });
+}
+
+function handleNavigationClick(event) {
+  if (handleCopyEvent(event)) {
+    return true;
+  }
+
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+
+  const workflowPanelButton = target.closest("[data-workflow-panel]");
+  if (workflowPanelButton instanceof HTMLElement && workflowPanelButton.dataset.workflowPanel) {
+    event.preventDefault();
+    setWorkflowPanel(workflowPanelButton.dataset.workflowPanel);
+    return true;
+  }
+
+  const workbenchButton = target.closest("[data-switch-workbench-mode]");
+  if (workbenchButton instanceof HTMLElement && workbenchButton.dataset.switchWorkbenchMode) {
+    event.preventDefault();
+    setWorkbenchMode(workbenchButton.dataset.switchWorkbenchMode, { silent: true });
+    if (workbenchButton.dataset.switchWorkflowPanel) {
+      state.workflowUi.activePanel = normalizeWorkflowPanel(workbenchButton.dataset.switchWorkflowPanel);
+      renderAll();
+    }
+    setPreviewStatus(workbenchButton.dataset.switchStatus
+      ?? `${getWorkbenchModeLabel(workbenchButton.dataset.switchWorkbenchMode)} Mode is active.`);
+    return true;
+  }
+
+  const focusSceneObjectButton = target.closest("[data-focus-scene-object-id]");
+  if (focusSceneObjectButton instanceof HTMLElement && focusSceneObjectButton.dataset.focusSceneObjectId) {
+    event.preventDefault();
+    focusSceneObjectInWorkflow(focusSceneObjectButton.dataset.focusSceneObjectId);
+    return true;
+  }
+
+  const focusDonorAssetButton = target.closest("[data-focus-donor-asset-id]");
+  if (focusDonorAssetButton instanceof HTMLElement && focusDonorAssetButton.dataset.focusDonorAssetId) {
+    event.preventDefault();
+    focusDonorAssetCard(focusDonorAssetButton.dataset.focusDonorAssetId);
+    return true;
+  }
+
+  const focusDonorEvidenceButton = target.closest("[data-focus-donor-evidence-id]");
+  if (focusDonorEvidenceButton instanceof HTMLElement && focusDonorEvidenceButton.dataset.focusDonorEvidenceId) {
+    event.preventDefault();
+    focusEvidenceItem(focusDonorEvidenceButton.dataset.focusDonorEvidenceId, {
+      selectedObjectOnly: false
+    });
+    return true;
+  }
+
+  return false;
 }
 
 function renderCopyButton(copyValue, copyLabel, buttonText = "Copy") {
@@ -9186,6 +9505,9 @@ async function reloadWorkspace(isInitialLoad, requestedProjectId = null) {
   resetLayerIsolation();
   resetEditorHistory();
   state.workbenchMode = getRuntimeLaunchInfo()?.entryUrl ? "runtime" : "scene";
+  state.workflowUi = {
+    activePanel: state.workbenchMode === "runtime" ? "runtime" : "compose"
+  };
   reconcileSelectedObject();
   ensureSyncStatusForSelectedProject();
 
@@ -9211,8 +9533,8 @@ async function reloadWorkspace(isInitialLoad, requestedProjectId = null) {
   }
 
   setPreviewStatus(isInitialLoad
-    ? `Loaded ${state.selectedProjectId} editable scene from internal files.`
-    : `Reloaded ${state.selectedProjectId} editable scene from disk.`);
+    ? `Loaded ${state.selectedProjectId} editable compose scene from internal files.`
+    : `Reloaded ${state.selectedProjectId} editable compose scene from disk.`);
 }
 
 async function handleCreateProject(event) {
@@ -9589,42 +9911,97 @@ function renderOnboardingCard() {
   }
 
   const selectedProject = getSelectedProject();
-  const workspaceProjects = getWorkspaceProjects();
-  const validatedProject = workspaceProjects.find((project) => project.projectId === "project_001") ?? selectedProject;
-  const validatedProjectLabel = validatedProject
-    ? `<code>${escapeHtml(validatedProject.projectId)}</code> (${escapeHtml(validatedProject.displayName)})`
-    : "<code>project_001</code>";
-  const capabilities = [
-    "Select objects",
-    "Move / resize / align",
-    "Reassign / reorder",
-    "Create placeholders",
-    "Duplicate / delete",
-    "Undo / redo",
-    "Save / reload"
-  ];
+  const runtimeLaunch = getRuntimeLaunchInfo();
+  const workflowPanel = getActiveWorkflowPanel();
+  const workflowBridge = getRuntimeWorkflowBridge();
+  const workflowFocusSummary = {
+    runtime: "Live donor runtime first, then jump out to source or compose context from the bridge.",
+    donor: "Source donor assets, evidence cards, and grounded linked-object context stay together here.",
+    compose: "Internal scene composition stays bounded here: select, replace, align, resize, save, reload.",
+    vabs: "VABS stays visible as a read-only blocker and readiness module for this project.",
+    project: "Project scaffolding and workspace refresh stay separate from the runtime/composer workflow."
+  };
+  const bridgeActions = [
+    workflowBridge.donorAsset
+      ? `<button type="button" class="copy-button" data-focus-donor-asset-id="${escapeAttribute(workflowBridge.donorAsset.assetId)}">Focus Asset</button>`
+      : "",
+    workflowBridge.evidenceItem
+      ? `<button type="button" class="copy-button" data-focus-donor-evidence-id="${escapeAttribute(workflowBridge.evidenceItem.evidenceId)}">Focus Evidence</button>`
+      : "",
+    workflowBridge.sceneObject
+      ? `<button type="button" class="copy-button" data-focus-scene-object-id="${escapeAttribute(workflowBridge.sceneObject.id)}">Focus Scene Object</button>`
+      : "",
+    `<button type="button" class="copy-button" data-switch-workbench-mode="${escapeAttribute(state.workbenchMode === "runtime" ? "scene" : "runtime")}" data-switch-workflow-panel="${escapeAttribute(state.workbenchMode === "runtime" ? "compose" : "runtime")}" data-switch-status="${escapeAttribute(state.workbenchMode === "runtime" ? "Compose Mode is active. The workflow hub kept the current project context and source bridge." : "Runtime Mode is active again. The workflow hub kept the current project context and source bridge.")}">Switch To ${state.workbenchMode === "runtime" ? "Compose" : "Runtime"}</button>`
+  ].filter(Boolean).join("");
+  const quickSteps = state.workbenchMode === "runtime"
+    ? [
+      "Launch or reload the donor runtime in the main viewport.",
+      "Arm Pick / Inspect and click the live donor surface.",
+      "Use the bridge buttons below to jump into donor evidence, donor assets, or a related compose object."
+    ]
+    : [
+      "Drag or replace donor assets in Compose Mode as needed.",
+      "Use marquee, align, distribute, and donor-backed resize on the current internal scene.",
+      "Save, reload, then switch back to Runtime Mode when you want live donor context again."
+    ];
 
   elements.onboardingCard.innerHTML = `
     <div class="tree-row scope-summary">
-      <strong>What this build is</strong>
-      <p>MyIDE currently edits the reconstructed internal scene for the validated ${validatedProjectLabel} slice.</p>
-      <p>It now exposes a first bounded donor image asset palette for <code>project_001</code>. Raw donor files stay read-only, but supported local donor images can be imported into the internal scene.</p>
+      <strong>Unified Runtime / Compose Flow</strong>
+      <p>${escapeHtml(selectedProject?.displayName ?? "project_001")} now runs with <strong>${escapeHtml(getWorkbenchModeLabel())} Mode</strong> as the active workbench and <strong>${escapeHtml(getWorkflowPanelLabel(workflowPanel))}</strong> as the active side panel.</p>
+      <p>${escapeHtml(workflowFocusSummary[workflowPanel] ?? workflowFocusSummary.runtime)}</p>
+      <div class="chip-row">
+        <span>${escapeHtml(getWorkbenchModeLabel())} mode active</span>
+        <span>${escapeHtml(getWorkflowPanelLabel(workflowPanel))} panel active</span>
+        <span>${runtimeLaunch?.localRuntimePackageAvailable ? "local donor runtime package available" : "local donor runtime package not captured"}</span>
+      </div>
+    </div>
+    <div class="detail-grid">
+      <div class="detail-card">
+        <span>Runtime Package</span>
+        <strong>${runtimeLaunch?.localRuntimePackageAvailable ? "Local donor runtime package" : "Recorded public donor runtime"}</strong>
+        <small>${escapeHtml(runtimeLaunch?.localRuntimePackageAvailable
+          ? "Runtime Mode prefers the captured local donor runtime package for this project."
+          : runtimeLaunch?.blocker ?? "No grounded donor runtime package is captured for project_001 yet.")}</small>
+      </div>
+      <div class="detail-card">
+        <span>Bridge Strength</span>
+        <strong>${escapeHtml(workflowBridge.heading)}</strong>
+        <small>${escapeHtml(workflowBridge.note)}</small>
+      </div>
+      <div class="detail-card">
+        <span>Current Side Focus</span>
+        <strong>${escapeHtml(getWorkflowPanelLabel(workflowPanel))}</strong>
+        <small>Use the workflow rail above to move between runtime, donor, compose, VABS, and project setup without the old stacked wall of panels.</small>
+      </div>
+      <div class="detail-card">
+        <span>Current Runtime Surface</span>
+        <strong>${escapeHtml(state.runtimeUi.pageTitle ?? "Mystery Garden runtime not launched yet")}</strong>
+        <small>${escapeHtml(state.runtimeUi.currentUrl ?? runtimeLaunch?.entryUrl ?? "No grounded runtime URL is indexed yet.")}</small>
+      </div>
     </div>
     <div class="tree-row">
-      <strong>Where donor material fits</strong>
-      <span>Raw donor captures stay read-only evidence. The live preview and save loop still use internal <code>scene.json</code>, <code>layers.json</code>, and <code>objects.json</code>. Open the Donor Evidence panel in the left column below Project Browser for the donor asset palette, item-level evidence cards, grounded linked-object context, and copyable donor refs. If you do not see it, scroll the left column down.</span>
+      <strong>Runtime → Source Bridge</strong>
+      <span>${escapeHtml(workflowBridge.note)}</span>
+      <div class="evidence-actions">
+        ${bridgeActions}
+      </div>
     </div>
     <div class="tree-row">
-      <strong>First 3 steps</strong>
+      <strong>Next 3 steps</strong>
       <ol class="quickstart-list">
-        <li><strong>Open project_001</strong> in the Project Browser.</li>
-        <li><strong>Open Donor Evidence</strong>, then drag a donor image asset into the canvas or create a placeholder from the preset picker.</li>
-        <li><strong>Edit, save, and reload</strong> to confirm the internal scene loop works.</li>
+        ${quickSteps.map((step) => `<li>${escapeHtml(step)}</li>`).join("")}
       </ol>
     </div>
     <div class="tree-row">
-      <strong>What you can test now</strong>
-      <div class="chip-row">${["Drag/drop donor image import", ...capabilities].map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div>
+      <strong>What remains bounded</strong>
+      <div class="chip-row">${[
+        "project_001 only",
+        "static donor images only",
+        "donor evidence read-only",
+        "compose saves internal scene",
+        "no local donor runtime package yet"
+      ].map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div>
     </div>
   `;
 }
@@ -10118,25 +10495,25 @@ function renderProjectSummary() {
       </div>
       <div class="detail-card">
         <span>Current Mode</span>
-        <strong>${state.workbenchMode === "runtime" ? "Runtime Mode" : "Scene Mode"}</strong>
+        <strong>${escapeHtml(getWorkbenchModeLabel())} Mode</strong>
         <small>${state.workbenchMode === "runtime"
           ? `${runtimeLaunch?.entryUrl ? "Recorded donor runtime launch is ready." : "Runtime launch is currently blocked."} ${state.runtimeUi.launched ? "Embedded runtime has been launched in this session." : "Launch the donor runtime to begin."}`
           : editorStatusSummary}</small>
       </div>
       <div class="detail-card">
         <span>Primary Workflow</span>
-        <strong>${runtimeLaunch?.entryUrl ? "Runtime-first donor workflow" : "Scene-first fallback"}</strong>
+        <strong>${runtimeLaunch?.entryUrl ? "Runtime-first donor workflow" : "Compose-first fallback"}</strong>
         <small>${runtimeLaunch?.entryUrl
-          ? `Runtime Mode launches the recorded public donor runtime URL inside the shell. Scene Mode still edits <code>internal/scene.json</code>, <code>layers.json</code>, and <code>objects.json</code> as the bounded secondary workflow.`
+          ? `Runtime Mode launches the recorded public donor runtime URL inside the shell. Compose Mode still edits <code>internal/scene.json</code>, <code>layers.json</code>, and <code>objects.json</code> as the bounded secondary workflow.`
           : "No grounded donor runtime entry is available in this build, so the shell falls back to the bounded internal scene workflow."}</small>
       </div>
     </div>
     <div class="tree-row scope-summary">
       <strong>Current Scope</strong>
-      <span>This shell now treats Runtime Mode as the primary donor workflow for <code>project_001</code> when a grounded donor runtime entry exists. The Donor Evidence panel still sits in the left column below Project Browser on smaller windows, donor images can still be composed in Scene Mode, and raw donor files remain read-only throughout.</span>
+      <span>This shell now treats Runtime Mode as the primary donor workflow for <code>project_001</code> when a grounded donor runtime entry exists. The Donor Evidence panel still sits in the left column below Project Browser on smaller windows, donor images can still be composed in Compose Mode, and raw donor files remain read-only throughout.</span>
       <div class="chip-row">
-        <span>${runtimeLaunch?.entryUrl ? "primary: live donor runtime" : "primary: internal scene fallback"}</span>
-        <span>scene mode: bounded compositor</span>
+        <span>${runtimeLaunch?.entryUrl ? "primary: live donor runtime" : "primary: internal compose fallback"}</span>
+        <span>compose mode: bounded compositor</span>
         <span>donor files: read-only</span>
         <span>donor image import: bounded slice</span>
         <span>validated slice: project_001</span>
@@ -10295,6 +10672,45 @@ function renderVabsStatusSummary() {
         <div class="vabs-command-list">
           ${renderVabsCodeList(vabsStatus.operatorCommands, "vabs-command")}
         </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderWorkflowVabsPanel() {
+  if (!elements.workflowVabsPanel) {
+    return;
+  }
+
+  const vabsStatus = getSelectedProjectVabsStatus();
+  if (!vabsStatus) {
+    elements.workflowVabsPanel.innerHTML = `
+      <div class="tree-row">
+        <strong>VABS Not Indexed</strong>
+        <span>No project-local VABS workspace is indexed for the selected project yet.</span>
+      </div>
+    `;
+    return;
+  }
+
+  elements.workflowVabsPanel.innerHTML = `
+    <div class="detail-grid">
+      <div class="detail-card">
+        <span>Fixture Truth</span>
+        <strong>${escapeHtml(vabsStatus.fixtureProvenanceLabel)}</strong>
+        <small>${escapeHtml(vabsStatus.activeFixtureSummary)}</small>
+      </div>
+      <div class="detail-card">
+        <span>Current Blocker</span>
+        <strong>${escapeHtml(vabsStatus.activeFixtureSource === "captured" ? "Captured truth available" : "Real archived data still missing")}</strong>
+        <small>${escapeHtml(vabsStatus.currentBlocker)}</small>
+      </div>
+    </div>
+    <div class="tree-row">
+      <strong>Next Operator Step</strong>
+      <span>${escapeHtml(vabsStatus.nextRecommendedAction)}</span>
+      <div class="vabs-command-list">
+        ${renderVabsCodeList(vabsStatus.operatorCommands.slice(0, 2), "vabs-command")}
       </div>
     </div>
   `;
@@ -11626,6 +12042,9 @@ function renderInspector() {
     ? window.myideApi.buildPropertyPanelViewModel(inspectorInput)
     : inspectorInput;
   const donorAsset = getDonorAssetForObject(selectedObject);
+  const runtimeReferenceMatch = donorAsset
+    ? getRuntimeReferenceScreens().find((entry) => entry.evidenceId === donorAsset.evidenceId) ?? null
+    : null;
   const evidenceDrilldownMarkup = renderSelectedObjectEvidenceDrilldown(evidenceLinkage);
   const donorSummaryMarkup = donorAsset
     ? `
@@ -11638,6 +12057,7 @@ function renderInspector() {
           <div class="evidence-actions">
             <button type="button" class="copy-button" data-focus-donor-asset-id="${escapeAttribute(donorAsset.assetId)}">Show Asset In Palette</button>
             ${donorAsset.evidenceId ? `<button type="button" class="copy-button" data-focus-donor-evidence-id="${escapeAttribute(donorAsset.evidenceId)}">Show Evidence</button>` : ""}
+            ${runtimeReferenceMatch ? `<button type="button" class="copy-button" data-switch-workbench-mode="runtime" data-switch-workflow-panel="runtime" data-switch-status="${escapeAttribute(`Runtime Mode is active again. ${runtimeReferenceMatch.label} is the strongest grounded runtime context for ${donorAsset.title ?? donorAsset.assetId}.`)}">Open Runtime Context</button>` : ""}
             ${renderCopyButton(donorAsset.assetId, "donor asset id")}
             ${renderCopyButton(donorAsset.absolutePath ?? donorAsset.repoRelativePath ?? "", "donor source path", "Copy Path")}
           </div>
@@ -11926,6 +12346,7 @@ function renderRuntimeInspector() {
   const runtimeLaunch = getRuntimeLaunchInfo();
   const lastPick = state.runtimeUi.lastPick;
   const diagnostics = state.runtimeUi.diagnostics;
+  const workflowBridge = getRuntimeWorkflowBridge();
   const candidateSummaries = Array.isArray(lastPick?.candidateApps) && lastPick.candidateApps.length > 0
     ? lastPick.candidateApps.map((entry) => `${entry.key}${entry.childCount != null ? ` · ${entry.childCount} stage children` : ""}`).join("; ")
     : Array.isArray(diagnostics?.candidateApps) && diagnostics.candidateApps.length > 0
@@ -11985,9 +12406,25 @@ function renderRuntimeInspector() {
           : "The embedded donor runtime is live, but it still does not expose a stable display-object/texture id in this slice.")}</small>
       </div>
       <div class="detail-card">
+        <span>Runtime → Source Bridge</span>
+        <strong>${escapeHtml(workflowBridge.heading)}</strong>
+        <small>${escapeHtml(workflowBridge.note)}</small>
+      </div>
+      <div class="detail-card">
         <span>Supporting Evidence</span>
         <strong>${runtimeLaunch?.evidenceIds?.length ? `${runtimeLaunch.evidenceIds.length} grounded runtime refs` : "No runtime refs indexed"}</strong>
         <small>${escapeHtml(sourcePaths.length > 0 ? sourcePaths.join(" · ") : "No supporting source paths recorded.")}</small>
+      </div>
+    </div>
+    <div class="tree-row">
+      <strong>Bridge Actions</strong>
+      <span>${escapeHtml(workflowBridge.donorAsset
+        ? "Jump straight from the runtime trace into donor asset, donor evidence, or related compose context."
+        : "Jump into the strongest grounded runtime evidence while the live donor runtime remains partially opaque.")}</span>
+      <div class="evidence-actions">
+        ${workflowBridge.donorAsset ? `<button type="button" class="copy-button" data-focus-donor-asset-id="${escapeAttribute(workflowBridge.donorAsset.assetId)}">Focus Asset</button>` : ""}
+        ${workflowBridge.evidenceItem ? `<button type="button" class="copy-button" data-focus-donor-evidence-id="${escapeAttribute(workflowBridge.evidenceItem.evidenceId)}">Focus Evidence</button>` : ""}
+        ${workflowBridge.sceneObject ? `<button type="button" class="copy-button" data-focus-scene-object-id="${escapeAttribute(workflowBridge.sceneObject.id)}">Focus Scene Object</button>` : ""}
       </div>
     </div>
     <div class="tree-row">
@@ -12003,10 +12440,12 @@ function renderRuntimeInspector() {
 
 function renderAll() {
   enforceIsolationSelection();
+  renderWorkflowPanels();
   renderOnboardingCard();
   renderProjectBrowser();
   renderEvidenceBrowser();
   renderSceneExplorer();
+  renderWorkflowVabsPanel();
   renderBridgeStatus();
   renderSyncStatus();
   renderProjectSummary();
@@ -12184,7 +12623,7 @@ function renderFatal(message) {
     elements.evidenceBrowser.innerHTML = `<div class="tree-row"><strong>Donor Evidence</strong><span>${message}</span></div>`;
   }
   if (elements.sceneExplorer) {
-    elements.sceneExplorer.innerHTML = `<div class="tree-row"><strong>Scene Explorer</strong><span>Editor data could not be loaded.</span></div>`;
+    elements.sceneExplorer.innerHTML = `<div class="tree-row"><strong>Compose Explorer</strong><span>Editor data could not be loaded.</span></div>`;
   }
   if (elements.projectSummary) {
     elements.projectSummary.innerHTML = `<div class="tree-row"><strong>Editor Canvas</strong><span>${message}</span></div>`;

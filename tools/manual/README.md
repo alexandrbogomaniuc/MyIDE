@@ -1,7 +1,8 @@
 # Manual QA Tooling
 
 Manual QA helpers are for local testing against the current tracked `project_001` baseline.
-The current shell is now runtime-first for `project_001`: Runtime Mode launches the strongest grounded Mystery Garden donor runtime entry inside the shell, keeps the live runtime surface front and center, and exposes bounded runtime launch/reload/inspect controls. Scene Mode still edits reconstructed internal scene data under `40_projects/project_001/internal`; it also keeps the stronger bounded donor composition slice for `project_001`, where supported local donor images appear in the in-app donor asset palette, can be filtered by type, can target an explicit layer, can be dropped into empty canvas space to create donor-linked internal scene objects, can be dropped directly over an editable object to replace it, can be multi-selected with a bounded marquee/additive workflow, can be aligned/distributed with nearby composition controls, and give selected donor-backed images a small bottom-right resize handle.
+The current shell is now runtime-first for `project_001`: Runtime Mode launches the strongest grounded Mystery Garden donor runtime entry inside the shell, keeps the live runtime surface front and center, and exposes bounded runtime launch/reload/inspect controls. Compose Mode still edits reconstructed internal scene data under `40_projects/project_001/internal`; it also keeps the stronger bounded donor composition slice for `project_001`, where supported local donor images appear in the in-app donor asset palette, can be filtered by type, can target an explicit layer, can be dropped into empty canvas space to create donor-linked internal scene objects, can be dropped directly over an editable object to replace it, can be multi-selected with a bounded marquee/additive workflow, can be aligned/distributed with nearby composition controls, and give selected donor-backed images a small bottom-right resize handle.
+The shell now includes a workflow hub and left-side context rail so Runtime, Donor, Compose, VABS, and Project setup behave like one flow instead of one long stack of unrelated panels.
 Raw donor files remain read-only evidence, and on a typical window size the **Donor Assets & Evidence** panel sits in the left column below Project Browser, so testers may need to scroll the left column to reach it.
 There is still no captured local donor runtime package for `project_001`, so Runtime Mode currently uses the recorded public donor demo entry inside the shell. Pause/resume/step only work when the embedded runtime exposes a stable ticker-like hook; otherwise the shell shows that blocker plainly.
 Atlas/frame donor import is still blocked in this build because no local atlas text or sprite-sheet metadata source exists for `project_001` yet.
@@ -16,19 +17,20 @@ The shell now shows a read-only VABS status panel for the selected project, but 
 4. Launch the shell with `npm run dev`.
 5. Open `project_001` in Project Browser.
 6. In Runtime Mode, use `Launch Runtime`, `Reload Runtime`, `Click To Start`, `Spin / Trigger`, and `Pick / Inspect` as the first donor workflow path.
-7. Use `Show Runtime Note` or `Show Init Response` if you want to jump back to the runtime evidence behind the current runtime slice.
-8. Switch to Scene Mode when you want donor image composition instead of live runtime inspection.
-9. Scroll the left column down if you need to inspect **Donor Assets & Evidence**.
-10. Choose a donor import target layer, then drag one supported donor image into empty canvas space if you want to test donor composition.
-11. If both `png` and `webp` donor assets are present, drag one of each to prove the stronger bounded import slice.
-12. Drag one donor image over an existing editable canvas object if you want to test direct donor-backed replacement, or use **Replace Selected Object** for the bounded button path.
-13. Use a marquee box or `Shift`/`Cmd` selection to build a small multi-object composition.
-14. Try one align or distribute action from the editor toolbar.
-15. Select a donor-backed image and use its bottom-right resize handle if you want to test bounded direct manipulation.
-16. Use **Show Asset In Palette** or **Show Evidence** from the donor summary if you want to trace a donor-backed object back to source context quickly.
-17. If you hit a bug, run `npm run manual:bug-bundle` to create a timestamped folder outside the repo with a prefilled bug note, current context, and an `attachments/` folder.
-18. If you only need a quick paste-friendly text block, run `npm run manual:bug-context`.
-19. Use `npm run manual:reset:project_001` again when you want to clean up after a session without running the full prepare flow.
+7. After a runtime pick, use the runtime bridge buttons to focus donor asset, donor evidence, or related compose context when those are grounded.
+8. Use `Show Runtime Note` or `Show Init Response` if you want to jump back to the runtime evidence behind the current runtime slice.
+9. Switch to Compose Mode when you want donor image composition instead of live runtime inspection.
+10. Scroll the left column down if you need to inspect **Donor Assets & Evidence**.
+11. Choose a donor import target layer, then drag one supported donor image into empty canvas space if you want to test donor composition.
+12. If both `png` and `webp` donor assets are present, drag one of each to prove the stronger bounded import slice.
+13. Drag one donor image over an existing editable canvas object if you want to test direct donor-backed replacement, or use **Replace Selected Object** for the bounded button path.
+14. Use a marquee box or `Shift`/`Cmd` selection to build a small multi-object composition.
+15. Try one align or distribute action from the editor toolbar.
+16. Select a donor-backed image and use its bottom-right resize handle if you want to test bounded direct manipulation.
+17. Use **Show Asset In Palette**, **Show Evidence**, or **Open Runtime Context** from the donor summary if you want to trace a donor-backed object back to source context quickly.
+18. If you hit a bug, run `npm run manual:bug-bundle` to create a timestamped folder outside the repo with a prefilled bug note, current context, and an `attachments/` folder.
+19. If you only need a quick paste-friendly text block, run `npm run manual:bug-context`.
+20. Use `npm run manual:reset:project_001` again when you want to clean up after a session without running the full prepare flow.
 
 ## Commands
 - `npm run manual:status`

@@ -15,13 +15,19 @@ Use this when you want to test the current MyIDE build exactly as it works today
 
 ## 3. Runtime Mode Is The Primary Workflow
 1. `project_001` now opens into **Runtime** mode when the grounded donor runtime entry is available.
-2. Use **Launch Runtime** to open the recorded Mystery Garden donor runtime inside the shell.
-3. Use **Reload Runtime** to refresh the runtime surface.
-4. Use **Click To Start** if the donor runtime needs one bounded pointer click to begin.
-5. Use **Spin / Trigger** if you want the bounded runtime action path that currently sends `Space` to the runtime surface.
-6. Use **Pick / Inspect** and then click the live runtime surface to capture the strongest grounded runtime trace available.
-7. Read the right-hand inspector for picked target, runtime/display-object trace when exposed, texture/frame info when exposed, runtime URL, and supporting evidence refs.
-8. Use **Show Runtime Note** or **Show Init Response** to jump back to the grounded runtime evidence behind the current Runtime Mode slice.
+2. Use the new **Workflow Hub** in the left column to switch the side context between **Runtime**, **Donor**, **Compose**, **VABS**, and **Project** without hunting through one long stack of panels.
+3. Runtime Mode is the main working surface; **Compose** mode is the bounded secondary workflow.
+4. Use **Launch Runtime** to open the recorded Mystery Garden donor runtime inside the shell.
+5. Use **Reload Runtime** to refresh the runtime surface.
+6. Use **Click To Start** if the donor runtime needs one bounded pointer click to begin.
+7. Use **Spin / Trigger** if you want the bounded runtime action path that currently sends `Space` to the runtime surface.
+8. Use **Pick / Inspect** and then click the live runtime surface to capture the strongest grounded runtime trace available.
+9. Read the right-hand inspector for picked target, runtime/display-object trace when exposed, texture/frame info when exposed, runtime URL, and supporting evidence refs.
+10. Use the new runtime bridge actions in the inspector or Workflow Hub to:
+   - focus the strongest grounded donor asset card
+   - focus the strongest grounded donor evidence entry
+   - focus a related compose object if one already exists for that donor-linked asset
+11. Use **Show Runtime Note** or **Show Init Response** to jump back to the grounded runtime evidence behind the current Runtime Mode slice.
 
 ## 4. Where Donor Evidence Appears
 1. In the shell, donor content appears in **Donor Assets & Evidence**.
@@ -33,11 +39,11 @@ Use this when you want to test the current MyIDE build exactly as it works today
 5. The donor asset palette now supports quick search, format filters such as `PNG` and `WEBP`, and a visible donor import target layer control.
 
 ## 5. Scene Mode Is Still Available
-1. Use the **Scene** tab in the workbench mode bar when you want the bounded internal compositor instead of the live donor runtime.
-2. Scene Mode is where donor images can still be composed into the internal scene, replaced onto existing objects, resized, aligned, distributed, saved, and reloaded.
+1. Use the **Compose** tab in the workbench mode bar when you want the bounded internal compositor instead of the live donor runtime.
+2. Compose Mode is where donor images can still be composed into the internal scene, replaced onto existing objects, resized, aligned, distributed, saved, and reloaded.
 
 ## 6. What You Can Edit Today
-You can edit the reconstructed internal scene for `project_001` in **Scene** mode, including new donor-backed image objects created from the donor asset palette.
+You can edit the reconstructed internal scene for `project_001` in **Compose** mode, including new donor-backed image objects created from the donor asset palette.
 
 Current editable workflow:
 - select objects from the scene list or canvas
@@ -55,6 +61,7 @@ Current editable workflow:
 - resize donor-backed imported image objects with the small bottom-right canvas handle on the selected donor-backed image
 - align or distribute the current multi-selection from the canvas toolbar
 - use **Show Asset In Palette** or **Show Evidence** from the donor summary on a selected donor-backed object if you want to jump back to donor source context quickly
+- use **Open Runtime Context** from a selected donor-backed runtime screenshot object if you want to move straight back to Runtime Mode
 - align placeholder-backed objects to the viewport
 - reassign objects between unlocked layers
 - reorder objects within the current layer
@@ -83,10 +90,10 @@ Current hard limits:
 - no audio/video import
 - no raw donor file mutation
 
-The donor file remains read-only evidence. Runtime Mode is inspect/trace only right now; donor drag/drop in Scene Mode still creates a new internal scene object that preserves donor linkage.
+The donor file remains read-only evidence. Runtime Mode is inspect/trace only right now; donor drag/drop in Compose Mode still creates a new internal scene object that preserves donor linkage.
 
 ## 8. Save / Reload Loop For Scene Composition
-1. Switch to **Scene** mode.
+1. Switch to **Compose** mode.
 2. Optionally choose a donor import target layer first.
 3. Drag one donor image into empty canvas space.
 4. If both `png` and `webp` donor assets are visible in the palette, import one of each for the stronger bounded donor proof.
@@ -94,7 +101,7 @@ The donor file remains read-only evidence. Runtime Mode is inspect/trace only ri
 6. Drag a marquee box across two or more visible objects, or refine the selection with `Shift`/`Cmd` click from the scene list.
 7. Use one or two toolbar composition actions such as **Align Left**, **Align Top**, **Align Center Horizontally**, **Distribute Horizontally**, or **Distribute Vertically**.
 8. Select one donor-backed image and drag its small bottom-right resize handle if you want to test bounded direct manipulation.
-9. Use **Show Asset In Palette** or **Show Evidence** from the donor summary if you want to confirm source-jump behavior.
+9. Use **Show Asset In Palette**, **Show Evidence**, or **Open Runtime Context** from the donor summary if you want to confirm the unified bridge behavior.
 10. Click **Save Scene Changes** or use `Ctrl/Cmd+S`.
 11. Check that the editor state returns to **Saved**.
 12. Click **Reload From Disk**.

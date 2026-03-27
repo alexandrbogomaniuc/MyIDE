@@ -20,17 +20,20 @@ Use this when testing the current local MyIDE build by hand.
 3. `project_001` load
    - `project_001` appears in the project list and loads without error.
    - Runtime Mode is selected by default when the grounded donor runtime entry is available.
-   - The runtime toolbar is grouped separately from scene controls.
+   - The runtime toolbar is grouped separately from compose controls.
+   - The left-side workflow rail shows `Runtime`, `Donor`, `Compose`, `VABS`, and `Project`.
 4. Runtime-first path
    - Click **Launch Runtime** and confirm the live donor runtime loads inside the shell.
    - Click **Reload Runtime** and confirm the runtime refreshes.
    - If the runtime needs a starter interaction, use **Click To Start** once.
    - If a grounded gameplay trigger is exposed, use **Spin / Trigger** once.
    - Toggle **Pick / Inspect**, click the live runtime surface, and confirm the inspector shows the strongest grounded runtime trace available.
+   - After a live runtime pick, confirm the inspector exposes at least one grounded bridge action such as **Focus Asset** or **Focus Evidence**.
+   - Use one runtime bridge action and confirm the left-side workflow rail moves into the right source context.
    - Use **Show Runtime Note** or **Show Init Response** once and confirm the supporting donor evidence is focused.
    - If **Pause**, **Resume**, or **Step One Tick** are disabled, the shell should explain the blocker plainly instead of pretending those controls work.
 5. Scene/donor composition path
-   - Switch to **Scene** mode.
+   - Switch to **Compose** mode.
    - The **Donor Assets & Evidence** panel appears in the left column below Project Browser, so scroll the left column if you do not see it immediately.
    - The donor asset palette shows at least one supported local donor image card after indexing.
    - If both `png` and `webp` donor images exist locally, the palette filter buttons should show both formats.
@@ -72,6 +75,7 @@ Use this when testing the current local MyIDE build by hand.
    - In the scene list, imported donor-backed objects should be visibly marked as donor-backed rather than generic placeholders.
    - Use **Show Asset In Palette** from the donor summary on a selected donor-backed object and confirm the donor asset card is focused in the donor palette.
    - If donor evidence is grounded, use **Show Evidence** and confirm the linked donor evidence entry is focused in the evidence browser.
+   - If the selected donor-backed object represents one of the grounded runtime screenshots, use **Open Runtime Context** and confirm Runtime Mode becomes active again.
    - Use one linkage helper to focus that evidence in the Donor Evidence panel or to filter the donor evidence view down to the selected object.
    - Copying one grounded evidence ref or linkage id should work when a copy button is shown.
    - If linkage is not grounded, the shell should say so plainly instead of inventing provenance.
@@ -83,6 +87,7 @@ Use this when testing the current local MyIDE build by hand.
 - Runtime Mode loads the strongest grounded donor runtime entry inside the shell.
 - Runtime controls are grouped clearly, and unsupported controls report blockers plainly.
 - Runtime pick/inspect produces a grounded runtime trace instead of an empty or invented provenance card.
+- Runtime pick can focus at least one grounded source context such as donor asset or donor evidence.
 - The created object remains editable.
 - At least one donor asset is visible in the donor asset palette.
 - More than one donor asset can be imported into the scene as editable internal image objects when multiple grounded donor images are available locally.
