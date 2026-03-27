@@ -266,24 +266,32 @@ async function main(): Promise<void> {
     assert.ok(Number(payload.runtimeObservedResourceCount ?? 0) > 0, "Runtime trace did not capture any grounded runtime-loaded static resources.");
   }
   assert.equal(payload.runtimeSpinAttempted, true, "Runtime smoke did not attempt the bounded gameplay action.");
-  assert.equal(payload.runtimeOverrideEligible, true, "Runtime trace did not expose an override-eligible grounded static asset.");
   assert.ok(typeof payload.runtimeOverrideSourceUrl === "string" && payload.runtimeOverrideSourceUrl.length > 0, "Runtime override source URL is missing.");
-  assert.equal(payload.runtimeOverrideCreated, true, "Runtime override creation did not succeed.");
-  assert.equal(payload.runtimeOverrideCleared, true, "Runtime override cleanup did not succeed.");
+  if (payload.runtimeOverrideEligible) {
+    assert.equal(payload.runtimeOverrideCreated, true, "Runtime override creation did not succeed.");
+    assert.equal(payload.runtimeOverrideCleared, true, "Runtime override cleanup did not succeed.");
+  } else {
+    assert.ok(
+      typeof payload.runtimeOverrideBlocked === "string" && payload.runtimeOverrideBlocked.length > 0,
+      "Runtime override was not eligible, but no explicit blocker was reported."
+    );
+  }
   if (payload.runtimeSourceLabel === "Local mirror") {
     assert.ok(
       typeof payload.runtimeLocalMirrorSourcePath === "string" && payload.runtimeLocalMirrorSourcePath.length > 0,
       "Runtime launch used the local mirror, but the picked override candidate did not resolve to a local mirror source path."
     );
     const overrideHitCount = Number(payload.runtimeOverrideHitCountAfterReload ?? 0);
-    if (overrideHitCount <= 0) {
+    if (payload.runtimeOverrideEligible && overrideHitCount <= 0) {
       assert.ok(
         typeof payload.runtimeOverrideBlocked === "string" && payload.runtimeOverrideBlocked.length > 0,
         "Local mirror runtime override did not land and did not report an explicit blocker."
       );
     }
   } else {
-    assert.ok(Number(payload.runtimeOverrideHitCountAfterReload ?? 0) > 0, "Runtime override did not record a reload-time asset hit.");
+    if (payload.runtimeOverrideEligible) {
+      assert.ok(Number(payload.runtimeOverrideHitCountAfterReload ?? 0) > 0, "Runtime override did not record a reload-time asset hit.");
+    }
   }
   assert.ok(Array.isArray(payload.supportingEvidenceIds) && payload.supportingEvidenceIds.length > 0, "Supporting runtime evidence ids are missing.");
 

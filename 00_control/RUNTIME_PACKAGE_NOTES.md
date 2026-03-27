@@ -50,5 +50,5 @@
 - When Runtime pick/inspect exposes the strongest grounded static Mystery Garden runtime source we can prove, the shell can create a project-local override under `40_projects/project_001/overrides/`, reload Runtime Mode without cache, and keep raw donor files untouched.
 - Honest current limit:
   - Runtime Mode now launches from the local mirror URL, can trace one grounded static runtime candidate back to a local mirror file path, and can show the current launch/reload request map in the shell.
-  - The current strongest local proof now shows zero observed upstream static-image requests in the bounded slice, while the remaining unresolved upstream bootstrap request is `https://cdn.bgaming-network.com/html/MysteryGarden/bundle.js`.
-  - The selected static override candidate still does **not** record a reload-time hit in that request map yet, so local-runtime-backed override application remains partially blocked.
+  - The current strongest local proof now shows zero observed upstream static-image requests in the bounded slice and no unresolved upstream bootstrap/static dependency in the current launch/start/spin cycle.
+  - The selected static override candidate is still only mirror-manifest-backed, not request-backed, so local-runtime-backed override proof remains blocked until the runtime actually re-requests a static image in the bounded slice.

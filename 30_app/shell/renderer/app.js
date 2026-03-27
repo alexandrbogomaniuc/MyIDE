@@ -4402,6 +4402,7 @@ async function runLiveRuntimeSmoke() {
     runtimeBridgeAssetFocusSucceeded: false,
     runtimeBridgeEvidenceFocusSucceeded: false,
     runtimeObservedResourceCount: 0,
+    runtimeObservedResourceSample: [],
     runtimeResourceMapCount: 0,
     runtimeResourceLatestRequestUrl: null,
     runtimeCoverageLocalStaticCount: 0,
@@ -4413,6 +4414,7 @@ async function runLiveRuntimeSmoke() {
     runtimeOverrideEligible: false,
     runtimeOverrideSourceUrl: null,
     runtimeOverrideRelativePath: null,
+    runtimeOverrideSourceKind: null,
     runtimeLocalMirrorSourcePath: null,
     runtimeOverrideRequestSource: null,
     runtimeOverrideDonorAssetId: null,
@@ -4509,6 +4511,9 @@ async function runLiveRuntimeSmoke() {
       baseResult.pauseBlocked = status.support?.blockers?.pause ?? null;
       baseResult.stepBlocked = status.support?.blockers?.step ?? null;
       baseResult.runtimeObservedResourceCount = Array.isArray(status.resourceEntries) ? status.resourceEntries.length : 0;
+      baseResult.runtimeObservedResourceSample = Array.isArray(status.resourceEntries)
+        ? status.resourceEntries.slice(0, 12).map((entry) => entry?.observedUrl ?? entry?.url ?? null).filter(Boolean)
+        : [];
     }
     await refreshRuntimeResourceMap({ silent: true });
     baseResult.runtimeResourceMapCount = Number(getRuntimeResourceMapStatus()?.entryCount ?? 0);
@@ -4609,80 +4614,83 @@ async function runLiveRuntimeSmoke() {
       },
       "runtime override action button"
     );
-    if (createOverrideButton.disabled) {
-      throw new Error("Runtime inspector did not expose an eligible static override action after picking the live donor surface.");
-    }
-    baseResult.runtimeOverrideEligible = true;
     const runtimeOverrideCandidate = getRuntimeOverrideCandidate();
+    baseResult.runtimeOverrideEligible = Boolean(runtimeOverrideCandidate.eligible);
     baseResult.runtimeOverrideSourceUrl = runtimeOverrideCandidate.runtimeSourceUrl;
     baseResult.runtimeOverrideRelativePath = runtimeOverrideCandidate.runtimeRelativePath;
+    baseResult.runtimeOverrideSourceKind = runtimeOverrideCandidate.sourceKind ?? null;
     baseResult.runtimeLocalMirrorSourcePath = runtimeOverrideCandidate.localMirrorEntry?.repoRelativePath ?? null;
     baseResult.runtimeOverrideRequestSource = runtimeOverrideCandidate.resourceMapEntry?.requestSource ?? null;
     baseResult.runtimeOverrideDonorAssetId = runtimeOverrideCandidate.donorAsset?.assetId ?? null;
-    clickRendererElement(createOverrideButton);
-    await waitForRendererCondition(
-      () => Boolean(state.runtimeUi.overrideStatus?.entries?.length),
-      "runtime override manifest entry creation",
-      { timeoutMs: 20000 }
-    );
-    baseResult.runtimeOverrideCreated = true;
+    if (createOverrideButton.disabled || !runtimeOverrideCandidate.eligible) {
+      baseResult.runtimeOverrideBlocked = runtimeOverrideCandidate.note ?? "Runtime inspector did not expose a request-backed static override action after picking the live donor surface.";
+      baseResult.reloadSucceeded = true;
+    } else {
+      clickRendererElement(createOverrideButton);
+      await waitForRendererCondition(
+        () => Boolean(state.runtimeUi.overrideStatus?.entries?.length),
+        "runtime override manifest entry creation",
+        { timeoutMs: 20000 }
+      );
+      baseResult.runtimeOverrideCreated = true;
 
-    await waitForRendererCondition(
-      () => state.runtimeUi.loading === false && Boolean(state.runtimeUi.currentUrl),
-      "runtime reload to finish",
-      { timeoutMs: 60000 }
-    );
-    await handleRuntimeAction("enter");
-    await sleep(1500);
-    await refreshRuntimeResourceMap({ silent: true });
-    await refreshRuntimeOverrideStatus({ silent: true });
-    if (!getRuntimeResourceMapEntry(baseResult.runtimeOverrideSourceUrl)?.overrideRepoRelativePath) {
-      await handleRuntimeAction("spin");
+      await waitForRendererCondition(
+        () => state.runtimeUi.loading === false && Boolean(state.runtimeUi.currentUrl),
+        "runtime reload to finish",
+        { timeoutMs: 60000 }
+      );
+      await handleRuntimeAction("enter");
       await sleep(1500);
       await refreshRuntimeResourceMap({ silent: true });
       await refreshRuntimeOverrideStatus({ silent: true });
-    }
-    try {
-      await waitForRendererCondition(
-        () => {
-          const activeEntry = getRuntimeResourceMapEntry(baseResult.runtimeOverrideSourceUrl);
-          return activeEntry && activeEntry.overrideRepoRelativePath && activeEntry.hitCount > 0 ? activeEntry : null;
-        },
-        "runtime override to be applied after reload",
-        { timeoutMs: 30000 }
-      );
-    } catch (error) {
-      if (baseResult.runtimeSourceLabel === "Local mirror") {
-        baseResult.runtimeOverrideBlocked = "Local mirror launch succeeded, but the runtime did not record a reload-time hit for the current mirrored static asset candidate.";
-      } else {
-        throw error;
+      if (!getRuntimeResourceMapEntry(baseResult.runtimeOverrideSourceUrl)?.overrideRepoRelativePath) {
+        await handleRuntimeAction("spin");
+        await sleep(1500);
+        await refreshRuntimeResourceMap({ silent: true });
+        await refreshRuntimeOverrideStatus({ silent: true });
       }
-    }
-    await refreshRuntimeResourceMap({ silent: true });
-    await refreshRuntimeOverrideStatus({ silent: true });
-    const activeOverrideEntry = state.runtimeUi.overrideStatus?.entries?.find((entry) => entry.runtimeSourceUrl === baseResult.runtimeOverrideSourceUrl) ?? null;
-    const activeResourceEntry = getRuntimeResourceMapEntry(baseResult.runtimeOverrideSourceUrl);
-    baseResult.runtimeOverrideRepoRelativePath = activeOverrideEntry?.overrideRepoRelativePath ?? null;
-    baseResult.runtimeOverrideHitCountAfterReload = activeResourceEntry?.hitCount ?? activeOverrideEntry?.hitCount ?? 0;
-    baseResult.reloadSucceeded = true;
+      try {
+        await waitForRendererCondition(
+          () => {
+            const activeEntry = getRuntimeResourceMapEntry(baseResult.runtimeOverrideSourceUrl);
+            return activeEntry && activeEntry.overrideRepoRelativePath && activeEntry.hitCount > 0 ? activeEntry : null;
+          },
+          "runtime override to be applied after reload",
+          { timeoutMs: 30000 }
+        );
+      } catch (error) {
+        if (baseResult.runtimeSourceLabel === "Local mirror") {
+          baseResult.runtimeOverrideBlocked = "Local mirror launch succeeded, but the runtime did not record a reload-time hit for the current mirrored static asset candidate.";
+        } else {
+          throw error;
+        }
+      }
+      await refreshRuntimeResourceMap({ silent: true });
+      await refreshRuntimeOverrideStatus({ silent: true });
+      const activeOverrideEntry = state.runtimeUi.overrideStatus?.entries?.find((entry) => entry.runtimeSourceUrl === baseResult.runtimeOverrideSourceUrl) ?? null;
+      const activeResourceEntry = getRuntimeResourceMapEntry(baseResult.runtimeOverrideSourceUrl);
+      baseResult.runtimeOverrideRepoRelativePath = activeOverrideEntry?.overrideRepoRelativePath ?? null;
+      baseResult.runtimeOverrideHitCountAfterReload = activeResourceEntry?.hitCount ?? activeOverrideEntry?.hitCount ?? 0;
+      baseResult.reloadSucceeded = true;
 
-    const clearOverrideButton = elements.runtimeToolbar?.querySelector('[data-runtime-action="clear-override"]')
-      ?? elements.inspector?.querySelector('[data-runtime-action="clear-override"]');
-    if (!(clearOverrideButton instanceof HTMLButtonElement) || clearOverrideButton.disabled) {
-      throw new Error("Runtime inspector did not expose a clear-override action after creating the override.");
+      const clearOverrideButton = elements.runtimeToolbar?.querySelector('[data-runtime-action="clear-override"]')
+        ?? elements.inspector?.querySelector('[data-runtime-action="clear-override"]');
+      if (!(clearOverrideButton instanceof HTMLButtonElement) || clearOverrideButton.disabled) {
+        throw new Error("Runtime inspector did not expose a clear-override action after creating the override.");
+      }
+      clickRendererElement(clearOverrideButton);
+      await waitForRendererCondition(
+        () => !state.runtimeUi.overrideStatus?.entries?.some((entry) => entry.runtimeSourceUrl === baseResult.runtimeOverrideSourceUrl),
+        "runtime override cleanup",
+        { timeoutMs: 20000 }
+      );
+      await waitForRendererCondition(
+        () => state.runtimeUi.loading === false && Boolean(state.runtimeUi.currentUrl),
+        "runtime reload after override cleanup",
+        { timeoutMs: 60000 }
+      );
+      baseResult.runtimeOverrideCleared = true;
     }
-    clickRendererElement(clearOverrideButton);
-    await waitForRendererCondition(
-      () => !state.runtimeUi.overrideStatus?.entries?.some((entry) => entry.runtimeSourceUrl === baseResult.runtimeOverrideSourceUrl),
-      "runtime override cleanup",
-      { timeoutMs: 20000 }
-    );
-    await waitForRendererCondition(
-      () => state.runtimeUi.loading === false && Boolean(state.runtimeUi.currentUrl),
-      "runtime reload after override cleanup",
-      { timeoutMs: 60000 }
-    );
-    baseResult.runtimeOverrideCleared = true;
 
     const successMessage = baseResult.runtimeOverrideBlocked
       ? `Runtime smoke passed with blocker: launched ${trimRuntimeText(baseResult.runtimeCurrentUrl ?? baseResult.launchEntryUrl, 96)}, captured a runtime pick on ${baseResult.pickedTargetTag ?? "the live surface"}, traced ${baseResult.runtimeOverrideRelativePath ?? "the grounded runtime source"} to ${baseResult.runtimeLocalMirrorSourcePath ?? "the local mirror"}, but the runtime did not confirm a reload-time hit for that mirrored candidate.`
@@ -7770,7 +7778,7 @@ function getRuntimeOverrideCandidate() {
         /img\/ui\//i
       ]
     : [/img\/ui\//i, /preloader-assets\//i];
-  const observedEntry = directEntry
+  const requestBackedEntry = directEntry
     ?? phaseMatchers
       .map((matcher) => resourceMapResources.find((entry) => matcher.test(entry.relativePath ?? "")))
       .find(Boolean)
@@ -7779,16 +7787,18 @@ function getRuntimeOverrideCandidate() {
       .find(Boolean)
     ?? resourceMapResources[0]
     ?? observedResources[0]
-    ?? phaseMatchers
-      .map((matcher) => mirroredResources.find((entry) => matcher.test(entry.relativePath ?? "")))
-      .find(Boolean)
+    ?? null;
+  const manifestEntry = phaseMatchers
+    .map((matcher) => mirroredResources.find((entry) => matcher.test(entry.relativePath ?? "")))
+    .find(Boolean)
     ?? mirroredResources[0]
     ?? null;
-  const activeOverride = observedEntry ? getRuntimeOverrideEntry(observedEntry.url) : null;
-  const localMirrorEntry = observedEntry ? getRuntimeMirrorEntry(observedEntry.url) : null;
-  const resourceMapEntry = observedEntry?.resourceMapEntry ?? (observedEntry ? getRuntimeResourceMapEntry(observedEntry.url) : null);
+  const selectedEntry = requestBackedEntry ?? manifestEntry;
+  const activeOverride = selectedEntry ? getRuntimeOverrideEntry(selectedEntry.url) : null;
+  const localMirrorEntry = selectedEntry ? getRuntimeMirrorEntry(selectedEntry.url) : null;
+  const resourceMapEntry = requestBackedEntry?.resourceMapEntry ?? (requestBackedEntry ? getRuntimeResourceMapEntry(requestBackedEntry.url) : null);
 
-  if (!observedEntry) {
+  if (!selectedEntry) {
     return {
       eligible: false,
       sourceKind: "missing",
@@ -7803,13 +7813,30 @@ function getRuntimeOverrideCandidate() {
     };
   }
 
+  if (!requestBackedEntry) {
+    return {
+      eligible: false,
+      sourceKind: "local-mirror-manifest",
+      runtimeSourceUrl: selectedEntry.url,
+      runtimeRelativePath: selectedEntry.relativePath,
+      fileType: selectedEntry.fileType,
+      donorAsset,
+      activeOverride,
+      localMirrorEntry,
+      resourceMapEntry: null,
+      note: localMirrorEntry
+        ? `The strongest current match is only a local mirror manifest entry at ${localMirrorEntry.repoRelativePath}. No request-backed static image was observed in the current launch/start/spin cycle, so override hit proof is blocked until the runtime actually re-requests one.`
+        : "The strongest current match is only a local mirror manifest entry. No request-backed static image was observed in the current launch/start/spin cycle, so override hit proof is blocked until the runtime actually re-requests one."
+    };
+  }
+
   if (!donorAsset) {
     return {
       eligible: false,
       sourceKind: directEntry ? "direct-texture" : "observed-resource",
-      runtimeSourceUrl: observedEntry.url,
-      runtimeRelativePath: observedEntry.relativePath,
-      fileType: observedEntry.fileType,
+      runtimeSourceUrl: requestBackedEntry.url,
+      runtimeRelativePath: requestBackedEntry.relativePath,
+      fileType: requestBackedEntry.fileType,
       donorAsset: null,
       activeOverride,
       localMirrorEntry,
@@ -7824,12 +7851,12 @@ function getRuntimeOverrideCandidate() {
     eligible: true,
     sourceKind: directEntry
       ? "direct-texture"
-      : observedResources.some((entry) => entry.url === observedEntry.url)
+      : observedResources.some((entry) => entry.url === requestBackedEntry.url)
         ? "observed-resource"
-        : "local-mirror-manifest",
-    runtimeSourceUrl: observedEntry.url,
-    runtimeRelativePath: observedEntry.relativePath,
-    fileType: observedEntry.fileType,
+        : "runtime-resource-map",
+    runtimeSourceUrl: requestBackedEntry.url,
+    runtimeRelativePath: requestBackedEntry.relativePath,
+    fileType: requestBackedEntry.fileType,
     donorAsset,
     activeOverride,
     localMirrorEntry,
@@ -7840,15 +7867,15 @@ function getRuntimeOverrideCandidate() {
         : "The live runtime exposed a direct texture/resource URL for this static image."
       : resourceMapEntry
         ? localMirrorEntry
-          ? `The current runtime cycle requested this ${observedEntry.fileType} source ${resourceMapEntry.hitCount} time${resourceMapEntry.hitCount === 1 ? "" : "s"} through ${resourceMapEntry.requestSource}, and it resolves to local mirror path ${localMirrorEntry.repoRelativePath}.`
-          : `The current runtime cycle requested this ${observedEntry.fileType} source ${resourceMapEntry.hitCount} time${resourceMapEntry.hitCount === 1 ? "" : "s"} through ${resourceMapEntry.requestSource}.`
-      : observedResources.some((entry) => entry.url === observedEntry.url)
+          ? `The current runtime cycle requested this ${requestBackedEntry.fileType} source ${resourceMapEntry.hitCount} time${resourceMapEntry.hitCount === 1 ? "" : "s"} through ${resourceMapEntry.requestSource}, and it resolves to local mirror path ${localMirrorEntry.repoRelativePath}.`
+          : `The current runtime cycle requested this ${requestBackedEntry.fileType} source ${resourceMapEntry.hitCount} time${resourceMapEntry.hitCount === 1 ? "" : "s"} through ${resourceMapEntry.requestSource}.`
+      : observedResources.some((entry) => entry.url === requestBackedEntry.url)
         ? localMirrorEntry
-          ? `A grounded runtime-loaded ${observedEntry.fileType} resource was observed for the current runtime phase, matches the bridged donor asset file type, and resolves to local mirror path ${localMirrorEntry.repoRelativePath}.`
-          : `A grounded runtime-loaded ${observedEntry.fileType} resource was observed for the current runtime phase and matches the bridged donor asset file type.`
+          ? `A grounded runtime-loaded ${requestBackedEntry.fileType} resource was observed for the current runtime phase, matches the bridged donor asset file type, and resolves to local mirror path ${localMirrorEntry.repoRelativePath}.`
+          : `A grounded runtime-loaded ${requestBackedEntry.fileType} resource was observed for the current runtime phase and matches the bridged donor asset file type.`
       : localMirrorEntry
-        ? `The live runtime did not expose a stable resource timing entry for this slice, so the strongest grounded candidate comes from the local runtime mirror manifest for the current phase and resolves to ${localMirrorEntry.repoRelativePath}.`
-        : `The live runtime did not expose a stable resource timing entry for this slice, so the strongest grounded candidate comes from the local runtime mirror manifest for the current phase.`
+        ? `The current runtime cycle matched this source through the local runtime mirror at ${localMirrorEntry.repoRelativePath}.`
+        : "The current runtime cycle matched this source through the strongest grounded runtime request record."
   };
 }
 

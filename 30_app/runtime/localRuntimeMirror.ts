@@ -288,16 +288,137 @@ function extractPublicEntryUrl(raw: string): string | null {
 }
 
 function extractWindowOptionsJson(html: string): Record<string, unknown> | null {
-  const match = html.match(/window\.__OPTIONS__\s*=\s*(\{[\s\S]*?\});/);
-  if (!match?.[1]) {
+  const assignmentIndex = html.indexOf("window.__OPTIONS__");
+  if (assignmentIndex < 0) {
+    return null;
+  }
+
+  const equalsIndex = html.indexOf("=", assignmentIndex);
+  if (equalsIndex < 0) {
+    return null;
+  }
+
+  const objectStartIndex = html.indexOf("{", equalsIndex);
+  if (objectStartIndex < 0) {
+    return null;
+  }
+
+  let depth = 0;
+  let inString: "\"" | "'" | null = null;
+  let escaped = false;
+  let objectEndIndex = -1;
+
+  for (let index = objectStartIndex; index < html.length; index += 1) {
+    const character = html[index];
+
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (character === "\\") {
+        escaped = true;
+        continue;
+      }
+      if (character === inString) {
+        inString = null;
+      }
+      continue;
+    }
+
+    if (character === "\"" || character === "'") {
+      inString = character as "\"" | "'";
+      continue;
+    }
+
+    if (character === "{") {
+      depth += 1;
+      continue;
+    }
+
+    if (character === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        objectEndIndex = index + 1;
+        break;
+      }
+    }
+  }
+
+  if (objectEndIndex < 0) {
     return null;
   }
 
   try {
-    return JSON.parse(match[1]) as Record<string, unknown>;
+    return JSON.parse(html.slice(objectStartIndex, objectEndIndex)) as Record<string, unknown>;
   } catch {
     return null;
   }
+}
+
+function replaceWindowOptionsJson(html: string, nextOptions: Record<string, unknown>): string {
+  const assignmentIndex = html.indexOf("window.__OPTIONS__");
+  if (assignmentIndex < 0) {
+    return html;
+  }
+
+  const equalsIndex = html.indexOf("=", assignmentIndex);
+  if (equalsIndex < 0) {
+    return html;
+  }
+
+  const objectStartIndex = html.indexOf("{", equalsIndex);
+  if (objectStartIndex < 0) {
+    return html;
+  }
+
+  let depth = 0;
+  let inString: "\"" | "'" | null = null;
+  let escaped = false;
+  let objectEndIndex = -1;
+
+  for (let index = objectStartIndex; index < html.length; index += 1) {
+    const character = html[index];
+
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (character === "\\") {
+        escaped = true;
+        continue;
+      }
+      if (character === inString) {
+        inString = null;
+      }
+      continue;
+    }
+
+    if (character === "\"" || character === "'") {
+      inString = character as "\"" | "'";
+      continue;
+    }
+
+    if (character === "{") {
+      depth += 1;
+      continue;
+    }
+
+    if (character === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        objectEndIndex = index + 1;
+        break;
+      }
+    }
+  }
+
+  if (objectEndIndex < 0) {
+    return html;
+  }
+
+  return `${html.slice(0, objectStartIndex)}${JSON.stringify(nextOptions, null, 2)}${html.slice(objectEndIndex)}`;
 }
 
 function extractMirrorScriptUrls(html: string): string[] {
@@ -507,7 +628,24 @@ export function findLocalRuntimeMirrorEntry(
     } catch {
       return false;
     }
-  }) ?? null;
+  }) ?? (() => {
+    try {
+      const parsed = new URL(normalizedSourceUrl);
+      if (
+        parsed.hostname === "cdn.bgaming-network.com"
+        && parsed.pathname === "/html/MysteryGarden/bundle.js"
+        && typeof status.resourceVersion === "string"
+        && status.resourceVersion.length > 0
+      ) {
+        const versionedBundleUrl = `https://cdn.bgaming-network.com/html/MysteryGarden/v${status.resourceVersion}/bundle.js`;
+        return status.entries.find((entry) => entry.sourceUrl === versionedBundleUrl) ?? null;
+      }
+    } catch {
+      return null;
+    }
+
+    return null;
+  })();
 }
 
 export function findLocalRuntimeMirrorEntryByRelativePath(
@@ -609,10 +747,7 @@ export async function buildLocalRuntimeLaunchHtml(projectId: string): Promise<{
         rewrittenOptions.resources_path = buildLocalRuntimeMirrorAssetUrl(projectId, "");
       }
 
-      html = html.replace(
-        /window\.__OPTIONS__\s*=\s*(\{[\s\S]*?\});/,
-        `window.__OPTIONS__ = ${JSON.stringify(rewrittenOptions, null, 2)};`
-      );
+      html = replaceWindowOptionsJson(html, rewrittenOptions);
     }
 
     for (const entry of status.entries) {

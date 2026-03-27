@@ -20,5 +20,5 @@ Local-first helper for the bounded `project_001` Mystery Garden runtime mirror s
 ## Honest limit
 - This tool captures the strongest grounded local mirror we can support today.
 - It does **not** create or claim a full standalone local donor runtime package.
-- The strongest current proof now shows zero observed upstream static-image requests in the bounded slice and one remaining unresolved upstream bootstrap request at `https://cdn.bgaming-network.com/html/MysteryGarden/bundle.js`.
-- The mirrored static override candidate still does not prove a reload-time hit after reload.
+- The strongest current proof now shows zero observed upstream static-image requests in the bounded slice and no unresolved upstream bootstrap/static dependency in the current launch/start/spin cycle.
+- The strongest current static override candidate is still mirror-manifest-backed, not request-backed, so the runtime does not yet prove an override hit in this bounded slice.
