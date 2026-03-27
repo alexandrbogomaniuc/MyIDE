@@ -1,10 +1,17 @@
-import { app, BrowserWindow, ipcMain } from "electron";
+import { app, BrowserWindow, ipcMain, session } from "electron";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { loadProjectSlice } from "./projectSlice";
 import { createProjectFromInput, type ShellCreateProjectInput } from "../workspace/createProject";
 import { saveEditableProjectData, type EditableProjectData } from "../workspace/editableProject";
 import { loadWorkspaceSlice } from "./workspaceSlice";
+import {
+  buildRuntimeAssetOverrideRedirectMap,
+  buildRuntimeAssetOverrideStatus,
+  clearRuntimeAssetOverride,
+  createRuntimeAssetOverride,
+  type RuntimeAssetOverrideHitInfo
+} from "../workspace/donorOverride";
 
 const isBridgeSmokeMode = process.env.MYIDE_BRIDGE_SMOKE === "1";
 const isLivePersistSmokeMode = process.env.MYIDE_LIVE_PERSIST_SMOKE === "1";
@@ -125,6 +132,10 @@ let activeLiveLayerReassignSmokeReporter: ((payload: LiveLayerReassignSmokePaylo
 let activeLiveResizeSmokeReporter: ((payload: LiveResizeSmokePayload) => void) | null = null;
 let activeLiveAlignSmokeReporter: ((payload: LiveAlignSmokePayload) => void) | null = null;
 let activeLiveUndoRedoSmokeReporter: ((payload: LiveUndoRedoSmokePayload) => void) | null = null;
+let runtimeAssetOverrideRedirectMap = new Map<string, string>();
+let runtimeAssetOverrideInterceptionInstalled = false;
+const runtimeAssetOverrideHits = new Map<string, RuntimeAssetOverrideHitInfo>();
+const runtimeWebviewPartition = "persist:myide-runtime-project001";
 
 function resolvePreloadPath(): string {
   return path.resolve(__dirname, "preload.js");
@@ -334,6 +345,48 @@ function finishLiveUndoRedoSmoke(exitCode: number, message: string): void {
   setTimeout(() => {
     app.exit(exitCode);
   }, 0);
+}
+
+async function refreshRuntimeAssetOverrideRedirects(): Promise<void> {
+  const status = await buildRuntimeAssetOverrideStatus("project_001", runtimeAssetOverrideHits);
+  runtimeAssetOverrideRedirectMap = buildRuntimeAssetOverrideRedirectMap(status);
+}
+
+function installRuntimeAssetOverrideInterception(): void {
+  if (runtimeAssetOverrideInterceptionInstalled) {
+    return;
+  }
+
+  runtimeAssetOverrideInterceptionInstalled = true;
+  const onBeforeRequest = (
+    details: Electron.OnBeforeRequestListenerDetails,
+    callback: (response: Electron.CallbackResponse) => void
+  ) => {
+    const redirectURL = runtimeAssetOverrideRedirectMap.get(details.url);
+    if (!redirectURL) {
+      callback({});
+      return;
+    }
+
+    const current = runtimeAssetOverrideHits.get(details.url) ?? {
+      count: 0,
+      lastHitAtUtc: null
+    };
+    runtimeAssetOverrideHits.set(details.url, {
+      count: current.count + 1,
+      lastHitAtUtc: new Date().toISOString()
+    });
+    callback({ redirectURL });
+  };
+
+  session.defaultSession.webRequest.onBeforeRequest(
+    { urls: ["https://cdn.bgaming-network.com/*"] },
+    onBeforeRequest
+  );
+  session.fromPartition(runtimeWebviewPartition).webRequest.onBeforeRequest(
+    { urls: ["https://cdn.bgaming-network.com/*"] },
+    onBeforeRequest
+  );
 }
 
 function getInitialWindowVisibility(): boolean {
@@ -1016,9 +1069,35 @@ ipcMain.handle("myide:save-project-editor", async (_event, projectId: string, da
 
   return saveEditableProjectData(path.resolve(__dirname, "../../..", selectedProject.keyPaths.projectRoot), data);
 });
+ipcMain.handle("myide:get-runtime-override-status", async (_event, projectId: string) => {
+  return buildRuntimeAssetOverrideStatus(projectId, runtimeAssetOverrideHits);
+});
+ipcMain.handle("myide:create-runtime-override", async (_event, projectId: string, runtimeSourceUrl: string, donorAssetId: string) => {
+  runtimeAssetOverrideHits.delete(runtimeSourceUrl);
+  const status = await createRuntimeAssetOverride({
+    projectId,
+    runtimeSourceUrl,
+    donorAssetId
+  });
+  await refreshRuntimeAssetOverrideRedirects();
+  return buildRuntimeAssetOverrideStatus(projectId, runtimeAssetOverrideHits);
+});
+ipcMain.handle("myide:clear-runtime-override", async (_event, projectId: string, runtimeSourceUrl: string) => {
+  runtimeAssetOverrideHits.delete(runtimeSourceUrl);
+  await clearRuntimeAssetOverride(projectId, runtimeSourceUrl);
+  await refreshRuntimeAssetOverrideRedirects();
+  return buildRuntimeAssetOverrideStatus(projectId, runtimeAssetOverrideHits);
+});
 
 app.whenReady().then(() => {
-  createWindow();
+  void refreshRuntimeAssetOverrideRedirects()
+    .catch((error) => {
+      console.error(`MYIDE_RUNTIME_OVERRIDE_INIT_FAIL:${error instanceof Error ? error.message : String(error)}`);
+    })
+    .finally(() => {
+      installRuntimeAssetOverrideInterception();
+      createWindow();
+    });
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {

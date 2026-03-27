@@ -29,3 +29,8 @@
 ## Exact blocker
 - Source availability is still the blocker.
 - Until one real local donor runtime package or entry point is captured into the donor/runtime boundary, Runtime Mode cannot honestly prefer a local package over the recorded public donor runtime entry.
+
+## Current bounded workaround
+- The shell now supports one bounded project-local static override slice even without a local donor runtime package.
+- When Runtime pick/inspect exposes a grounded static Mystery Garden runtime image URL, the shell can create a project-local override under `40_projects/project_001/overrides/`, reload Runtime Mode without cache, and redirect the live runtime request to that local file.
+- This does not change the blocker above: Runtime Mode is still not launching a local donor package, and raw donor files remain untouched.

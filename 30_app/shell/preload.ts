@@ -147,6 +147,9 @@ contextBridge.exposeInMainWorld("myideApi", {
   },
   loadProjectSlice: (selectedProjectId?: string): Promise<ProjectSliceBundle> => ipcRenderer.invoke("myide:load-project-slice", selectedProjectId),
   createProject: (input: ShellCreateProjectInput): Promise<ShellCreateProjectResult> => ipcRenderer.invoke("myide:create-project", input),
+  getRuntimeOverrideStatus: (projectId: string): Promise<unknown> => ipcRenderer.invoke("myide:get-runtime-override-status", projectId),
+  createRuntimeOverride: (projectId: string, runtimeSourceUrl: string, donorAssetId: string): Promise<unknown> => ipcRenderer.invoke("myide:create-runtime-override", projectId, runtimeSourceUrl, donorAssetId),
+  clearRuntimeOverride: (projectId: string, runtimeSourceUrl: string): Promise<unknown> => ipcRenderer.invoke("myide:clear-runtime-override", projectId, runtimeSourceUrl),
   saveProjectEditor: (projectId: string, data: EditableProjectData): Promise<SaveEditableProjectResult> => ipcRenderer.invoke("myide:save-project-editor", projectId, data),
   buildPropertyPanelViewModel: (input: PropertyPanelInput): PropertyPanelViewModel => buildPropertyPanelViewModel(input)
 });

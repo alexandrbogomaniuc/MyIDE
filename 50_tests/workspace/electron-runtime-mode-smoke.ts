@@ -38,6 +38,15 @@ interface RuntimeSmokePayload {
   runtimeBridgeEvidenceId?: string | null;
   runtimeBridgeAssetFocusSucceeded?: boolean;
   runtimeBridgeEvidenceFocusSucceeded?: boolean;
+  runtimeObservedResourceCount?: number;
+  runtimeOverrideEligible?: boolean;
+  runtimeOverrideSourceUrl?: string | null;
+  runtimeOverrideRelativePath?: string | null;
+  runtimeOverrideDonorAssetId?: string | null;
+  runtimeOverrideRepoRelativePath?: string | null;
+  runtimeOverrideHitCountAfterReload?: number;
+  runtimeOverrideCreated?: boolean;
+  runtimeOverrideCleared?: boolean;
   supportingEvidenceIds?: string[];
 }
 
@@ -225,6 +234,12 @@ async function main(): Promise<void> {
   assert.equal(payload.runtimeBridgeAssetFocusSucceeded, true, "Runtime donor asset bridge did not focus the donor asset panel.");
   assert.ok(typeof payload.runtimeBridgeEvidenceId === "string" && payload.runtimeBridgeEvidenceId.length > 0, "Runtime pick did not expose a grounded donor evidence bridge.");
   assert.equal(payload.runtimeBridgeEvidenceFocusSucceeded, true, "Runtime donor evidence bridge did not focus the donor evidence panel.");
+  assert.ok(Number(payload.runtimeObservedResourceCount ?? 0) > 0, "Runtime trace did not capture any grounded runtime-loaded static resources.");
+  assert.equal(payload.runtimeOverrideEligible, true, "Runtime trace did not expose an override-eligible grounded static asset.");
+  assert.ok(typeof payload.runtimeOverrideSourceUrl === "string" && payload.runtimeOverrideSourceUrl.length > 0, "Runtime override source URL is missing.");
+  assert.equal(payload.runtimeOverrideCreated, true, "Runtime override creation did not succeed.");
+  assert.ok(Number(payload.runtimeOverrideHitCountAfterReload ?? 0) > 0, "Runtime override did not record a reload-time asset hit.");
+  assert.equal(payload.runtimeOverrideCleared, true, "Runtime override cleanup did not succeed.");
   assert.ok(Array.isArray(payload.supportingEvidenceIds) && payload.supportingEvidenceIds.length > 0, "Supporting runtime evidence ids are missing.");
 
   const statusAfter = await captureGitStatus(workspaceRoot);
@@ -240,6 +255,9 @@ async function main(): Promise<void> {
   }
   if (payload.runtimeBridgeAssetId) {
     console.log(`Runtime bridge asset: ${payload.runtimeBridgeAssetId}`);
+  }
+  if (payload.runtimeOverrideRelativePath) {
+    console.log(`Runtime override target: ${payload.runtimeOverrideRelativePath}`);
   }
 }
 

@@ -15,6 +15,10 @@ import {
   type EditablePreviewScene,
   type EditableProjectData
 } from "../workspace/editableProject";
+import {
+  buildRuntimeAssetOverrideStatus,
+  type RuntimeAssetOverrideStatus
+} from "../workspace/donorOverride";
 import { buildProjectVabsStatus, type ProjectVabsStatus } from "./vabsStatus";
 
 type JsonValue = null | boolean | number | string | JsonObject | JsonValue[];
@@ -116,6 +120,7 @@ export interface ProjectSliceBundle {
     mockedLastAction: JsonObject;
   };
   runtimeLaunch: RuntimeLaunchStatus | null;
+  runtimeOverrides: RuntimeAssetOverrideStatus | null;
 }
 
 const workspaceRoot = path.resolve(__dirname, "../../..");
@@ -667,6 +672,9 @@ export async function loadProjectSlice(requestedProjectId?: string): Promise<Pro
   const evidenceCatalog = await loadDonorEvidenceCatalog(importArtifact);
   const donorAssetCatalog = await loadDonorAssetCatalog(selectedProjectId);
   const runtimeLaunch = await buildRuntimeLaunchStatus(selectedProjectId);
+  const runtimeOverrides = selectedProjectId === "project_001"
+    ? await buildRuntimeAssetOverrideStatus(selectedProjectId)
+    : null;
   const editableProject = await loadSelectedEditableProject(workspace, selectedProjectId);
   const vabs = selectedProject
     ? await buildProjectVabsStatus({
@@ -699,6 +707,7 @@ export async function loadProjectSlice(requestedProjectId?: string): Promise<Pro
       mockedGameState,
       mockedLastAction
     },
-    runtimeLaunch
+    runtimeLaunch,
+    runtimeOverrides
   };
 }

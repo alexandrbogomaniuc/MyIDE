@@ -22,12 +22,15 @@ Use this when you want to test the current MyIDE build exactly as it works today
 6. Use **Click To Start** if the donor runtime needs one bounded pointer click to begin.
 7. Use **Spin / Trigger** if you want the bounded runtime action path that currently sends `Space` to the runtime surface.
 8. Use **Pick / Inspect** and then click the live runtime surface to capture the strongest grounded runtime trace available.
-9. Read the right-hand inspector for picked target, runtime/display-object trace when exposed, texture/frame info when exposed, runtime URL, and supporting evidence refs.
+9. Read the right-hand inspector for picked target, runtime/display-object trace when exposed, texture/frame info when exposed, runtime URL, override eligibility, and supporting evidence refs.
 10. Use the new runtime bridge actions in the inspector or Workflow Hub to:
    - focus the strongest grounded donor asset card
    - focus the strongest grounded donor evidence entry
    - focus a related compose object if one already exists for that donor-linked asset
-11. Use **Show Runtime Note** or **Show Init Response** to jump back to the grounded runtime evidence behind the current Runtime Mode slice.
+11. If the picked runtime trace shows **Eligible static image override**, click **Create Override**.
+12. Runtime Mode will reload the runtime without cache and prefer the project-local override file for that grounded static image URL.
+13. Use **Clear Override** if you want to restore the original donor runtime asset.
+14. Use **Show Runtime Note** or **Show Init Response** to jump back to the grounded runtime evidence behind the current Runtime Mode slice.
 
 ## 4. Where Donor Evidence Appears
 1. In the shell, donor content appears in **Donor Assets & Evidence**.
@@ -82,6 +85,7 @@ You still cannot edit donor source files directly, and the current runtime-first
 
 Current hard limits:
 - there is no captured local donor runtime package for `project_001` yet, so Runtime Mode currently launches the recorded public donor demo entry inside the shell
+- the first static override slice works only for grounded static runtime image URLs that the current runtime trace can prove and that match a supported donor image file type
 - pause, resume, and step only work if the embedded runtime exposes a stable ticker-like hook; if it does not, the shell shows the blocker instead of faking the control
 - only `project_001` is supported in this slice
 - only static donor image files are supported
@@ -90,9 +94,20 @@ Current hard limits:
 - no audio/video import
 - no raw donor file mutation
 
-The donor file remains read-only evidence. Runtime Mode is inspect/trace only right now; donor drag/drop in Compose Mode still creates a new internal scene object that preserves donor linkage.
+The donor file remains read-only evidence. Runtime Mode can now create one bounded project-local static override, but it still does not edit raw donor files or donor runtime package files directly. Donor drag/drop in Compose Mode still creates a new internal scene object that preserves donor linkage.
 
-## 8. Save / Reload Loop For Scene Composition
+## 8. Runtime Override Loop
+1. Stay in **Runtime** mode.
+2. Click **Launch Runtime**.
+3. Use **Pick / Inspect** and click the live runtime surface.
+4. Confirm the inspector shows a grounded static runtime source path and says the current trace is override-eligible.
+5. Click **Create Override**.
+6. Wait for Runtime Mode to reload.
+7. Read the **Project-local Overrides** card or the active override detail in the inspector.
+8. Use **Clear Override** when you want to restore the original runtime asset.
+9. The override file stays under `40_projects/project_001/overrides/`, and raw donor files under `10_donors/` stay untouched.
+
+## 9. Save / Reload Loop For Scene Composition
 1. Switch to **Compose** mode.
 2. Optionally choose a donor import target layer first.
 3. Drag one donor image into empty canvas space.
@@ -107,7 +122,7 @@ The donor file remains read-only evidence. Runtime Mode is inspect/trace only ri
 12. Click **Reload From Disk**.
 13. Confirm the imported or replaced donor-backed objects still appear after reload, on the intended layer, with donor linkage details intact.
 
-## 9. If You Hit A Bug
+## 10. If You Hit A Bug
 1. Stop after the first clear failure.
 2. Run `npm run manual:bug-bundle`.
 3. Add screenshots or exports into the new `attachments/` folder.

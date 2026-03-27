@@ -14,6 +14,7 @@
     "manual:bug-bundle": "npm run build && node dist/tools/manual/createBugBundle.js",
     "manual:reset:project_001": "npm run build && node dist/tools/manual/resetProject001.js",
     "donor-assets:index:project_001": "npm run build && node dist/tools/donor-assets/indexProjectAssets.js project_001",
+    "donor-assets:verify-override:project_001": "npm run build && node dist/tools/donor-assets/verifyOverride.js project_001",
     "vabs:scaffold:project_001": "npm run build && node dist/tools/gs-vabs/scaffoldVabsPackage.js project_001",
     "vabs:intake:project_001": "npm run build && node dist/tools/gs-vabs/intakeCapturedRow.js project_001",
     "vabs:sanitize:project_001": "npm run build && node dist/tools/gs-vabs/sanitizeCapturedRow.js project_001",

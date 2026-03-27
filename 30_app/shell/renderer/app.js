@@ -58,6 +58,7 @@ const state = {
     currentUrl: null,
     pageTitle: null,
     diagnostics: null,
+    overrideStatus: null,
     controlSupport: {
       pause: false,
       resume: false,
@@ -758,6 +759,86 @@ function canUseRuntimeMode() {
   return Boolean(runtimeLaunch && runtimeLaunch.entryUrl);
 }
 
+function getRuntimeOverrideStatus() {
+  const overrideStatus = state.runtimeUi.overrideStatus ?? state.bundle?.runtimeOverrides;
+  return overrideStatus && typeof overrideStatus === "object" ? overrideStatus : null;
+}
+
+function getRuntimeResourceFileType(resourceUrl) {
+  try {
+    const parsedUrl = new URL(String(resourceUrl));
+    const match = parsedUrl.pathname.match(/\.([a-z0-9]+)$/i);
+    if (!match) {
+      return null;
+    }
+    const fileType = match[1].toLowerCase();
+    return ["png", "webp", "jpg", "jpeg", "svg"].includes(fileType) ? fileType : null;
+  } catch {
+    return null;
+  }
+}
+
+function getRuntimeResourceRelativePath(resourceUrl) {
+  try {
+    const parsedUrl = new URL(String(resourceUrl));
+    if (parsedUrl.pathname.includes("/html/MysteryGarden/")) {
+      return parsedUrl.pathname.split("/html/MysteryGarden/")[1];
+    }
+    return parsedUrl.pathname.replace(/^\/+/, "");
+  } catch {
+    return null;
+  }
+}
+
+function normalizeRuntimeResourceEntries(rawEntries) {
+  if (!Array.isArray(rawEntries)) {
+    return [];
+  }
+
+  return rawEntries
+    .map((entry) => {
+      const url = typeof entry?.url === "string" ? entry.url : "";
+      const fileType = getRuntimeResourceFileType(url);
+      if (!url || !fileType) {
+        return null;
+      }
+
+      return {
+        url,
+        fileType,
+        initiatorType: typeof entry?.initiatorType === "string" ? entry.initiatorType : null,
+        relativePath: getRuntimeResourceRelativePath(url),
+        filename: typeof entry?.filename === "string" && entry.filename.length > 0
+          ? entry.filename
+          : (() => {
+              try {
+                return String(new URL(url).pathname.split("/").pop() ?? "");
+              } catch {
+                return "";
+              }
+            })()
+      };
+    })
+    .filter(Boolean);
+}
+
+function getObservedRuntimeResources() {
+  const lastPickResources = normalizeRuntimeResourceEntries(state.runtimeUi.lastPick?.resourceEntries);
+  if (lastPickResources.length > 0) {
+    return lastPickResources;
+  }
+
+  return normalizeRuntimeResourceEntries(state.runtimeUi.diagnostics?.resourceEntries);
+}
+
+function getRuntimeOverrideEntry(runtimeSourceUrl) {
+  if (typeof runtimeSourceUrl !== "string" || runtimeSourceUrl.length === 0) {
+    return null;
+  }
+
+  return getRuntimeOverrideStatus()?.entries?.find((entry) => entry.runtimeSourceUrl === runtimeSourceUrl) ?? null;
+}
+
 function getWorkbenchModeLabel(mode = state.workbenchMode) {
   return mode === "runtime" ? "Runtime" : "Compose";
 }
@@ -1034,6 +1115,29 @@ function buildRuntimeGuestBridgeScript() {
     };
   }
 
+  function summarizeLoadedResources() {
+    try {
+      return performance.getEntriesByType("resource")
+        .map((entry) => ({
+          url: typeof entry.name === "string" ? entry.name : null,
+          initiatorType: typeof entry.initiatorType === "string" ? entry.initiatorType : null
+        }))
+        .filter((entry) => (
+          entry.url
+          && /^https:\/\/cdn\.bgaming-network\.com\/html\/MysteryGarden\//.test(entry.url)
+          && /\.(png|webp|jpg|jpeg|svg)(\?|$)/i.test(entry.url)
+        ))
+        .map((entry) => ({
+          url: entry.url,
+          initiatorType: entry.initiatorType,
+          filename: entry.url.split("?")[0].split("/").pop() || null
+        }))
+        .slice(0, 80);
+    } catch {
+      return [];
+    }
+  }
+
   function getCanvasPoint(canvas, clientX, clientY) {
     if (!canvas || typeof canvas.getBoundingClientRect !== "function") {
       return null;
@@ -1126,7 +1230,8 @@ function buildRuntimeGuestBridgeScript() {
       pixiVersion: pixi && typeof pixi.VERSION === "string" ? pixi.VERSION : null,
       candidateApps: candidates.map((candidate) => candidate.summary),
       topDisplayObject: displayHits[0] ?? null,
-      displayHitCount: displayHits.length
+      displayHitCount: displayHits.length,
+      resourceEntries: summarizeLoadedResources()
     };
 
     state.lastPick = payload;
@@ -1199,7 +1304,8 @@ function buildRuntimeGuestBridgeScript() {
       candidateApps: candidates.map((candidate) => candidate.summary),
       inspectEnabled: state.inspectEnabled,
       paused: state.paused,
-      support
+      support,
+      resourceEntries: summarizeLoadedResources()
     };
   }
 
@@ -1392,7 +1498,9 @@ async function handleRuntimeLaunch() {
 
   setRuntimeLaunched(true);
   renderAll();
-  setPreviewStatus("Launching the recorded donor runtime inside Runtime Mode.");
+  setPreviewStatus(runtimeLaunch.localRuntimePackageAvailable
+    ? "Launching the captured local donor runtime package inside Runtime Mode."
+    : "Launching the recorded donor runtime entry inside Runtime Mode.");
   webview.src = runtimeLaunch.entryUrl;
   return true;
 }
@@ -1407,8 +1515,14 @@ async function handleRuntimeReload() {
   state.runtimeUi.ready = false;
   state.runtimeUi.lastError = null;
   renderAll();
-  webview.reload();
-  setPreviewStatus("Reloading the embedded donor runtime.");
+  if (typeof webview.reloadIgnoringCache === "function") {
+    webview.reloadIgnoringCache();
+  } else {
+    webview.reload();
+  }
+  setPreviewStatus(getRuntimeOverrideStatus()?.entryCount
+    ? "Reloading the embedded donor runtime with the current project-local override set."
+    : "Reloading the embedded donor runtime.");
   return true;
 }
 
@@ -1466,6 +1580,84 @@ async function sendRuntimeSpaceKey() {
     ok: true,
     detail: "Sent the observed Space-key trigger into the embedded donor runtime. Spin confirmation is still limited to best-effort status in this slice."
   };
+}
+
+async function refreshRuntimeOverrideStatus(options = {}) {
+  const api = window.myideApi;
+  if (!api || typeof api.getRuntimeOverrideStatus !== "function" || !state.selectedProjectId) {
+    return state.runtimeUi.overrideStatus ?? state.bundle?.runtimeOverrides ?? null;
+  }
+
+  try {
+    const status = await api.getRuntimeOverrideStatus(state.selectedProjectId);
+    state.runtimeUi.overrideStatus = status ?? null;
+    if (state.bundle) {
+      state.bundle.runtimeOverrides = status ?? null;
+    }
+    if (!options.silent) {
+      renderAll();
+    }
+    return status ?? null;
+  } catch (error) {
+    if (!options.silent) {
+      setPreviewStatus(error instanceof Error ? error.message : "Runtime override status refresh failed.");
+    }
+    return state.runtimeUi.overrideStatus ?? state.bundle?.runtimeOverrides ?? null;
+  }
+}
+
+async function createRuntimeOverrideFromCurrentBridge() {
+  const candidate = getRuntimeOverrideCandidate();
+  if (!candidate.eligible || !candidate.runtimeSourceUrl || !candidate.donorAsset) {
+    setPreviewStatus(candidate.note);
+    return;
+  }
+
+  const api = window.myideApi;
+  if (!api || typeof api.createRuntimeOverride !== "function") {
+    setPreviewStatus("Runtime override creation is not available in this renderer session.");
+    return;
+  }
+
+  const status = await api.createRuntimeOverride(
+    state.selectedProjectId,
+    candidate.runtimeSourceUrl,
+    candidate.donorAsset.assetId
+  );
+  state.runtimeUi.overrideStatus = status ?? null;
+  if (state.bundle) {
+    state.bundle.runtimeOverrides = status ?? null;
+  }
+  renderAll();
+  setPreviewStatus(`Created a project-local runtime override for ${candidate.runtimeRelativePath ?? candidate.runtimeSourceUrl} from donor asset ${candidate.donorAsset.assetId}. Reloading Runtime Mode to apply it.`);
+  if (state.runtimeUi.launched) {
+    await handleRuntimeReload();
+  }
+}
+
+async function clearRuntimeOverrideForCurrentCandidate() {
+  const candidate = getRuntimeOverrideCandidate();
+  if (!candidate.runtimeSourceUrl) {
+    setPreviewStatus("No grounded runtime override target is selected in the current runtime trace.");
+    return;
+  }
+
+  const api = window.myideApi;
+  if (!api || typeof api.clearRuntimeOverride !== "function") {
+    setPreviewStatus("Runtime override removal is not available in this renderer session.");
+    return;
+  }
+
+  const status = await api.clearRuntimeOverride(state.selectedProjectId, candidate.runtimeSourceUrl);
+  state.runtimeUi.overrideStatus = status ?? null;
+  if (state.bundle) {
+    state.bundle.runtimeOverrides = status ?? null;
+  }
+  renderAll();
+  setPreviewStatus(`Cleared the project-local runtime override for ${candidate.runtimeRelativePath ?? candidate.runtimeSourceUrl}. Reloading Runtime Mode to restore the original donor asset.`);
+  if (state.runtimeUi.launched) {
+    await handleRuntimeReload();
+  }
 }
 
 async function handleRuntimeAction(action) {
@@ -1551,6 +1743,50 @@ async function handleRuntimeAction(action) {
   if (action === "focus-init") {
     focusEvidenceItem("MG-EV-20260320-LIVE-A-005", { selectedObjectOnly: false });
     setPreviewStatus("Focused the live donor runtime init response evidence in the Donor Evidence panel.");
+    return;
+  }
+
+  if (action === "focus-asset") {
+    const donorAsset = getRuntimeWorkflowBridge().donorAsset;
+    if (!donorAsset) {
+      setPreviewStatus("No grounded donor asset is available for the current runtime trace.");
+      return;
+    }
+    focusDonorAssetCard(donorAsset.assetId);
+    setPreviewStatus(`Focused donor asset ${donorAsset.assetId} from the current runtime trace.`);
+    return;
+  }
+
+  if (action === "focus-evidence") {
+    const evidenceItem = getRuntimeWorkflowBridge().evidenceItem;
+    if (!evidenceItem) {
+      setPreviewStatus("No grounded donor evidence item is available for the current runtime trace.");
+      return;
+    }
+    focusEvidenceItem(evidenceItem.evidenceId, { selectedObjectOnly: false });
+    setPreviewStatus(`Focused donor evidence ${evidenceItem.evidenceId} from the current runtime trace.`);
+    return;
+  }
+
+  if (action === "focus-scene") {
+    const sceneObject = getRuntimeWorkflowBridge().sceneObject;
+    if (!sceneObject) {
+      setPreviewStatus("No related compose object is grounded for the current runtime trace.");
+      return;
+    }
+    focusSceneObjectInWorkflow(sceneObject.id, {
+      status: `Focused compose object ${sceneObject.id} from the current runtime trace.`
+    });
+    return;
+  }
+
+  if (action === "create-override") {
+    await createRuntimeOverrideFromCurrentBridge();
+    return;
+  }
+
+  if (action === "clear-override") {
+    await clearRuntimeOverrideForCurrentCandidate();
   }
 }
 
@@ -3958,6 +4194,15 @@ async function runLiveRuntimeSmoke() {
     runtimeBridgeEvidenceId: null,
     runtimeBridgeAssetFocusSucceeded: false,
     runtimeBridgeEvidenceFocusSucceeded: false,
+    runtimeObservedResourceCount: 0,
+    runtimeOverrideEligible: false,
+    runtimeOverrideSourceUrl: null,
+    runtimeOverrideRelativePath: null,
+    runtimeOverrideDonorAssetId: null,
+    runtimeOverrideRepoRelativePath: null,
+    runtimeOverrideHitCountAfterReload: 0,
+    runtimeOverrideCreated: false,
+    runtimeOverrideCleared: false,
     supportingEvidenceIds: [],
     previewStatus: null
   };
@@ -4044,6 +4289,7 @@ async function runLiveRuntimeSmoke() {
       baseResult.stepSupported = Boolean(status.support?.step);
       baseResult.pauseBlocked = status.support?.blockers?.pause ?? null;
       baseResult.stepBlocked = status.support?.blockers?.step ?? null;
+      baseResult.runtimeObservedResourceCount = Array.isArray(status.resourceEntries) ? status.resourceEntries.length : 0;
     }
 
     const inspectResult = await callRuntimeBridge("setInspectEnabled", true);
@@ -4092,15 +4338,69 @@ async function runLiveRuntimeSmoke() {
     );
     baseResult.runtimeBridgeEvidenceFocusSucceeded = true;
 
-    await handleRuntimeReload();
+    setWorkflowPanel("runtime", { silent: true, force: true });
+    renderAll();
+
+    const createOverrideButton = await waitForRendererCondition(
+      () => {
+        const button = elements.inspector?.querySelector('[data-runtime-action="create-override"]');
+        return button instanceof HTMLButtonElement ? button : null;
+      },
+      "runtime override action button"
+    );
+    if (createOverrideButton.disabled) {
+      throw new Error("Runtime inspector did not expose an eligible static override action after picking the live donor surface.");
+    }
+    baseResult.runtimeOverrideEligible = true;
+    const runtimeOverrideCandidate = getRuntimeOverrideCandidate();
+    baseResult.runtimeOverrideSourceUrl = runtimeOverrideCandidate.runtimeSourceUrl;
+    baseResult.runtimeOverrideRelativePath = runtimeOverrideCandidate.runtimeRelativePath;
+    baseResult.runtimeOverrideDonorAssetId = runtimeOverrideCandidate.donorAsset?.assetId ?? null;
+    clickRendererElement(createOverrideButton);
+    await waitForRendererCondition(
+      () => Boolean(state.runtimeUi.overrideStatus?.entries?.length),
+      "runtime override manifest entry creation",
+      { timeoutMs: 20000 }
+    );
+    baseResult.runtimeOverrideCreated = true;
+
     await waitForRendererCondition(
       () => state.runtimeUi.loading === false && Boolean(state.runtimeUi.currentUrl),
       "runtime reload to finish",
       { timeoutMs: 60000 }
     );
+    await waitForRendererCondition(
+      () => {
+        const activeEntry = state.runtimeUi.overrideStatus?.entries?.find((entry) => entry.runtimeSourceUrl === baseResult.runtimeOverrideSourceUrl);
+        return activeEntry && activeEntry.hitCount > 0 ? activeEntry : null;
+      },
+      "runtime override to be applied after reload",
+      { timeoutMs: 30000 }
+    );
+    const activeOverrideEntry = state.runtimeUi.overrideStatus?.entries?.find((entry) => entry.runtimeSourceUrl === baseResult.runtimeOverrideSourceUrl) ?? null;
+    baseResult.runtimeOverrideRepoRelativePath = activeOverrideEntry?.overrideRepoRelativePath ?? null;
+    baseResult.runtimeOverrideHitCountAfterReload = activeOverrideEntry?.hitCount ?? 0;
     baseResult.reloadSucceeded = true;
 
-    const successMessage = `Runtime smoke passed: launched ${trimRuntimeText(baseResult.runtimeCurrentUrl ?? baseResult.launchEntryUrl, 96)}, captured a runtime pick on ${baseResult.pickedTargetTag ?? "the live surface"}, and reloaded the donor runtime inside Runtime Mode.`;
+    const clearOverrideButton = elements.runtimeToolbar?.querySelector('[data-runtime-action="clear-override"]')
+      ?? elements.inspector?.querySelector('[data-runtime-action="clear-override"]');
+    if (!(clearOverrideButton instanceof HTMLButtonElement) || clearOverrideButton.disabled) {
+      throw new Error("Runtime inspector did not expose a clear-override action after creating the override.");
+    }
+    clickRendererElement(clearOverrideButton);
+    await waitForRendererCondition(
+      () => !state.runtimeUi.overrideStatus?.entries?.some((entry) => entry.runtimeSourceUrl === baseResult.runtimeOverrideSourceUrl),
+      "runtime override cleanup",
+      { timeoutMs: 20000 }
+    );
+    await waitForRendererCondition(
+      () => state.runtimeUi.loading === false && Boolean(state.runtimeUi.currentUrl),
+      "runtime reload after override cleanup",
+      { timeoutMs: 60000 }
+    );
+    baseResult.runtimeOverrideCleared = true;
+
+    const successMessage = `Runtime smoke passed: launched ${trimRuntimeText(baseResult.runtimeCurrentUrl ?? baseResult.launchEntryUrl, 96)}, captured a runtime pick on ${baseResult.pickedTargetTag ?? "the live surface"}, created a project-local override for ${baseResult.runtimeOverrideRelativePath ?? "the grounded runtime source"}, and reloaded the donor runtime inside Runtime Mode.`;
     setPreviewStatus(successMessage);
     baseResult.previewStatus = successMessage;
     document.body.dataset.liveRuntimeSmoke = "pass";
@@ -5813,6 +6113,7 @@ function bindActions() {
       state.runtimeUi.loading = false;
       state.runtimeUi.currentUrl = elements.runtimeWebview.getURL?.() || state.runtimeUi.currentUrl;
       renderAll();
+      void refreshRuntimeOverrideStatus({ silent: true });
     });
     elements.runtimeWebview.addEventListener("did-fail-load", (event) => {
       state.runtimeUi.loading = false;
@@ -5835,6 +6136,7 @@ function bindActions() {
     });
     elements.runtimeWebview.addEventListener("dom-ready", () => {
       state.runtimeUi.currentUrl = elements.runtimeWebview.getURL?.() || state.runtimeUi.currentUrl;
+      void refreshRuntimeOverrideStatus({ silent: true });
       void installRuntimeBridge();
     });
   }
@@ -7106,6 +7408,84 @@ function getRuntimeWorkflowBridge() {
   };
 }
 
+function getRuntimeOverrideCandidate() {
+  const workflowBridge = getRuntimeWorkflowBridge();
+  const donorAsset = workflowBridge.donorAsset;
+  const preferredFileType = donorAsset?.fileType ?? null;
+  const directResourceUrl = typeof state.runtimeUi.lastPick?.topDisplayObject?.texture?.resourceUrl === "string"
+    ? state.runtimeUi.lastPick.topDisplayObject.texture.resourceUrl
+    : null;
+  const directFileType = directResourceUrl ? getRuntimeResourceFileType(directResourceUrl) : null;
+  const directEntry = directResourceUrl && directFileType && (!preferredFileType || directFileType === preferredFileType)
+    ? {
+        url: directResourceUrl,
+        fileType: directFileType,
+        relativePath: getRuntimeResourceRelativePath(directResourceUrl),
+        filename: (() => {
+          try {
+            return String(new URL(directResourceUrl).pathname.split("/").pop() ?? "");
+          } catch {
+            return "";
+          }
+        })(),
+        initiatorType: "texture"
+      }
+    : null;
+
+  const observedResources = getObservedRuntimeResources()
+    .filter((entry) => !preferredFileType || entry.fileType === preferredFileType);
+  const phaseKey = getRuntimePhaseReferenceKey();
+  const phaseMatchers = phaseKey === "intro"
+    ? [/preloader-assets\//i, /img\/ui\/brand-logo/i, /img\/ui\//i]
+    : [/img\/ui\//i, /preloader-assets\//i];
+  const observedEntry = directEntry
+    ?? phaseMatchers
+      .map((matcher) => observedResources.find((entry) => matcher.test(entry.relativePath ?? "")))
+      .find(Boolean)
+    ?? observedResources[0]
+    ?? null;
+  const activeOverride = observedEntry ? getRuntimeOverrideEntry(observedEntry.url) : null;
+
+  if (!observedEntry) {
+    return {
+      eligible: false,
+      sourceKind: "missing",
+      runtimeSourceUrl: null,
+      runtimeRelativePath: null,
+      fileType: preferredFileType,
+      donorAsset,
+      activeOverride: null,
+      note: "No grounded runtime-loaded static image resource is available for an override in this slice yet."
+    };
+  }
+
+  if (!donorAsset) {
+    return {
+      eligible: false,
+      sourceKind: directEntry ? "direct-texture" : "observed-resource",
+      runtimeSourceUrl: observedEntry.url,
+      runtimeRelativePath: observedEntry.relativePath,
+      fileType: observedEntry.fileType,
+      donorAsset: null,
+      activeOverride,
+      note: "A runtime-loaded static resource was observed, but the current runtime pick does not yet expose a grounded donor asset to use as the override source."
+    };
+  }
+
+  return {
+    eligible: true,
+    sourceKind: directEntry ? "direct-texture" : "observed-resource",
+    runtimeSourceUrl: observedEntry.url,
+    runtimeRelativePath: observedEntry.relativePath,
+    fileType: observedEntry.fileType,
+    donorAsset,
+    activeOverride,
+    note: directEntry
+      ? "The live runtime exposed a direct texture/resource URL for this static image."
+      : `A grounded runtime-loaded ${observedEntry.fileType} resource was observed for the current runtime phase and matches the bridged donor asset file type.`
+  };
+}
+
 function getSelectedProjectEvidenceSummary() {
   const selectedProject = getSelectedProject();
   if (!selectedProject) {
@@ -7511,6 +7891,16 @@ function handleNavigationClick(event) {
     }
     setPreviewStatus(workbenchButton.dataset.switchStatus
       ?? `${getWorkbenchModeLabel(workbenchButton.dataset.switchWorkbenchMode)} Mode is active.`);
+    return true;
+  }
+
+  const runtimeActionButton = target.closest("[data-runtime-action]");
+  if (runtimeActionButton instanceof HTMLElement && runtimeActionButton.dataset.runtimeAction) {
+    if (runtimeActionButton instanceof HTMLButtonElement && runtimeActionButton.disabled) {
+      return true;
+    }
+    event.preventDefault();
+    void handleRuntimeAction(runtimeActionButton.dataset.runtimeAction);
     return true;
   }
 
@@ -9486,6 +9876,7 @@ async function reloadWorkspace(isInitialLoad, requestedProjectId = null) {
     currentUrl: null,
     pageTitle: null,
     diagnostics: null,
+    overrideStatus: state.bundle.runtimeOverrides ?? null,
     controlSupport: {
       pause: false,
       resume: false,
@@ -9914,6 +10305,7 @@ function renderOnboardingCard() {
   const runtimeLaunch = getRuntimeLaunchInfo();
   const workflowPanel = getActiveWorkflowPanel();
   const workflowBridge = getRuntimeWorkflowBridge();
+  const runtimeOverrideCandidate = getRuntimeOverrideCandidate();
   const workflowFocusSummary = {
     runtime: "Live donor runtime first, then jump out to source or compose context from the bridge.",
     donor: "Source donor assets, evidence cards, and grounded linked-object context stay together here.",
@@ -9937,7 +10329,7 @@ function renderOnboardingCard() {
     ? [
       "Launch or reload the donor runtime in the main viewport.",
       "Arm Pick / Inspect and click the live donor surface.",
-      "Use the bridge buttons below to jump into donor evidence, donor assets, or a related compose object."
+      "Use the bridge buttons below to jump into donor evidence, donor assets, or a related compose object, then create one project-local static override when the trace is eligible."
     ]
     : [
       "Drag or replace donor assets in Compose Mode as needed.",
@@ -9978,6 +10370,11 @@ function renderOnboardingCard() {
         <span>Current Runtime Surface</span>
         <strong>${escapeHtml(state.runtimeUi.pageTitle ?? "Mystery Garden runtime not launched yet")}</strong>
         <small>${escapeHtml(state.runtimeUi.currentUrl ?? runtimeLaunch?.entryUrl ?? "No grounded runtime URL is indexed yet.")}</small>
+      </div>
+      <div class="detail-card ${runtimeOverrideCandidate.eligible ? "is-positive" : ""}">
+        <span>Override Target</span>
+        <strong>${escapeHtml(runtimeOverrideCandidate.runtimeRelativePath ?? "No grounded static runtime image selected yet")}</strong>
+        <small>${escapeHtml(runtimeOverrideCandidate.note)}</small>
       </div>
     </div>
     <div class="tree-row">
@@ -12232,6 +12629,7 @@ function renderRuntimeWorkbench() {
   const runtimeLaunch = getRuntimeLaunchInfo();
   const runtimeModeActive = state.workbenchMode === "runtime";
   const runtimeWebview = getRuntimeWebview();
+  const runtimeOverrideStatus = getRuntimeOverrideStatus();
 
   if (elements.runtimeWorkbench) {
     elements.runtimeWorkbench.hidden = !runtimeModeActive;
@@ -12333,6 +12731,13 @@ function renderRuntimeWorkbench() {
         <strong>${runtimeLaunch.observedAssetGroups.length > 0 ? `${runtimeLaunch.observedAssetGroups.length} runtime asset groups` : "No grouped observation yet"}</strong>
         <small>${escapeHtml(assetGroupSummary)}</small>
       </div>
+      <div class="detail-card ${runtimeOverrideStatus?.entryCount ? "is-positive" : ""}">
+        <span>Project-local Overrides</span>
+        <strong>${runtimeOverrideStatus?.entryCount ? `${runtimeOverrideStatus.entryCount} active override${runtimeOverrideStatus.entryCount === 1 ? "" : "s"}` : "No active runtime override"}</strong>
+        <small>${escapeHtml(runtimeOverrideStatus?.entries?.[0]
+          ? `${runtimeOverrideStatus.entries[0].runtimeRelativePath} -> ${runtimeOverrideStatus.entries[0].donorAssetId} (${runtimeOverrideStatus.entries[0].hitCount} runtime hit${runtimeOverrideStatus.entries[0].hitCount === 1 ? "" : "s"})`
+          : "Create a bounded project-local override from the runtime trace when an eligible static image is grounded.")}</small>
+      </div>
       <div class="detail-card ${blockerSummary.length > 0 ? "is-alert" : "is-positive"}">
         <span>Current Runtime Blocker</span>
         <strong>${blockerSummary.length > 0 ? "Partial runtime control limits remain" : "No runtime blocker recorded in this slice"}</strong>
@@ -12347,6 +12752,8 @@ function renderRuntimeInspector() {
   const lastPick = state.runtimeUi.lastPick;
   const diagnostics = state.runtimeUi.diagnostics;
   const workflowBridge = getRuntimeWorkflowBridge();
+  const runtimeOverrideCandidate = getRuntimeOverrideCandidate();
+  const runtimeOverrideStatus = getRuntimeOverrideStatus();
   const candidateSummaries = Array.isArray(lastPick?.candidateApps) && lastPick.candidateApps.length > 0
     ? lastPick.candidateApps.map((entry) => `${entry.key}${entry.childCount != null ? ` · ${entry.childCount} stage children` : ""}`).join("; ")
     : Array.isArray(diagnostics?.candidateApps) && diagnostics.candidateApps.length > 0
@@ -12411,6 +12818,32 @@ function renderRuntimeInspector() {
         <small>${escapeHtml(workflowBridge.note)}</small>
       </div>
       <div class="detail-card">
+        <span>Bridged Donor Source</span>
+        <strong>${escapeHtml(workflowBridge.donorAsset?.assetId ?? workflowBridge.evidenceItem?.evidenceId ?? "No donor source bridge yet")}</strong>
+        <small>${escapeHtml(workflowBridge.donorAsset
+          ? `${workflowBridge.donorAsset.filename} · ${workflowBridge.donorAsset.evidenceId}`
+          : workflowBridge.evidenceItem?.relativePath ?? "The current runtime trace is still limited to runtime notes/init evidence.")}</small>
+      </div>
+      <div class="detail-card ${runtimeOverrideCandidate.eligible ? "is-positive" : "is-alert"}">
+        <span>Override Eligibility</span>
+        <strong>${runtimeOverrideCandidate.eligible ? "Eligible static image override" : "Override not yet grounded"}</strong>
+        <small>${escapeHtml(runtimeOverrideCandidate.note)}</small>
+      </div>
+      <div class="detail-card">
+        <span>Runtime Source Path</span>
+        <strong>${escapeHtml(runtimeOverrideCandidate.runtimeRelativePath ?? "No grounded runtime image path yet")}</strong>
+        <small>${escapeHtml(runtimeOverrideCandidate.runtimeSourceUrl ?? "The current runtime trace has not surfaced a supported static image URL.")}</small>
+      </div>
+      <div class="detail-card">
+        <span>Active Override</span>
+        <strong>${escapeHtml(runtimeOverrideCandidate.activeOverride?.donorAssetId ?? "No active override for this runtime source")}</strong>
+        <small>${escapeHtml(runtimeOverrideCandidate.activeOverride
+          ? `${runtimeOverrideCandidate.activeOverride.overrideRepoRelativePath} · ${runtimeOverrideCandidate.activeOverride.hitCount} runtime hit${runtimeOverrideCandidate.activeOverride.hitCount === 1 ? "" : "s"}`
+          : runtimeOverrideStatus?.entryCount
+            ? `${runtimeOverrideStatus.entryCount} project-local runtime override${runtimeOverrideStatus.entryCount === 1 ? "" : "s"} recorded.`
+            : "Create a bounded override to redirect one grounded static image request to a project-local file.")}</small>
+      </div>
+      <div class="detail-card">
         <span>Supporting Evidence</span>
         <strong>${runtimeLaunch?.evidenceIds?.length ? `${runtimeLaunch.evidenceIds.length} grounded runtime refs` : "No runtime refs indexed"}</strong>
         <small>${escapeHtml(sourcePaths.length > 0 ? sourcePaths.join(" · ") : "No supporting source paths recorded.")}</small>
@@ -12425,6 +12858,16 @@ function renderRuntimeInspector() {
         ${workflowBridge.donorAsset ? `<button type="button" class="copy-button" data-focus-donor-asset-id="${escapeAttribute(workflowBridge.donorAsset.assetId)}">Focus Asset</button>` : ""}
         ${workflowBridge.evidenceItem ? `<button type="button" class="copy-button" data-focus-donor-evidence-id="${escapeAttribute(workflowBridge.evidenceItem.evidenceId)}">Focus Evidence</button>` : ""}
         ${workflowBridge.sceneObject ? `<button type="button" class="copy-button" data-focus-scene-object-id="${escapeAttribute(workflowBridge.sceneObject.id)}">Focus Scene Object</button>` : ""}
+      </div>
+    </div>
+    <div class="tree-row">
+      <strong>Override Actions</strong>
+      <span>${escapeHtml(runtimeOverrideCandidate.eligible
+        ? `Create a project-local ${runtimeOverrideCandidate.fileType} override for ${runtimeOverrideCandidate.runtimeRelativePath ?? "the grounded runtime source"} using donor asset ${runtimeOverrideCandidate.donorAsset?.assetId ?? "unknown"}.`
+        : runtimeOverrideCandidate.note)}</span>
+      <div class="evidence-actions">
+        <button type="button" class="copy-button" data-runtime-action="create-override" ${runtimeOverrideCandidate.eligible ? "" : "disabled"}>Create Override</button>
+        <button type="button" class="copy-button" data-runtime-action="clear-override" ${runtimeOverrideCandidate.activeOverride ? "" : "disabled"}>Clear Override</button>
       </div>
     </div>
     <div class="tree-row">
@@ -12548,6 +12991,8 @@ function renderAll() {
       }
 
       let disabled = false;
+      const workflowBridge = getRuntimeWorkflowBridge();
+      const runtimeOverrideCandidate = getRuntimeOverrideCandidate();
       if (action === "launch") {
         disabled = !Boolean(runtimeLaunch?.entryUrl);
       } else if (action === "reload" || action === "inspect-toggle" || action === "focus-note" || action === "focus-init") {
@@ -12556,6 +13001,16 @@ function renderAll() {
         disabled = !state.runtimeUi.launched || !Boolean(state.runtimeUi.controlSupport[action]);
       } else if (action === "enter" || action === "spin") {
         disabled = !state.runtimeUi.launched;
+      } else if (action === "focus-asset") {
+        disabled = !Boolean(workflowBridge.donorAsset);
+      } else if (action === "focus-evidence") {
+        disabled = !Boolean(workflowBridge.evidenceItem);
+      } else if (action === "focus-scene") {
+        disabled = !Boolean(workflowBridge.sceneObject);
+      } else if (action === "create-override") {
+        disabled = !runtimeOverrideCandidate.eligible;
+      } else if (action === "clear-override") {
+        disabled = !Boolean(runtimeOverrideCandidate.activeOverride);
       }
 
       button.disabled = disabled;
@@ -12566,9 +13021,13 @@ function renderAll() {
     });
   }
   if (elements.runtimeControlNote) {
+    const runtimeOverrideCandidate = getRuntimeOverrideCandidate();
     elements.runtimeControlNote.textContent = state.runtimeUi.lastCommandStatus?.blocked
+      ?? (runtimeOverrideCandidate.activeOverride
+        ? `Active runtime override: ${runtimeOverrideCandidate.activeOverride.runtimeRelativePath} -> ${runtimeOverrideCandidate.activeOverride.donorAssetId}. Reload Runtime Mode after changing it.`
+        : null)
       ?? runtimeLaunch?.blocker
-      ?? "Launch the recorded donor runtime, then use Pick / Inspect for the strongest grounded live trace available.";
+      ?? "Launch the donor runtime, inspect a grounded source, and create a project-local static override when the trace is eligible.";
   }
   if (elements.actionDuplicate) {
     elements.actionDuplicate.disabled = !canMutateSelectedObject;
