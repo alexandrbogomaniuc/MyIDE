@@ -775,6 +775,11 @@ function getRuntimeResourceMapStatus() {
   return resourceMap && typeof resourceMap === "object" ? resourceMap : null;
 }
 
+function getRuntimeCoverageStatus() {
+  const resourceMap = getRuntimeResourceMapStatus();
+  return resourceMap?.coverage && typeof resourceMap.coverage === "object" ? resourceMap.coverage : null;
+}
+
 function getRuntimeResourceMapEntries() {
   const resourceMap = getRuntimeResourceMapStatus();
   return Array.isArray(resourceMap?.entries) ? resourceMap.entries : [];
@@ -1600,6 +1605,19 @@ async function refreshRuntimeDiagnostics() {
   }
 }
 
+async function setRuntimeRequestStage(stage) {
+  const api = window.myideApi;
+  if (!api || typeof api.setRuntimeRequestStage !== "function") {
+    return null;
+  }
+
+  try {
+    return await api.setRuntimeRequestStage(stage);
+  } catch {
+    return null;
+  }
+}
+
 function setRuntimeLaunched(launched) {
   state.runtimeUi.launched = Boolean(launched);
   state.runtimeUi.loading = Boolean(launched);
@@ -1619,6 +1637,7 @@ async function handleRuntimeLaunch() {
     return false;
   }
 
+  await setRuntimeRequestStage("launch");
   await resetRuntimeResourceMapForCurrentProject({ silent: true });
   setRuntimeLaunched(true);
   renderAll();
@@ -1635,6 +1654,7 @@ async function handleRuntimeReload() {
     return handleRuntimeLaunch();
   }
 
+  await setRuntimeRequestStage("reload");
   await resetRuntimeResourceMapForCurrentProject({ silent: true });
   state.runtimeUi.loading = true;
   state.runtimeUi.ready = false;
@@ -1845,6 +1865,7 @@ async function handleRuntimeAction(action) {
   }
 
   if (action === "inspect-toggle") {
+    await setRuntimeRequestStage("inspect");
     const result = await callRuntimeBridge("setInspectEnabled", !state.runtimeUi.inspectEnabled);
     state.runtimeUi.inspectEnabled = Boolean(result?.enabled);
     renderAll();
@@ -1880,11 +1901,17 @@ async function handleRuntimeAction(action) {
   }
 
   if (action === "enter") {
+    await setRuntimeRequestStage("enter");
     const result = await sendRuntimePointerClick();
     state.runtimeUi.lastCommand = action;
     state.runtimeUi.lastCommandStatus = result;
     if (result.ok) {
       setPreviewStatus(result.detail);
+      void (async () => {
+        await sleep(1200);
+        await refreshRuntimeResourceMap({ silent: true });
+        renderAll();
+      })();
     } else {
       state.runtimeUi.controlBlockers.enter = result.blocked;
       setPreviewStatus(result.blocked);
@@ -1894,11 +1921,17 @@ async function handleRuntimeAction(action) {
   }
 
   if (action === "spin") {
+    await setRuntimeRequestStage("spin");
     const result = await sendRuntimeSpaceKey();
     state.runtimeUi.lastCommand = action;
     state.runtimeUi.lastCommandStatus = result;
     if (result.ok) {
       setPreviewStatus(result.detail);
+      void (async () => {
+        await sleep(1200);
+        await refreshRuntimeResourceMap({ silent: true });
+        renderAll();
+      })();
     } else {
       state.runtimeUi.controlBlockers.spin = result.blocked;
       setPreviewStatus(result.blocked);
@@ -4371,6 +4404,12 @@ async function runLiveRuntimeSmoke() {
     runtimeObservedResourceCount: 0,
     runtimeResourceMapCount: 0,
     runtimeResourceLatestRequestUrl: null,
+    runtimeCoverageLocalStaticCount: 0,
+    runtimeCoverageUpstreamStaticCount: 0,
+    runtimeCoverageUnresolvedUpstreamCount: 0,
+    runtimeSpinAttempted: false,
+    runtimeSpinSucceeded: false,
+    runtimeSpinBlocked: null,
     runtimeOverrideEligible: false,
     runtimeOverrideSourceUrl: null,
     runtimeOverrideRelativePath: null,
@@ -4474,6 +4513,9 @@ async function runLiveRuntimeSmoke() {
     await refreshRuntimeResourceMap({ silent: true });
     baseResult.runtimeResourceMapCount = Number(getRuntimeResourceMapStatus()?.entryCount ?? 0);
     baseResult.runtimeResourceLatestRequestUrl = getRuntimeResourceMapEntries()?.[0]?.latestRequestUrl ?? null;
+    baseResult.runtimeCoverageLocalStaticCount = Number(getRuntimeCoverageStatus()?.localStaticEntryCount ?? 0);
+    baseResult.runtimeCoverageUpstreamStaticCount = Number(getRuntimeCoverageStatus()?.upstreamStaticEntryCount ?? 0);
+    baseResult.runtimeCoverageUnresolvedUpstreamCount = Number(getRuntimeCoverageStatus()?.unresolvedUpstreamCount ?? 0);
     baseResult.runtimeObservedResourceCount = Math.max(
       baseResult.runtimeObservedResourceCount,
       baseResult.runtimeResourceMapCount
@@ -4484,6 +4526,28 @@ async function runLiveRuntimeSmoke() {
     await refreshRuntimeResourceMap({ silent: true });
     baseResult.runtimeResourceMapCount = Number(getRuntimeResourceMapStatus()?.entryCount ?? 0);
     baseResult.runtimeResourceLatestRequestUrl = getRuntimeResourceMapEntries()?.[0]?.latestRequestUrl ?? null;
+    baseResult.runtimeCoverageLocalStaticCount = Number(getRuntimeCoverageStatus()?.localStaticEntryCount ?? 0);
+    baseResult.runtimeCoverageUpstreamStaticCount = Number(getRuntimeCoverageStatus()?.upstreamStaticEntryCount ?? 0);
+    baseResult.runtimeCoverageUnresolvedUpstreamCount = Number(getRuntimeCoverageStatus()?.unresolvedUpstreamCount ?? 0);
+    baseResult.runtimeObservedResourceCount = Math.max(
+      baseResult.runtimeObservedResourceCount,
+      baseResult.runtimeResourceMapCount
+    );
+
+    baseResult.runtimeSpinAttempted = true;
+    const spinResult = await handleRuntimeAction("spin");
+    if (state.runtimeUi.lastCommandStatus?.ok) {
+      baseResult.runtimeSpinSucceeded = true;
+    } else {
+      baseResult.runtimeSpinBlocked = state.runtimeUi.lastCommandStatus?.blocked ?? null;
+    }
+    await sleep(1500);
+    await refreshRuntimeResourceMap({ silent: true });
+    baseResult.runtimeResourceMapCount = Number(getRuntimeResourceMapStatus()?.entryCount ?? 0);
+    baseResult.runtimeResourceLatestRequestUrl = getRuntimeResourceMapEntries()?.[0]?.latestRequestUrl ?? null;
+    baseResult.runtimeCoverageLocalStaticCount = Number(getRuntimeCoverageStatus()?.localStaticEntryCount ?? 0);
+    baseResult.runtimeCoverageUpstreamStaticCount = Number(getRuntimeCoverageStatus()?.upstreamStaticEntryCount ?? 0);
+    baseResult.runtimeCoverageUnresolvedUpstreamCount = Number(getRuntimeCoverageStatus()?.unresolvedUpstreamCount ?? 0);
     baseResult.runtimeObservedResourceCount = Math.max(
       baseResult.runtimeObservedResourceCount,
       baseResult.runtimeResourceMapCount
@@ -4572,6 +4636,12 @@ async function runLiveRuntimeSmoke() {
     await sleep(1500);
     await refreshRuntimeResourceMap({ silent: true });
     await refreshRuntimeOverrideStatus({ silent: true });
+    if (!getRuntimeResourceMapEntry(baseResult.runtimeOverrideSourceUrl)?.overrideRepoRelativePath) {
+      await handleRuntimeAction("spin");
+      await sleep(1500);
+      await refreshRuntimeResourceMap({ silent: true });
+      await refreshRuntimeOverrideStatus({ silent: true });
+    }
     try {
       await waitForRendererCondition(
         () => {
@@ -12929,6 +12999,7 @@ function renderRuntimeWorkbench() {
   const runtimeOverrideStatus = getRuntimeOverrideStatus();
   const runtimeMirrorStatus = getRuntimeMirrorStatus();
   const runtimeResourceMap = getRuntimeResourceMapStatus();
+  const runtimeCoverage = getRuntimeCoverageStatus();
   const latestResourceEntry = getRuntimeResourceMapEntries()[0] ?? null;
 
   if (elements.runtimeWorkbench) {
@@ -13046,6 +13117,15 @@ function renderRuntimeWorkbench() {
           ? `${latestResourceEntry.runtimeRelativePath ?? latestResourceEntry.canonicalSourceUrl} · ${latestResourceEntry.hitCount} hit${latestResourceEntry.hitCount === 1 ? "" : "s"} · ${latestResourceEntry.requestSource}`
           : "Launch or reload Runtime Mode to capture requested URLs, local mirror files, override redirects, and hit counts.")}</small>
       </div>
+      <div class="detail-card ${runtimeCoverage?.localStaticEntryCount ? "is-positive" : runtimeCoverage?.upstreamStaticEntryCount ? "is-alert" : ""}">
+        <span>Static Asset Coverage</span>
+        <strong>${runtimeCoverage ? `${runtimeCoverage.localStaticEntryCount} local · ${runtimeCoverage.upstreamStaticEntryCount} upstream` : "No static runtime coverage yet"}</strong>
+        <small>${escapeHtml(runtimeCoverage
+          ? runtimeCoverage.unresolvedUpstreamCount > 0
+            ? `${runtimeCoverage.unresolvedUpstreamCount} upstream bootstrap/static dependency${runtimeCoverage.unresolvedUpstreamCount === 1 ? "" : "ies"} remain.`
+            : "Recorded static/runtime bootstrap requests are currently being served locally in this slice."
+          : "Launch or reload Runtime Mode to measure local-vs-upstream static coverage.")}</small>
+      </div>
       <div class="detail-card ${runtimeOverrideStatus?.entryCount ? "is-positive" : ""}">
         <span>Project-local Overrides</span>
         <strong>${runtimeOverrideStatus?.entryCount ? `${runtimeOverrideStatus.entryCount} active override${runtimeOverrideStatus.entryCount === 1 ? "" : "s"}` : "No active runtime override"}</strong>
@@ -13071,6 +13151,7 @@ function renderRuntimeInspector() {
   const runtimeOverrideStatus = getRuntimeOverrideStatus();
   const runtimeMirrorStatus = getRuntimeMirrorStatus();
   const runtimeResourceMap = getRuntimeResourceMapStatus();
+  const runtimeCoverage = getRuntimeCoverageStatus();
   const activeResourceRecord = runtimeOverrideCandidate.resourceMapEntry ?? null;
   const candidateSummaries = Array.isArray(lastPick?.candidateApps) && lastPick.candidateApps.length > 0
     ? lastPick.candidateApps.map((entry) => `${entry.key}${entry.childCount != null ? ` · ${entry.childCount} stage children` : ""}`).join("; ")
@@ -13168,10 +13249,21 @@ function renderRuntimeInspector() {
           ? `${activeResourceRecord.hitCount} runtime hit${activeResourceRecord.hitCount === 1 ? "" : "s"}`
           : "No recorded runtime request for this source yet")}</strong>
         <small>${escapeHtml(activeResourceRecord
-          ? `${activeResourceRecord.latestRequestUrl} · ${activeResourceRecord.requestSource}${activeResourceRecord.overrideRepoRelativePath ? ` · override ${activeResourceRecord.overrideRepoRelativePath}` : activeResourceRecord.localMirrorRepoRelativePath ? ` · local ${activeResourceRecord.localMirrorRepoRelativePath}` : ""}`
+          ? `${activeResourceRecord.latestRequestUrl} · ${activeResourceRecord.requestCategory} · ${activeResourceRecord.requestSource}${activeResourceRecord.overrideRepoRelativePath ? ` · override ${activeResourceRecord.overrideRepoRelativePath}` : activeResourceRecord.localMirrorRepoRelativePath ? ` · local ${activeResourceRecord.localMirrorRepoRelativePath}` : ""}`
           : runtimeResourceMap?.entryCount
             ? "Runtime requests have been recorded this cycle, but the current picked source has not been matched to one of those records yet."
             : "Launch or reload Runtime Mode to capture requested URLs, local mirror paths, override redirects, and hit counts.")}</small>
+      </div>
+      <div class="detail-card ${runtimeCoverage?.localStaticEntryCount ? "is-positive" : runtimeCoverage?.upstreamStaticEntryCount ? "is-alert" : ""}">
+        <span>Coverage Summary</span>
+        <strong>${escapeHtml(runtimeCoverage
+          ? `${runtimeCoverage.localEntryCount} local / ${runtimeCoverage.upstreamEntryCount} upstream / ${runtimeCoverage.overrideEntryCount} override`
+          : "No runtime coverage summary yet")}</strong>
+        <small>${escapeHtml(runtimeCoverage
+          ? runtimeCoverage.unresolvedUpstreamSample.length > 0
+            ? `Remaining upstream sample: ${runtimeCoverage.unresolvedUpstreamSample.join(" · ")}`
+            : "No unresolved upstream bootstrap/static dependency is recorded in the current cycle."
+          : "Launch the runtime and inspect a target to populate the current-cycle coverage summary.")}</small>
       </div>
       <div class="detail-card">
         <span>Active Override</span>

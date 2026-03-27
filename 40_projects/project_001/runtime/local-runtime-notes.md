@@ -10,6 +10,7 @@
 - grounded mirrored `loader.js`
 - grounded mirrored `bundle.js`
 - bounded mirrored static preloader/runtime image files
+- grounded mirrored third-party runtime/bootstrap scripts observed during the latest harvest, including `replays.js`, `gtag/js`, and two `rs-cdn.shared.bgaming-system.com` plugin scripts
 
 ## What the mirror does not prove yet
 - a full standalone local donor runtime package
@@ -20,4 +21,7 @@
 - `http://127.0.0.1:38901/runtime/project_001/launch`
 
 ## Current exact blocker
-- The shell can now trace one grounded static runtime candidate back to a local mirror file path and record the current launch/reload request map, but the runtime still does not confirm a reload-time hit for that mirrored candidate after override reload.
+- The shell can now trace one grounded static runtime candidate back to a local mirror file path and record the current launch/reload request map.
+- The strongest current live proof shows zero observed upstream static-image requests in the bounded slice.
+- One unresolved upstream bootstrap request still remains at `https://cdn.bgaming-network.com/html/MysteryGarden/bundle.js`.
+- The runtime still does not confirm a reload-time hit for the mirrored static override candidate after override reload.

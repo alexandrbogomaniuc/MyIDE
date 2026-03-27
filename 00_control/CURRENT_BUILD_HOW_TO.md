@@ -5,8 +5,9 @@ Use this when you want to test the current MyIDE build exactly as it works today
 ## 1. Launch The Current Build
 1. Run `npm run manual:prepare:project_001`.
 2. Optional but recommended for the donor composition side path: run `npm run donor-assets:index:project_001`.
-3. Run `npm run dev`.
-4. Wait for the Electron shell window to open.
+3. Recommended for the strongest local-runtime path on this machine: run `npm run runtime:harvest:project_001`.
+4. Run `npm run dev`.
+5. Wait for the Electron shell window to open.
 
 ## 2. Open The Validated Project
 1. In the shell, use **Project Browser**.
@@ -88,7 +89,7 @@ Current hard limits:
 - there is still no captured full local donor runtime package for `project_001`
 - Runtime Mode now prefers a bounded local runtime mirror when it is available, but that mirror still depends on the live donor launch upstream for launch HTML/token/API state
 - the first static override slice works only for grounded static runtime image URLs that the current runtime trace can prove and that match a supported donor image file type
-- when Runtime Mode uses the local mirror, the shell can now trace one grounded static runtime candidate back to a local mirror file path and show the current request map, but the current slice still does not confirm a reload-time hit on that mirrored static candidate yet
+- when Runtime Mode uses the local mirror, the shell can now trace one grounded static runtime candidate back to a local mirror file path and show the current request map; the strongest current proof shows zero observed upstream static-image requests and one remaining unresolved upstream bootstrap request at `https://cdn.bgaming-network.com/html/MysteryGarden/bundle.js`, but the current slice still does not confirm a reload-time hit on the mirrored static candidate
 - pause, resume, and step only work if the embedded runtime exposes a stable ticker-like hook; if it does not, the shell shows the blocker instead of faking the control
 - only `project_001` is supported in this slice
 - only static donor image files are supported
@@ -112,7 +113,7 @@ The donor file remains read-only evidence. Runtime Mode can now create one bound
 6. Wait for Runtime Mode to reload.
 7. Read the **Project-local Overrides** card or the active override detail in the inspector.
 8. If the current slice reports a blocker for the local mirrored candidate instead of a reload-time hit, treat that as the current honest limit rather than a silent failure.
-9. The current strongest blocker is now narrower and explicit: the request map is real, but the mirrored static override candidate still is not proving a reload-time hit.
+9. The current strongest blocker is now narrower and explicit: the request map is real, the bounded slice currently shows zero observed upstream static-image requests, but the mirrored static override candidate still is not proving a reload-time hit.
 10. Use **Clear Override** when you want to restore the original runtime asset.
 11. The override file stays under `40_projects/project_001/overrides/`, and raw donor files under `10_donors/` stay untouched.
 

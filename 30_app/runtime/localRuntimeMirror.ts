@@ -1,5 +1,6 @@
 import { existsSync, promises as fs } from "node:fs";
 import path from "node:path";
+import { readRuntimeResourceMapSnapshot } from "./runtimeResourceMap";
 
 export interface LocalRuntimeMirrorEntry {
   sourceUrl: string;
@@ -63,8 +64,11 @@ const donorRuntimeSessionReadme = path.join(
 const supportedHosts = new Set([
   "boost2.bgaming-network.com",
   "cdn.bgaming-network.com",
+  "replays.bgaming-network.com",
+  "rs-cdn.shared.bgaming-system.com",
   "lobby.bgaming-network.com",
-  "drops-fe.bgaming-network.com"
+  "drops-fe.bgaming-network.com",
+  "www.googletagmanager.com"
 ]);
 
 function assertSupportedProject(projectId: string): void {
@@ -154,6 +158,15 @@ function getMirrorEntryFilePath(projectId: string, sourceUrl: string): string {
   );
 }
 
+function normalizeMirrorLookupUrl(sourceUrl: string): string {
+  const parsed = new URL(sourceUrl);
+  if (parsed.pathname.endsWith(".js")) {
+    parsed.search = "";
+  }
+  parsed.hash = "";
+  return parsed.toString();
+}
+
 function getSourceUrlRelativePath(sourceUrl: string): string | null {
   try {
     const parsedUrl = new URL(sourceUrl);
@@ -164,6 +177,21 @@ function getSourceUrlRelativePath(sourceUrl: string): string | null {
   } catch {
     return null;
   }
+}
+
+async function collectObservedRuntimeRequestUrls(projectId: string): Promise<string[]> {
+  const snapshot = await readRuntimeResourceMapSnapshot(projectId);
+  if (!snapshot?.entries?.length) {
+    return [];
+  }
+
+  return snapshot.entries
+    .filter((entry) => Boolean(normalizeHostCandidate(entry.canonicalSourceUrl)))
+    .filter((entry) => (
+      entry.requestCategory === "static-asset"
+      || entry.requestCategory === "html-bootstrap"
+    ))
+    .map((entry) => entry.canonicalSourceUrl);
 }
 
 async function readOptionalTextFile(filePath: string): Promise<string | null> {
@@ -196,7 +224,7 @@ async function readManifest(projectId: string): Promise<LocalRuntimeMirrorManife
 
 function normalizeHostCandidate(sourceUrl: string): string | null {
   try {
-    const parsed = new URL(sourceUrl);
+    const parsed = new URL(normalizeMirrorLookupUrl(sourceUrl));
     return supportedHosts.has(parsed.hostname) ? parsed.hostname : null;
   } catch {
     return null;
@@ -360,12 +388,16 @@ export async function captureLocalRuntimeMirror(projectId: string): Promise<Capt
   const bundleUrl = `https://cdn.bgaming-network.com/html/MysteryGarden/v${resourceVersion}/bundle.js`;
   const bundleFetch = await fetchRemoteText(bundleUrl);
   const staticUrls = extractStaticAssetCandidates(bundleFetch.text, resourceVersion);
+  const manifestBeforeCapture = await readManifest(projectId);
+  const observedRuntimeRequestUrls = await collectObservedRuntimeRequestUrls(projectId);
 
   const candidateUrls = Array.from(new Set([
     ...scriptUrls,
     loaderUrl,
     bundleUrl,
-    ...staticUrls
+    ...staticUrls,
+    ...observedRuntimeRequestUrls,
+    ...(manifestBeforeCapture?.entries ?? []).map((entry) => entry.sourceUrl)
   ])).filter((entry) => Boolean(normalizeHostCandidate(entry)));
 
   const entries: LocalRuntimeMirrorEntry[] = [];
@@ -393,6 +425,9 @@ export async function captureLocalRuntimeMirror(projectId: string): Promise<Capt
       "Partial local runtime mirror captured from the strongest grounded live Mystery Garden donor runtime entry.",
       "Launch HTML still refreshes from the public donor demo entry at runtime so a current launch token and live APIs/websocket URLs remain valid.",
       "Mirrored files are local-only and gitignored; raw donor files remain untouched.",
+      observedRuntimeRequestUrls.length > 0
+        ? `Observed runtime request snapshot contributed ${observedRuntimeRequestUrls.length} grounded launch/runtime candidate URL${observedRuntimeRequestUrls.length === 1 ? "" : "s"} to this mirror refresh.`
+        : "No observed runtime request snapshot was available, so this refresh used bundle/loader-derived candidates only.",
       ...warnings
     ],
     entries: entries.sort((left, right) => left.sourceUrl.localeCompare(right.sourceUrl))
@@ -453,7 +488,26 @@ export function findLocalRuntimeMirrorEntry(
   if (!status?.entries?.length || typeof sourceUrl !== "string" || sourceUrl.length === 0) {
     return null;
   }
-  return status.entries.find((entry) => entry.sourceUrl === sourceUrl) ?? null;
+
+  const exactMatch = status.entries.find((entry) => entry.sourceUrl === sourceUrl);
+  if (exactMatch) {
+    return exactMatch;
+  }
+
+  let normalizedSourceUrl: string;
+  try {
+    normalizedSourceUrl = normalizeMirrorLookupUrl(sourceUrl);
+  } catch {
+    return null;
+  }
+
+  return status.entries.find((entry) => {
+    try {
+      return normalizeMirrorLookupUrl(entry.sourceUrl) === normalizedSourceUrl;
+    } catch {
+      return false;
+    }
+  }) ?? null;
 }
 
 export function findLocalRuntimeMirrorEntryByRelativePath(

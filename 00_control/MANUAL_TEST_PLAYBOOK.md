@@ -6,11 +6,12 @@ Use this when testing the current local MyIDE build by hand.
 1. This test edits reconstructed internal scene data under `40_projects/project_001/internal`; raw donor files under `10_donors/` stay read-only even when a donor image is imported.
 2. Run `npm run manual:prepare:project_001`.
 3. Run `npm run donor-assets:index:project_001`.
-4. If you only need a quick context check, run `npm run manual:status`.
-5. Launch the shell with `npm run dev`.
-6. Test the LOCAL build on this machine, not the public GitHub snapshot.
-7. If you do not want the full prepare flow, `npm run manual:reset:project_001` still restores only the `project_001` baseline.
-8. GS VABS validation is a separate delivery lane; it does not replace the current shell manual QA flow.
+4. Run `npm run runtime:harvest:project_001` if you want the strongest current local-runtime mirror coverage before opening the shell.
+5. If you only need a quick context check, run `npm run manual:status`.
+6. Launch the shell with `npm run dev`.
+7. Test the LOCAL build on this machine, not the public GitHub snapshot.
+8. If you do not want the full prepare flow, `npm run manual:reset:project_001` still restores only the `project_001` baseline.
+9. GS VABS validation is a separate delivery lane; it does not replace the current shell manual QA flow.
 
 ## Core Checklist
 1. App launch
@@ -95,6 +96,7 @@ Use this when testing the current local MyIDE build by hand.
 - Runtime controls are grouped clearly, and unsupported controls report blockers plainly.
 - Runtime pick/inspect produces a grounded runtime trace instead of an empty or invented provenance card.
 - Runtime pick can focus at least one grounded source context such as donor asset or donor evidence.
+- The strongest current local-runtime proof should show zero observed upstream static-image requests in the bounded slice.
 - For one grounded static Mystery Garden runtime image source, the shell can create a project-local override and clear it again.
 - When the current runtime slice resolves that source through the bounded local mirror, the shell should also show the grounded local mirror file path.
 - Runtime Mode now also shows the current launch/reload resource-map record when one has been captured.
@@ -115,7 +117,8 @@ Use this when testing the current local MyIDE build by hand.
   - there is still no captured full local donor runtime package for `project_001`
   - Runtime Mode can prefer a bounded local runtime mirror on this machine, but that is still not the same as a full captured local donor bundle
   - the bounded runtime override slice only works when the current runtime trace exposes a grounded static image URL and the chosen donor asset matches that file type
-  - the current local-mirror override path now has a real request map, but it still does not confirm a reload-time hit for the mirrored static candidate, so that part remains partially blocked
+  - the current local-mirror override path now has a real request map, the strongest current proof shows zero observed upstream static-image requests, and only one unresolved upstream bootstrap request remains at `https://cdn.bgaming-network.com/html/MysteryGarden/bundle.js`
+  - the mirrored static override candidate still does not confirm a reload-time hit, so that part remains partially blocked
   - pause/resume/step only work when the embedded donor runtime exposes a stable ticker-like hook; otherwise the shell reports that blocker plainly
   - only `project_001` is supported
   - only supported local donor image files are importable

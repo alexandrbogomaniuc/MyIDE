@@ -42,6 +42,12 @@ interface RuntimeSmokePayload {
   runtimeObservedResourceCount?: number;
   runtimeResourceMapCount?: number;
   runtimeResourceLatestRequestUrl?: string | null;
+  runtimeCoverageLocalStaticCount?: number;
+  runtimeCoverageUpstreamStaticCount?: number;
+  runtimeCoverageUnresolvedUpstreamCount?: number;
+  runtimeSpinAttempted?: boolean;
+  runtimeSpinSucceeded?: boolean;
+  runtimeSpinBlocked?: string | null;
   runtimeOverrideEligible?: boolean;
   runtimeOverrideSourceUrl?: string | null;
   runtimeOverrideRelativePath?: string | null;
@@ -259,6 +265,7 @@ async function main(): Promise<void> {
   } else {
     assert.ok(Number(payload.runtimeObservedResourceCount ?? 0) > 0, "Runtime trace did not capture any grounded runtime-loaded static resources.");
   }
+  assert.equal(payload.runtimeSpinAttempted, true, "Runtime smoke did not attempt the bounded gameplay action.");
   assert.equal(payload.runtimeOverrideEligible, true, "Runtime trace did not expose an override-eligible grounded static asset.");
   assert.ok(typeof payload.runtimeOverrideSourceUrl === "string" && payload.runtimeOverrideSourceUrl.length > 0, "Runtime override source URL is missing.");
   assert.equal(payload.runtimeOverrideCreated, true, "Runtime override creation did not succeed.");
@@ -302,6 +309,12 @@ async function main(): Promise<void> {
   }
   if (payload.runtimeResourceLatestRequestUrl) {
     console.log(`Runtime latest request: ${payload.runtimeResourceLatestRequestUrl}`);
+  }
+  if (payload.runtimeCoverageLocalStaticCount != null || payload.runtimeCoverageUpstreamStaticCount != null) {
+    console.log(`Runtime static coverage: local=${payload.runtimeCoverageLocalStaticCount ?? 0} upstream=${payload.runtimeCoverageUpstreamStaticCount ?? 0} unresolved=${payload.runtimeCoverageUnresolvedUpstreamCount ?? 0}`);
+  }
+  if (payload.runtimeSpinBlocked) {
+    console.log(`Runtime spin blocker: ${payload.runtimeSpinBlocked}`);
   }
   if (payload.runtimeOverrideBlocked) {
     console.log(`Runtime override blocker: ${payload.runtimeOverrideBlocked}`);

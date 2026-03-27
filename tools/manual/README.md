@@ -13,29 +13,30 @@ The shell now shows a read-only VABS status panel for the selected project, but 
 ## Recommended Tester Flow
 1. Run `npm run manual:status` for a quick LOCAL vs PUBLIC vs HANDOFF check.
 2. Run `npm run manual:prepare:project_001` to reset, sync, and validate the `project_001` baseline before testing.
-3. Run `npm run donor-assets:index:project_001` before opening the shell if you want to test donor import in Scene Mode.
-4. Launch the shell with `npm run dev`.
-5. Open `project_001` in Project Browser.
-6. In Runtime Mode, use `Launch Runtime`, `Reload Runtime`, `Click To Start`, `Spin / Trigger`, and `Pick / Inspect` as the first donor workflow path.
-7. After a runtime pick, use the runtime bridge buttons to focus donor asset, donor evidence, or related compose context when those are grounded.
-8. If the runtime trace says the current source is override-eligible, use `Create Override`, let Runtime Mode reload, and confirm either:
+3. Run `npm run runtime:harvest:project_001` if you want the strongest current local-runtime mirror coverage before opening the shell.
+4. Run `npm run donor-assets:index:project_001` before opening the shell if you want to test donor import in Scene Mode.
+5. Launch the shell with `npm run dev`.
+6. Open `project_001` in Project Browser.
+7. In Runtime Mode, use `Launch Runtime`, `Reload Runtime`, `Click To Start`, `Spin / Trigger`, and `Pick / Inspect` as the first donor workflow path.
+8. After a runtime pick, use the runtime bridge buttons to focus donor asset, donor evidence, or related compose context when those are grounded.
+9. If the runtime trace says the current source is override-eligible, use `Create Override`, let Runtime Mode reload, and confirm either:
    - the active override card shows a runtime hit, or
    - the shell reports the current local-mirror override blocker plainly
-9. Use the runtime resource-map record in the inspector to confirm the current launch/reload cycle actually requested the traced source when that evidence exists.
-10. Use `Clear Override` when you want to restore the original runtime asset.
-11. Use `Show Runtime Note` or `Show Init Response` if you want to jump back to the runtime evidence behind the current runtime slice.
-12. Switch to Compose Mode when you want donor image composition instead of live runtime inspection.
-13. Scroll the left column down if you need to inspect **Donor Assets & Evidence**.
-14. Choose a donor import target layer, then drag one supported donor image into empty canvas space if you want to test donor composition.
-15. If both `png` and `webp` donor assets are present, drag one of each to prove the stronger bounded import slice.
-16. Drag one donor image over an existing editable canvas object if you want to test direct donor-backed replacement, or use **Replace Selected Object** for the bounded button path.
-17. Use a marquee box or `Shift`/`Cmd` selection to build a small multi-object composition.
-18. Try one align or distribute action from the editor toolbar.
-19. Select a donor-backed image and use its bottom-right resize handle if you want to test bounded direct manipulation.
-20. Use **Show Asset In Palette**, **Show Evidence**, or **Open Runtime Context** from the donor summary if you want to trace a donor-backed object back to source context quickly.
-21. If you hit a bug, run `npm run manual:bug-bundle` to create a timestamped folder outside the repo with a prefilled bug note, current context, and an `attachments/` folder.
-22. If you only need a quick paste-friendly text block, run `npm run manual:bug-context`.
-23. Use `npm run manual:reset:project_001` again when you want to clean up after a session without running the full prepare flow.
+10. Use the runtime resource-map record in the inspector to confirm the current launch/reload cycle actually requested the traced source when that evidence exists. The strongest current proof shows zero observed upstream static-image requests and one remaining unresolved upstream bootstrap `bundle.js` request.
+11. Use `Clear Override` when you want to restore the original runtime asset.
+12. Use `Show Runtime Note` or `Show Init Response` if you want to jump back to the runtime evidence behind the current runtime slice.
+13. Switch to Compose Mode when you want donor image composition instead of live runtime inspection.
+14. Scroll the left column down if you need to inspect **Donor Assets & Evidence**.
+15. Choose a donor import target layer, then drag one supported donor image into empty canvas space if you want to test donor composition.
+16. If both `png` and `webp` donor assets are present, drag one of each to prove the stronger bounded import slice.
+17. Drag one donor image over an existing editable canvas object if you want to test direct donor-backed replacement, or use **Replace Selected Object** for the bounded button path.
+18. Use a marquee box or `Shift`/`Cmd` selection to build a small multi-object composition.
+19. Try one align or distribute action from the editor toolbar.
+20. Select a donor-backed image and use its bottom-right resize handle if you want to test bounded direct manipulation.
+21. Use **Show Asset In Palette**, **Show Evidence**, or **Open Runtime Context** from the donor summary if you want to trace a donor-backed object back to source context quickly.
+22. If you hit a bug, run `npm run manual:bug-bundle` to create a timestamped folder outside the repo with a prefilled bug note, current context, and an `attachments/` folder.
+23. If you only need a quick paste-friendly text block, run `npm run manual:bug-context`.
+24. Use `npm run manual:reset:project_001` again when you want to clean up after a session without running the full prepare flow.
 
 ## Commands
 - `npm run manual:status`
