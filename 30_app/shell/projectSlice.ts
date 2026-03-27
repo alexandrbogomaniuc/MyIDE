@@ -73,6 +73,29 @@ export interface DonorAssetCatalog {
   assets: DonorAssetItem[];
 }
 
+export interface RuntimeLaunchStatus {
+  projectId: string;
+  availability: "public-demo" | "blocked";
+  launchSurface: "integrated-remote-runtime" | "blocked";
+  localRuntimePackageAvailable: boolean;
+  blocker: string | null;
+  entryUrl: string | null;
+  resolvedRuntimeHost: string | null;
+  captureSessionId: string | null;
+  evidenceIds: string[];
+  sourcePaths: string[];
+  availableActions: string[];
+  roundId: string | null;
+  currencyCode: string | null;
+  wrapperVersion: string | null;
+  buildVersion: string | null;
+  gameVersion: string | null;
+  pixiVersion: string | null;
+  spineVersion: string | null;
+  observedAssetGroups: string[];
+  notes: string[];
+}
+
 export interface ProjectSliceBundle {
   workspace: WorkspaceSliceBundle;
   selectedProjectId: string;
@@ -92,6 +115,7 @@ export interface ProjectSliceBundle {
     mockedGameState: JsonObject;
     mockedLastAction: JsonObject;
   };
+  runtimeLaunch: RuntimeLaunchStatus | null;
 }
 
 const workspaceRoot = path.resolve(__dirname, "../../..");
@@ -99,6 +123,21 @@ const replayProjectRoot = path.join(workspaceRoot, "40_projects", "project_001")
 const importArtifactPath = path.join(replayProjectRoot, "imports", "mystery-garden-import.json");
 const donorEvidenceRoot = path.join(workspaceRoot, "10_donors", "donor_001_mystery_garden", "evidence");
 const evidenceHashesPath = path.join(donorEvidenceRoot, "HASHES.csv");
+const donorRuntimeSessionId = "MG-CS-20260320-LIVE-A";
+const donorRuntimeSessionRoot = path.join(donorEvidenceRoot, "capture_sessions", donorRuntimeSessionId);
+const donorRuntimeReadmePath = path.join(donorRuntimeSessionRoot, "README.md");
+const donorRuntimeObservationPath = path.join(
+  donorRuntimeSessionRoot,
+  "MG-EV-20260320-LIVE-A-006__runtime_observation_notes.md"
+);
+const donorRuntimeInitResponsePath = path.join(
+  donorEvidenceRoot,
+  "local_only",
+  "capture_sessions",
+  donorRuntimeSessionId,
+  "downloads",
+  "MG-EV-20260320-LIVE-A-005__runtime_init_response.json"
+);
 
 export function getProjectSlicePaths(): readonly string[] {
   return [
@@ -425,6 +464,148 @@ async function loadDonorAssetCatalog(selectedProjectId: string): Promise<DonorAs
   };
 }
 
+function extractBacktickValues(raw: string): string[] {
+  return [...raw.matchAll(/`([^`]+)`/g)]
+    .map((match) => match[1]?.trim() ?? "")
+    .filter((value) => value.length > 0);
+}
+
+function extractSingleMatch(raw: string, pattern: RegExp): string | null {
+  const match = raw.match(pattern);
+  const value = match?.[1]?.trim() ?? "";
+  return value.length > 0 ? value : null;
+}
+
+async function buildRuntimeLaunchStatus(selectedProjectId: string): Promise<RuntimeLaunchStatus | null> {
+  if (selectedProjectId !== "project_001") {
+    return null;
+  }
+
+  const [sessionReadme, observationNotes, initResponse] = await Promise.all([
+    readOptionalTextFile(donorRuntimeReadmePath),
+    readOptionalTextFile(donorRuntimeObservationPath),
+    readOptionalJsonFile(donorRuntimeInitResponsePath)
+  ]);
+
+  if (!sessionReadme && !observationNotes && !initResponse) {
+    return {
+      projectId: selectedProjectId,
+      availability: "blocked",
+      launchSurface: "blocked",
+      localRuntimePackageAvailable: false,
+      blocker: "No grounded donor runtime entry is indexed for this project yet.",
+      entryUrl: null,
+      resolvedRuntimeHost: null,
+      captureSessionId: null,
+      evidenceIds: [],
+      sourcePaths: [],
+      availableActions: [],
+      roundId: null,
+      currencyCode: null,
+      wrapperVersion: null,
+      buildVersion: null,
+      gameVersion: null,
+      pixiVersion: null,
+      spineVersion: null,
+      observedAssetGroups: [],
+      notes: [
+        "The shell has no grounded donor runtime entry to launch for this project yet."
+      ]
+    };
+  }
+
+  const entryUrl = extractSingleMatch(sessionReadme ?? "", /Entry URL used:\s*`([^`]+)`/);
+  const resolvedRuntimeHost = extractSingleMatch(sessionReadme ?? "", /Observed resolved runtime host:\s*`([^`]+)`/)
+    ?? extractSingleMatch(observationNotes ?? "", /Resolved runtime host:\s*`([^`]+)`/);
+  const availableActions = Array.isArray((initResponse?.flow as JsonObject | undefined)?.available_actions)
+    ? ((initResponse?.flow as JsonObject).available_actions as JsonValue[])
+      .filter((value): value is string => typeof value === "string")
+    : [];
+  const roundIdValue = (initResponse?.flow as JsonObject | undefined)?.round_id;
+  const roundId = typeof roundIdValue === "number" || typeof roundIdValue === "string"
+    ? String(roundIdValue)
+    : null;
+  const currencyCode = typeof (((initResponse?.options as JsonObject | undefined)?.currency as JsonObject | undefined)?.code) === "string"
+    ? String((((initResponse?.options as JsonObject).currency as JsonObject).code))
+    : null;
+  const wrapperVersion = extractSingleMatch(observationNotes ?? "", /wrapper\s+`([^`]+)`/);
+  const buildVersion = extractSingleMatch(observationNotes ?? "", /build\s+`([^`]+)`/);
+  const gameVersion = extractSingleMatch(observationNotes ?? "", /`Mystery Garden\s+([^`]+)`/);
+  const pixiVersion = extractSingleMatch(observationNotes ?? "", /PixiJS\s+`([^`]+)`/);
+  const spineVersion = extractSingleMatch(observationNotes ?? "", /Spine package\s+`([^`]+)`/);
+  const observedAssetGroups = observationNotes
+    ? Array.from(new Set(extractBacktickValues(
+      observationNotes
+        .split(/\r?\n/)
+        .find((line) => line.includes("Visible network asset names")) ?? ""
+    ))).slice(0, 20)
+    : [];
+  const evidenceIds = [
+    "MG-EV-20260320-LIVE-A-004",
+    "MG-EV-20260320-LIVE-A-005",
+    "MG-EV-20260320-LIVE-A-006"
+  ];
+  const notes = [
+    "Runtime Mode launches the recorded public donor runtime URL inside the shell when available.",
+    "No local donor HTML/runtime package is present under the project_001 donor local-only roots."
+  ];
+
+  if (!entryUrl) {
+    return {
+      projectId: selectedProjectId,
+      availability: "blocked",
+      launchSurface: "blocked",
+      localRuntimePackageAvailable: false,
+      blocker: "The donor runtime session is documented, but no grounded launch URL is indexed for this project.",
+      entryUrl: null,
+      resolvedRuntimeHost,
+      captureSessionId: donorRuntimeSessionId,
+      evidenceIds,
+      sourcePaths: [
+        path.relative(workspaceRoot, donorRuntimeReadmePath),
+        path.relative(workspaceRoot, donorRuntimeObservationPath)
+      ],
+      availableActions,
+      roundId,
+      currencyCode,
+      wrapperVersion,
+      buildVersion,
+      gameVersion,
+      pixiVersion,
+      spineVersion,
+      observedAssetGroups,
+      notes
+    };
+  }
+
+  return {
+    projectId: selectedProjectId,
+    availability: "public-demo",
+    launchSurface: "integrated-remote-runtime",
+    localRuntimePackageAvailable: false,
+    blocker: "No local donor runtime package is captured for project_001 yet; Runtime Mode uses the recorded public donor demo entry instead.",
+    entryUrl,
+    resolvedRuntimeHost,
+    captureSessionId: donorRuntimeSessionId,
+    evidenceIds,
+    sourcePaths: [
+      path.relative(workspaceRoot, donorRuntimeReadmePath),
+      path.relative(workspaceRoot, donorRuntimeObservationPath),
+      path.relative(workspaceRoot, donorRuntimeInitResponsePath)
+    ],
+    availableActions,
+    roundId,
+    currencyCode,
+    wrapperVersion,
+    buildVersion,
+    gameVersion,
+    pixiVersion,
+    spineVersion,
+    observedAssetGroups,
+    notes
+  };
+}
+
 function getObjectArray(value: JsonValue | undefined): JsonObject[] {
   if (!Array.isArray(value)) {
     return [];
@@ -485,6 +666,7 @@ export async function loadProjectSlice(requestedProjectId?: string): Promise<Pro
   const selectedProject = workspace.projects.find((entry) => entry.projectId === selectedProjectId) ?? null;
   const evidenceCatalog = await loadDonorEvidenceCatalog(importArtifact);
   const donorAssetCatalog = await loadDonorAssetCatalog(selectedProjectId);
+  const runtimeLaunch = await buildRuntimeLaunchStatus(selectedProjectId);
   const editableProject = await loadSelectedEditableProject(workspace, selectedProjectId);
   const vabs = selectedProject
     ? await buildProjectVabsStatus({
@@ -516,6 +698,7 @@ export async function loadProjectSlice(requestedProjectId?: string): Promise<Pro
     runtime: {
       mockedGameState,
       mockedLastAction
-    }
+    },
+    runtimeLaunch
   };
 }

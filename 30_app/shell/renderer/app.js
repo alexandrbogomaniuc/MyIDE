@@ -2,6 +2,7 @@ const state = {
   bundle: null,
   selectedProjectId: null,
   editorData: null,
+  workbenchMode: "runtime",
   selectedObjectId: null,
   selectedObjectIds: [],
   history: null,
@@ -42,6 +43,32 @@ const state = {
     dragPayload: null,
     importTargetLayerId: "auto",
     dropIntent: null
+  },
+  runtimeUi: {
+    launched: false,
+    loading: false,
+    ready: false,
+    inspectEnabled: false,
+    lastCommand: null,
+    lastCommandStatus: null,
+    lastError: null,
+    currentUrl: null,
+    pageTitle: null,
+    diagnostics: null,
+    controlSupport: {
+      pause: false,
+      resume: false,
+      step: false
+    },
+    controlBlockers: {
+      pause: null,
+      resume: null,
+      step: null,
+      spin: "Spin is only an observed Space-key behavior so far; no stable runtime action contract is captured yet.",
+      enter: "The live donor runtime still relies on a best-effort real input event to advance the intro."
+    },
+    lastPick: null,
+    lastConsoleEvents: []
   },
   layerIsolation: {
     activeLayerId: null,
@@ -100,6 +127,13 @@ const elements = {
   actionSave: document.getElementById("action-save"),
   actionReloadEditor: document.getElementById("action-reload-editor"),
   editorToolbar: document.getElementById("editor-toolbar"),
+  workbenchModebar: document.getElementById("workbench-modebar"),
+  runtimeToolbar: document.getElementById("runtime-toolbar"),
+  runtimeControlNote: document.getElementById("runtime-control-note"),
+  runtimeWorkbench: document.getElementById("runtime-workbench"),
+  sceneWorkbench: document.getElementById("scene-workbench"),
+  runtimeStatus: document.getElementById("runtime-status"),
+  runtimeWebview: document.getElementById("runtime-webview"),
   dirtyIndicator: document.getElementById("dirty-indicator"),
   viewportIndicator: document.getElementById("viewport-indicator"),
   orderContextIndicator: document.getElementById("order-context-indicator"),
@@ -164,6 +198,15 @@ function isLiveDonorImportSmokeMode() {
   try {
     const search = typeof window.location?.search === "string" ? window.location.search : "";
     return new URLSearchParams(search).get("liveDonorImportSmoke") === "1";
+  } catch {
+    return false;
+  }
+}
+
+function isLiveRuntimeSmokeMode() {
+  try {
+    const search = typeof window.location?.search === "string" ? window.location.search : "";
+    return new URLSearchParams(search).get("liveRuntimeSmoke") === "1";
   } catch {
     return false;
   }
@@ -371,6 +414,20 @@ async function emitLiveDonorImportSmoke(payload) {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.log(`MYIDE_LIVE_DONOR_IMPORT:${JSON.stringify({ status: "fail", error: `live donor import payload serialization failed: ${message}` })}`);
+  }
+}
+
+async function emitLiveRuntimeSmoke(payload) {
+  try {
+    if (window.myideApi && typeof window.myideApi.reportLiveRuntimeSmokeResult === "function") {
+      window.myideApi.reportLiveRuntimeSmokeResult(payload);
+      return;
+    }
+
+    console.log(`MYIDE_LIVE_RUNTIME:${JSON.stringify(payload)}`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.log(`MYIDE_LIVE_RUNTIME:${JSON.stringify({ status: "fail", error: `live runtime payload serialization failed: ${message}` })}`);
   }
 }
 
@@ -591,6 +648,11 @@ async function bootRenderer() {
     return;
   }
 
+  if (isLiveRuntimeSmokeMode()) {
+    await runLiveRuntimeSmoke();
+    return;
+  }
+
   if (isLiveDuplicateDeleteSmokeMode()) {
     await runLiveDuplicateDeleteSmoke();
     return;
@@ -643,6 +705,740 @@ async function waitForRendererCondition(check, description, options = {}) {
   }
 
   throw new Error(`Timed out waiting for ${description}.`);
+}
+
+const runtimeConsolePrefix = "__MYIDE_RUNTIME__";
+
+function getRuntimeLaunchInfo() {
+  const runtimeLaunch = state.bundle?.runtimeLaunch;
+  return runtimeLaunch && typeof runtimeLaunch === "object" ? runtimeLaunch : null;
+}
+
+function getRuntimeWebview() {
+  const webview = elements.runtimeWebview;
+  if (!webview || typeof webview.executeJavaScript !== "function") {
+    return null;
+  }
+
+  return webview;
+}
+
+function canUseRuntimeMode() {
+  const runtimeLaunch = getRuntimeLaunchInfo();
+  return Boolean(runtimeLaunch && runtimeLaunch.entryUrl);
+}
+
+function setWorkbenchMode(mode, options = {}) {
+  const requestedMode = mode === "scene" ? "scene" : "runtime";
+  const nextMode = requestedMode === "runtime" && !canUseRuntimeMode()
+    ? "scene"
+    : requestedMode;
+
+  if (state.workbenchMode === nextMode && !options.force) {
+    return;
+  }
+
+  state.workbenchMode = nextMode;
+  renderAll();
+
+  if (!options.silent) {
+    setPreviewStatus(nextMode === "runtime"
+      ? "Runtime Mode is active. Launch the recorded donor runtime to work against the live surface."
+      : "Scene Mode is active. Edit the internal scene while donor sources stay read-only.");
+  }
+
+  if (nextMode === "runtime" && state.runtimeUi.launched) {
+    void refreshRuntimeDiagnostics();
+  }
+}
+
+function trimRuntimeText(value, maxLength = 160) {
+  const normalized = String(value ?? "").replace(/\s+/g, " ").trim();
+  if (normalized.length <= maxLength) {
+    return normalized;
+  }
+
+  return `${normalized.slice(0, Math.max(0, maxLength - 1))}…`;
+}
+
+function buildRuntimeGuestBridgeScript() {
+  return String.raw`(() => {
+  const PREFIX = "__MYIDE_RUNTIME__";
+  const state = window.__MYIDE_RUNTIME_BRIDGE_STATE__ || {
+    inspectEnabled: false,
+    lastPick: null,
+    paused: false
+  };
+  window.__MYIDE_RUNTIME_BRIDGE_STATE__ = state;
+
+  function emit(type, payload) {
+    try {
+      console.log(PREFIX + JSON.stringify({ type, ...payload }));
+    } catch (error) {
+      console.log(PREFIX + JSON.stringify({
+        type: "error",
+        error: error instanceof Error ? error.message : String(error)
+      }));
+    }
+  }
+
+  function safeWindowValue(key) {
+    try {
+      return window[key];
+    } catch {
+      return undefined;
+    }
+  }
+
+  function getPixi() {
+    return typeof window.PIXI === "object" && window.PIXI ? window.PIXI : null;
+  }
+
+  function summarizeTexture(texture) {
+    if (!texture || typeof texture !== "object") {
+      return null;
+    }
+
+    const baseTexture = texture.baseTexture && typeof texture.baseTexture === "object"
+      ? texture.baseTexture
+      : null;
+    const resource = baseTexture && baseTexture.resource && typeof baseTexture.resource === "object"
+      ? baseTexture.resource
+      : null;
+    const frame = texture.frame && typeof texture.frame === "object"
+      ? texture.frame
+      : null;
+    const cacheId = Array.isArray(texture.textureCacheIds) && texture.textureCacheIds.length > 0
+      ? String(texture.textureCacheIds[0] ?? "")
+      : null;
+    const resourceUrl = resource && typeof resource.url === "string"
+      ? resource.url
+      : (baseTexture && typeof baseTexture.imageUrl === "string" ? baseTexture.imageUrl : null);
+
+    return {
+      cacheId: cacheId || null,
+      resourceUrl: resourceUrl || null,
+      frame: frame
+        ? {
+            x: Number.isFinite(frame.x) ? Math.round(frame.x) : null,
+            y: Number.isFinite(frame.y) ? Math.round(frame.y) : null,
+            width: Number.isFinite(frame.width) ? Math.round(frame.width) : null,
+            height: Number.isFinite(frame.height) ? Math.round(frame.height) : null
+          }
+        : null
+    };
+  }
+
+  function summarizeDisplayObject(displayObject) {
+    if (!displayObject || typeof displayObject !== "object") {
+      return null;
+    }
+
+    const texture = summarizeTexture(displayObject.texture);
+    return {
+      id: typeof displayObject.id === "string" ? displayObject.id : null,
+      name: typeof displayObject.name === "string" ? displayObject.name : null,
+      label: typeof displayObject.label === "string" ? displayObject.label : null,
+      constructorName: displayObject.constructor && displayObject.constructor.name ? String(displayObject.constructor.name) : null,
+      zIndex: Number.isFinite(displayObject.zIndex) ? Number(displayObject.zIndex) : null,
+      texture
+    };
+  }
+
+  function collectRuntimeCandidates() {
+    const keys = Object.getOwnPropertyNames(window).slice(0, 512);
+    const candidates = [];
+
+    for (const key of keys) {
+      const value = safeWindowValue(key);
+      if (!value || typeof value !== "object") {
+        continue;
+      }
+
+      const stage = value.stage;
+      const renderer = value.renderer;
+      if (!stage || typeof stage !== "object" || !renderer || typeof renderer !== "object") {
+        continue;
+      }
+
+      const view = renderer.view && typeof renderer.view === "object" ? renderer.view : null;
+      const childCount = Array.isArray(stage.children) ? stage.children.length : null;
+      candidates.push({
+        key,
+        object: value,
+        summary: {
+          key,
+          childCount,
+          viewWidth: Number.isFinite(view?.width) ? Number(view.width) : null,
+          viewHeight: Number.isFinite(view?.height) ? Number(view.height) : null
+        }
+      });
+    }
+
+    candidates.sort((left, right) => (right.summary.childCount ?? 0) - (left.summary.childCount ?? 0));
+    return candidates.slice(0, 8);
+  }
+
+  function getTickerTarget() {
+    const candidates = collectRuntimeCandidates();
+    for (const candidate of candidates) {
+      const ticker = candidate.object && candidate.object.ticker;
+      if (ticker && typeof ticker.stop === "function" && typeof ticker.start === "function") {
+        return {
+          label: candidate.summary.key,
+          ticker
+        };
+      }
+    }
+
+    const pixi = getPixi();
+    const sharedTicker = pixi && pixi.Ticker && pixi.Ticker.shared;
+    if (sharedTicker && typeof sharedTicker.stop === "function" && typeof sharedTicker.start === "function") {
+      return {
+        label: "PIXI.Ticker.shared",
+        ticker: sharedTicker
+      };
+    }
+
+    return null;
+  }
+
+  function buildSupport() {
+    const tickerTarget = getTickerTarget();
+    const pauseResumeBlocked = tickerTarget ? null : "No exposed Pixi ticker or application handle is available in the live donor runtime.";
+    const stepBlocked = tickerTarget && typeof tickerTarget.ticker.update === "function"
+      ? null
+      : "No stable ticker update hook is exposed for single-step runtime control.";
+    return {
+      pause: Boolean(tickerTarget),
+      resume: Boolean(tickerTarget),
+      step: Boolean(tickerTarget && typeof tickerTarget.ticker.update === "function"),
+      blockers: {
+        pause: pauseResumeBlocked,
+        resume: pauseResumeBlocked,
+        step: stepBlocked
+      }
+    };
+  }
+
+  function getCanvasPoint(canvas, clientX, clientY) {
+    if (!canvas || typeof canvas.getBoundingClientRect !== "function") {
+      return null;
+    }
+
+    const rect = canvas.getBoundingClientRect();
+    if (!rect || rect.width <= 0 || rect.height <= 0) {
+      return null;
+    }
+
+    const internalWidth = Number.isFinite(canvas.width) ? Number(canvas.width) : rect.width;
+    const internalHeight = Number.isFinite(canvas.height) ? Number(canvas.height) : rect.height;
+    return {
+      x: Math.round((clientX - rect.left) * (internalWidth / rect.width)),
+      y: Math.round((clientY - rect.top) * (internalHeight / rect.height))
+    };
+  }
+
+  function collectDisplayHits(displayObject, point, hits, depth) {
+    if (!displayObject || typeof displayObject !== "object" || hits.length >= 10 || depth > 32) {
+      return;
+    }
+
+    const children = Array.isArray(displayObject.children) ? displayObject.children : [];
+    for (let index = children.length - 1; index >= 0; index -= 1) {
+      collectDisplayHits(children[index], point, hits, depth + 1);
+    }
+
+    if (displayObject.visible === false || typeof displayObject.getBounds !== "function") {
+      return;
+    }
+
+    try {
+      const bounds = displayObject.getBounds();
+      if (
+        bounds
+        && Number.isFinite(bounds.x)
+        && Number.isFinite(bounds.y)
+        && Number.isFinite(bounds.width)
+        && Number.isFinite(bounds.height)
+        && point.x >= bounds.x
+        && point.x <= bounds.x + bounds.width
+        && point.y >= bounds.y
+        && point.y <= bounds.y + bounds.height
+      ) {
+        hits.push({
+          ...summarizeDisplayObject(displayObject),
+          bounds: {
+            x: Math.round(bounds.x),
+            y: Math.round(bounds.y),
+            width: Math.round(bounds.width),
+            height: Math.round(bounds.height)
+          }
+        });
+      }
+    } catch {
+      // Bound checks are best-effort only for live runtime inspection.
+    }
+  }
+
+  function pickAtPoint(clientX, clientY) {
+    const target = document.elementFromPoint(clientX, clientY);
+    const canvas = target && typeof target.closest === "function"
+      ? (target.closest("canvas") || (target.tagName === "CANVAS" ? target : null))
+      : (target && target.tagName === "CANVAS" ? target : null);
+    const pixi = getPixi();
+    const candidates = collectRuntimeCandidates();
+    const canvasPoint = canvas ? getCanvasPoint(canvas, clientX, clientY) : null;
+    const displayHits = [];
+
+    if (canvasPoint && candidates.length > 0) {
+      collectDisplayHits(candidates[0].object.stage, canvasPoint, displayHits, 0);
+    }
+
+    const payload = {
+      title: document.title || null,
+      href: location.href,
+      clientX: Math.round(clientX),
+      clientY: Math.round(clientY),
+      targetTag: target && target.tagName ? String(target.tagName).toLowerCase() : null,
+      targetId: target && typeof target.id === "string" && target.id.length > 0 ? target.id : null,
+      targetClassName: target && typeof target.className === "string" ? target.className : null,
+      canvasDetected: Boolean(canvas),
+      canvasPoint,
+      canvasSize: canvas ? {
+        width: Number.isFinite(canvas.width) ? Number(canvas.width) : null,
+        height: Number.isFinite(canvas.height) ? Number(canvas.height) : null
+      } : null,
+      pixiDetected: Boolean(pixi),
+      pixiVersion: pixi && typeof pixi.VERSION === "string" ? pixi.VERSION : null,
+      candidateApps: candidates.map((candidate) => candidate.summary),
+      topDisplayObject: displayHits[0] ?? null,
+      displayHitCount: displayHits.length
+    };
+
+    state.lastPick = payload;
+    emit("pick", payload);
+    return payload;
+  }
+
+  function setInspectEnabled(flag) {
+    state.inspectEnabled = Boolean(flag);
+    emit("inspect", { enabled: state.inspectEnabled });
+    return { enabled: state.inspectEnabled };
+  }
+
+  function pause() {
+    const target = getTickerTarget();
+    if (!target) {
+      return { ok: false, blocked: buildSupport().blockers.pause };
+    }
+
+    try {
+      target.ticker.stop();
+      state.paused = true;
+      emit("control", { action: "pause", ok: true, label: target.label });
+      return { ok: true, label: target.label };
+    } catch (error) {
+      return { ok: false, blocked: error instanceof Error ? error.message : String(error) };
+    }
+  }
+
+  function resume() {
+    const target = getTickerTarget();
+    if (!target) {
+      return { ok: false, blocked: buildSupport().blockers.resume };
+    }
+
+    try {
+      target.ticker.start();
+      state.paused = false;
+      emit("control", { action: "resume", ok: true, label: target.label });
+      return { ok: true, label: target.label };
+    } catch (error) {
+      return { ok: false, blocked: error instanceof Error ? error.message : String(error) };
+    }
+  }
+
+  function step() {
+    const target = getTickerTarget();
+    if (!target || typeof target.ticker.update !== "function") {
+      return { ok: false, blocked: buildSupport().blockers.step };
+    }
+
+    try {
+      target.ticker.update(performance.now());
+      emit("control", { action: "step", ok: true, label: target.label });
+      return { ok: true, label: target.label };
+    } catch (error) {
+      return { ok: false, blocked: error instanceof Error ? error.message : String(error) };
+    }
+  }
+
+  function getStatus() {
+    const candidates = collectRuntimeCandidates();
+    const support = buildSupport();
+    return {
+      href: location.href,
+      title: document.title || null,
+      canvasCount: document.querySelectorAll("canvas").length,
+      pixiDetected: Boolean(getPixi()),
+      pixiVersion: getPixi() && typeof getPixi().VERSION === "string" ? getPixi().VERSION : null,
+      candidateApps: candidates.map((candidate) => candidate.summary),
+      inspectEnabled: state.inspectEnabled,
+      paused: state.paused,
+      support
+    };
+  }
+
+  window.addEventListener("pointerdown", (event) => {
+    if (!state.inspectEnabled) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    pickAtPoint(event.clientX, event.clientY);
+  }, true);
+
+  window.__MYIDE_RUNTIME_BRIDGE__ = {
+    getStatus,
+    setInspectEnabled,
+    pickAtPoint,
+    pause,
+    resume,
+    step
+  };
+
+  const status = getStatus();
+  emit("ready", status);
+  return status;
+})();`;
+}
+
+function recordRuntimeConsoleEvent(entry) {
+  state.runtimeUi.lastConsoleEvents = [
+    entry,
+    ...state.runtimeUi.lastConsoleEvents
+  ].slice(0, 8);
+}
+
+function applyRuntimeBridgeStatus(status) {
+  state.runtimeUi.ready = true;
+  state.runtimeUi.diagnostics = status;
+  state.runtimeUi.currentUrl = typeof status?.href === "string" ? status.href : state.runtimeUi.currentUrl;
+  state.runtimeUi.pageTitle = typeof status?.title === "string" ? status.title : state.runtimeUi.pageTitle;
+  const support = status?.support ?? {};
+  state.runtimeUi.controlSupport = {
+    pause: Boolean(support.pause),
+    resume: Boolean(support.resume),
+    step: Boolean(support.step)
+  };
+  state.runtimeUi.controlBlockers = {
+    ...state.runtimeUi.controlBlockers,
+    ...(support.blockers && typeof support.blockers === "object" ? support.blockers : {})
+  };
+}
+
+function handleRuntimeConsoleMessage(message) {
+  if (typeof message !== "string" || !message.startsWith(runtimeConsolePrefix)) {
+    return false;
+  }
+
+  const rawPayload = message.slice(runtimeConsolePrefix.length);
+  let payload = null;
+  try {
+    payload = JSON.parse(rawPayload);
+  } catch {
+    return false;
+  }
+
+  recordRuntimeConsoleEvent(payload);
+
+  if (payload.type === "ready") {
+    applyRuntimeBridgeStatus(payload);
+    renderAll();
+    setPreviewStatus("Runtime bridge attached. Use Pick / Inspect to capture the strongest grounded live trace.");
+    return true;
+  }
+
+  if (payload.type === "inspect") {
+    state.runtimeUi.inspectEnabled = Boolean(payload.enabled);
+    renderAll();
+    return true;
+  }
+
+  if (payload.type === "pick") {
+    state.runtimeUi.lastPick = payload;
+    applyRuntimeBridgeStatus({
+      ...state.runtimeUi.diagnostics,
+      href: payload.href ?? state.runtimeUi.currentUrl,
+      title: payload.title ?? state.runtimeUi.pageTitle,
+      support: state.runtimeUi.diagnostics?.support ?? null
+    });
+    renderAll();
+    const targetSummary = payload.topDisplayObject?.name
+      ?? payload.topDisplayObject?.label
+      ?? payload.targetTag
+      ?? "runtime target";
+    setPreviewStatus(`Picked ${targetSummary} in Runtime Mode. The inspector now shows the strongest grounded source trace available.`);
+    return true;
+  }
+
+  if (payload.type === "control") {
+    state.runtimeUi.lastCommandStatus = payload;
+    state.runtimeUi.lastCommand = payload.action ?? null;
+    if (payload.ok === false && payload.blocked) {
+      state.runtimeUi.controlBlockers[payload.action] = payload.blocked;
+      setPreviewStatus(payload.blocked);
+    } else if (payload.action) {
+      setPreviewStatus(`Runtime ${payload.action} executed through ${payload.label ?? "the embedded runtime hook"}.`);
+    }
+    renderAll();
+    return true;
+  }
+
+  if (payload.type === "error" && payload.error) {
+    state.runtimeUi.lastError = String(payload.error);
+    renderAll();
+    return true;
+  }
+
+  return true;
+}
+
+async function installRuntimeBridge() {
+  const webview = getRuntimeWebview();
+  if (!webview) {
+    return null;
+  }
+
+  try {
+    const status = await webview.executeJavaScript(buildRuntimeGuestBridgeScript(), true);
+    if (status && typeof status === "object") {
+      applyRuntimeBridgeStatus(status);
+      renderAll();
+    }
+    return status;
+  } catch (error) {
+    state.runtimeUi.lastError = error instanceof Error ? error.message : String(error);
+    renderAll();
+    return null;
+  }
+}
+
+async function callRuntimeBridge(method, ...args) {
+  const webview = getRuntimeWebview();
+  if (!webview) {
+    return { ok: false, blocked: "The Runtime Mode webview is not available in this renderer session." };
+  }
+
+  const serializedMethod = JSON.stringify(String(method));
+  const serializedArgs = JSON.stringify(args);
+  try {
+    return await webview.executeJavaScript(`(() => {
+      const bridge = window.__MYIDE_RUNTIME_BRIDGE__;
+      if (!bridge || typeof bridge[${serializedMethod}] !== "function") {
+        return { ok: false, blocked: "Runtime bridge is not ready yet." };
+      }
+      return bridge[${serializedMethod}](...${serializedArgs});
+    })()`, true);
+  } catch (error) {
+    return {
+      ok: false,
+      blocked: error instanceof Error ? error.message : String(error)
+    };
+  }
+}
+
+async function refreshRuntimeDiagnostics() {
+  const result = await callRuntimeBridge("getStatus");
+  if (result && typeof result === "object" && !Array.isArray(result)) {
+    applyRuntimeBridgeStatus(result);
+    renderAll();
+  }
+}
+
+function setRuntimeLaunched(launched) {
+  state.runtimeUi.launched = Boolean(launched);
+  state.runtimeUi.loading = Boolean(launched);
+  state.runtimeUi.ready = false;
+  state.runtimeUi.lastError = null;
+  state.runtimeUi.lastPick = null;
+  state.runtimeUi.currentUrl = launched ? getRuntimeLaunchInfo()?.entryUrl ?? null : null;
+  state.runtimeUi.pageTitle = null;
+  state.runtimeUi.diagnostics = null;
+}
+
+async function handleRuntimeLaunch() {
+  const runtimeLaunch = getRuntimeLaunchInfo();
+  const webview = getRuntimeWebview();
+  if (!runtimeLaunch?.entryUrl || !webview) {
+    setPreviewStatus(runtimeLaunch?.blocker ?? "Runtime Mode is blocked because no grounded donor runtime entry is indexed.");
+    return false;
+  }
+
+  setRuntimeLaunched(true);
+  renderAll();
+  setPreviewStatus("Launching the recorded donor runtime inside Runtime Mode.");
+  webview.src = runtimeLaunch.entryUrl;
+  return true;
+}
+
+async function handleRuntimeReload() {
+  const webview = getRuntimeWebview();
+  if (!webview || !state.runtimeUi.launched) {
+    return handleRuntimeLaunch();
+  }
+
+  state.runtimeUi.loading = true;
+  state.runtimeUi.ready = false;
+  state.runtimeUi.lastError = null;
+  renderAll();
+  webview.reload();
+  setPreviewStatus("Reloading the embedded donor runtime.");
+  return true;
+}
+
+function getRuntimeWebviewCenterPoint() {
+  const webview = getRuntimeWebview();
+  if (!webview || typeof webview.getBoundingClientRect !== "function") {
+    return null;
+  }
+
+  const rect = webview.getBoundingClientRect();
+  if (!rect || rect.width <= 0 || rect.height <= 0) {
+    return null;
+  }
+
+  return {
+    x: Math.round(rect.width / 2),
+    y: Math.round(rect.height / 2)
+  };
+}
+
+async function sendRuntimePointerClick() {
+  const webview = getRuntimeWebview();
+  const center = getRuntimeWebviewCenterPoint();
+  if (!webview || !center || typeof webview.sendInputEvent !== "function") {
+    return {
+      ok: false,
+      blocked: "The embedded runtime does not expose a usable input surface for a real click-to-start action in this shell."
+    };
+  }
+
+  webview.focus();
+  webview.sendInputEvent({ type: "mouseMove", x: center.x, y: center.y });
+  webview.sendInputEvent({ type: "mouseDown", x: center.x, y: center.y, button: "left", clickCount: 1 });
+  webview.sendInputEvent({ type: "mouseUp", x: center.x, y: center.y, button: "left", clickCount: 1 });
+  return {
+    ok: true,
+    detail: `Sent a centered real click at ${center.x},${center.y} to the embedded donor runtime.`
+  };
+}
+
+async function sendRuntimeSpaceKey() {
+  const webview = getRuntimeWebview();
+  if (!webview || typeof webview.sendInputEvent !== "function") {
+    return {
+      ok: false,
+      blocked: "The embedded runtime does not expose a usable input surface for an observed Space-key trigger in this shell."
+    };
+  }
+
+  webview.focus();
+  webview.sendInputEvent({ type: "keyDown", keyCode: "Space" });
+  webview.sendInputEvent({ type: "char", keyCode: " " });
+  webview.sendInputEvent({ type: "keyUp", keyCode: "Space" });
+  return {
+    ok: true,
+    detail: "Sent the observed Space-key trigger into the embedded donor runtime. Spin confirmation is still limited to best-effort status in this slice."
+  };
+}
+
+async function handleRuntimeAction(action) {
+  if (action === "launch") {
+    await handleRuntimeLaunch();
+    return;
+  }
+
+  if (action === "reload") {
+    await handleRuntimeReload();
+    return;
+  }
+
+  if (action === "inspect-toggle") {
+    const result = await callRuntimeBridge("setInspectEnabled", !state.runtimeUi.inspectEnabled);
+    state.runtimeUi.inspectEnabled = Boolean(result?.enabled);
+    renderAll();
+    setPreviewStatus(state.runtimeUi.inspectEnabled
+      ? "Runtime pick mode is armed. Click a live runtime target in the embedded viewport."
+      : "Runtime pick mode is off.");
+    return;
+  }
+
+  if (action === "pause" || action === "resume" || action === "step") {
+    const result = await callRuntimeBridge(action);
+    state.runtimeUi.lastCommand = action;
+    state.runtimeUi.lastCommandStatus = result;
+    if (result?.ok) {
+      if (action === "pause") {
+        state.runtimeUi.diagnostics = {
+          ...(state.runtimeUi.diagnostics ?? {}),
+          paused: true
+        };
+      } else if (action === "resume") {
+        state.runtimeUi.diagnostics = {
+          ...(state.runtimeUi.diagnostics ?? {}),
+          paused: false
+        };
+      }
+      setPreviewStatus(`Runtime ${action} executed through the embedded donor runtime bridge.`);
+    } else {
+      state.runtimeUi.controlBlockers[action] = result?.blocked ?? state.runtimeUi.controlBlockers[action];
+      setPreviewStatus(result?.blocked ?? `Runtime ${action} is not available in this donor runtime slice.`);
+    }
+    renderAll();
+    return;
+  }
+
+  if (action === "enter") {
+    const result = await sendRuntimePointerClick();
+    state.runtimeUi.lastCommand = action;
+    state.runtimeUi.lastCommandStatus = result;
+    if (result.ok) {
+      setPreviewStatus(result.detail);
+    } else {
+      state.runtimeUi.controlBlockers.enter = result.blocked;
+      setPreviewStatus(result.blocked);
+    }
+    renderAll();
+    return;
+  }
+
+  if (action === "spin") {
+    const result = await sendRuntimeSpaceKey();
+    state.runtimeUi.lastCommand = action;
+    state.runtimeUi.lastCommandStatus = result;
+    if (result.ok) {
+      setPreviewStatus(result.detail);
+    } else {
+      state.runtimeUi.controlBlockers.spin = result.blocked;
+      setPreviewStatus(result.blocked);
+    }
+    renderAll();
+    return;
+  }
+
+  if (action === "focus-note") {
+    focusEvidenceItem("MG-EV-20260320-LIVE-A-006", { selectedObjectOnly: false });
+    setPreviewStatus("Focused the live donor runtime observation note in the Donor Evidence panel.");
+    return;
+  }
+
+  if (action === "focus-init") {
+    focusEvidenceItem("MG-EV-20260320-LIVE-A-005", { selectedObjectOnly: false });
+    setPreviewStatus("Focused the live donor runtime init response evidence in the Donor Evidence panel.");
+  }
 }
 
 function clickRendererElement(element, init = {}) {
@@ -805,6 +1601,14 @@ function getCanvasObjectElementById(objectId) {
   return elements.editorCanvas?.querySelector(`[data-canvas-object-id="${objectId}"]`) ?? null;
 }
 
+async function ensureSceneWorkbenchForSmoke(label) {
+  setWorkbenchMode("scene");
+  await waitForRendererCondition(
+    () => state.workbenchMode === "scene" && !elements.sceneWorkbench?.hidden,
+    `${label} scene workbench`
+  );
+}
+
 async function runLivePersistSmoke() {
   const targetProjectId = "project_001";
   const targetObjectId = "node.title";
@@ -863,6 +1667,7 @@ async function runLivePersistSmoke() {
       `${targetProjectId} to load in the renderer`
     );
     baseResult.projectLoaded = true;
+    await ensureSceneWorkbenchForSmoke("live persist smoke");
 
     const objectButton = await waitForRendererCondition(
       () => elements.sceneExplorer?.querySelector(`[data-object-id="${targetObjectId}"]`) ?? null,
@@ -1046,6 +1851,7 @@ async function runLiveDragSmoke() {
       `${targetProjectId} to load in the renderer`
     );
     baseResult.projectLoaded = true;
+    await ensureSceneWorkbenchForSmoke("live drag smoke");
 
     if (isSnapEnabled()) {
       if (!(elements.actionToggleSnap instanceof HTMLButtonElement)) {
@@ -1325,6 +2131,7 @@ async function runLiveCreateDragSmoke() {
       `${targetProjectId} to load in the renderer`
     );
     baseResult.projectLoaded = true;
+    await ensureSceneWorkbenchForSmoke("live create-drag smoke");
     baseResult.objectCountBefore = Array.isArray(state.editorData?.objects) ? state.editorData.objects.length : null;
 
     if (isSnapEnabled()) {
@@ -1666,6 +2473,7 @@ async function runLiveDonorImportSmoke() {
       `${targetProjectId} to load in the renderer`
     );
     baseResult.projectLoaded = true;
+    await ensureSceneWorkbenchForSmoke("live donor import smoke");
     baseResult.objectCountBefore = Array.isArray(state.editorData?.objects) ? state.editorData.objects.length : null;
 
     if (isSnapEnabled() && elements.actionToggleSnap instanceof HTMLButtonElement) {
@@ -2706,6 +3514,7 @@ async function runLiveUndoRedoSmoke() {
       `${targetProjectId} to load in the renderer`
     );
     baseResult.projectLoaded = true;
+    await ensureSceneWorkbenchForSmoke("live undo-redo smoke");
     baseResult.objectCountBefore = Array.isArray(state.editorData?.objects) ? state.editorData.objects.length : null;
 
     if (isSnapEnabled()) {
@@ -3001,6 +3810,178 @@ async function runLiveUndoRedoSmoke() {
   }
 }
 
+async function runLiveRuntimeSmoke() {
+  const targetProjectId = "project_001";
+  const startedAt = new Date().toISOString();
+  const baseResult = {
+    startedAt,
+    projectId: targetProjectId,
+    preloadExecuted: Boolean(window.myideApi),
+    myideApiExposed: Boolean(window.myideApi && typeof window.myideApi.loadProjectSlice === "function"),
+    projectLoaded: false,
+    runtimeModeSelected: false,
+    launchEntryUrl: null,
+    launchSucceeded: false,
+    reloadSucceeded: false,
+    runtimeCurrentUrl: null,
+    runtimeResolvedHost: null,
+    runtimePageTitle: null,
+    runtimeReady: false,
+    pixiDetected: false,
+    pixiVersion: null,
+    candidateRuntimeApps: [],
+    pauseSupported: false,
+    resumeSupported: false,
+    stepSupported: false,
+    pauseBlocked: null,
+    stepBlocked: null,
+    pickSucceeded: false,
+    pickedTargetTag: null,
+    pickedCanvasDetected: false,
+    pickedDisplayHitCount: 0,
+    pickedDisplayObjectName: null,
+    pickedTextureCacheId: null,
+    supportingEvidenceIds: [],
+    previewStatus: null
+  };
+
+  try {
+    const api = window.myideApi;
+    if (
+      !api
+      || typeof api.loadProjectSlice !== "function"
+      || typeof api.reportRendererReady !== "function"
+    ) {
+      throw new Error("Renderer live runtime smoke could not access the required desktop bridge helpers.");
+    }
+
+    await waitForRendererCondition(
+      () => Boolean(state.bundle && getWorkspaceProjects().length > 0),
+      "workspace discovery"
+    );
+
+    if (state.selectedProjectId !== targetProjectId) {
+      const projectButton = await waitForRendererCondition(
+        () => elements.projectBrowser?.querySelector(`[data-project-id="${targetProjectId}"]`) ?? null,
+        `project browser entry for ${targetProjectId}`
+      );
+      clickRendererElement(projectButton);
+    }
+
+    await waitForRendererCondition(
+      () => state.selectedProjectId === targetProjectId && Boolean(state.bundle),
+      `${targetProjectId} to load in the renderer`
+    );
+    baseResult.projectLoaded = true;
+
+    const runtimeLaunch = getRuntimeLaunchInfo();
+    if (!runtimeLaunch?.entryUrl) {
+      throw new Error(runtimeLaunch?.blocker ?? "No grounded donor runtime launch URL is indexed for project_001.");
+    }
+
+    baseResult.launchEntryUrl = runtimeLaunch.entryUrl;
+    baseResult.runtimeResolvedHost = runtimeLaunch.resolvedRuntimeHost;
+    baseResult.supportingEvidenceIds = Array.isArray(runtimeLaunch.evidenceIds) ? runtimeLaunch.evidenceIds.slice() : [];
+
+    setWorkbenchMode("runtime", { silent: true, force: true });
+    baseResult.runtimeModeSelected = state.workbenchMode === "runtime";
+    if (!baseResult.runtimeModeSelected) {
+      throw new Error("Runtime Mode could not be selected in the workbench.");
+    }
+
+    const launched = await handleRuntimeLaunch();
+    if (!launched) {
+      throw new Error("Runtime launch did not start from the renderer.");
+    }
+
+    const webview = await waitForRendererCondition(
+      () => getRuntimeWebview(),
+      "runtime webview"
+    );
+    await waitForRendererCondition(
+      () => state.runtimeUi.loading === false && Boolean(state.runtimeUi.currentUrl),
+      "runtime webview navigation",
+      { timeoutMs: 60000 }
+    );
+    await sleep(3000);
+    await waitForRendererCondition(
+      () => Boolean(state.runtimeUi.diagnostics || state.runtimeUi.pageTitle || state.runtimeUi.currentUrl),
+      "runtime diagnostics or page metadata",
+      { timeoutMs: 20000 }
+    );
+    baseResult.launchSucceeded = true;
+    baseResult.runtimeCurrentUrl = state.runtimeUi.currentUrl;
+    baseResult.runtimePageTitle = state.runtimeUi.pageTitle;
+    baseResult.runtimeReady = Boolean(state.runtimeUi.ready);
+
+    const status = await callRuntimeBridge("getStatus");
+    if (status && typeof status === "object" && !Array.isArray(status)) {
+      applyRuntimeBridgeStatus(status);
+      baseResult.pixiDetected = Boolean(status.pixiDetected);
+      baseResult.pixiVersion = status.pixiVersion ?? null;
+      baseResult.candidateRuntimeApps = Array.isArray(status.candidateApps)
+        ? status.candidateApps.map((entry) => entry.key).filter(Boolean)
+        : [];
+      baseResult.pauseSupported = Boolean(status.support?.pause);
+      baseResult.resumeSupported = Boolean(status.support?.resume);
+      baseResult.stepSupported = Boolean(status.support?.step);
+      baseResult.pauseBlocked = status.support?.blockers?.pause ?? null;
+      baseResult.stepBlocked = status.support?.blockers?.step ?? null;
+    }
+
+    const inspectResult = await callRuntimeBridge("setInspectEnabled", true);
+    if (!inspectResult?.enabled) {
+      throw new Error("Runtime inspect mode did not arm successfully.");
+    }
+    state.runtimeUi.inspectEnabled = true;
+
+    const pickResult = await callRuntimeBridge("pickAtPoint", 220, 220);
+    if (!pickResult || typeof pickResult !== "object") {
+      throw new Error("Runtime pick did not return a usable payload.");
+    }
+    state.runtimeUi.lastPick = pickResult;
+    baseResult.pickSucceeded = Boolean(pickResult.targetTag || pickResult.canvasDetected);
+    baseResult.pickedTargetTag = pickResult.targetTag ?? null;
+    baseResult.pickedCanvasDetected = Boolean(pickResult.canvasDetected);
+    baseResult.pickedDisplayHitCount = Number.isFinite(pickResult.displayHitCount) ? Number(pickResult.displayHitCount) : 0;
+    baseResult.pickedDisplayObjectName = pickResult.topDisplayObject?.name ?? pickResult.topDisplayObject?.label ?? null;
+    baseResult.pickedTextureCacheId = pickResult.topDisplayObject?.texture?.cacheId ?? null;
+
+    if (!baseResult.pickSucceeded) {
+      throw new Error("Runtime inspect mode did not capture a target from the live donor surface.");
+    }
+
+    await handleRuntimeReload();
+    await waitForRendererCondition(
+      () => state.runtimeUi.loading === false && Boolean(state.runtimeUi.currentUrl),
+      "runtime reload to finish",
+      { timeoutMs: 60000 }
+    );
+    baseResult.reloadSucceeded = true;
+
+    const successMessage = `Runtime smoke passed: launched ${trimRuntimeText(baseResult.runtimeCurrentUrl ?? baseResult.launchEntryUrl, 96)}, captured a runtime pick on ${baseResult.pickedTargetTag ?? "the live surface"}, and reloaded the donor runtime inside Runtime Mode.`;
+    setPreviewStatus(successMessage);
+    baseResult.previewStatus = successMessage;
+    document.body.dataset.liveRuntimeSmoke = "pass";
+
+    await emitLiveRuntimeSmoke({
+      ...baseResult,
+      status: "pass"
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const failureMessage = `Live runtime smoke failed: ${message}`;
+    setPreviewStatus(failureMessage);
+    document.body.dataset.liveRuntimeSmoke = "fail";
+    await emitLiveRuntimeSmoke({
+      ...baseResult,
+      status: "fail",
+      error: message,
+      previewStatus: failureMessage
+    });
+  }
+}
+
 async function runLiveDuplicateDeleteSmoke() {
   const targetProjectId = "project_001";
   const presetKey = "banner";
@@ -3075,6 +4056,7 @@ async function runLiveDuplicateDeleteSmoke() {
       `${targetProjectId} to load in the renderer`
     );
     baseResult.projectLoaded = true;
+    await ensureSceneWorkbenchForSmoke("live duplicate-delete smoke");
     baseResult.objectCountBefore = Array.isArray(state.editorData?.objects) ? state.editorData.objects.length : null;
 
     if (isSnapEnabled()) {
@@ -3358,6 +4340,7 @@ async function runLiveReorderSmoke() {
       `${targetProjectId} to load in the renderer`
     );
     baseResult.projectLoaded = true;
+    await ensureSceneWorkbenchForSmoke("live reorder smoke");
     baseResult.objectCountBefore = Array.isArray(state.editorData?.objects) ? state.editorData.objects.length : null;
 
     if (isSnapEnabled()) {
@@ -3628,6 +4611,7 @@ async function runLiveLayerReassignSmoke() {
       `${targetProjectId} to load in the renderer`
     );
     baseResult.projectLoaded = true;
+    await ensureSceneWorkbenchForSmoke("live layer-reassign smoke");
     baseResult.objectCountBefore = Array.isArray(state.editorData?.objects) ? state.editorData.objects.length : null;
 
     if (isSnapEnabled()) {
@@ -3934,6 +4918,7 @@ async function runLiveResizeSmoke() {
       `${targetProjectId} to load in the renderer`
     );
     baseResult.projectLoaded = true;
+    await ensureSceneWorkbenchForSmoke("live resize smoke");
     baseResult.objectCountBefore = Array.isArray(state.editorData?.objects) ? state.editorData.objects.length : null;
 
     if (isSnapEnabled()) {
@@ -4235,6 +5220,7 @@ async function runLiveAlignSmoke() {
       `${targetProjectId} to load in the renderer`
     );
     baseResult.projectLoaded = true;
+    await ensureSceneWorkbenchForSmoke("live align smoke");
     baseResult.objectCountBefore = Array.isArray(state.editorData?.objects) ? state.editorData.objects.length : null;
 
     if (isSnapEnabled()) {
@@ -4640,6 +5626,71 @@ function bindActions() {
   elements.actionReloadEditor?.addEventListener("click", () => {
     void reloadWorkspace(false, state.selectedProjectId);
   });
+  elements.workbenchModebar?.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) {
+      return;
+    }
+
+    const modeButton = target.closest("[data-workbench-mode]");
+    if (!(modeButton instanceof HTMLElement) || !modeButton.dataset.workbenchMode) {
+      return;
+    }
+
+    event.preventDefault();
+    setWorkbenchMode(modeButton.dataset.workbenchMode);
+  });
+  elements.runtimeToolbar?.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) {
+      return;
+    }
+
+    const actionButton = target.closest("[data-runtime-action]");
+    if (!(actionButton instanceof HTMLElement) || !actionButton.dataset.runtimeAction) {
+      return;
+    }
+
+    event.preventDefault();
+    void handleRuntimeAction(actionButton.dataset.runtimeAction);
+  });
+  if (elements.runtimeWebview) {
+    elements.runtimeWebview.addEventListener("did-start-loading", () => {
+      state.runtimeUi.loading = true;
+      state.runtimeUi.ready = false;
+      state.runtimeUi.lastError = null;
+      state.runtimeUi.currentUrl = elements.runtimeWebview.getURL?.() || state.runtimeUi.currentUrl;
+      renderAll();
+    });
+    elements.runtimeWebview.addEventListener("did-stop-loading", () => {
+      state.runtimeUi.loading = false;
+      state.runtimeUi.currentUrl = elements.runtimeWebview.getURL?.() || state.runtimeUi.currentUrl;
+      renderAll();
+    });
+    elements.runtimeWebview.addEventListener("did-fail-load", (event) => {
+      state.runtimeUi.loading = false;
+      state.runtimeUi.ready = false;
+      state.runtimeUi.lastError = `Runtime load failed (${event.errorCode} ${event.errorDescription})`;
+      renderAll();
+    });
+    elements.runtimeWebview.addEventListener("page-title-updated", (event) => {
+      state.runtimeUi.pageTitle = event.title ?? state.runtimeUi.pageTitle;
+      renderAll();
+    });
+    elements.runtimeWebview.addEventListener("console-message", (event) => {
+      if (!handleRuntimeConsoleMessage(event.message)) {
+        recordRuntimeConsoleEvent({
+          type: "guest-console",
+          level: event.level,
+          message: trimRuntimeText(event.message, 240)
+        });
+      }
+    });
+    elements.runtimeWebview.addEventListener("dom-ready", () => {
+      state.runtimeUi.currentUrl = elements.runtimeWebview.getURL?.() || state.runtimeUi.currentUrl;
+      void installRuntimeBridge();
+    });
+  }
   elements.editorToolbar?.addEventListener("click", (event) => {
     const target = event.target;
     if (!(target instanceof HTMLElement)) {
@@ -8105,9 +9156,36 @@ async function reloadWorkspace(isInitialLoad, requestedProjectId = null) {
     importTargetLayerId: "auto",
     dropIntent: null
   };
+  state.runtimeUi = {
+    launched: false,
+    loading: false,
+    ready: false,
+    inspectEnabled: false,
+    lastCommand: null,
+    lastCommandStatus: null,
+    lastError: null,
+    currentUrl: null,
+    pageTitle: null,
+    diagnostics: null,
+    controlSupport: {
+      pause: false,
+      resume: false,
+      step: false
+    },
+    controlBlockers: {
+      pause: null,
+      resume: null,
+      step: null,
+      spin: "Spin is only an observed Space-key behavior so far; no stable runtime action contract is captured yet.",
+      enter: "The live donor runtime still relies on a best-effort real input event to advance the intro."
+    },
+    lastPick: null,
+    lastConsoleEvents: []
+  };
   resetViewportSessionState();
   resetLayerIsolation();
   resetEditorHistory();
+  state.workbenchMode = getRuntimeLaunchInfo()?.entryUrl ? "runtime" : "scene";
   reconcileSelectedObject();
   ensureSyncStatusForSelectedProject();
 
@@ -8122,6 +9200,13 @@ async function reloadWorkspace(isInitialLoad, requestedProjectId = null) {
 
   if (!state.editorData) {
     setPreviewStatus(`No editable scene slice is available yet for ${state.selectedProjectId}.`);
+    return;
+  }
+
+  if (state.workbenchMode === "runtime" && getRuntimeLaunchInfo()?.entryUrl) {
+    setPreviewStatus(isInitialLoad
+      ? `Loaded ${state.selectedProjectId}. Runtime Mode is ready to launch the recorded donor runtime inside the shell.`
+      : `Reloaded ${state.selectedProjectId}. Runtime Mode is ready to relaunch the recorded donor runtime.`);
     return;
   }
 
@@ -9003,6 +10088,7 @@ function renderProjectSummary() {
   const evidenceRefSummary = evidenceRefs.length > 0
     ? `${evidenceRefs.length} indexed evidence refs`
     : "No evidence refs indexed yet.";
+  const runtimeLaunch = getRuntimeLaunchInfo();
   const vabsStatusMarkup = renderVabsStatusSummary();
 
   const lifecycleChips = lifecycleStageOrder.map((stageId) => {
@@ -9031,21 +10117,26 @@ function renderProjectSummary() {
         <small>${selectedProject.targetGame.relationship}</small>
       </div>
       <div class="detail-card">
-        <span>Editor State</span>
-        <strong>${state.dirty ? "Unsaved Changes" : "Saved"}</strong>
-        <small>${editorStatusSummary}</small>
+        <span>Current Mode</span>
+        <strong>${state.workbenchMode === "runtime" ? "Runtime Mode" : "Scene Mode"}</strong>
+        <small>${state.workbenchMode === "runtime"
+          ? `${runtimeLaunch?.entryUrl ? "Recorded donor runtime launch is ready." : "Runtime launch is currently blocked."} ${state.runtimeUi.launched ? "Embedded runtime has been launched in this session." : "Launch the donor runtime to begin."}`
+          : editorStatusSummary}</small>
       </div>
       <div class="detail-card">
-        <span>Preview Source</span>
-        <strong>Editable Internal Scene</strong>
-        <small>The shell preview is driven from <code>internal/scene.json</code>, <code>layers.json</code>, and <code>objects.json</code>. Raw donor captures stay read-only evidence, and save deterministically syncs replay-facing <code>project.json</code>.</small>
+        <span>Primary Workflow</span>
+        <strong>${runtimeLaunch?.entryUrl ? "Runtime-first donor workflow" : "Scene-first fallback"}</strong>
+        <small>${runtimeLaunch?.entryUrl
+          ? `Runtime Mode launches the recorded public donor runtime URL inside the shell. Scene Mode still edits <code>internal/scene.json</code>, <code>layers.json</code>, and <code>objects.json</code> as the bounded secondary workflow.`
+          : "No grounded donor runtime entry is available in this build, so the shell falls back to the bounded internal scene workflow."}</small>
       </div>
     </div>
     <div class="tree-row scope-summary">
       <strong>Current Scope</strong>
-      <span>This shell edits reconstructed internal scene objects for the selected project. The Donor Evidence panel sits in the left column below Project Browser on smaller windows and now includes a bounded donor image asset palette for <code>project_001</code>. Raw donor files remain read-only, but supported local donor images can be dragged into the canvas on a chosen target layer or used to replace a selected editable scene object.</span>
+      <span>This shell now treats Runtime Mode as the primary donor workflow for <code>project_001</code> when a grounded donor runtime entry exists. The Donor Evidence panel still sits in the left column below Project Browser on smaller windows, donor images can still be composed in Scene Mode, and raw donor files remain read-only throughout.</span>
       <div class="chip-row">
-        <span>editable source: internal scene</span>
+        <span>${runtimeLaunch?.entryUrl ? "primary: live donor runtime" : "primary: internal scene fallback"}</span>
+        <span>scene mode: bounded compositor</span>
         <span>donor files: read-only</span>
         <span>donor image import: bounded slice</span>
         <span>validated slice: project_001</span>
@@ -10160,6 +11251,11 @@ function renderInspector() {
     return;
   }
 
+  if (state.workbenchMode === "runtime") {
+    elements.inspector.innerHTML = renderRuntimeInspector();
+    return;
+  }
+
   if (!editorData) {
     elements.inspector.innerHTML = `
       <div class="tree-row">
@@ -10712,6 +11808,199 @@ function renderActivityLog() {
     .join("");
 }
 
+function renderRuntimeWorkbench() {
+  const runtimeLaunch = getRuntimeLaunchInfo();
+  const runtimeModeActive = state.workbenchMode === "runtime";
+  const runtimeWebview = getRuntimeWebview();
+
+  if (elements.runtimeWorkbench) {
+    elements.runtimeWorkbench.hidden = !runtimeModeActive;
+  }
+  if (elements.sceneWorkbench) {
+    elements.sceneWorkbench.hidden = runtimeModeActive;
+  }
+  if (elements.runtimeToolbar) {
+    elements.runtimeToolbar.hidden = !runtimeModeActive;
+  }
+  if (elements.editorToolbar) {
+    elements.editorToolbar.hidden = runtimeModeActive;
+  }
+  if (runtimeWebview && !state.runtimeUi.launched && runtimeWebview.src && runtimeWebview.src !== "about:blank") {
+    runtimeWebview.src = "about:blank";
+  }
+
+  elements.workbenchModebar?.querySelectorAll("[data-workbench-mode]").forEach((button) => {
+    if (!(button instanceof HTMLButtonElement)) {
+      return;
+    }
+
+    const isActive = button.dataset.workbenchMode === state.workbenchMode;
+    button.dataset.tone = isActive ? "active" : "default";
+    button.setAttribute("aria-selected", isActive ? "true" : "false");
+  });
+
+  if (!elements.runtimeStatus) {
+    return;
+  }
+
+  if (!runtimeLaunch) {
+    elements.runtimeStatus.innerHTML = `
+      <div class="tree-row">
+        <strong>Runtime Mode Blocked</strong>
+        <span>No grounded donor runtime entry is indexed for this project yet.</span>
+      </div>
+    `;
+    return;
+  }
+
+  const runtimeUrl = state.runtimeUi.currentUrl ?? runtimeLaunch.entryUrl;
+  const support = state.runtimeUi.controlSupport ?? {};
+  const blockerSummary = [
+    runtimeLaunch.blocker,
+    support.pause ? null : state.runtimeUi.controlBlockers.pause,
+    support.step ? null : state.runtimeUi.controlBlockers.step
+  ].filter((value) => typeof value === "string" && value.trim().length > 0);
+  const currentStatus = !state.runtimeUi.launched
+    ? "Ready to launch"
+    : state.runtimeUi.loading
+      ? "Launching live donor runtime"
+      : state.runtimeUi.ready
+        ? "Runtime bridge attached"
+        : "Runtime surface loaded without an inspection bridge yet";
+  const commandSummary = state.runtimeUi.lastCommand
+    ? `${state.runtimeUi.lastCommand}${state.runtimeUi.lastCommandStatus?.ok ? " completed" : state.runtimeUi.lastCommandStatus?.blocked ? " blocked" : ""}`
+    : "No runtime command sent yet";
+  const assetGroupSummary = Array.isArray(runtimeLaunch.observedAssetGroups) && runtimeLaunch.observedAssetGroups.length > 0
+    ? runtimeLaunch.observedAssetGroups.slice(0, 6).join(", ")
+    : "No live asset-group observations indexed yet.";
+
+  elements.runtimeStatus.innerHTML = `
+    <div class="tree-row runtime-status-summary">
+      <strong>Runtime Mode</strong>
+      <span>${escapeHtml(currentStatus)}. ${runtimeLaunch.localRuntimePackageAvailable
+        ? "A local donor package is available."
+        : "No local donor runtime package is captured, so this mode uses the recorded public donor runtime entry."}</span>
+      <div class="chip-row">
+        <span>${escapeHtml(runtimeLaunch.captureSessionId ?? "runtime session unknown")}</span>
+        <span>${runtimeLaunch.entryUrl ? "launch target ready" : "launch blocked"}</span>
+        <span>${state.runtimeUi.inspectEnabled ? "pick mode armed" : "pick mode idle"}</span>
+        <span>${state.runtimeUi.diagnostics?.pixiVersion ? `Pixi ${escapeHtml(state.runtimeUi.diagnostics.pixiVersion)}` : runtimeLaunch.pixiVersion ? `Pixi ${escapeHtml(runtimeLaunch.pixiVersion)}` : "Pixi version unknown"}</span>
+      </div>
+    </div>
+    <div class="detail-grid runtime-detail-grid">
+      <div class="detail-card">
+        <span>Runtime Entry</span>
+        <strong>${runtimeLaunch.entryUrl ? "Recorded donor demo URL" : "Not indexed"}</strong>
+        <small>${runtimeLaunch.entryUrl ? `<code>${escapeHtml(runtimeLaunch.entryUrl)}</code>` : "No grounded launch URL is recorded."}</small>
+      </div>
+      <div class="detail-card">
+        <span>Current Runtime URL</span>
+        <strong>${escapeHtml(state.runtimeUi.pageTitle ?? "No live page title yet")}</strong>
+        <small>${runtimeUrl ? `<code>${escapeHtml(runtimeUrl)}</code>` : "Runtime has not been launched in this session yet."}</small>
+      </div>
+      <div class="detail-card">
+        <span>Available Actions</span>
+        <strong>${runtimeLaunch.availableActions.length > 0 ? escapeHtml(runtimeLaunch.availableActions.join(", ")) : "Not captured"}</strong>
+        <small>${runtimeLaunch.roundId ? `ROUND_ID ${escapeHtml(runtimeLaunch.roundId)}` : "No live round id captured."}</small>
+      </div>
+      <div class="detail-card">
+        <span>Last Runtime Command</span>
+        <strong>${escapeHtml(commandSummary)}</strong>
+        <small>${escapeHtml(state.runtimeUi.lastCommandStatus?.detail ?? state.runtimeUi.lastCommandStatus?.blocked ?? "Launch or inspect the runtime to gather live status.")}</small>
+      </div>
+      <div class="detail-card">
+        <span>Observed Asset Groups</span>
+        <strong>${runtimeLaunch.observedAssetGroups.length > 0 ? `${runtimeLaunch.observedAssetGroups.length} runtime asset groups` : "No grouped observation yet"}</strong>
+        <small>${escapeHtml(assetGroupSummary)}</small>
+      </div>
+      <div class="detail-card ${blockerSummary.length > 0 ? "is-alert" : "is-positive"}">
+        <span>Current Runtime Blocker</span>
+        <strong>${blockerSummary.length > 0 ? "Partial runtime control limits remain" : "No runtime blocker recorded in this slice"}</strong>
+        <small>${escapeHtml(blockerSummary[0] ?? "Launch, reload, and inspect are available in the current runtime slice.")}</small>
+      </div>
+    </div>
+  `;
+}
+
+function renderRuntimeInspector() {
+  const runtimeLaunch = getRuntimeLaunchInfo();
+  const lastPick = state.runtimeUi.lastPick;
+  const diagnostics = state.runtimeUi.diagnostics;
+  const candidateSummaries = Array.isArray(lastPick?.candidateApps) && lastPick.candidateApps.length > 0
+    ? lastPick.candidateApps.map((entry) => `${entry.key}${entry.childCount != null ? ` · ${entry.childCount} stage children` : ""}`).join("; ")
+    : Array.isArray(diagnostics?.candidateApps) && diagnostics.candidateApps.length > 0
+      ? diagnostics.candidateApps.map((entry) => `${entry.key}${entry.childCount != null ? ` · ${entry.childCount} stage children` : ""}`).join("; ")
+      : "No exposed runtime app handles were detected from the embedded donor page.";
+  const topDisplayObject = lastPick?.topDisplayObject;
+  const supportingEvidenceButtons = (runtimeLaunch?.evidenceIds ?? [])
+    .map((evidenceId) => `<button type="button" class="copy-button" data-focus-donor-evidence-id="${escapeAttribute(evidenceId)}">Show ${escapeHtml(evidenceId)}</button>`)
+    .join("");
+  const sourcePaths = Array.isArray(runtimeLaunch?.sourcePaths) ? runtimeLaunch.sourcePaths : [];
+
+  return `
+    <div class="inspector-title">
+      <p>Runtime Element Trace</p>
+      <h3>${escapeHtml(lastPick?.targetTag ? `Picked ${lastPick.targetTag}` : runtimeLaunch?.captureSessionId ?? "Runtime Mode")}</h3>
+    </div>
+    <p class="inspector-purpose">Runtime Mode surfaces the strongest grounded trace available from the live donor runtime surface. When the runtime does not expose a stable app/ticker/object handle, this panel says so plainly instead of inventing provenance.</p>
+    <div class="chip-row">
+      <span>${escapeHtml(runtimeLaunch?.availability ?? "blocked")}</span>
+      <span>${state.runtimeUi.inspectEnabled ? "pick mode armed" : "pick mode idle"}</span>
+      <span>${diagnostics?.pixiVersion ? `Pixi ${escapeHtml(diagnostics.pixiVersion)}` : runtimeLaunch?.pixiVersion ? `Pixi ${escapeHtml(runtimeLaunch.pixiVersion)}` : "Pixi unknown"}</span>
+      <span>${topDisplayObject ? "display-object candidate detected" : "canvas / DOM level trace only"}</span>
+    </div>
+    <div class="tree-row">
+      <strong>Live Runtime Surface</strong>
+      <span>${escapeHtml(state.runtimeUi.currentUrl ?? runtimeLaunch?.entryUrl ?? "No runtime URL loaded yet.")}</span>
+      <div class="evidence-actions">
+        ${supportingEvidenceButtons || ""}
+      </div>
+    </div>
+    <div class="detail-grid runtime-trace-grid">
+      <div class="detail-card">
+        <span>Picked Target</span>
+        <strong>${escapeHtml(topDisplayObject?.name ?? topDisplayObject?.label ?? lastPick?.targetTag ?? "No runtime target picked yet")}</strong>
+        <small>${escapeHtml(lastPick?.targetClassName ?? topDisplayObject?.constructorName ?? "Click or inspect the live runtime to capture a target.")}</small>
+      </div>
+      <div class="detail-card">
+        <span>Display / Texture Trace</span>
+        <strong>${escapeHtml(topDisplayObject?.texture?.cacheId ?? topDisplayObject?.id ?? "No exposed display-object id or texture cache id")}</strong>
+        <small>${escapeHtml(topDisplayObject?.texture?.resourceUrl ?? "The donor runtime does not expose a stable texture/source URL in this slice.")}</small>
+      </div>
+      <div class="detail-card">
+        <span>Canvas Pick Coordinates</span>
+        <strong>${lastPick?.canvasPoint ? `${lastPick.canvasPoint.x}, ${lastPick.canvasPoint.y}` : "Not captured yet"}</strong>
+        <small>${lastPick?.canvasSize ? `${lastPick.canvasSize.width} × ${lastPick.canvasSize.height}` : "Canvas size unavailable until the runtime is live."}</small>
+      </div>
+      <div class="detail-card">
+        <span>Runtime Stack</span>
+        <strong>${escapeHtml(runtimeLaunch?.gameVersion ?? "Mystery Garden runtime")}</strong>
+        <small>${escapeHtml(runtimeLaunch?.wrapperVersion ? `wrapper ${runtimeLaunch.wrapperVersion}` : runtimeLaunch?.buildVersion ?? "No wrapper/build version indexed yet.")}</small>
+      </div>
+      <div class="detail-card">
+        <span>Source Trace Strength</span>
+        <strong>${topDisplayObject ? "Canvas pick plus best-effort display-object trace" : "Runtime URL plus supporting evidence only"}</strong>
+        <small>${escapeHtml(topDisplayObject
+          ? "The live runtime exposed enough surface to report a candidate display object or texture hint."
+          : "The embedded donor runtime is live, but it still does not expose a stable display-object/texture id in this slice.")}</small>
+      </div>
+      <div class="detail-card">
+        <span>Supporting Evidence</span>
+        <strong>${runtimeLaunch?.evidenceIds?.length ? `${runtimeLaunch.evidenceIds.length} grounded runtime refs` : "No runtime refs indexed"}</strong>
+        <small>${escapeHtml(sourcePaths.length > 0 ? sourcePaths.join(" · ") : "No supporting source paths recorded.")}</small>
+      </div>
+    </div>
+    <div class="tree-row">
+      <strong>Runtime Candidates</strong>
+      <span>${escapeHtml(candidateSummaries)}</span>
+    </div>
+    <div class="tree-row">
+      <strong>Control Limits</strong>
+      <span>${escapeHtml(state.runtimeUi.controlBlockers.pause ?? state.runtimeUi.controlBlockers.step ?? runtimeLaunch?.blocker ?? "No additional runtime control blocker recorded.")}</span>
+    </div>
+  `;
+}
+
 function renderAll() {
   enforceIsolationSelection();
   renderOnboardingCard();
@@ -10721,6 +12010,7 @@ function renderAll() {
   renderBridgeStatus();
   renderSyncStatus();
   renderProjectSummary();
+  renderRuntimeWorkbench();
   renderEditorCanvas();
   renderInspector();
   renderActivityLog();
@@ -10763,6 +12053,7 @@ function renderAll() {
   const canMutateSelectedObject = Boolean(selectedObject && isObjectEditable(selectedObject) && !state.canvasDrag);
   const orderContext = getSelectedObjectOrderContext();
   const compositionContext = getCompositionSelectionContext();
+  const runtimeLaunch = getRuntimeLaunchInfo();
   if (elements.editorToolbar) {
     const canAlignSelectedObject = Boolean(selectedObject && isViewportAlignableObject(selectedObject) && !state.canvasDrag);
     elements.editorToolbar.querySelectorAll("[data-align-action]").forEach((button) => {
@@ -10805,6 +12096,40 @@ function renderAll() {
       );
       button.disabled = !enabled;
     });
+  }
+  if (elements.runtimeToolbar) {
+    elements.runtimeToolbar.querySelectorAll("[data-runtime-action]").forEach((button) => {
+      if (!(button instanceof HTMLButtonElement)) {
+        return;
+      }
+
+      const action = button.dataset.runtimeAction;
+      if (!action) {
+        return;
+      }
+
+      let disabled = false;
+      if (action === "launch") {
+        disabled = !Boolean(runtimeLaunch?.entryUrl);
+      } else if (action === "reload" || action === "inspect-toggle" || action === "focus-note" || action === "focus-init") {
+        disabled = !state.runtimeUi.launched;
+      } else if (action === "pause" || action === "resume" || action === "step") {
+        disabled = !state.runtimeUi.launched || !Boolean(state.runtimeUi.controlSupport[action]);
+      } else if (action === "enter" || action === "spin") {
+        disabled = !state.runtimeUi.launched;
+      }
+
+      button.disabled = disabled;
+      if (action === "inspect-toggle") {
+        button.dataset.tone = state.runtimeUi.inspectEnabled ? "active" : "default";
+        button.textContent = state.runtimeUi.inspectEnabled ? "Inspecting Runtime" : "Pick / Inspect";
+      }
+    });
+  }
+  if (elements.runtimeControlNote) {
+    elements.runtimeControlNote.textContent = state.runtimeUi.lastCommandStatus?.blocked
+      ?? runtimeLaunch?.blocker
+      ?? "Launch the recorded donor runtime, then use Pick / Inspect for the strongest grounded live trace available.";
   }
   if (elements.actionDuplicate) {
     elements.actionDuplicate.disabled = !canMutateSelectedObject;
@@ -10898,6 +12223,30 @@ window.render_game_to_text = () => JSON.stringify({
     currentBlocker: state.bundle.vabs.currentBlocker,
     nextRecommendedAction: state.bundle.vabs.nextRecommendedAction
   } : null,
+  runtimeLaunch: state.bundle?.runtimeLaunch ? {
+    availability: state.bundle.runtimeLaunch.availability,
+    entryUrl: state.bundle.runtimeLaunch.entryUrl,
+    resolvedRuntimeHost: state.bundle.runtimeLaunch.resolvedRuntimeHost,
+    availableActions: state.bundle.runtimeLaunch.availableActions,
+    roundId: state.bundle.runtimeLaunch.roundId,
+    blocker: state.bundle.runtimeLaunch.blocker
+  } : null,
+  runtimeUi: {
+    mode: state.workbenchMode,
+    launched: state.runtimeUi.launched,
+    loading: state.runtimeUi.loading,
+    ready: state.runtimeUi.ready,
+    inspectEnabled: state.runtimeUi.inspectEnabled,
+    currentUrl: state.runtimeUi.currentUrl,
+    pageTitle: state.runtimeUi.pageTitle,
+    lastPick: state.runtimeUi.lastPick ? {
+      targetTag: state.runtimeUi.lastPick.targetTag,
+      canvasDetected: state.runtimeUi.lastPick.canvasDetected,
+      canvasPoint: state.runtimeUi.lastPick.canvasPoint,
+      displayHitCount: state.runtimeUi.lastPick.displayHitCount,
+      topDisplayObject: state.runtimeUi.lastPick.topDisplayObject
+    } : null
+  },
   undoCount: state.history?.undoStack?.length ?? 0,
   redoCount: state.history?.redoStack?.length ?? 0,
   syncStatus: state.syncStatus ? {

@@ -19,13 +19,25 @@ Use this when testing the current local MyIDE build by hand.
    - The bridge health card shows the preload bridge is healthy.
 3. `project_001` load
    - `project_001` appears in the project list and loads without error.
+   - Runtime Mode is selected by default when the grounded donor runtime entry is available.
+   - The runtime toolbar is grouped separately from scene controls.
+4. Runtime-first path
+   - Click **Launch Runtime** and confirm the live donor runtime loads inside the shell.
+   - Click **Reload Runtime** and confirm the runtime refreshes.
+   - If the runtime needs a starter interaction, use **Click To Start** once.
+   - If a grounded gameplay trigger is exposed, use **Spin / Trigger** once.
+   - Toggle **Pick / Inspect**, click the live runtime surface, and confirm the inspector shows the strongest grounded runtime trace available.
+   - Use **Show Runtime Note** or **Show Init Response** once and confirm the supporting donor evidence is focused.
+   - If **Pause**, **Resume**, or **Step One Tick** are disabled, the shell should explain the blocker plainly instead of pretending those controls work.
+5. Scene/donor composition path
+   - Switch to **Scene** mode.
    - The **Donor Assets & Evidence** panel appears in the left column below Project Browser, so scroll the left column if you do not see it immediately.
    - The donor asset palette shows at least one supported local donor image card after indexing.
    - If both `png` and `webp` donor images exist locally, the palette filter buttons should show both formats.
    - The donor palette should show a clear donor import target layer control.
    - At least one donor asset card shows filename/type/provenance and a lightweight preview or honest preview fallback.
    - Expand at least one donor evidence drill-down section and confirm copy helpers are visible for donor IDs, paths, sessions, or refs.
-4. Create and edit
+6. Create and edit
    - Create one placeholder object from the preset picker.
    - Choose a donor import target layer.
    - Drag one donor asset card into empty canvas space and confirm a new donor-backed image object appears on the intended layer.
@@ -33,7 +45,7 @@ Use this when testing the current local MyIDE build by hand.
    - Drag one donor asset card directly over an editable canvas object and confirm it replaces that object while keeping its slot and layer.
    - Optionally compare that direct drop-to-replace path with **Replace Selected Object** on a donor asset card.
    - Select it and change at least one inspector field such as `displayName`, `width`, or `height`.
-5. Move and layout
+7. Move and layout
    - Drag the new object on the canvas.
    - Use a marquee box or `Shift`/`Cmd` selection to select more than one visible object.
    - If the marquee catches extra visible objects, narrow the exact selection from the scene list before composition.
@@ -43,17 +55,17 @@ Use this when testing the current local MyIDE build by hand.
    - Try one alignment action on a placeholder-backed object.
    - Try one layer reassignment.
    - Try one reorder action within the current layer.
-6. Lifecycle actions
+8. Lifecycle actions
    - Duplicate the object.
    - Delete the duplicate.
-7. History
+9. History
    - Undo once.
    - Redo once.
-8. Save and reload
+10. Save and reload
    - Save the scene.
    - Reload from disk.
    - Confirm imported and replaced donor-backed objects are still visible after reload on the intended layer.
-9. Evidence linkage
+11. Evidence linkage
    - With an object selected, inspect the read-only Evidence Linkage section.
    - If linkage is grounded, grouped linkage rows and evidence refs should be visible.
    - For the imported donor image object, confirm the donor summary card shows donor asset id, donor evidence id, file type, filename, donor-relative path, and placement layer.
@@ -68,6 +80,9 @@ Use this when testing the current local MyIDE build by hand.
 - The app stays open.
 - Bridge health stays good.
 - `project_001` loads.
+- Runtime Mode loads the strongest grounded donor runtime entry inside the shell.
+- Runtime controls are grouped clearly, and unsupported controls report blockers plainly.
+- Runtime pick/inspect produces a grounded runtime trace instead of an empty or invented provenance card.
 - The created object remains editable.
 - At least one donor asset is visible in the donor asset palette.
 - More than one donor asset can be imported into the scene as editable internal image objects when multiple grounded donor images are available locally.
@@ -79,8 +94,10 @@ Use this when testing the current local MyIDE build by hand.
 - Save/reload keeps the final intended state.
 
 ## Explicit Current Blocker
-- The shell now supports one bounded donor import slice, but it is still limited.
+- The shell now supports one bounded runtime-first donor slice plus one bounded donor composition slice, but it is still limited.
 - Remaining blockers:
+  - there is no captured local donor runtime package for `project_001`, so Runtime Mode launches the recorded public donor demo entry inside the shell instead of a local donor bundle
+  - pause/resume/step only work when the embedded donor runtime exposes a stable ticker-like hook; otherwise the shell reports that blocker plainly
   - only `project_001` is supported
   - only supported local donor image files are importable
   - atlas/frame donor import is blocked on this machine because no local atlas text or sprite-sheet metadata source exists for `project_001` yet

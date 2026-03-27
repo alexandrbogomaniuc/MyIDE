@@ -12,7 +12,7 @@
         <div class="brand">
           <p class="eyebrow">Local-first reconstruction studio</p>
           <h1>MyIDE</h1>
-          <p class="lede">Current build: a bounded internal scene editor for the validated <code>project_001</code> Mystery Garden slice. Raw donor captures stay read-only, but supported local donor images can be imported into the internal scene.</p>
+          <p class="lede">Current build: a runtime-first donor workflow for the validated <code>project_001</code> Mystery Garden slice. Runtime Mode launches the recorded public donor runtime inside the shell when available, while Scene Mode keeps the bounded internal compositor available as a secondary workflow.</p>
         </div>
         <div class="chips" aria-label="Project constraints">
           <span>MULTI PROJECT</span>
@@ -107,61 +107,123 @@
 
         <section class="panel editor-panel">
           <div class="panel-head">
-            <h2>Editor Canvas</h2>
-            <span>Internal scene data only</span>
+            <h2>Workbench</h2>
+            <span>Runtime-first for project_001</span>
           </div>
-          <p class="context-hint">You are editing reconstructed internal scene objects here. “Preview Source: Editable Internal Scene” means the canvas is driven by <code>internal/scene.json</code>, <code>layers.json</code>, and <code>objects.json</code>. Donor image drag/drop creates new internal donor-backed objects on the chosen layer, dropping over an editable object replaces it directly, and selected donor-backed images now expose a small bottom-right resize handle. Raw donor files are never mutated here.</p>
+          <p class="context-hint">Runtime Mode is the primary donor workflow in this slice. It launches the strongest grounded Mystery Garden donor runtime entry inside the shell when available, surfaces bounded runtime controls, and records the strongest source trace we can prove. Scene Mode keeps the internal compositor, donor import, and save/reload workflow available without mutating raw donor files.</p>
+          <div id="workbench-modebar" class="mode-bar" role="tablist" aria-label="Workbench mode">
+            <button type="button" data-workbench-mode="runtime" aria-selected="true">Runtime</button>
+            <button type="button" data-workbench-mode="scene" aria-selected="false">Scene</button>
+          </div>
+          <div id="runtime-toolbar" class="runtime-toolbar">
+            <div class="toolbar-group">
+              <span class="toolbar-group-label">Runtime</span>
+              <button type="button" data-runtime-action="launch">Launch Runtime</button>
+              <button type="button" data-runtime-action="reload">Reload Runtime</button>
+              <button type="button" data-runtime-action="enter">Click To Start</button>
+              <button type="button" data-runtime-action="spin">Spin / Trigger</button>
+            </div>
+            <div class="toolbar-group">
+              <span class="toolbar-group-label">Playback</span>
+              <button type="button" data-runtime-action="pause">Pause</button>
+              <button type="button" data-runtime-action="resume">Resume</button>
+              <button type="button" data-runtime-action="step">Step One Tick</button>
+            </div>
+            <div class="toolbar-group">
+              <span class="toolbar-group-label">Inspect</span>
+              <button type="button" data-runtime-action="inspect-toggle">Pick / Inspect</button>
+              <button type="button" data-runtime-action="focus-note">Show Runtime Note</button>
+              <button type="button" data-runtime-action="focus-init">Show Init Response</button>
+            </div>
+            <div class="toolbar-group toolbar-group-grow">
+              <span id="runtime-control-note" class="toolbar-hint">Runtime controls stay grounded: launch and reload are primary, while pause/step/spin only activate if the embedded donor runtime exposes a stable hook.</span>
+            </div>
+          </div>
           <div id="editor-toolbar" class="editor-toolbar">
-            <button id="action-undo" type="button">Undo</button>
-            <button id="action-redo" type="button">Redo</button>
-            <button id="action-zoom-out" type="button">Zoom Out</button>
-            <button id="action-zoom-in" type="button">Zoom In</button>
-            <button id="action-fit-view" type="button">Fit View</button>
-            <button id="action-reset-view" type="button">Reset View</button>
-            <button id="action-toggle-snap" type="button">Snap 10px Off</button>
-            <label class="toolbar-select" for="field-placeholder-preset">
-              <span>Placeholder Preset</span>
-              <select id="field-placeholder-preset" name="placeholderPreset">
-                <option value="generic-box">Generic Box</option>
-                <option value="banner">Banner</option>
-                <option value="panel">Panel</option>
-                <option value="modal">Modal</option>
-                <option value="badge-pill">Badge / Pill</option>
-              </select>
-            </label>
-            <button id="action-new-object" type="button">New Placeholder</button>
-            <button type="button" data-align-action="left" title="Align the selected placeholder-backed object to the left edge of the viewport">Left</button>
-            <button type="button" data-align-action="center-h" title="Align the selected placeholder-backed object horizontally to the viewport center">Center H</button>
-            <button type="button" data-align-action="right" title="Align the selected placeholder-backed object to the right edge of the viewport">Right</button>
-            <button type="button" data-align-action="top" title="Align the selected placeholder-backed object to the top edge of the viewport">Top</button>
-            <button type="button" data-align-action="middle-v" title="Align the selected placeholder-backed object vertically to the viewport middle">Middle V</button>
-            <button type="button" data-align-action="bottom" title="Align the selected placeholder-backed object to the bottom edge of the viewport">Bottom</button>
-            <button type="button" data-compose-action="align-left" title="Align the selected composition objects to the left edge of the current selection">Align Left</button>
-            <button type="button" data-compose-action="align-top" title="Align the selected composition objects to the top edge of the current selection">Align Top</button>
-            <button type="button" data-compose-action="align-center-h" title="Align the selected composition objects to the current selection center horizontally">Align Center X</button>
-            <button type="button" data-compose-action="align-middle-v" title="Align the selected composition objects to the current selection middle vertically">Align Center Y</button>
-            <button type="button" data-compose-action="distribute-h" title="Distribute the selected composition objects horizontally between the outermost objects">Distribute H</button>
-            <button type="button" data-compose-action="distribute-v" title="Distribute the selected composition objects vertically between the outermost objects">Distribute V</button>
-            <button type="button" data-order-action="send-backward" title="Move the selected object one step backward within its current layer">Send Backward</button>
-            <button type="button" data-order-action="bring-forward" title="Move the selected object one step forward within its current layer">Bring Forward</button>
-            <button type="button" data-order-action="send-to-back" title="Move the selected object to the back of its current layer">Send To Back</button>
-            <button type="button" data-order-action="bring-to-front" title="Move the selected object to the front of its current layer">Bring To Front</button>
-            <button id="action-select-previous" type="button" title="Select the previous object in the current layer">Select Previous</button>
-            <button id="action-select-next" type="button" title="Select the next object in the current layer">Select Next</button>
-            <button id="action-duplicate" type="button">Duplicate Object</button>
-            <button id="action-delete" type="button" class="is-danger">Delete Object</button>
-            <button id="action-save" type="button">Save Scene Changes</button>
-            <button id="action-reload-editor" type="button">Reload From Disk</button>
-            <span id="dirty-indicator" class="toolbar-indicator">Saved</span>
-            <span id="viewport-indicator" class="toolbar-indicator" data-tone="info">View 100%</span>
-            <span id="order-context-indicator" class="toolbar-indicator" data-tone="info">Order n/a</span>
+            <div class="toolbar-group">
+              <span class="toolbar-group-label">History</span>
+              <button id="action-undo" type="button">Undo</button>
+              <button id="action-redo" type="button">Redo</button>
+            </div>
+            <div class="toolbar-group">
+              <span class="toolbar-group-label">View</span>
+              <button id="action-zoom-out" type="button">Zoom Out</button>
+              <button id="action-zoom-in" type="button">Zoom In</button>
+              <button id="action-fit-view" type="button">Fit View</button>
+              <button id="action-reset-view" type="button">Reset View</button>
+              <button id="action-toggle-snap" type="button">Snap 10px Off</button>
+            </div>
+            <div class="toolbar-group">
+              <span class="toolbar-group-label">Create</span>
+              <label class="toolbar-select" for="field-placeholder-preset">
+                <span>Placeholder Preset</span>
+                <select id="field-placeholder-preset" name="placeholderPreset">
+                  <option value="generic-box">Generic Box</option>
+                  <option value="banner">Banner</option>
+                  <option value="panel">Panel</option>
+                  <option value="modal">Modal</option>
+                  <option value="badge-pill">Badge / Pill</option>
+                </select>
+              </label>
+              <button id="action-new-object" type="button">New Placeholder</button>
+            </div>
+            <div class="toolbar-group">
+              <span class="toolbar-group-label">Viewport Align</span>
+              <button type="button" data-align-action="left" title="Align the selected placeholder-backed object to the left edge of the viewport">Left</button>
+              <button type="button" data-align-action="center-h" title="Align the selected placeholder-backed object horizontally to the viewport center">Center H</button>
+              <button type="button" data-align-action="right" title="Align the selected placeholder-backed object to the right edge of the viewport">Right</button>
+              <button type="button" data-align-action="top" title="Align the selected placeholder-backed object to the top edge of the viewport">Top</button>
+              <button type="button" data-align-action="middle-v" title="Align the selected placeholder-backed object vertically to the viewport middle">Middle V</button>
+              <button type="button" data-align-action="bottom" title="Align the selected placeholder-backed object to the bottom edge of the viewport">Bottom</button>
+            </div>
+            <div class="toolbar-group">
+              <span class="toolbar-group-label">Compose</span>
+              <button type="button" data-compose-action="align-left" title="Align the selected composition objects to the left edge of the current selection">Align Left</button>
+              <button type="button" data-compose-action="align-top" title="Align the selected composition objects to the top edge of the current selection">Align Top</button>
+              <button type="button" data-compose-action="align-center-h" title="Align the selected composition objects to the current selection center horizontally">Align Center X</button>
+              <button type="button" data-compose-action="align-middle-v" title="Align the selected composition objects to the current selection middle vertically">Align Center Y</button>
+              <button type="button" data-compose-action="distribute-h" title="Distribute the selected composition objects horizontally between the outermost objects">Distribute H</button>
+              <button type="button" data-compose-action="distribute-v" title="Distribute the selected composition objects vertically between the outermost objects">Distribute V</button>
+            </div>
+            <div class="toolbar-group">
+              <span class="toolbar-group-label">Order</span>
+              <button type="button" data-order-action="send-backward" title="Move the selected object one step backward within its current layer">Send Backward</button>
+              <button type="button" data-order-action="bring-forward" title="Move the selected object one step forward within its current layer">Bring Forward</button>
+              <button type="button" data-order-action="send-to-back" title="Move the selected object to the back of its current layer">Send To Back</button>
+              <button type="button" data-order-action="bring-to-front" title="Move the selected object to the front of its current layer">Bring To Front</button>
+              <button id="action-select-previous" type="button" title="Select the previous object in the current layer">Select Previous</button>
+              <button id="action-select-next" type="button" title="Select the next object in the current layer">Select Next</button>
+            </div>
+            <div class="toolbar-group">
+              <span class="toolbar-group-label">Edit</span>
+              <button id="action-duplicate" type="button">Duplicate Object</button>
+              <button id="action-delete" type="button" class="is-danger">Delete Object</button>
+            </div>
+            <div class="toolbar-group">
+              <span class="toolbar-group-label">Save</span>
+              <button id="action-save" type="button">Save Scene Changes</button>
+              <button id="action-reload-editor" type="button">Reload From Disk</button>
+            </div>
+            <div class="toolbar-group toolbar-group-indicators">
+              <span id="dirty-indicator" class="toolbar-indicator">Saved</span>
+              <span id="viewport-indicator" class="toolbar-indicator" data-tone="info">View 100%</span>
+              <span id="order-context-indicator" class="toolbar-indicator" data-tone="info">Order n/a</span>
+            </div>
             <span class="toolbar-hint">Ctrl/Cmd+S save · Ctrl/Cmd+= / - zoom · Ctrl/Cmd+0 reset view · Space+drag or middle mouse pan · Ctrl/Cmd+Shift+N new placeholder · Ctrl/Cmd+Shift+G snap · Ctrl/Cmd+[ and ] reorder · Ctrl/Cmd+Shift+[ and ] navigate layer siblings · scene explorer Solo is session-only · Ctrl/Cmd+D duplicate · Delete remove · arrows nudge</span>
           </div>
           <div id="bridge-status" class="sync-status-card bridge-status-card" aria-live="polite"></div>
           <div id="sync-status" class="sync-status-card" aria-live="polite"></div>
           <div id="project-summary" class="project-summary" aria-live="polite"></div>
-          <div class="editor-canvas-shell">
-            <div id="editor-canvas" class="editor-canvas" aria-label="Project editor canvas"></div>
+          <div class="workbench-shell">
+            <section id="runtime-workbench" class="runtime-workbench" aria-label="Runtime workbench">
+              <div id="runtime-status" class="runtime-status-card" aria-live="polite"></div>
+              <div class="runtime-viewport-shell">
+                <webview id="runtime-webview" class="runtime-webview" allowpopups partition="persist:myide-runtime-project001"></webview>
+              </div>
+            </section>
+            <section id="scene-workbench" class="scene-workbench editor-canvas-shell" aria-label="Scene workbench">
+              <div id="editor-canvas" class="editor-canvas" aria-label="Project editor canvas"></div>
+            </section>
           </div>
           <div class="preview-footer">
             <p id="preview-status">Loading editor state for the selected project.</p>
@@ -170,10 +232,10 @@
 
         <aside class="panel inspector-panel">
           <div class="panel-head">
-            <h2>Property Inspector</h2>
-            <span>Edit selected object</span>
+            <h2>Inspector</h2>
+            <span>Runtime trace or scene object</span>
           </div>
-          <p class="context-hint">Inspector changes apply to the selected internal scene object only. The read-only Evidence Linkage area shows grounded donor/import provenance when metadata exists, lets you jump that evidence into the Donor Evidence panel, and says so plainly when it does not. Raw donor captures are evidence inputs, not directly editable objects in this build.</p>
+          <p class="context-hint">Runtime Mode uses this panel for picked runtime-element trace and the strongest grounded donor evidence we can surface. Scene Mode uses it for the existing internal object editor and evidence linkage. Raw donor captures remain read-only in both modes.</p>
           <div id="inspector" class="inspector-card"></div>
           <div class="panel-head panel-head-tight">
             <h2>Activity</h2>

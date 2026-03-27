@@ -6,6 +6,7 @@ MyIDE is a universal local-first IDE for multiple game projects over time, with 
 - Current milestone: PHASE 5T live shell create -> drag -> undo -> redo -> save -> reload proof slice on top of the folder-based multi-project workspace.
 - Active validated donor slice: `donor_001_mystery_garden`.
 - Proven replay scope: one bounded Mystery Garden slice driven only by internal project data under `40_projects/project_001`.
+- Runtime-first donor workflow now exists for `project_001`: Runtime Mode launches the strongest grounded Mystery Garden donor runtime entry inside the shell and keeps the live runtime surface as the main viewport in that mode, while Scene Mode keeps the bounded internal compositor available as the secondary workflow.
 - Proven editor scope: open `project_001`, inspect the internal scene/layer/object list, create placeholder objects from a small preset set, drag/nudge with optional snap, align supported placeholder-backed objects to viewport edges/centers, reassign editable objects between unlocked layers, edit bounded properties including placeholder width/height, reorder editable objects within a layer, read the selected object's order position within its layer, step to the previous/next object within that layer, use quick session-only layer isolation for focused editing, zoom/pan/reset/fit the viewport without dirtying project state, duplicate/delete, undo/redo, save, reload, prove deterministic sync updates the replay-facing `project.json`, prove the live Electron shell can load `project_001` through a working preload bridge, prove one bounded renderer-driven inspector edit/save/reload cycle through the real Electron shell path, prove one bounded live-shell canvas drag/save/reload cycle for an existing object, prove one bounded live-shell create -> drag -> save -> reload cycle for a newly created placeholder object, prove one bounded live-shell create -> duplicate/delete -> save -> reload cycle for a newly created placeholder object, prove one bounded live-shell create -> reorder -> save -> reload cycle for a newly created placeholder object, prove one bounded live-shell create -> layer reassignment -> save -> reload cycle for a newly created placeholder object, prove one bounded live-shell create -> resize -> save -> reload cycle for a newly created placeholder object, prove one bounded live-shell create -> align -> save -> reload cycle for a newly created placeholder object, and prove one bounded live-shell create -> drag -> undo -> redo -> save -> reload cycle for a newly created placeholder object through the same real shell path.
 - GS VABS support now starts as a separate strategy/scaffold/validation module on top of that editor. It does not replace the current internal-scene authoring flow.
 
@@ -81,6 +82,7 @@ Public publication rules are defined in [`00_control/PUBLIC_REPO_POLICY.md`](./0
 - `npm run smoke:electron-live-align`
 - `npm run smoke:electron-live-undo-redo`
 - `npm run smoke:electron-donor-import`
+- `npm run smoke:electron-runtime-mode`
 - `npm run import:mystery-garden`
 - `npm run validate:workspace`
 - `npm run verify:workspace`
@@ -98,7 +100,10 @@ Public publication rules are defined in [`00_control/PUBLIC_REPO_POLICY.md`](./0
 - [`00_control/MANUAL_TEST_PLAYBOOK.md`](./00_control/MANUAL_TEST_PLAYBOOK.md) is the plain-English tester checklist.
 - [`00_control/MANUAL_TEST_MATRIX.md`](./00_control/MANUAL_TEST_MATRIX.md) is the fast pass/fail matrix.
 - [`00_control/MANUAL_BUG_TEMPLATE.md`](./00_control/MANUAL_BUG_TEMPLATE.md) is the copy/paste bug report format.
-- The current shell is still a bounded internal scene editor for `40_projects/project_001/internal`, but `project_001` now has a stronger bounded donor composition slice on top of it.
+- The current shell is now runtime-first for `project_001`: Runtime Mode is the main donor workflow when the grounded donor runtime entry is available, and Scene Mode remains the bounded internal scene editor for `40_projects/project_001/internal`.
+- Runtime Mode currently launches the recorded public Mystery Garden donor runtime URL inside the shell because no local donor runtime package has been captured yet for `project_001`.
+- Runtime Mode currently supports bounded launch, reload, click-to-start, space-triggered spin when the donor runtime listens for it, and a first pick/inspect flow that exposes the strongest grounded source trace the live runtime surface exposes.
+- Pause, resume, and step only become active when the embedded donor runtime exposes a ticker-like hook we can drive honestly. When that hook is absent, the shell reports the blocker plainly instead of faking the controls.
 - After `npm run donor-assets:index:project_001`, the left column shows **Donor Assets & Evidence** with a donor asset palette for supported local donor images found on this machine.
 - Supported import types in this slice are static donor images only: `png`, `webp`, `jpg`, `jpeg`, and `svg` when those files exist locally for `project_001`.
 - The donor palette now supports search plus file-type filters, a visible import-target layer selector, direct create-vs-replace drop intent in the canvas, and the earlier bounded replace-selected-object path for the current editable selection.
@@ -106,6 +111,7 @@ Public publication rules are defined in [`00_control/PUBLIC_REPO_POLICY.md`](./0
 - The current donor-composer slice now adds bounded multi-object composition on top of that import flow: empty-canvas marquee selection, additive `Shift`/`Cmd` selection from the scene list or canvas, compact align/distribute actions in the canvas toolbar, and fast donor source jumps from a selected donor-backed object back to its donor asset card or evidence entry.
 - Selected donor-backed image objects now expose one bounded direct-manipulation improvement: a small bottom-right resize handle that persists through save/reload.
 - The current bounded proof now covers more than one real donor image import on `project_001`, including `png` and `webp` when both are present locally, plus donor-backed replacement, donor-backed resize, marquee/multi-select composition, align/distribute, donor source jump, and save/reload linkage persistence.
+- The current bounded runtime proof now covers Runtime Mode launch, reload, the first live runtime pick/inspect flow, and the strongest grounded source trace available from the embedded donor runtime surface.
 - Atlas/frame donor import is still blocked for `project_001` on this machine because no local atlas text, sprite-sheet JSON, plist, or other grounded frame metadata source has been captured yet, so the donor palette remains limited to loose donor images for now.
 - Raw donor files under `10_donors/` remain read-only evidence. The editable source of truth is still the internal scene, not the donor file itself.
 - `npm run manual:prepare:project_001` resets `project_001` to the current tracked baseline, refreshes derived/synced outputs, validates the project slice, and tells the tester what to run next.

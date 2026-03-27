@@ -4,26 +4,40 @@ Use this when you want to test the current MyIDE build exactly as it works today
 
 ## 1. Launch The Current Build
 1. Run `npm run manual:prepare:project_001`.
-2. Run `npm run dev`.
-3. Wait for the Electron shell window to open.
+2. Optional but recommended for the donor composition side path: run `npm run donor-assets:index:project_001`.
+3. Run `npm run dev`.
+4. Wait for the Electron shell window to open.
 
 ## 2. Open The Validated Project
 1. In the shell, use **Project Browser**.
 2. Open `project_001` (`Mystery Garden Replay Slice`).
 3. If the list looks stale, click **Rescan Workspace**.
 
-## 3. Where Donor Evidence Appears
-1. Before launching the shell, run `npm run donor-assets:index:project_001`.
-2. In the shell, donor content appears in **Donor Assets & Evidence**.
-3. On a typical window size, that panel sits in the **left column below Project Browser**.
-4. If you do not see it immediately, scroll the left column down.
-5. The donor area now has two bounded parts:
+## 3. Runtime Mode Is The Primary Workflow
+1. `project_001` now opens into **Runtime** mode when the grounded donor runtime entry is available.
+2. Use **Launch Runtime** to open the recorded Mystery Garden donor runtime inside the shell.
+3. Use **Reload Runtime** to refresh the runtime surface.
+4. Use **Click To Start** if the donor runtime needs one bounded pointer click to begin.
+5. Use **Spin / Trigger** if you want the bounded runtime action path that currently sends `Space` to the runtime surface.
+6. Use **Pick / Inspect** and then click the live runtime surface to capture the strongest grounded runtime trace available.
+7. Read the right-hand inspector for picked target, runtime/display-object trace when exposed, texture/frame info when exposed, runtime URL, and supporting evidence refs.
+8. Use **Show Runtime Note** or **Show Init Response** to jump back to the grounded runtime evidence behind the current Runtime Mode slice.
+
+## 4. Where Donor Evidence Appears
+1. In the shell, donor content appears in **Donor Assets & Evidence**.
+2. On a typical window size, that panel sits in the **left column below Project Browser**.
+3. If you do not see it immediately, scroll the left column down.
+4. The donor area now has two bounded parts:
    - a donor asset palette for supported local donor images
    - the existing read-only donor evidence drill-down for refs, sessions, and linkage
-6. The donor asset palette now supports quick search, format filters such as `PNG` and `WEBP`, and a visible donor import target layer control.
+5. The donor asset palette now supports quick search, format filters such as `PNG` and `WEBP`, and a visible donor import target layer control.
 
-## 4. What You Can Edit Today
-You can edit the reconstructed internal scene for `project_001`, including new donor-backed image objects created from the donor asset palette.
+## 5. Scene Mode Is Still Available
+1. Use the **Scene** tab in the workbench mode bar when you want the bounded internal compositor instead of the live donor runtime.
+2. Scene Mode is where donor images can still be composed into the internal scene, replaced onto existing objects, resized, aligned, distributed, saved, and reloaded.
+
+## 6. What You Can Edit Today
+You can edit the reconstructed internal scene for `project_001` in **Scene** mode, including new donor-backed image objects created from the donor asset palette.
 
 Current editable workflow:
 - select objects from the scene list or canvas
@@ -48,7 +62,7 @@ Current editable workflow:
 - undo and redo
 - save and reload
 
-The live editable source is:
+The live editable source is still:
 - `40_projects/project_001/internal/scene.json`
 - `40_projects/project_001/internal/layers.json`
 - `40_projects/project_001/internal/objects.json`
@@ -56,10 +70,12 @@ The live editable source is:
 Save still syncs the replay-facing:
 - `40_projects/project_001/project.json`
 
-## 5. What You Cannot Edit Yet
-You still cannot edit the donor source files themselves.
+## 7. What Is Still Blocked
+You still cannot edit donor source files directly, and the current runtime-first slice has real limits.
 
 Current hard limits:
+- there is no captured local donor runtime package for `project_001` yet, so Runtime Mode currently launches the recorded public donor demo entry inside the shell
+- pause, resume, and step only work if the embedded runtime exposes a stable ticker-like hook; if it does not, the shell shows the blocker instead of faking the control
 - only `project_001` is supported in this slice
 - only static donor image files are supported
 - atlas/frame donor import is blocked in this build because no local atlas text or sprite-sheet metadata source exists for `project_001` yet
@@ -67,23 +83,24 @@ Current hard limits:
 - no audio/video import
 - no raw donor file mutation
 
-The donor file remains read-only evidence. Drag/drop creates a new internal scene object that preserves donor linkage.
+The donor file remains read-only evidence. Runtime Mode is inspect/trace only right now; donor drag/drop in Scene Mode still creates a new internal scene object that preserves donor linkage.
 
-## 6. Save / Reload Loop
-1. Optionally choose a donor import target layer first.
-2. Drag one donor image into empty canvas space.
-3. If both `png` and `webp` donor assets are visible in the palette, import one of each for the stronger bounded donor proof.
-4. Optionally drag a donor image over an existing editable object to replace it directly.
-5. Drag a marquee box across two or more visible objects, or refine the selection with `Shift`/`Cmd` click from the scene list.
-6. Use one or two toolbar composition actions such as **Align Left**, **Align Top**, **Align Center Horizontally**, **Distribute Horizontally**, or **Distribute Vertically**.
-7. Select one donor-backed image and drag its small bottom-right resize handle if you want to test bounded direct manipulation.
-8. Use **Show Asset In Palette** or **Show Evidence** from the donor summary if you want to confirm source-jump behavior.
-9. Click **Save Scene Changes** or use `Ctrl/Cmd+S`.
-10. Check that the editor state returns to **Saved**.
-11. Click **Reload From Disk**.
-12. Confirm the imported or replaced donor-backed objects still appear after reload, on the intended layer, with donor linkage details intact.
+## 8. Save / Reload Loop For Scene Composition
+1. Switch to **Scene** mode.
+2. Optionally choose a donor import target layer first.
+3. Drag one donor image into empty canvas space.
+4. If both `png` and `webp` donor assets are visible in the palette, import one of each for the stronger bounded donor proof.
+5. Optionally drag a donor image over an existing editable object to replace it directly.
+6. Drag a marquee box across two or more visible objects, or refine the selection with `Shift`/`Cmd` click from the scene list.
+7. Use one or two toolbar composition actions such as **Align Left**, **Align Top**, **Align Center Horizontally**, **Distribute Horizontally**, or **Distribute Vertically**.
+8. Select one donor-backed image and drag its small bottom-right resize handle if you want to test bounded direct manipulation.
+9. Use **Show Asset In Palette** or **Show Evidence** from the donor summary if you want to confirm source-jump behavior.
+10. Click **Save Scene Changes** or use `Ctrl/Cmd+S`.
+11. Check that the editor state returns to **Saved**.
+12. Click **Reload From Disk**.
+13. Confirm the imported or replaced donor-backed objects still appear after reload, on the intended layer, with donor linkage details intact.
 
-## 7. If You Hit A Bug
+## 9. If You Hit A Bug
 1. Stop after the first clear failure.
 2. Run `npm run manual:bug-bundle`.
 3. Add screenshots or exports into the new `attachments/` folder.

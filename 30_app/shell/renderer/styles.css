@@ -184,6 +184,7 @@ select {
 }
 
 .browser-toolbar button,
+.runtime-toolbar button,
 .editor-toolbar button,
 .form-actions button,
 .layer-toggle,
@@ -197,6 +198,7 @@ select {
 }
 
 .browser-toolbar button,
+.runtime-toolbar button,
 .editor-toolbar button,
 .form-actions button,
 .layer-toggle {
@@ -229,8 +231,9 @@ select {
   background: rgba(255, 255, 255, 0.04);
 }
 
-.editor-toolbar button:first-child,
-.form-actions button {
+.form-actions button,
+#runtime-toolbar [data-runtime-action="launch"],
+#editor-toolbar #action-save {
   border-color: rgba(230, 191, 100, 0.32);
   background: linear-gradient(180deg, rgba(82, 64, 24, 0.96), rgba(42, 32, 12, 0.98));
 }
@@ -240,6 +243,7 @@ select {
   background: linear-gradient(180deg, rgba(88, 42, 28, 0.96), rgba(52, 25, 16, 0.98));
 }
 
+.runtime-toolbar button[data-tone="active"],
 .editor-toolbar button[data-tone="active"] {
   border-color: rgba(110, 169, 216, 0.48);
   background: linear-gradient(180deg, rgba(38, 62, 88, 0.96), rgba(18, 34, 52, 0.98));
@@ -247,6 +251,7 @@ select {
 }
 
 .browser-toolbar button:hover,
+.runtime-toolbar button:hover,
 .editor-toolbar button:hover,
 .form-actions button:hover,
 .layer-toggle:hover {
@@ -556,10 +561,60 @@ button:disabled {
   align-content: start;
 }
 
+.mode-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.mode-bar button {
+  appearance: none;
+  border: 1px solid rgba(179, 209, 186, 0.18);
+  border-radius: 999px;
+  padding: 0.72rem 1rem;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+}
+
+.mode-bar button[data-tone="active"] {
+  border-color: rgba(230, 191, 100, 0.5);
+  background: linear-gradient(180deg, rgba(82, 64, 24, 0.96), rgba(42, 32, 12, 0.98));
+}
+
+.runtime-toolbar,
 .editor-toolbar {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+}
+
+.toolbar-group {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid rgba(179, 209, 186, 0.14);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.toolbar-group-grow {
+  flex: 1 1 240px;
+  align-items: flex-start;
+}
+
+.toolbar-group-indicators {
+  gap: 10px;
+}
+
+.toolbar-group-label {
+  color: var(--muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 700;
 }
 
 .toolbar-indicator {
@@ -597,6 +652,50 @@ button:disabled {
   align-self: center;
   color: var(--muted);
   font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.workbench-shell {
+  display: grid;
+  gap: 16px;
+}
+
+.runtime-workbench,
+.scene-workbench {
+  display: grid;
+  gap: 14px;
+}
+
+.runtime-status-card {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(110, 169, 216, 0.24);
+  background: rgba(110, 169, 216, 0.08);
+}
+
+.runtime-viewport-shell {
+  min-height: 640px;
+  border-radius: 22px;
+  overflow: hidden;
+  border: 1px solid rgba(110, 169, 216, 0.24);
+  background:
+    radial-gradient(circle at top left, rgba(110, 169, 216, 0.16), transparent 26%),
+    linear-gradient(180deg, rgba(6, 14, 18, 0.96), rgba(3, 8, 12, 0.98));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+}
+
+.runtime-webview {
+  display: flex;
+  width: 100%;
+  min-height: 640px;
+  background: #03090c;
+}
+
+.runtime-detail-grid,
+.runtime-trace-grid {
+  align-items: stretch;
 }
 
 .sync-status-card {

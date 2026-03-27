@@ -11,6 +11,7 @@ const isLivePersistSmokeMode = process.env.MYIDE_LIVE_PERSIST_SMOKE === "1";
 const isLiveDragSmokeMode = process.env.MYIDE_LIVE_DRAG_SMOKE === "1";
 const isLiveCreateDragSmokeMode = process.env.MYIDE_LIVE_CREATE_DRAG_SMOKE === "1";
 const isLiveDonorImportSmokeMode = process.env.MYIDE_LIVE_DONOR_IMPORT_SMOKE === "1";
+const isLiveRuntimeSmokeMode = process.env.MYIDE_LIVE_RUNTIME_SMOKE === "1";
 const isLiveDuplicateDeleteSmokeMode = process.env.MYIDE_LIVE_DUPLICATE_DELETE_SMOKE === "1";
 const isLiveReorderSmokeMode = process.env.MYIDE_LIVE_REORDER_SMOKE === "1";
 const isLiveLayerReassignSmokeMode = process.env.MYIDE_LIVE_LAYER_REASSIGN_SMOKE === "1";
@@ -76,6 +77,11 @@ interface LiveDonorImportSmokePayload {
   error?: string;
 }
 
+interface LiveRuntimeSmokePayload {
+  status?: string;
+  error?: string;
+}
+
 interface LiveDuplicateDeleteSmokePayload {
   status?: string;
   error?: string;
@@ -112,6 +118,7 @@ let activeLivePersistSmokeReporter: ((payload: LivePersistSmokePayload) => void)
 let activeLiveDragSmokeReporter: ((payload: LiveDragSmokePayload) => void) | null = null;
 let activeLiveCreateDragSmokeReporter: ((payload: LiveCreateDragSmokePayload) => void) | null = null;
 let activeLiveDonorImportSmokeReporter: ((payload: LiveDonorImportSmokePayload) => void) | null = null;
+let activeLiveRuntimeSmokeReporter: ((payload: LiveRuntimeSmokePayload) => void) | null = null;
 let activeLiveDuplicateDeleteSmokeReporter: ((payload: LiveDuplicateDeleteSmokePayload) => void) | null = null;
 let activeLiveReorderSmokeReporter: ((payload: LiveReorderSmokePayload) => void) | null = null;
 let activeLiveLayerReassignSmokeReporter: ((payload: LiveLayerReassignSmokePayload) => void) | null = null;
@@ -221,6 +228,18 @@ function finishLiveDonorImportSmoke(exitCode: number, message: string): void {
   }, 0);
 }
 
+function finishLiveRuntimeSmoke(exitCode: number, message: string): void {
+  if (exitCode === 0) {
+    console.log(message);
+  } else {
+    console.error(message);
+  }
+
+  setTimeout(() => {
+    app.exit(exitCode);
+  }, 0);
+}
+
 function finishLiveDuplicateDeleteSmoke(exitCode: number, message: string): void {
   if (exitCode === 0) {
     console.log(message);
@@ -315,6 +334,54 @@ function finishLiveUndoRedoSmoke(exitCode: number, message: string): void {
   setTimeout(() => {
     app.exit(exitCode);
   }, 0);
+}
+
+function getInitialWindowVisibility(): boolean {
+  if (isBridgeSmokeMode) {
+    return false;
+  }
+
+  if (isLivePersistSmokeMode) {
+    return shouldShowLivePersistWindow;
+  }
+
+  if (isLiveDragSmokeMode) {
+    return shouldShowLiveDragWindow;
+  }
+
+  if (isLiveCreateDragSmokeMode) {
+    return shouldShowLiveCreateDragWindow;
+  }
+
+  if (isLiveDonorImportSmokeMode || isLiveRuntimeSmokeMode) {
+    return false;
+  }
+
+  if (isLiveDuplicateDeleteSmokeMode) {
+    return shouldShowLiveDuplicateDeleteWindow;
+  }
+
+  if (isLiveReorderSmokeMode) {
+    return shouldShowLiveReorderWindow;
+  }
+
+  if (isLiveLayerReassignSmokeMode) {
+    return shouldShowLiveLayerReassignWindow;
+  }
+
+  if (isLiveResizeSmokeMode) {
+    return shouldShowLiveResizeWindow;
+  }
+
+  if (isLiveAlignSmokeMode) {
+    return shouldShowLiveAlignWindow;
+  }
+
+  if (isLiveUndoRedoSmokeMode) {
+    return shouldShowLiveUndoRedoWindow;
+  }
+
+  return true;
 }
 
 function attachBridgeSmokeHandlers(window: BrowserWindow): void {
@@ -500,6 +567,43 @@ function attachLiveDonorImportSmokeHandlers(window: BrowserWindow): void {
     }
 
     finishLiveDonorImportSmoke(1, `FAIL smoke:electron-donor-import - ${payload.error ?? "renderer reported failure"}`);
+  };
+}
+
+function attachLiveRuntimeSmokeHandlers(window: BrowserWindow): void {
+  if (!isLiveRuntimeSmokeMode) {
+    return;
+  }
+
+  console.log("MYIDE_LIVE_RUNTIME_MAIN_READY");
+  const timeoutMs = Number.parseInt(process.env.MYIDE_LIVE_RUNTIME_TIMEOUT_MS ?? "90000", 10);
+  const smokeTimeout = setTimeout(() => {
+    finishLiveRuntimeSmoke(1, "FAIL smoke:electron-runtime-mode - timeout waiting for renderer runtime payload");
+  }, Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 90000);
+
+  const clearSmokeTimeout = () => {
+    clearTimeout(smokeTimeout);
+  };
+
+  window.webContents.on("did-fail-load", (_event, errorCode, errorDescription) => {
+    clearSmokeTimeout();
+    finishLiveRuntimeSmoke(1, `FAIL smoke:electron-runtime-mode - renderer failed to load (${errorCode} ${errorDescription})`);
+  });
+
+  window.webContents.on("render-process-gone", (_event, details) => {
+    clearSmokeTimeout();
+    finishLiveRuntimeSmoke(1, `FAIL smoke:electron-runtime-mode - renderer process exited (${details.reason})`);
+  });
+
+  activeLiveRuntimeSmokeReporter = (payload) => {
+    clearSmokeTimeout();
+    console.log(`MYIDE_LIVE_RUNTIME_RESULT:${JSON.stringify(payload)}`);
+    if (payload.status === "pass") {
+      finishLiveRuntimeSmoke(0, "PASS smoke:electron-runtime-mode");
+      return;
+    }
+
+    finishLiveRuntimeSmoke(1, `FAIL smoke:electron-runtime-mode - ${payload.error ?? "renderer reported failure"}`);
   };
 }
 
@@ -734,34 +838,15 @@ function createWindow(): void {
     height: 980,
     minWidth: 1280,
     minHeight: 800,
-    show: isBridgeSmokeMode
-      ? false
-      : (isLivePersistSmokeMode
-          ? shouldShowLivePersistWindow
-          : (isLiveDragSmokeMode
-              ? shouldShowLiveDragWindow
-              : (isLiveCreateDragSmokeMode
-                  ? shouldShowLiveCreateDragWindow
-                  : (isLiveDonorImportSmokeMode
-                      ? false
-                  : (isLiveDuplicateDeleteSmokeMode
-                      ? shouldShowLiveDuplicateDeleteWindow
-                      : (isLiveReorderSmokeMode
-                          ? shouldShowLiveReorderWindow
-                          : (isLiveLayerReassignSmokeMode
-                              ? shouldShowLiveLayerReassignWindow
-                              : (isLiveResizeSmokeMode
-                                  ? shouldShowLiveResizeWindow
-                                  : (isLiveAlignSmokeMode
-                                      ? shouldShowLiveAlignWindow
-                                      : (isLiveUndoRedoSmokeMode ? shouldShowLiveUndoRedoWindow : true)))))))))),
+    show: getInitialWindowVisibility(),
     backgroundColor: "#0b1017",
     title: "MyIDE",
     webPreferences: {
       preload: preloadPath,
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: true
+      sandbox: true,
+      webviewTag: true
     }
   });
 
@@ -771,6 +856,7 @@ function createWindow(): void {
   attachLiveDragSmokeHandlers(window);
   attachLiveCreateDragSmokeHandlers(window);
   attachLiveDonorImportSmokeHandlers(window);
+  attachLiveRuntimeSmokeHandlers(window);
   attachLiveDuplicateDeleteSmokeHandlers(window);
   attachLiveReorderSmokeHandlers(window);
   attachLiveLayerReassignSmokeHandlers(window);
@@ -786,6 +872,7 @@ function createWindow(): void {
     ...(isLiveCreateDragSmokeMode ? { liveCreateDragSmoke: "1" } : {}),
     ...(shouldKeepLiveCreateDragWindowOpen ? { liveCreateDragKeepOpen: "1" } : {}),
     ...(isLiveDonorImportSmokeMode ? { liveDonorImportSmoke: "1" } : {}),
+    ...(isLiveRuntimeSmokeMode ? { liveRuntimeSmoke: "1" } : {}),
     ...(isLiveDuplicateDeleteSmokeMode ? { liveDuplicateDeleteSmoke: "1" } : {}),
     ...(shouldKeepLiveDuplicateDeleteWindowOpen ? { liveDuplicateDeleteKeepOpen: "1" } : {}),
     ...(isLiveReorderSmokeMode ? { liveReorderSmoke: "1" } : {}),
@@ -855,6 +942,12 @@ ipcMain.on("myide:live-create-drag-smoke-result", (_event, payload: LiveCreateDr
 ipcMain.on("myide:live-donor-import-smoke-result", (_event, payload: LiveDonorImportSmokePayload) => {
   if (typeof activeLiveDonorImportSmokeReporter === "function") {
     activeLiveDonorImportSmokeReporter(payload ?? {});
+  }
+});
+
+ipcMain.on("myide:live-runtime-smoke-result", (_event, payload: LiveRuntimeSmokePayload) => {
+  if (typeof activeLiveRuntimeSmokeReporter === "function") {
+    activeLiveRuntimeSmokeReporter(payload ?? {});
   }
 });
 

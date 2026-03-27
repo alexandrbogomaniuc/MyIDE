@@ -8,6 +8,11 @@ Electron desktop shell for MyIDE.
 - Create a new project scaffold from the shell through a bounded local IPC bridge.
 - Support a simple workspace rescan so newly added project folders can appear after discovery refreshes the derived registry.
 - Show the selected project's donor, target/resulting game, lifecycle stage summary, phase, verification status, folder path, and notes.
+- Split the main workbench into a runtime-first `Runtime` mode and a bounded secondary `Scene` mode for `project_001`.
+- Launch the strongest grounded Mystery Garden donor runtime entry inside the shell when one is indexed, keeping the live donor runtime as the primary viewport in `Runtime` mode.
+- Keep the strongest current runtime truth honest: there is no captured local donor runtime package for `project_001` yet, so the current launch path uses the recorded public donor demo entry instead of pretending local runtime files exist.
+- Group runtime controls separately from scene-composition controls, with bounded launch, reload, click-to-start, space-triggered gameplay trigger, and the strongest honest pause/resume/step affordances the embedded runtime exposes.
+- Support a first runtime pick/inspect flow that can click the live runtime surface, surface the strongest grounded runtime trace we can prove, and jump back to the supporting runtime evidence notes/init payload.
 - Show the selected project's read-only GS VABS status when a project-local `vabs/` workspace exists, including current fixture provenance, captured row/session presence, export/mock/smoke readiness, current blocker, and the next operator capture step.
 - Show a scene/layer/object explorer for the selected project's editable internal scene files.
 - Render the editor canvas from the deterministic preview scene bridged from `internal/scene.json`, `layers.json`, and `objects.json` when those files exist.
@@ -29,6 +34,7 @@ Electron desktop shell for MyIDE.
 - Support a dedicated Electron live-undo-redo smoke mode that uses the real renderer preset selection + new-placeholder action + canvas drag path + undo/redo toolbar path to load `project_001`, create a placeholder object, drag it, undo it, redo it, save, reload, verify replay-facing sync, and write `/tmp/myide-electron-live-undo-redo.json` while the outer smoke harness restores the touched project files and logs.
 - Keep the validated `project_001` replay slice intact.
 - Keep donor decoding and server integration out of this phase.
+- Keep runtime support bounded to the currently grounded `project_001` Mystery Garden HTML5 donor runtime only; there is still no generic multi-game runtime abstraction, no local runtime package, no broad asset override pipeline, and no animation/audio/video workflow in this slice.
 - Keep this donor import slice bounded to `project_001` and supported local static images only; the stronger proof now covers more than one donor image import, explicit target-layer placement, direct drop-to-replace on editable objects, bounded marquee/additive multi-selection, align/distribute composition actions, donor source jumps, and one bounded donor-backed resize-handle path when grounded assets exist locally, but atlas/frame donor import is still blocked on this machine because no local atlas text or sprite-sheet metadata source has been captured yet, and there is still no animation import, no audio/video import, and no raw donor file mutation.
 - Keep the new VABS panel read-only and outside the editor save path; it is workflow visibility only, not JSP/deployment proof.
 
