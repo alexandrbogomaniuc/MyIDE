@@ -378,6 +378,14 @@ async function refreshRuntimeAssetOverrideRedirects(): Promise<void> {
   runtimeLocalMirrorRedirectMap = buildLocalRuntimeMirrorRedirectMap(mirrorStatus);
 }
 
+async function clearRuntimeWebviewCache(): Promise<{ cleared: true; partition: string }> {
+  await session.fromPartition(runtimeWebviewPartition).clearCache();
+  return {
+    cleared: true,
+    partition: runtimeWebviewPartition
+  };
+}
+
 function getRuntimeRedirectUrl(requestUrl: string): string | null {
   const overrideRedirect = runtimeAssetOverrideRedirectMap.get(requestUrl);
   if (overrideRedirect) {
@@ -641,7 +649,7 @@ async function handleRuntimeMirrorRequest(request: IncomingMessage, response: Se
     });
     sendRuntimeMirrorResponse(response, 200, {
       "content-type": getRuntimeMirrorContentType(mirrorFile.fileType),
-      "cache-control": "public, max-age=300",
+      "cache-control": "no-store",
       "x-myide-runtime-source": "local-mirror-asset",
       "x-myide-runtime-local-path": mirrorFile.absolutePath
     }, mirrorFile.content);
@@ -683,7 +691,7 @@ async function handleRuntimeMirrorRequest(request: IncomingMessage, response: Se
     });
     sendRuntimeMirrorResponse(response, 200, {
       "content-type": getRuntimeMirrorContentType(mirrorFile.fileType),
-      "cache-control": "public, max-age=300",
+      "cache-control": "no-store",
       "x-myide-runtime-source": "local-mirror-asset",
       "x-myide-runtime-local-path": mirrorFile.absolutePath
     }, mirrorFile.content);
@@ -1221,6 +1229,7 @@ function createWindow(): void {
     title: "MyIDE",
     webPreferences: {
       preload: preloadPath,
+      backgroundThrottling: false,
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
@@ -1408,6 +1417,7 @@ ipcMain.handle("myide:set-runtime-request-stage", async (_event, stage: string) 
   setRuntimeRequestStage(stage);
   return { stage: runtimeRequestStage };
 });
+ipcMain.handle("myide:clear-runtime-cache", async () => clearRuntimeWebviewCache());
 ipcMain.handle("myide:get-runtime-override-status", async (_event, projectId: string) => {
   return buildRuntimeAssetOverrideStatus(projectId, runtimeAssetOverrideHits);
 });

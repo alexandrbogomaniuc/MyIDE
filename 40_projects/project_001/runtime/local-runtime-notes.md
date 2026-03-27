@@ -22,6 +22,6 @@
 
 ## Current exact blocker
 - The shell can now trace one grounded static runtime candidate back to a local mirror file path and record the current launch/reload request map.
-- The strongest current live proof shows zero observed upstream static-image requests in the bounded slice.
 - No unresolved upstream bootstrap/static dependency remains in the current bounded launch/start/spin cycle.
-- The runtime still does not expose a request-backed static image in that cycle, so the strongest current candidate remains mirror-manifest-backed and cannot prove an override hit yet.
+- Direct local launch inspection shows the bounded mirror can serve local `bundle.js` plus local preloader images such as `logo-lights.png`, `split.png`, and `a.png`.
+- The embedded Electron Runtime Mode proof still does not expose a request-backed static image in the current bounded cycle, so the strongest current candidate remains mirror-manifest-backed and cannot prove an override hit yet.

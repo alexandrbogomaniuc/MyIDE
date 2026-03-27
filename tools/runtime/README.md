@@ -20,5 +20,5 @@ Local-first helper for the bounded `project_001` Mystery Garden runtime mirror s
 ## Honest limit
 - This tool captures the strongest grounded local mirror we can support today.
 - It does **not** create or claim a full standalone local donor runtime package.
-- The strongest current proof now shows zero observed upstream static-image requests in the bounded slice and no unresolved upstream bootstrap/static dependency in the current launch/start/spin cycle.
-- The strongest current static override candidate is still mirror-manifest-backed, not request-backed, so the runtime does not yet prove an override hit in this bounded slice.
+- The strongest current proof now leaves no unresolved upstream bootstrap/static dependency in the current launch/start/spin cycle, and direct local launch inspection proves the bounded mirror can serve local `bundle.js` plus local preloader images.
+- The strongest current static override candidate inside the embedded Electron Runtime Mode proof is still mirror-manifest-backed, not request-backed, so the runtime does not yet prove an override hit in this bounded slice.

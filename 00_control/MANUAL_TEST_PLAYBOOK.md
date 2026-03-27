@@ -96,7 +96,7 @@ Use this when testing the current local MyIDE build by hand.
 - Runtime controls are grouped clearly, and unsupported controls report blockers plainly.
 - Runtime pick/inspect produces a grounded runtime trace instead of an empty or invented provenance card.
 - Runtime pick can focus at least one grounded source context such as donor asset or donor evidence.
-- The strongest current local-runtime proof should show zero observed upstream static-image requests and no unresolved upstream bootstrap/static dependency in the bounded slice.
+- The strongest current local-runtime proof should show no unresolved upstream bootstrap/static dependency in the bounded slice.
 - For one grounded static Mystery Garden runtime image source, the shell can create a project-local override and clear it again.
 - When the current runtime slice resolves that source through the bounded local mirror, the shell should also show the grounded local mirror file path.
 - Runtime Mode now also shows the current launch/reload resource-map record when one has been captured.
@@ -117,8 +117,8 @@ Use this when testing the current local MyIDE build by hand.
   - there is still no captured full local donor runtime package for `project_001`
   - Runtime Mode can prefer a bounded local runtime mirror on this machine, but that is still not the same as a full captured local donor bundle
   - the bounded runtime override slice only works when the current runtime trace exposes a grounded static image URL and the chosen donor asset matches that file type
-  - the current local-mirror override path now has a real request map, and the strongest current proof shows zero observed upstream static-image requests with no unresolved upstream bootstrap/static dependency remaining in the bounded cycle
-  - the mirrored static override candidate is still only mirror-manifest-backed, so that part remains partially blocked until the runtime actually re-requests a static image
+  - the current local-mirror override path now has a real request map, and no unresolved upstream bootstrap/static dependency remains in the bounded cycle
+  - direct local launch inspection proves the mirror can serve local static assets, but the mirrored static override candidate is still only mirror-manifest-backed inside the embedded Runtime Mode proof, so that part remains partially blocked
   - pause/resume/step only work when the embedded donor runtime exposes a stable ticker-like hook; otherwise the shell reports that blocker plainly
   - only `project_001` is supported
   - only supported local donor image files are importable

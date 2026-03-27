@@ -1618,6 +1618,22 @@ async function setRuntimeRequestStage(stage) {
   }
 }
 
+async function clearRuntimeCache(options = {}) {
+  const api = window.myideApi;
+  if (!api || typeof api.clearRuntimeCache !== "function") {
+    return null;
+  }
+
+  try {
+    return await api.clearRuntimeCache();
+  } catch (error) {
+    if (!options.silent) {
+      setPreviewStatus(error instanceof Error ? error.message : "Runtime cache clear failed.");
+    }
+    return null;
+  }
+}
+
 function setRuntimeLaunched(launched) {
   state.runtimeUi.launched = Boolean(launched);
   state.runtimeUi.loading = Boolean(launched);
@@ -1637,6 +1653,7 @@ async function handleRuntimeLaunch() {
     return false;
   }
 
+  await clearRuntimeCache({ silent: true });
   await setRuntimeRequestStage("launch");
   await resetRuntimeResourceMapForCurrentProject({ silent: true });
   setRuntimeLaunched(true);
@@ -1654,6 +1671,7 @@ async function handleRuntimeReload() {
     return handleRuntimeLaunch();
   }
 
+  await clearRuntimeCache({ silent: true });
   await setRuntimeRequestStage("reload");
   await resetRuntimeResourceMapForCurrentProject({ silent: true });
   state.runtimeUi.loading = true;

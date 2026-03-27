@@ -89,7 +89,7 @@ Current hard limits:
 - there is still no captured full local donor runtime package for `project_001`
 - Runtime Mode now prefers a bounded local runtime mirror when it is available, but that mirror still depends on the live donor launch upstream for launch HTML/token/API state
 - the first static override slice works only for grounded static runtime image URLs that the current runtime trace can prove and that match a supported donor image file type
-- when Runtime Mode uses the local mirror, the shell can now trace one grounded static runtime candidate back to a local mirror file path and show the current request map; the strongest current proof shows zero observed upstream static-image requests and no unresolved upstream bootstrap/static dependency in the current bounded cycle, but the current slice still does not confirm a request-backed static override hit
+- when Runtime Mode uses the local mirror, the shell can now trace one grounded static runtime candidate back to a local mirror file path and show the current request map; no unresolved upstream bootstrap/static dependency remains in the current bounded cycle, direct local launch inspection proves the mirror can serve local static assets, but the embedded Runtime Mode slice still does not confirm a request-backed static override hit
 - pause, resume, and step only work if the embedded runtime exposes a stable ticker-like hook; if it does not, the shell shows the blocker instead of faking the control
 - only `project_001` is supported in this slice
 - only static donor image files are supported
@@ -113,7 +113,7 @@ The donor file remains read-only evidence. Runtime Mode can now create one bound
 6. Wait for Runtime Mode to reload.
 7. Read the **Project-local Overrides** card or the active override detail in the inspector.
 8. If the current slice reports a blocker for the local mirrored candidate instead of a reload-time hit, treat that as the current honest limit rather than a silent failure.
-9. The current strongest blocker is now narrower and explicit: the request map is real, the bounded slice currently shows zero observed upstream static-image requests, and the strongest current candidate is only mirror-manifest-backed rather than request-backed.
+9. The current strongest blocker is now narrower and explicit: the request map is real, the bounded local mirror can serve local static assets in a direct local launch, and the strongest current embedded Runtime Mode candidate is still only mirror-manifest-backed rather than request-backed.
 10. Use **Clear Override** when you want to restore the original runtime asset.
 11. The override file stays under `40_projects/project_001/overrides/`, and raw donor files under `10_donors/` stay untouched.
 

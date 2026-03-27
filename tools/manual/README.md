@@ -22,7 +22,7 @@ The shell now shows a read-only VABS status panel for the selected project, but 
 9. If the runtime trace says the current source is override-eligible, use `Create Override`, let Runtime Mode reload, and confirm either:
    - the active override card shows a runtime hit, or
    - the shell reports the current local-mirror override blocker plainly
-10. Use the runtime resource-map record in the inspector to confirm the current launch/reload cycle actually requested the traced source when that evidence exists. The strongest current proof shows zero observed upstream static-image requests and no unresolved upstream bootstrap/static dependency in the bounded cycle.
+10. Use the runtime resource-map record in the inspector to confirm the current launch/reload cycle actually requested the traced source when that evidence exists. The strongest current proof leaves no unresolved upstream bootstrap/static dependency in the bounded cycle, but the embedded Runtime Mode slice may still block on a mirror-manifest-backed candidate even though direct local launch inspection proves the mirror can serve local static assets.
 11. Use `Clear Override` when you want to restore the original runtime asset.
 12. Use `Show Runtime Note` or `Show Init Response` if you want to jump back to the runtime evidence behind the current runtime slice.
 13. Switch to Compose Mode when you want donor image composition instead of live runtime inspection.
