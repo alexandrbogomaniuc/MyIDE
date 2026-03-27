@@ -8,7 +8,7 @@ This folder tracks the bounded donor image import slices for `project_001`.
 - raw donor files remain read-only under `10_donors/`
 - current grounded image classes on this machine: `png` and `webp`
 - atlas/frame donor import is currently blocked on this machine because no local atlas text, sprite-sheet JSON, plist, or other frame metadata source exists for `project_001`
-- current stronger proof target: import more than one real donor image, place donor-backed objects onto an intended layer, replace one existing editable object with donor art, and preserve donor linkage through save/reload
+- current donor-composer proof target: import more than one real donor image, place donor-backed objects onto an intended layer, replace one existing editable object with donor art, use bounded multi-selection plus align/distribute composition tools, jump back to donor source context, and preserve donor linkage through save/reload
 
 ## Local Output
 - `local-index.json`

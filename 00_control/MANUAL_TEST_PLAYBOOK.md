@@ -35,6 +35,10 @@ Use this when testing the current local MyIDE build by hand.
    - Select it and change at least one inspector field such as `displayName`, `width`, or `height`.
 5. Move and layout
    - Drag the new object on the canvas.
+   - Use a marquee box or `Shift`/`Cmd` selection to select more than one visible object.
+   - If the marquee catches extra visible objects, narrow the exact selection from the scene list before composition.
+   - Try at least one multi-object align action.
+   - Try at least one multi-object distribute action once three objects are selected.
    - Select one donor-backed image object and use its bottom-right resize handle once.
    - Try one alignment action on a placeholder-backed object.
    - Try one layer reassignment.
@@ -54,6 +58,8 @@ Use this when testing the current local MyIDE build by hand.
    - If linkage is grounded, grouped linkage rows and evidence refs should be visible.
    - For the imported donor image object, confirm the donor summary card shows donor asset id, donor evidence id, file type, filename, donor-relative path, and placement layer.
    - In the scene list, imported donor-backed objects should be visibly marked as donor-backed rather than generic placeholders.
+   - Use **Show Asset In Palette** from the donor summary on a selected donor-backed object and confirm the donor asset card is focused in the donor palette.
+   - If donor evidence is grounded, use **Show Evidence** and confirm the linked donor evidence entry is focused in the evidence browser.
    - Use one linkage helper to focus that evidence in the Donor Evidence panel or to filter the donor evidence view down to the selected object.
    - Copying one grounded evidence ref or linkage id should work when a copy button is shown.
    - If linkage is not grounded, the shell should say so plainly instead of inventing provenance.
@@ -66,6 +72,8 @@ Use this when testing the current local MyIDE build by hand.
 - At least one donor asset is visible in the donor asset palette.
 - More than one donor asset can be imported into the scene as editable internal image objects when multiple grounded donor images are available locally.
 - One editable object can be replaced directly on drop with a donor asset while preserving layout and save/reload behavior.
+- Multi-object composition is available through bounded marquee/additive selection plus align/distribute actions.
+- A selected donor-backed object can jump back to its source donor asset card and, when grounded, to its donor evidence entry.
 - Donor source files stay read-only even after import.
 - Drag, resize, align, reassign, reorder, duplicate/delete, and undo/redo behave coherently.
 - Save/reload keeps the final intended state.
@@ -78,7 +86,6 @@ Use this when testing the current local MyIDE build by hand.
   - atlas/frame donor import is blocked on this machine because no local atlas text or sprite-sheet metadata source exists for `project_001` yet
   - no animation import, audio/video import, or generic donor format pipeline
   - imported objects are internal scene objects with donor linkage, not editable raw donor assets
-  - automated Electron smoke still uses a bounded drag/drop bridge in this environment when synthetic DOM drag events do not surface the live canvas intent cleanly enough on their own
 
 ## If Something Fails
 1. Stop after the first clear failure.

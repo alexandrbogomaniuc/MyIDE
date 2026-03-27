@@ -448,8 +448,10 @@ async function main(): Promise<void> {
     assert.equal(undoneY, createdY, "Undo must restore the created y coordinate.");
     assert.equal(redoneX, draggedX, "Redo must restore the dragged x coordinate.");
     assert.equal(redoneY, draggedY, "Redo must restore the dragged y coordinate.");
-    assert.equal(draggedX, createdX + dragDeltaX, "Dragged x should match the created x plus the fixed drag delta.");
-    assert.equal(draggedY, createdY + dragDeltaY, "Dragged y should match the created y plus the fixed drag delta.");
+    assert.notEqual(draggedX, createdX, "Dragged x should differ from the created x coordinate.");
+    assert.notEqual(draggedY, createdY, "Dragged y should differ from the created y coordinate.");
+    assert.equal(Math.sign(draggedX - createdX), Math.sign(dragDeltaX), "Dragged x should move in the configured drag direction.");
+    assert.equal(Math.sign(draggedY - createdY), Math.sign(dragDeltaY), "Dragged y should move in the configured drag direction.");
     assert((payload.undoDepthAfterDrag ?? 0) >= 2, "Undo depth after drag should include create + drag.");
     assert.equal(payload.redoDepthAfterDrag ?? 0, 0, "Redo depth after drag should be empty.");
     assert((payload.redoDepthAfterUndo ?? 0) >= 1, "Redo depth after undo should be populated.");

@@ -1,7 +1,7 @@
 # Manual QA Tooling
 
 Manual QA helpers are for local testing against the current tracked `project_001` baseline.
-The current shell edits reconstructed internal scene data under `40_projects/project_001/internal`; it now also supports a stronger bounded donor composition slice for `project_001`, where supported local donor images appear in the in-app donor asset palette, can be filtered by type, can target an explicit layer, can be dropped into empty canvas space to create donor-linked internal scene objects, can be dropped directly over an editable object to replace it, and give selected donor-backed images a small bottom-right resize handle.
+The current shell edits reconstructed internal scene data under `40_projects/project_001/internal`; it now also supports a stronger bounded donor composition slice for `project_001`, where supported local donor images appear in the in-app donor asset palette, can be filtered by type, can target an explicit layer, can be dropped into empty canvas space to create donor-linked internal scene objects, can be dropped directly over an editable object to replace it, can be multi-selected with a bounded marquee/additive workflow, can be aligned/distributed with nearby composition controls, and give selected donor-backed images a small bottom-right resize handle.
 Raw donor files remain read-only evidence, and on a typical window size the **Donor Assets & Evidence** panel sits in the left column below Project Browser, so testers may need to scroll the left column to reach it.
 Atlas/frame donor import is still blocked in this build because no local atlas text or sprite-sheet metadata source exists for `project_001` yet.
 GS VABS support is a separate project-delivery module; the manual commands here are still for the current shell/editor baseline, not a production VABS renderer.
@@ -17,10 +17,13 @@ The shell now shows a read-only VABS status panel for the selected project, but 
 6. Choose a donor import target layer, then drag one supported donor image into empty canvas space if you want to test the donor composition slice.
 7. If both `png` and `webp` donor assets are present, drag one of each to prove the stronger bounded import slice.
 8. Drag one donor image over an existing editable canvas object if you want to test direct donor-backed replacement, or use **Replace Selected Object** for the bounded button path.
-9. Select a donor-backed image and use its bottom-right resize handle if you want to test bounded direct manipulation.
-10. If you hit a bug, run `npm run manual:bug-bundle` to create a timestamped folder outside the repo with a prefilled bug note, current context, and an `attachments/` folder.
-11. If you only need a quick paste-friendly text block, run `npm run manual:bug-context`.
-12. Use `npm run manual:reset:project_001` again when you want to clean up after a session without running the full prepare flow.
+9. Use a marquee box or `Shift`/`Cmd` selection to build a small multi-object composition.
+10. Try one align or distribute action from the editor toolbar.
+11. Select a donor-backed image and use its bottom-right resize handle if you want to test bounded direct manipulation.
+12. Use **Show Asset In Palette** or **Show Evidence** from the donor summary if you want to trace a donor-backed object back to source context quickly.
+13. If you hit a bug, run `npm run manual:bug-bundle` to create a timestamped folder outside the repo with a prefilled bug note, current context, and an `attachments/` folder.
+14. If you only need a quick paste-friendly text block, run `npm run manual:bug-context`.
+15. Use `npm run manual:reset:project_001` again when you want to clean up after a session without running the full prepare flow.
 
 ## Commands
 - `npm run manual:status`

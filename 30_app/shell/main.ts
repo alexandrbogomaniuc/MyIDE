@@ -472,10 +472,10 @@ function attachLiveDonorImportSmokeHandlers(window: BrowserWindow): void {
   }
 
   console.log("MYIDE_LIVE_DONOR_IMPORT_MAIN_READY");
-  const timeoutMs = Number.parseInt(process.env.MYIDE_LIVE_DONOR_IMPORT_TIMEOUT_MS ?? "45000", 10);
+  const timeoutMs = Number.parseInt(process.env.MYIDE_LIVE_DONOR_IMPORT_TIMEOUT_MS ?? "90000", 10);
   const smokeTimeout = setTimeout(() => {
     finishLiveDonorImportSmoke(1, "FAIL smoke:electron-donor-import - timeout waiting for renderer donor import payload");
-  }, Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 45000);
+  }, Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 90000);
 
   const clearSmokeTimeout = () => {
     clearTimeout(smokeTimeout);

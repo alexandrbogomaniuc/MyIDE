@@ -362,6 +362,11 @@ button:disabled {
   background: rgba(230, 191, 100, 0.08);
 }
 
+.object-row.is-secondary-selected {
+  border-color: rgba(110, 169, 216, 0.54);
+  background: rgba(110, 169, 216, 0.1);
+}
+
 .layer-row {
   display: flex;
   justify-content: space-between;
@@ -1327,6 +1332,22 @@ button:disabled {
   border-color: rgba(110, 169, 216, 0.38);
 }
 
+.canvas-selection-box {
+  position: absolute;
+  z-index: 5;
+  border-radius: 16px;
+  border: 1px solid rgba(230, 191, 100, 0.78);
+  background: rgba(230, 191, 100, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(230, 191, 100, 0.18);
+  pointer-events: none;
+}
+
+.canvas-selection-box.is-additive {
+  border-color: rgba(110, 169, 216, 0.78);
+  background: rgba(110, 169, 216, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(110, 169, 216, 0.2);
+}
+
 .canvas-object {
   position: absolute;
   display: grid;
@@ -1397,6 +1418,11 @@ button:disabled {
 .canvas-object.is-selected {
   border-color: rgba(230, 191, 100, 0.76);
   box-shadow: 0 0 0 2px rgba(230, 191, 100, 0.24), 0 18px 28px rgba(0, 0, 0, 0.26);
+}
+
+.canvas-object.is-secondary-selected {
+  border-color: rgba(110, 169, 216, 0.72);
+  box-shadow: 0 0 0 2px rgba(110, 169, 216, 0.18), 0 18px 28px rgba(0, 0, 0, 0.24);
 }
 
 .canvas-object.is-drop-replace-target {
@@ -1490,6 +1516,11 @@ button:disabled {
 .inspector-rows {
   display: grid;
   gap: 10px;
+}
+
+.multi-selection-summary {
+  border-color: rgba(110, 169, 216, 0.3);
+  background: rgba(110, 169, 216, 0.08);
 }
 
 .copyable-tree-content {

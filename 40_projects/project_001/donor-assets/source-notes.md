@@ -31,6 +31,8 @@ Current stronger-slice intent:
 - prove more than one real donor image import survives save/reload
 - prove donor import can land on an intended layer
 - prove one existing editable object can be replaced with donor art while preserving layout and donor linkage
+- prove donor-backed objects can participate in bounded multi-selection and align/distribute composition
+- prove a selected donor-backed object can jump back to its source donor asset/evidence context
 
 Out of scope in this slice:
 - atlas slicing

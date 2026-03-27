@@ -3,9 +3,11 @@ const state = {
   selectedProjectId: null,
   editorData: null,
   selectedObjectId: null,
+  selectedObjectIds: [],
   history: null,
   canvasDrag: null,
   canvasResize: null,
+  canvasMarquee: null,
   viewport: {
     zoom: 1,
     panX: 0,
@@ -643,15 +645,24 @@ async function waitForRendererCondition(check, description, options = {}) {
   throw new Error(`Timed out waiting for ${description}.`);
 }
 
-function clickRendererElement(element) {
+function clickRendererElement(element, init = {}) {
   if (!(element instanceof HTMLElement)) {
     throw new Error("Cannot click a missing renderer element.");
+  }
+
+  if (!init.shiftKey && !init.ctrlKey && !init.metaKey && !init.altKey && typeof element.click === "function") {
+    element.click();
+    return;
   }
 
   element.dispatchEvent(new MouseEvent("click", {
     bubbles: true,
     cancelable: true,
     composed: true,
+    shiftKey: Boolean(init.shiftKey),
+    ctrlKey: Boolean(init.ctrlKey),
+    metaKey: Boolean(init.metaKey),
+    altKey: Boolean(init.altKey),
     view: window
   }));
 }
@@ -678,6 +689,10 @@ function dispatchRendererPointerEvent(target, type, init = {}) {
     clientY: Number.isFinite(init.clientY) ? init.clientY : 0,
     movementX: Number.isFinite(init.movementX) ? init.movementX : 0,
     movementY: Number.isFinite(init.movementY) ? init.movementY : 0,
+    shiftKey: Boolean(init.shiftKey),
+    ctrlKey: Boolean(init.ctrlKey),
+    metaKey: Boolean(init.metaKey),
+    altKey: Boolean(init.altKey),
     pressure: type === "pointerup" ? 0 : 0.5,
     view: window
   });
@@ -1551,6 +1566,20 @@ async function runLiveDonorImportSmoke() {
     availableFileTypes: [],
     createDropIntentVisible: false,
     replaceDropIntentVisible: false,
+    marqueeSelectionVisible: false,
+    marqueeSelectionCompleted: false,
+    selectedObjectCountAfterMarquee: 0,
+    selectedObjectCountAfterExpansion: 0,
+    selectedObjectIdsAfterMarquee: [],
+    selectedObjectIdsAfterExpansion: [],
+    compositionSelectionCountBeforeAlign: 0,
+    compositionSelectionObjectIdsBeforeAlign: [],
+    alignButtonEnabled: false,
+    alignLeftPositionsAfterClick: [],
+    alignSelectionCompleted: false,
+    distributionCompleted: false,
+    sourceAssetFocusCompleted: false,
+    sourceEvidenceFocusCompleted: false,
     importedAssetCount: 0,
     importedFileTypes: [],
     importModes: [],
@@ -1831,6 +1860,8 @@ async function runLiveDonorImportSmoke() {
         importedLayerId: importedObject.layerId,
         importedX: Number(importedObject.x),
         importedY: Number(importedObject.y),
+        composedX: null,
+        composedY: null,
         draggedX: null,
         draggedY: null,
         reloadedLayerId: null,
@@ -2140,6 +2171,247 @@ async function runLiveDonorImportSmoke() {
     baseResult.replacementX = Number(replacedObject.x);
     baseResult.replacementY = Number(replacedObject.y);
 
+    if (importedAssets.length >= 2) {
+      const marqueeTargetObjectIds = [importedAssets[0].objectId, importedAssets[1].objectId].filter(Boolean);
+      baseResult.marqueeTargetObjectIds = marqueeTargetObjectIds;
+      const marqueeViewport = await waitForRendererCondition(
+        () => elements.editorCanvas?.querySelector("[data-donor-drop-zone]") ?? null,
+        "refreshed donor drop zone for marquee selection"
+      );
+      const currentViewportRect = marqueeViewport.getBoundingClientRect();
+      const firstImportedElement = await waitForRendererCondition(
+        () => getCanvasObjectElementById(importedAssets[0].objectId),
+        `${importedAssets[0].objectId} for marquee selection`
+      );
+      const secondImportedElement = await waitForRendererCondition(
+        () => getCanvasObjectElementById(importedAssets[1].objectId),
+        `${importedAssets[1].objectId} for marquee selection`
+      );
+      const firstRect = firstImportedElement.getBoundingClientRect();
+      const secondRect = secondImportedElement.getBoundingClientRect();
+      const marqueeStartPoint = {
+        x: Math.max(currentViewportRect.left + 12, Math.min(firstRect.left, secondRect.left) - 16),
+        y: Math.max(currentViewportRect.top + 12, Math.min(firstRect.top, secondRect.top) - 16)
+      };
+      const marqueeEndPoint = {
+        x: Math.min(currentViewportRect.right - 12, Math.max(firstRect.right, secondRect.right) + 16),
+        y: Math.min(currentViewportRect.bottom - 12, Math.max(firstRect.bottom, secondRect.bottom) + 16)
+      };
+
+      dispatchRendererPointerEvent(marqueeViewport, "pointerdown", {
+        pointerId: pointerId + 2,
+        button: 0,
+        buttons: 1,
+        clientX: marqueeStartPoint.x,
+        clientY: marqueeStartPoint.y
+      });
+      dispatchRendererPointerEvent(window, "pointermove", {
+        pointerId: pointerId + 2,
+        buttons: 1,
+        clientX: marqueeEndPoint.x,
+        clientY: marqueeEndPoint.y,
+        movementX: marqueeEndPoint.x - marqueeStartPoint.x,
+        movementY: marqueeEndPoint.y - marqueeStartPoint.y
+      });
+      await waitForRendererCondition(
+        () => {
+          const selectionBox = elements.editorCanvas?.querySelector(".canvas-selection-box");
+          return state.canvasMarquee?.moved && selectionBox ? selectionBox : null;
+        },
+        "canvas marquee selection box"
+      );
+      baseResult.marqueeSelectionVisible = true;
+      dispatchRendererPointerEvent(window, "pointerup", {
+        pointerId: pointerId + 2,
+        button: 0,
+        buttons: 0,
+        clientX: marqueeEndPoint.x,
+        clientY: marqueeEndPoint.y,
+        movementX: marqueeEndPoint.x - marqueeStartPoint.x,
+        movementY: marqueeEndPoint.y - marqueeStartPoint.y
+      });
+      baseResult.selectedObjectIdsAfterMarquee = getSelectedObjectIds();
+      baseResult.selectedObjectCountAfterMarquee = getSelectedObjectIds().length;
+      await waitForRendererCondition(
+        () => {
+          const selectedIds = getSelectedObjectIds();
+          return selectedIds.includes(importedAssets[0].objectId) && selectedIds.includes(importedAssets[1].objectId)
+            ? selectedIds
+            : null;
+        },
+        "marquee selection to capture imported donor objects"
+      );
+      baseResult.marqueeSelectionCompleted = true;
+      baseResult.selectedObjectIdsAfterMarquee = getSelectedObjectIds();
+      baseResult.selectedObjectCountAfterMarquee = getSelectedObjectIds().length;
+
+      const primaryImportedSceneExplorerRow = await waitForRendererCondition(
+        () => elements.sceneExplorer?.querySelector(`[data-object-id="${primaryImportedAsset.objectId}"]`) ?? null,
+        `${primaryImportedAsset.objectId} in scene explorer for exact donor multi-selection`
+      );
+      clickRendererElement(primaryImportedSceneExplorerRow);
+      await waitForRendererCondition(
+        () => getSelectedObjectIds().length === 1 && state.selectedObjectId === primaryImportedAsset.objectId,
+        `${primaryImportedAsset.objectId} as the exact primary donor selection`
+      );
+
+      const secondaryImportedSceneExplorerRow = await waitForRendererCondition(
+        () => elements.sceneExplorer?.querySelector(`[data-object-id="${importedAssets[1].objectId}"]`) ?? null,
+        `${importedAssets[1].objectId} in scene explorer for exact donor multi-selection`
+      );
+      clickRendererElement(secondaryImportedSceneExplorerRow, { shiftKey: true });
+      await waitForRendererCondition(
+        () => {
+          const selectedIds = getSelectedObjectIds();
+          return selectedIds.includes(primaryImportedAsset.objectId)
+            && selectedIds.includes(importedAssets[1].objectId)
+            && selectedIds.length === 2
+            ? selectedIds
+            : null;
+        },
+        "exact donor multi-selection after marquee proof"
+      );
+
+      const alignButton = await waitForRendererCondition(
+        () => {
+          const button = elements.editorToolbar?.querySelector('[data-compose-action="align-left"]');
+          return button instanceof HTMLButtonElement && !button.disabled ? button : null;
+        },
+        "multi-select align-left control"
+      );
+      const alignSelectionContext = getCompositionSelectionContext();
+      baseResult.compositionSelectionCountBeforeAlign = alignSelectionContext.count;
+      baseResult.compositionSelectionObjectIdsBeforeAlign = alignSelectionContext.objectIds;
+      baseResult.alignButtonEnabled = !alignButton.disabled;
+      clickRendererElement(alignButton);
+      baseResult.alignLeftPositionsAfterClick = [
+        importedAssets[0].objectId,
+        importedAssets[1].objectId
+      ].map((objectId) => {
+        const currentObject = getEditableObjectById(objectId);
+        return currentObject
+          ? { objectId, x: Number(currentObject.x), y: Number(currentObject.y) }
+          : { objectId, x: null, y: null };
+      });
+      await waitForRendererCondition(
+        () => {
+          const leftObject = getEditableObjectById(importedAssets[0].objectId);
+          const rightObject = getEditableObjectById(importedAssets[1].objectId);
+          return leftObject && rightObject && Number(leftObject.x) === Number(rightObject.x)
+            ? { leftObject, rightObject }
+            : null;
+        },
+        "selected donor-backed objects to align left"
+      );
+      baseResult.alignSelectionCompleted = true;
+
+      const replacementSceneExplorerRow = await waitForRendererCondition(
+        () => elements.sceneExplorer?.querySelector(`[data-object-id="${replacementSeedObject.id}"]`) ?? null,
+        `${replacementSeedObject.id} in scene explorer for additive selection`
+      );
+      clickRendererElement(replacementSceneExplorerRow, { shiftKey: true });
+      await waitForRendererCondition(
+        () => {
+          const selectedIds = getSelectedObjectIds();
+          return selectedIds.includes(replacementSeedObject.id) && selectedIds.length >= 3
+            ? selectedIds
+            : null;
+        },
+        "replacement donor-backed object to join the multi-selection"
+      );
+      baseResult.selectedObjectIdsAfterExpansion = getSelectedObjectIds();
+      baseResult.selectedObjectCountAfterExpansion = getSelectedObjectIds().length;
+
+      const distributeButton = await waitForRendererCondition(
+        () => {
+          const button = elements.editorToolbar?.querySelector('[data-compose-action="distribute-v"]');
+          return button instanceof HTMLButtonElement && !button.disabled ? button : null;
+        },
+        "multi-select distribute-v control"
+      );
+      clickRendererElement(distributeButton);
+      await waitForRendererCondition(
+        () => {
+          const selectedIds = [importedAssets[0].objectId, importedAssets[1].objectId, replacementSeedObject.id];
+          const selectedObjects = selectedIds
+            .map((objectId) => getEditableObjectById(objectId))
+            .filter(Boolean);
+          if (selectedObjects.length !== 3) {
+            return null;
+          }
+
+          const sortedObjects = [...selectedObjects].sort((left, right) => Number(left.y) - Number(right.y));
+          const gapA = Number(sortedObjects[1].y) - (Number(sortedObjects[0].y) + Number(sortedObjects[0].height));
+          const gapB = Number(sortedObjects[2].y) - (Number(sortedObjects[1].y) + Number(sortedObjects[1].height));
+          return Math.abs(gapA - gapB) <= 2 ? sortedObjects : null;
+        },
+        "selected donor-backed objects to distribute vertically"
+      );
+      baseResult.distributionCompleted = true;
+
+      const primarySceneExplorerRow = await waitForRendererCondition(
+        () => elements.sceneExplorer?.querySelector(`[data-object-id="${primaryImportedAsset.objectId}"]`) ?? null,
+        `${primaryImportedAsset.objectId} in scene explorer for source focus`
+      );
+      clickRendererElement(primarySceneExplorerRow);
+      await waitForRendererCondition(
+        () => getSelectedObjectIds().length === 1 && state.selectedObjectId === primaryImportedAsset.objectId,
+        `${primaryImportedAsset.objectId} to become the primary selection again`
+      );
+
+      const inspectorAssetJump = await waitForRendererCondition(
+        () => elements.inspector?.querySelector(`[data-focus-donor-asset-id="${primaryImportedAsset.donorAssetId}"]`) ?? null,
+        "inspector donor asset jump button"
+      );
+      clickRendererElement(inspectorAssetJump);
+      await waitForRendererCondition(
+        () => {
+          const highlightedCard = elements.evidenceBrowser?.querySelector(`[data-donor-asset-id="${primaryImportedAsset.donorAssetId}"].is-highlighted`);
+          return state.donorAssetUi?.highlightedAssetId === primaryImportedAsset.donorAssetId && highlightedCard
+            ? highlightedCard
+            : null;
+        },
+        "donor asset palette focus from the selected donor-backed object"
+      );
+      baseResult.sourceAssetFocusCompleted = true;
+
+      if (primaryImportedAsset.donorEvidenceId) {
+        const inspectorEvidenceJump = await waitForRendererCondition(
+          () => elements.inspector?.querySelector(`[data-focus-donor-evidence-id="${primaryImportedAsset.donorEvidenceId}"]`) ?? null,
+          "inspector donor evidence jump button"
+        );
+        clickRendererElement(inspectorEvidenceJump);
+        await waitForRendererCondition(
+          () => state.evidenceUi?.highlightedEvidenceId === primaryImportedAsset.donorEvidenceId,
+          "donor evidence browser focus from the selected donor-backed object"
+        );
+        baseResult.sourceEvidenceFocusCompleted = true;
+      }
+    }
+
+    for (const importedAsset of importedAssets) {
+      const currentObject = getEditableObjectById(importedAsset.objectId);
+      if (!currentObject) {
+        continue;
+      }
+
+      importedAsset.composedX = Number(currentObject.x);
+      importedAsset.composedY = Number(currentObject.y);
+      if (importedAsset.objectId === primaryImportedAsset.objectId) {
+        baseResult.draggedX = Number(currentObject.x);
+        baseResult.draggedY = Number(currentObject.y);
+      }
+    }
+
+    if (baseResult.replacementObjectId) {
+      const currentReplacement = getEditableObjectById(baseResult.replacementObjectId);
+      if (currentReplacement) {
+        baseResult.replacementLayerId = currentReplacement.layerId;
+        baseResult.replacementX = Number(currentReplacement.x);
+        baseResult.replacementY = Number(currentReplacement.y);
+      }
+    }
+
     if (!(elements.actionSave instanceof HTMLButtonElement)) {
       throw new Error("Save button is missing from the renderer toolbar.");
     }
@@ -2183,12 +2455,12 @@ async function runLiveDonorImportSmoke() {
     const verificationResults = [];
     for (const importedAsset of importedAssets) {
       const donorAsset = getDonorAssetById(importedAsset.donorAssetId);
-      const expectedX = importedAsset.objectId === primaryImportedAsset.objectId
+      const expectedX = importedAsset.composedX ?? (importedAsset.objectId === primaryImportedAsset.objectId
         ? baseResult.draggedX
-        : importedAsset.importedX;
-      const expectedY = importedAsset.objectId === primaryImportedAsset.objectId
+        : importedAsset.importedX);
+      const expectedY = importedAsset.composedY ?? (importedAsset.objectId === primaryImportedAsset.objectId
         ? baseResult.draggedY
-        : importedAsset.importedY;
+        : importedAsset.importedY);
       const expectedWidth = importedAsset.objectId === primaryImportedAsset.objectId && baseResult.resizeCompleted
         ? baseResult.resizedWidth
         : null;
@@ -2298,7 +2570,27 @@ async function runLiveDonorImportSmoke() {
       throw new Error("The donor-backed replacement object did not preserve donor linkage metadata after reload.");
     }
 
-    const successMessage = `Live donor import smoke passed for ${importedAssets.length} donor assets (${baseResult.importedFileTypes.join(", ")}): moved ${primaryImportedAsset.objectId} to (${baseResult.draggedX}, ${baseResult.draggedY}), resized it to ${baseResult.resizedWidth}×${baseResult.resizedHeight}, replaced ${baseResult.replacementObjectId ?? "n/a"} with donor asset ${baseResult.replacementDonorEvidenceId ?? "n/a"}, and reloaded donor linkage for every donor-backed object.`;
+    if (importedAssets.length >= 2 && !baseResult.marqueeSelectionCompleted) {
+      throw new Error("The bounded canvas marquee selection proof did not complete.");
+    }
+
+    if (importedAssets.length >= 2 && !baseResult.alignSelectionCompleted) {
+      throw new Error("The bounded multi-object alignment proof did not complete.");
+    }
+
+    if (importedAssets.length >= 2 && !baseResult.distributionCompleted) {
+      throw new Error("The bounded multi-object distribution proof did not complete.");
+    }
+
+    if (importedAssets.length >= 1 && !baseResult.sourceAssetFocusCompleted) {
+      throw new Error("The donor source asset jump did not complete.");
+    }
+
+    if (primaryImportedAsset?.donorEvidenceId && !baseResult.sourceEvidenceFocusCompleted) {
+      throw new Error("The donor source evidence jump did not complete.");
+    }
+
+    const successMessage = `Live donor import smoke passed for ${importedAssets.length} donor assets (${baseResult.importedFileTypes.join(", ")}): moved ${primaryImportedAsset.objectId} to (${baseResult.draggedX}, ${baseResult.draggedY}), resized it to ${baseResult.resizedWidth}×${baseResult.resizedHeight}, multi-selected/aligned/distributed donor-backed objects, replaced ${baseResult.replacementObjectId ?? "n/a"} with donor asset ${baseResult.replacementDonorEvidenceId ?? "n/a"}, and reloaded donor linkage for every donor-backed object.`;
     setPreviewStatus(successMessage);
     baseResult.previewStatus = successMessage;
     document.body.dataset.liveDonorImportSmoke = "pass";
@@ -4364,13 +4656,30 @@ function bindActions() {
     }
 
     const alignButton = target.closest("[data-align-action]");
-    if (!(alignButton instanceof HTMLElement)) {
+    if (alignButton instanceof HTMLElement) {
+      const alignment = alignButton.dataset.alignAction;
+      if (alignment) {
+        handleAlignSelectedObject(alignment);
+        return;
+      }
+    }
+
+    const compositionButton = target.closest("[data-compose-action]");
+    if (!(compositionButton instanceof HTMLElement)) {
       return;
     }
 
-    const alignment = alignButton.dataset.alignAction;
-    if (alignment) {
-      handleAlignSelectedObject(alignment);
+    const compositionAction = compositionButton.dataset.composeAction;
+    if (!compositionAction) {
+      return;
+    }
+
+    if (compositionAction.startsWith("align-")) {
+      handleAlignSelection(compositionAction);
+    } else if (compositionAction === "distribute-h") {
+      handleDistributeSelection("horizontal");
+    } else if (compositionAction === "distribute-v") {
+      handleDistributeSelection("vertical");
     }
   });
   elements.projectBrowser?.addEventListener("click", (event) => {
@@ -4412,7 +4721,10 @@ function bindActions() {
 
     const objectId = objectButton.dataset.objectId;
     if (objectId) {
-      state.selectedObjectId = objectId;
+      setSelectedObject(objectId, {
+        additive: isAdditiveSelectionEvent(event),
+        toggle: isAdditiveSelectionEvent(event)
+      });
       renderAll();
     }
   });
@@ -4493,6 +4805,10 @@ function bindActions() {
       return;
     }
 
+    if (isAdditiveSelectionEvent(event)) {
+      return;
+    }
+
     const target = event.target;
     if (!(target instanceof HTMLElement)) {
       return;
@@ -4505,7 +4821,10 @@ function bindActions() {
 
     const objectId = objectNode.dataset.canvasObjectId;
     if (objectId) {
-      state.selectedObjectId = objectId;
+      setSelectedObject(objectId, {
+        additive: isAdditiveSelectionEvent(event),
+        toggle: isAdditiveSelectionEvent(event)
+      });
       renderAll();
     }
   });
@@ -4675,6 +4994,22 @@ function bindActions() {
       }
       const label = focusLinkageButton.dataset.focusLinkageLabel ?? "selected object evidence";
       focusSelectedObjectEvidence(refs, label);
+      return;
+    }
+
+    const focusDonorAssetButton = target.closest("[data-focus-donor-asset-id]");
+    if (focusDonorAssetButton instanceof HTMLElement && focusDonorAssetButton.dataset.focusDonorAssetId) {
+      event.preventDefault();
+      focusDonorAssetCard(focusDonorAssetButton.dataset.focusDonorAssetId);
+      return;
+    }
+
+    const focusDonorEvidenceButton = target.closest("[data-focus-donor-evidence-id]");
+    if (focusDonorEvidenceButton instanceof HTMLElement && focusDonorEvidenceButton.dataset.focusDonorEvidenceId) {
+      event.preventDefault();
+      focusEvidenceItem(focusDonorEvidenceButton.dataset.focusDonorEvidenceId, {
+        selectedObjectOnly: false
+      });
       return;
     }
 
@@ -4855,30 +5190,45 @@ function syncEditorSceneReferences(editorData) {
 function reconcileSelectedObject(preferredObjectId = state.selectedObjectId, fallbackObjectId = null) {
   if (!state.editorData || !Array.isArray(state.editorData.objects)) {
     state.selectedObjectId = null;
+    state.selectedObjectIds = [];
     return;
   }
 
   const tools = getEditorStateTools();
+  const availableIds = new Set(state.editorData.objects.map((entry) => entry.id));
+  const preservedSelectionIds = uniqueStrings([
+    ...(Array.isArray(state.selectedObjectIds) ? state.selectedObjectIds : []),
+    preferredObjectId,
+    fallbackObjectId
+  ]).filter((objectId) => availableIds.has(objectId));
   if (typeof tools.resolveSelectedObjectId === "function") {
     state.selectedObjectId = tools.resolveSelectedObjectId(state.editorData.objects, preferredObjectId, fallbackObjectId);
+  } else {
+    const objects = state.editorData.objects;
+    const preferred = objects.find((entry) => entry.id === preferredObjectId);
+    if (preferred) {
+      state.selectedObjectId = preferred.id;
+    } else {
+      const fallback = objects.find((entry) => entry.id === fallbackObjectId);
+      if (fallback) {
+        state.selectedObjectId = fallback.id;
+      } else {
+        const editable = objects.find((entry) => isObjectEditable(entry));
+        state.selectedObjectId = editable?.id ?? objects[0]?.id ?? null;
+      }
+    }
+  }
+
+  if (!state.selectedObjectId) {
+    state.selectedObjectIds = [];
     return;
   }
 
-  const objects = state.editorData.objects;
-  const preferred = objects.find((entry) => entry.id === preferredObjectId);
-  if (preferred) {
-    state.selectedObjectId = preferred.id;
-    return;
-  }
-
-  const fallback = objects.find((entry) => entry.id === fallbackObjectId);
-  if (fallback) {
-    state.selectedObjectId = fallback.id;
-    return;
-  }
-
-  const editable = objects.find((entry) => isObjectEditable(entry));
-  state.selectedObjectId = editable?.id ?? objects[0]?.id ?? null;
+  const nextSelectionIds = [
+    state.selectedObjectId,
+    ...preservedSelectionIds.filter((objectId) => objectId !== state.selectedObjectId)
+  ];
+  state.selectedObjectIds = nextSelectionIds.length > 0 ? nextSelectionIds : [state.selectedObjectId];
 }
 
 function recordUndoSnapshot(beforeSnapshot, label) {
@@ -5164,6 +5514,39 @@ function getSelectedObject() {
   }
 
   return state.editorData.objects.find((entry) => entry.id === state.selectedObjectId) ?? null;
+}
+
+function getSelectedObjectIds() {
+  if (!state.editorData || !Array.isArray(state.editorData.objects)) {
+    return [];
+  }
+
+  const availableIds = new Set(state.editorData.objects.map((entry) => entry.id));
+  const nextIds = [];
+  const pushId = (value) => {
+    if (typeof value !== "string" || !availableIds.has(value) || nextIds.includes(value)) {
+      return;
+    }
+    nextIds.push(value);
+  };
+
+  pushId(state.selectedObjectId);
+  (Array.isArray(state.selectedObjectIds) ? state.selectedObjectIds : []).forEach(pushId);
+  return nextIds;
+}
+
+function getSelectedObjects() {
+  return getSelectedObjectIds()
+    .map((objectId) => getCanvasObjectById(objectId))
+    .filter(Boolean);
+}
+
+function isObjectSelected(objectId) {
+  return typeof objectId === "string" && getSelectedObjectIds().includes(objectId);
+}
+
+function hasMultiSelection() {
+  return getSelectedObjectIds().length > 1;
 }
 
 function asJsonObject(value) {
@@ -5711,6 +6094,44 @@ function focusEvidenceItem(evidenceId, {
   }
 }
 
+function scrollDonorAssetCardIntoView(assetId) {
+  if (typeof assetId !== "string" || assetId.length === 0) {
+    return;
+  }
+
+  window.requestAnimationFrame(() => {
+    const card = elements.evidenceBrowser?.querySelector(`[data-donor-asset-id="${assetId}"]`);
+    if (!(card instanceof HTMLElement)) {
+      return;
+    }
+
+    const details = card.closest("details");
+    if (details instanceof HTMLDetailsElement) {
+      details.open = true;
+    }
+
+    card.scrollIntoView({
+      block: "nearest",
+      behavior: "smooth"
+    });
+  });
+}
+
+function focusDonorAssetCard(assetId, {
+  statusMessage = null
+} = {}) {
+  if (typeof assetId !== "string" || assetId.length === 0) {
+    return;
+  }
+
+  state.donorAssetUi.highlightedAssetId = assetId;
+  renderAll();
+  scrollDonorAssetCardIntoView(assetId);
+
+  const donorAsset = getDonorAssetById(assetId);
+  setPreviewStatus(statusMessage ?? `Focused donor asset ${donorAsset?.title ?? assetId} in the donor asset palette.`);
+}
+
 function focusSelectedObjectEvidence(refs, label = "selected object evidence") {
   const normalizedRefs = uniqueStrings(Array.isArray(refs) ? refs : []);
   if (normalizedRefs.length === 0) {
@@ -5733,7 +6154,7 @@ function selectObjectFromEvidence(objectId) {
     return;
   }
 
-  state.selectedObjectId = objectId;
+  setSelectedObject(objectId);
   renderAll();
   window.requestAnimationFrame(() => {
     const row = elements.sceneExplorer?.querySelector(`[data-object-id="${objectId}"]`);
@@ -6309,6 +6730,10 @@ function isTypingTarget(target) {
     || Boolean(target && typeof target === "object" && "isContentEditable" in target && target.isContentEditable);
 }
 
+function isAdditiveSelectionEvent(event) {
+  return Boolean(event?.shiftKey || event?.metaKey || event?.ctrlKey);
+}
+
 function getLayerMap() {
   const layerEntries = Array.isArray(state.editorData?.layers) ? state.editorData.layers : [];
   return new Map(layerEntries.map((layer) => [layer.id, layer]));
@@ -6383,12 +6808,16 @@ function enforceIsolationSelection() {
     return;
   }
 
-  const selectedObject = getSelectedObject();
-  if (selectedObject?.layerId === isolatedLayerId) {
+  const isolatedSelectionIds = getSelectedObjectIds().filter((objectId) => {
+    const object = getCanvasObjectById(objectId);
+    return object?.layerId === isolatedLayerId;
+  });
+  if (isolatedSelectionIds.length > 0) {
+    setSelectedObjectIds(isolatedSelectionIds, isolatedSelectionIds[0]);
     return;
   }
 
-  state.selectedObjectId = getFirstSelectableObjectIdForLayer(isolatedLayerId);
+  setSelectedObjectIds([getFirstSelectableObjectIdForLayer(isolatedLayerId)].filter(Boolean));
 }
 
 function getSelectedObjectOrderContext() {
@@ -6620,8 +7049,230 @@ function clearDonorDropIntent(viewport = null) {
   }
 }
 
-function setSelectedObject(objectId) {
-  state.selectedObjectId = objectId;
+function setSelectedObjectIds(objectIds, primaryObjectId = null) {
+  const normalizedIds = uniqueStrings(Array.isArray(objectIds) ? objectIds : []);
+  const nextIds = normalizedIds.filter((objectId) => Boolean(getCanvasObjectById(objectId)));
+  const fallbackPrimaryId = nextIds[0] ?? null;
+  const resolvedPrimaryId = typeof primaryObjectId === "string" && nextIds.includes(primaryObjectId)
+    ? primaryObjectId
+    : fallbackPrimaryId;
+
+  state.selectedObjectId = resolvedPrimaryId;
+  state.selectedObjectIds = resolvedPrimaryId
+    ? [resolvedPrimaryId, ...nextIds.filter((objectId) => objectId !== resolvedPrimaryId)]
+    : [];
+}
+
+function clearSelectedObjects() {
+  state.selectedObjectId = null;
+  state.selectedObjectIds = [];
+}
+
+function setSelectedObject(objectId, options = {}) {
+  if (typeof objectId !== "string" || objectId.length === 0) {
+    clearSelectedObjects();
+    return;
+  }
+
+  const additive = Boolean(options.additive);
+  const toggle = Boolean(options.toggle);
+  if (!additive && !toggle) {
+    setSelectedObjectIds([objectId], objectId);
+    return;
+  }
+
+  const currentIds = getSelectedObjectIds();
+  if (toggle && currentIds.includes(objectId)) {
+    const nextIds = currentIds.filter((entry) => entry !== objectId);
+    setSelectedObjectIds(nextIds, nextIds[nextIds.length - 1] ?? null);
+    return;
+  }
+
+  setSelectedObjectIds([...currentIds, objectId], objectId);
+}
+
+function getCanvasMarqueeRect(marquee = state.canvasMarquee) {
+  if (!marquee?.startScenePoint || !marquee?.currentScenePoint) {
+    return null;
+  }
+
+  const left = Math.min(marquee.startScenePoint.x, marquee.currentScenePoint.x);
+  const top = Math.min(marquee.startScenePoint.y, marquee.currentScenePoint.y);
+  const right = Math.max(marquee.startScenePoint.x, marquee.currentScenePoint.x);
+  const bottom = Math.max(marquee.startScenePoint.y, marquee.currentScenePoint.y);
+
+  return {
+    left: Math.round(left),
+    top: Math.round(top),
+    width: Math.max(0, Math.round(right - left)),
+    height: Math.max(0, Math.round(bottom - top)),
+    right: Math.round(right),
+    bottom: Math.round(bottom)
+  };
+}
+
+function getCanvasMarqueeClientRect(marquee = state.canvasMarquee) {
+  if (!marquee?.startClientPoint || !marquee?.currentClientPoint) {
+    return null;
+  }
+
+  const left = Math.min(marquee.startClientPoint.x, marquee.currentClientPoint.x);
+  const top = Math.min(marquee.startClientPoint.y, marquee.currentClientPoint.y);
+  const right = Math.max(marquee.startClientPoint.x, marquee.currentClientPoint.x);
+  const bottom = Math.max(marquee.startClientPoint.y, marquee.currentClientPoint.y);
+
+  return {
+    left,
+    top,
+    width: Math.max(0, right - left),
+    height: Math.max(0, bottom - top),
+    right,
+    bottom
+  };
+}
+
+function getCanvasSelectableObjects() {
+  if (!state.editorData || !Array.isArray(state.editorData.objects)) {
+    return [];
+  }
+
+  const renderableLayerIds = new Set(getRenderableLayerIds(state.editorData));
+  return state.editorData.objects.filter((object) => renderableLayerIds.has(object.layerId) && isObjectEditable(object));
+}
+
+function doesObjectIntersectMarquee(object, marqueeRect) {
+  if (!object || !marqueeRect) {
+    return false;
+  }
+
+  const extent = getObjectExtent(object);
+  const left = Number.isFinite(object.x) ? object.x : 0;
+  const top = Number.isFinite(object.y) ? object.y : 0;
+  const right = left + extent.width;
+  const bottom = top + extent.height;
+
+  return !(
+    right < marqueeRect.left
+    || left > marqueeRect.right
+    || bottom < marqueeRect.top
+    || top > marqueeRect.bottom
+  );
+}
+
+function doesCanvasObjectElementIntersectMarquee(objectId, marqueeClientRect) {
+  if (typeof objectId !== "string" || !marqueeClientRect) {
+    return false;
+  }
+
+  const element = getCanvasObjectElementById(objectId);
+  if (!(element instanceof HTMLElement)) {
+    return false;
+  }
+
+  const rect = element.getBoundingClientRect();
+  return !(
+    rect.right < marqueeClientRect.left
+    || rect.left > marqueeClientRect.right
+    || rect.bottom < marqueeClientRect.top
+    || rect.top > marqueeClientRect.bottom
+  );
+}
+
+function beginCanvasMarquee(event) {
+  const scenePoint = getScenePointFromEvent(event);
+  state.canvasMarquee = {
+    pointerId: event.pointerId,
+    startScenePoint: scenePoint,
+    currentScenePoint: scenePoint,
+    startClientPoint: {
+      x: event.clientX,
+      y: event.clientY
+    },
+    currentClientPoint: {
+      x: event.clientX,
+      y: event.clientY
+    },
+    additive: Boolean(event.shiftKey || event.metaKey || event.ctrlKey),
+    startSelectedObjectIds: getSelectedObjectIds(),
+    moved: false
+  };
+
+  if (typeof elements.editorCanvas?.setPointerCapture === "function") {
+    try {
+      elements.editorCanvas.setPointerCapture(event.pointerId);
+    } catch {
+      // Pointer capture is best-effort only.
+    }
+  }
+
+  setPreviewStatus(state.canvasMarquee.additive
+    ? "Drag a marquee box to add visible editable objects to the current selection."
+    : "Drag a marquee box to select visible editable objects on the canvas.");
+  renderAll();
+}
+
+function updateCanvasMarquee(event) {
+  if (!state.canvasMarquee || event.pointerId !== state.canvasMarquee.pointerId) {
+    return false;
+  }
+
+  state.canvasMarquee.currentScenePoint = getScenePointFromEvent(event);
+  state.canvasMarquee.currentClientPoint = {
+    x: event.clientX,
+    y: event.clientY
+  };
+  const marqueeRect = getCanvasMarqueeRect();
+  const movedDistanceX = Math.abs(state.canvasMarquee.currentScenePoint.x - state.canvasMarquee.startScenePoint.x);
+  const movedDistanceY = Math.abs(state.canvasMarquee.currentScenePoint.y - state.canvasMarquee.startScenePoint.y);
+  state.canvasMarquee.moved = state.canvasMarquee.moved || movedDistanceX > 6 || movedDistanceY > 6;
+
+  if (marqueeRect && state.canvasMarquee.moved) {
+    const intersectedIds = getCanvasSelectableObjects()
+      .filter((object) => {
+        return doesObjectIntersectMarquee(object, marqueeRect);
+      })
+      .map((object) => object.id);
+    const nextIds = state.canvasMarquee.additive
+      ? uniqueStrings([...state.canvasMarquee.startSelectedObjectIds, ...intersectedIds])
+      : intersectedIds;
+    setSelectedObjectIds(nextIds, intersectedIds[intersectedIds.length - 1] ?? nextIds[nextIds.length - 1] ?? null);
+  }
+
+  renderAll();
+  return true;
+}
+
+function endCanvasMarquee(event) {
+  if (!state.canvasMarquee || (event?.pointerId !== undefined && event.pointerId !== state.canvasMarquee.pointerId)) {
+    return false;
+  }
+
+  try {
+    if (typeof elements.editorCanvas?.releasePointerCapture === "function") {
+      elements.editorCanvas.releasePointerCapture(state.canvasMarquee.pointerId);
+    }
+  } catch {
+    // Pointer capture release is best-effort only.
+  }
+
+  const marquee = state.canvasMarquee;
+  state.canvasMarquee = null;
+
+  if (!marquee.moved) {
+    if (!marquee.additive) {
+      clearSelectedObjects();
+      renderAll();
+      setPreviewStatus("Canvas selection cleared.");
+    }
+    return true;
+  }
+
+  renderAll();
+  const selectedCount = getSelectedObjectIds().length;
+  setPreviewStatus(selectedCount > 0
+    ? `Selected ${selectedCount} object${selectedCount === 1 ? "" : "s"} with the canvas marquee.`
+    : "No editable objects intersected the marquee selection.");
+  return true;
 }
 
 function getViewportTools() {
@@ -6681,6 +7332,7 @@ function resetViewportSessionState() {
 function clearViewportInteractionState() {
   state.viewport.panDrag = null;
   state.viewport.spacePressed = false;
+  state.canvasMarquee = null;
 }
 
 function getViewportSceneSize() {
@@ -6749,10 +7401,13 @@ function getScenePointFromEvent(event) {
   }
 
   const rect = viewportElement.getBoundingClientRect();
+  const sceneSize = getSceneViewport();
+  const scaleX = rect.width > 0 ? sceneSize.width / rect.width : 1;
+  const scaleY = rect.height > 0 ? sceneSize.height / rect.height : 1;
   const tools = getViewportTools();
   const screenPoint = {
-    x: event.clientX - rect.left,
-    y: event.clientY - rect.top
+    x: (event.clientX - rect.left) * scaleX,
+    y: (event.clientY - rect.top) * scaleY
   };
 
   return tools.screenToWorldPoint(screenPoint, getViewportState());
@@ -6935,12 +7590,29 @@ function beginCanvasDrag(object, event) {
     return false;
   }
   const scenePoint = getScenePointFromEvent(event);
+  const dragObjectIds = isObjectSelected(object.id)
+    ? getSelectedObjectIds().filter((objectId) => {
+        const selectedObject = getCanvasObjectById(objectId);
+        return Boolean(selectedObject && isObjectEditable(selectedObject));
+      })
+    : [object.id];
+  const startPositions = Object.fromEntries(dragObjectIds.map((objectId) => {
+    const selectedObject = getCanvasObjectById(objectId);
+    return [
+      objectId,
+      {
+        x: Number.isFinite(selectedObject?.x) ? selectedObject.x : 0,
+        y: Number.isFinite(selectedObject?.y) ? selectedObject.y : 0
+      }
+    ];
+  }));
 
   state.canvasDrag = {
     objectId: object.id,
+    objectIds: dragObjectIds,
     pointerId: event.pointerId,
-    offsetX: scenePoint.x - object.x,
-    offsetY: scenePoint.y - object.y,
+    startScenePoint: scenePoint,
+    startPositions,
     beforeSnapshot: clone(state.editorData),
     moved: false
   };
@@ -6953,8 +7625,12 @@ function beginCanvasDrag(object, event) {
     }
   }
 
-  pushLog(`Dragging ${object.displayName}. Use arrows or pointer movement to reposition it.`);
-  setPreviewStatus(`Dragging ${object.displayName}. Release to keep the new position.`);
+  pushLog(dragObjectIds.length > 1
+    ? `Dragging ${dragObjectIds.length} selected objects together.`
+    : `Dragging ${object.displayName}. Use arrows or pointer movement to reposition it.`);
+  setPreviewStatus(dragObjectIds.length > 1
+    ? `Dragging ${dragObjectIds.length} selected objects together. Release to keep the new composition.`
+    : `Dragging ${object.displayName}. Release to keep the new position.`);
   return true;
 }
 
@@ -7075,12 +7751,30 @@ function applyObjectPosition(object, x, y, sourceLabel) {
 }
 
 function nudgeSelectedObject(deltaX, deltaY, sourceLabel) {
-  const selectedObject = getSelectedObject();
-  if (!selectedObject || !isObjectEditable(selectedObject)) {
+  const selectedObjects = getSelectedObjects().filter((object) => isObjectEditable(object));
+  if (selectedObjects.length === 0) {
     return false;
   }
 
-  applyObjectPosition(selectedObject, selectedObject.x + deltaX, selectedObject.y + deltaY, sourceLabel);
+  if (selectedObjects.length === 1) {
+    const selectedObject = selectedObjects[0];
+    applyObjectPosition(selectedObject, selectedObject.x + deltaX, selectedObject.y + deltaY, sourceLabel);
+    return true;
+  }
+
+  applyEditorMutation(`${sourceLabel ?? "Nudged"} ${selectedObjects.length} selected objects.`, (editorData) => {
+    for (const selectedObject of selectedObjects) {
+      const editableObject = editorData.objects.find((entry) => entry.id === selectedObject.id);
+      if (!editableObject) {
+        continue;
+      }
+
+      const bounded = normalizeObjectPosition(editableObject, editableObject.x + deltaX, editableObject.y + deltaY);
+      editableObject.x = bounded.x;
+      editableObject.y = bounded.y;
+    }
+  });
+  setPreviewStatus(`Nudged ${selectedObjects.length} selected objects. Save to persist the composition change.`);
   return true;
 }
 
@@ -7097,6 +7791,7 @@ function handleCanvasPointerDown(event) {
   const objectButton = target.closest("[data-canvas-object-id]");
   const canvasStage = target.closest(".canvas-stage");
   const canvasViewport = target.closest(".canvas-viewport");
+  const canvasSurface = canvasStage ?? canvasViewport;
 
   if (!canvasViewport) {
     return;
@@ -7109,7 +7804,7 @@ function handleCanvasPointerDown(event) {
     return;
   }
 
-  if (event.button !== 0 || !canvasStage) {
+  if (event.button !== 0 || !canvasSurface) {
     return;
   }
 
@@ -7122,7 +7817,19 @@ function handleCanvasPointerDown(event) {
       return;
     }
 
-    setSelectedObject(object.id);
+    if (isAdditiveSelectionEvent(event)) {
+      setSelectedObject(object.id, {
+        additive: true,
+        toggle: true
+      });
+      renderAll();
+      event.preventDefault();
+      return;
+    }
+
+    if (!isObjectSelected(object.id)) {
+      setSelectedObject(object.id);
+    }
     renderAll();
     if (resizeHandle instanceof HTMLElement) {
       beginCanvasResize(object, event);
@@ -7134,11 +7841,8 @@ function handleCanvasPointerDown(event) {
     return;
   }
 
-  if (state.selectedObjectId !== null) {
-    state.selectedObjectId = null;
-    renderAll();
-    setPreviewStatus("Canvas selection cleared.");
-  }
+  beginCanvasMarquee(event);
+  event.preventDefault();
 }
 
 function handleCanvasPointerMove(event) {
@@ -7150,26 +7854,40 @@ function handleCanvasPointerMove(event) {
     return;
   }
 
+  if (updateCanvasMarquee(event)) {
+    return;
+  }
+
   if (!state.canvasDrag || event.pointerId !== state.canvasDrag.pointerId || !state.editorData) {
     return;
   }
 
-  const object = getCanvasObjectById(state.canvasDrag.objectId);
-  if (!object || !isObjectEditable(object)) {
-    return;
-  }
-
   const scenePoint = getScenePointFromEvent(event);
-  const nextX = scenePoint.x - state.canvasDrag.offsetX;
-  const nextY = scenePoint.y - state.canvasDrag.offsetY;
-  const bounded = normalizeObjectPosition(object, nextX, nextY);
+  const deltaX = scenePoint.x - state.canvasDrag.startScenePoint.x;
+  const deltaY = scenePoint.y - state.canvasDrag.startScenePoint.y;
+  let changed = false;
 
-  if (bounded.x === object.x && bounded.y === object.y) {
+  for (const objectId of Array.isArray(state.canvasDrag.objectIds) ? state.canvasDrag.objectIds : [state.canvasDrag.objectId]) {
+    const object = getCanvasObjectById(objectId);
+    const startPosition = state.canvasDrag.startPositions?.[objectId];
+    if (!object || !isObjectEditable(object) || !startPosition) {
+      continue;
+    }
+
+    const bounded = normalizeObjectPosition(object, startPosition.x + deltaX, startPosition.y + deltaY);
+    if (bounded.x === object.x && bounded.y === object.y) {
+      continue;
+    }
+
+    object.x = bounded.x;
+    object.y = bounded.y;
+    changed = true;
+  }
+
+  if (!changed) {
     return;
   }
 
-  object.x = bounded.x;
-  object.y = bounded.y;
   state.canvasDrag.moved = true;
   syncDirtyState();
   renderAll();
@@ -7184,6 +7902,10 @@ function handleCanvasPointerUp(event) {
     return;
   }
 
+  if (endCanvasMarquee(event)) {
+    return;
+  }
+
   if (!state.canvasDrag || (event?.pointerId !== undefined && event.pointerId !== state.canvasDrag.pointerId)) {
     return;
   }
@@ -7191,6 +7913,7 @@ function handleCanvasPointerUp(event) {
   const object = getCanvasObjectById(state.canvasDrag.objectId);
   const beforeSnapshot = state.canvasDrag.beforeSnapshot;
   const moved = Boolean(state.canvasDrag.moved);
+  const draggedObjectIds = Array.isArray(state.canvasDrag.objectIds) ? state.canvasDrag.objectIds : [];
 
   try {
     if (typeof elements.editorCanvas?.releasePointerCapture === "function") {
@@ -7203,9 +7926,14 @@ function handleCanvasPointerUp(event) {
   state.canvasDrag = null;
 
   if (object && moved) {
-    recordUndoSnapshot(beforeSnapshot, `Dragged ${object.displayName}`);
-    pushLog(`Committed ${object.displayName} at ${object.x}, ${object.y}.`);
-    setPreviewStatus(`Canvas move completed for ${object.displayName}. Save to persist the change.`);
+    const draggedCount = draggedObjectIds.length > 0 ? draggedObjectIds.length : 1;
+    recordUndoSnapshot(beforeSnapshot, draggedCount > 1 ? `Dragged ${draggedCount} objects` : `Dragged ${object.displayName}`);
+    pushLog(draggedCount > 1
+      ? `Committed ${draggedCount} selected objects after a grouped canvas drag.`
+      : `Committed ${object.displayName} at ${object.x}, ${object.y}.`);
+    setPreviewStatus(draggedCount > 1
+      ? `Grouped canvas move completed for ${draggedCount} selected objects. Save to persist the composition change.`
+      : `Canvas move completed for ${object.displayName}. Save to persist the change.`);
     renderAll();
   }
 }
@@ -7361,8 +8089,10 @@ async function reloadWorkspace(isInitialLoad, requestedProjectId = null) {
 
   state.selectedProjectId = state.bundle.selectedProjectId;
   state.editorData = state.bundle.editableProject ? clone(state.bundle.editableProject) : null;
+  state.selectedObjectIds = [];
   state.canvasDrag = null;
   state.canvasResize = null;
+  state.canvasMarquee = null;
   state.evidenceUi = {
     selectedObjectOnly: false,
     highlightedEvidenceId: null
@@ -7573,7 +8303,7 @@ function handleLayerAction(layerId, action) {
     };
 
     if (getSelectedObject()?.layerId !== layerId) {
-      state.selectedObjectId = getFirstSelectableObjectIdForLayer(layerId);
+      setSelectedObject(getFirstSelectableObjectIdForLayer(layerId));
     }
 
     reconcileSelectedObject(state.selectedObjectId, state.layerIsolation.previousSelectedObjectId);
@@ -8037,7 +8767,7 @@ function renderEvidenceBrowser() {
         </div>
       </div>
     </details>
-    <details class="evidence-section" open>
+    <details class="evidence-section" open data-donor-asset-palette="1">
       <summary>Donor Asset Palette <span class="summary-count">${visibleDonorAssets.length}${state.donorAssetUi.searchQuery ? ` of ${donorAssetCount}` : ""}</span></summary>
       <div class="evidence-section-body">
         <div class="tree-row scope-summary donor-asset-summary">
@@ -8180,8 +8910,10 @@ function renderSceneExplorer() {
     const objectMarkup = objects.length > 0
       ? objects.map((object, index) => {
         const donorAsset = getDonorAssetForObject(object);
+        const isSelected = isObjectSelected(object.id);
+        const isPrimarySelected = object.id === state.selectedObjectId;
         return `
-        <button class="object-row ${object.id === state.selectedObjectId ? "is-selected" : ""}" type="button" data-object-id="${object.id}">
+        <button class="object-row ${isSelected ? "is-selected" : ""} ${isSelected && !isPrimarySelected ? "is-secondary-selected" : ""}" type="button" data-object-id="${object.id}">
           <strong>${object.displayName}</strong>
           ${donorAsset ? `
             <div class="chip-row object-row-badges">
@@ -8191,7 +8923,7 @@ function renderSceneExplorer() {
             </div>
           ` : ""}
           <span>${object.type}</span>
-          <small>${object.visible ? "visible" : "hidden"} · ${object.locked ? "locked" : "editable"} · stack ${index + 1}/${objects.length} · ${object.id}</small>
+          <small>${object.visible ? "visible" : "hidden"} · ${object.locked ? "locked" : "editable"} · stack ${index + 1}/${objects.length} · ${isPrimarySelected ? "primary selection" : isSelected ? "selected" : "not selected"} · ${object.id}</small>
         </button>
         `;
       }).join("")
@@ -8635,6 +9367,10 @@ function getDonorImportTargetLayerLabel() {
 }
 
 function getReplaceableSelectedObject() {
+  if (hasMultiSelection()) {
+    return null;
+  }
+
   const selectedObject = getSelectedObject();
   if (!selectedObject || !isObjectEditable(selectedObject)) {
     return null;
@@ -8707,6 +9443,76 @@ function getAlignmentLabel(alignment) {
   };
 
   return labels[alignment] ?? alignment;
+}
+
+function getCompositionSelectionContext() {
+  const selectedObjects = getSelectedObjects().filter((object) => isObjectEditable(object) && isViewportAlignableObject(object));
+  const donorBackedCount = selectedObjects.filter((object) => Boolean(getDonorAssetForObject(object))).length;
+  return {
+    objectIds: selectedObjects.map((object) => object.id),
+    objects: selectedObjects,
+    count: selectedObjects.length,
+    donorBackedCount
+  };
+}
+
+function getCompositionActionLabel(action) {
+  const labels = {
+    "align-left": "aligned left",
+    "align-right": "aligned right",
+    "align-top": "aligned top",
+    "align-bottom": "aligned bottom",
+    "align-center-h": "aligned center horizontally",
+    "align-middle-v": "aligned middle vertically",
+    "distribute-h": "distributed horizontally",
+    "distribute-v": "distributed vertically"
+  };
+
+  return labels[action] ?? action;
+}
+
+function handleAlignSelection(action) {
+  const context = getCompositionSelectionContext();
+  if (context.count < 2) {
+    setPreviewStatus("Select at least two editable donor-backed or placeholder-backed objects before using selection alignment.");
+    return;
+  }
+
+  const didChange = applyEditorMutation(`Updated multi-object composition (${action}).`, (editorData) => {
+    const tools = getEditorStateTools();
+    if (typeof tools.alignSelection === "function") {
+      tools.alignSelection(editorData, context.objectIds, action, getSceneViewport());
+    }
+  });
+
+  if (!didChange) {
+    setPreviewStatus("The selected objects are already positioned for that alignment.");
+    return;
+  }
+
+  setPreviewStatus(`${context.count} selected objects were ${getCompositionActionLabel(action)}. Save to persist the composition update.`);
+}
+
+function handleDistributeSelection(axis) {
+  const context = getCompositionSelectionContext();
+  if (context.count < 3) {
+    setPreviewStatus("Select at least three editable donor-backed or placeholder-backed objects before using distribution.");
+    return;
+  }
+
+  const didChange = applyEditorMutation(`Updated multi-object composition (distribute ${axis}).`, (editorData) => {
+    const tools = getEditorStateTools();
+    if (typeof tools.distributeSelection === "function") {
+      tools.distributeSelection(editorData, context.objectIds, axis, getSceneViewport());
+    }
+  });
+
+  if (!didChange) {
+    setPreviewStatus(`The selected objects are already evenly distributed ${axis === "vertical" ? "vertically" : "horizontally"}.`);
+    return;
+  }
+
+  setPreviewStatus(`${context.count} selected objects were ${getCompositionActionLabel(axis === "vertical" ? "distribute-v" : "distribute-h")}. Save to persist the composition update.`);
 }
 
 function handleAlignSelectedObject(alignment) {
@@ -8819,7 +9625,7 @@ function handleSelectLayerSibling(direction) {
     return;
   }
 
-  state.selectedObjectId = context.targetObjectId;
+  setSelectedObject(context.targetObjectId);
   renderAll();
   const orderLabel = `${context.direction === "previous" ? Math.max(1, context.index) : Math.min(context.total, context.index + 2)} of ${context.total}`;
   pushLog(`Selected ${context.targetLabel ?? context.targetObjectId} via ${directionLabel} in ${context.layerName}.`);
@@ -8869,7 +9675,7 @@ function handleCreateNewObject() {
   if (elements.fieldPlaceholderPreset instanceof HTMLSelectElement) {
     elements.fieldPlaceholderPreset.value = state.placeholderPresetKey;
   }
-  state.selectedObjectId = createdObjectId;
+  setSelectedObject(createdObjectId);
   ensureSelectedObject();
   renderAll();
   setPreviewStatus(`Created ${createdDisplayName} from the ${selectedPreset?.label ?? "Generic Box"} preset. It is selected on ${createdLayerName} and ready to edit.`);
@@ -8933,7 +9739,7 @@ function handleImportDonorAsset(assetId, scenePoint = null) {
     return false;
   }
 
-  state.selectedObjectId = createdObjectId;
+  setSelectedObject(createdObjectId);
   state.donorAssetUi.highlightedAssetId = assetId;
   ensureSelectedObject();
   renderAll();
@@ -8985,7 +9791,7 @@ function handleReplaceObjectWithDonorAsset(objectId, assetId) {
     return false;
   }
 
-  state.selectedObjectId = replacementResult.objectId;
+  setSelectedObject(replacementResult.objectId);
   state.donorAssetUi.highlightedAssetId = assetId;
   ensureSelectedObject();
   renderAll();
@@ -9083,7 +9889,7 @@ function handleDuplicateSelectedObject() {
     return;
   }
 
-  state.selectedObjectId = duplicateId;
+  setSelectedObject(duplicateId);
   ensureSelectedObject();
   renderAll();
   setPreviewStatus(`Duplicated ${selectedObject.displayName}. The new copy is selected and ready to move.`);
@@ -9119,7 +9925,7 @@ function handleDeleteSelectedObject() {
     return;
   }
 
-  state.selectedObjectId = nextSelectionId;
+  setSelectedObject(nextSelectionId);
   ensureSelectedObject();
   renderAll();
   setPreviewStatus(`Deleted ${selectedObject.displayName}. Selection moved to the next available object.`);
@@ -9168,14 +9974,15 @@ function renderEditorCanvas() {
       `z-index:${layerOrder * 100 + layerObjectOrder + 1}`,
       visible ? "" : "display:none"
     ].filter(Boolean).join("; ");
-    const selected = object.id === state.selectedObjectId;
+    const selected = isObjectSelected(object.id);
+    const primarySelected = object.id === state.selectedObjectId;
     const donorBacked = Boolean(donorAsset?.assetId);
-    const showResizeHandle = selected && donorBacked && isObjectSizeEditable(object);
+    const showResizeHandle = primarySelected && donorBacked && isObjectSizeEditable(object);
     const replaceTarget = state.donorAssetUi?.dropIntent?.mode === "replace" && state.donorAssetUi.dropIntent.objectId === object.id;
 
     return `
       <button
-        class="canvas-object object-${object.type} ${selected ? "is-selected" : ""} ${locked ? "is-locked" : "is-draggable"} ${dragging ? "is-dragging" : ""} ${state.canvasResize?.objectId === object.id ? "is-resizing" : ""} ${donorBacked ? "is-donor-backed" : ""} ${replaceTarget ? "is-drop-replace-target" : ""}"
+        class="canvas-object object-${object.type} ${selected ? "is-selected" : ""} ${selected && !primarySelected ? "is-secondary-selected" : ""} ${locked ? "is-locked" : "is-draggable"} ${dragging ? "is-dragging" : ""} ${state.canvasResize?.objectId === object.id ? "is-resizing" : ""} ${donorBacked ? "is-donor-backed" : ""} ${replaceTarget ? "is-drop-replace-target" : ""}"
         type="button"
         data-canvas-object-id="${object.id}"
         data-object-x="${object.x}"
@@ -9200,6 +10007,15 @@ function renderEditorCanvas() {
       </button>
     `;
   }).join("");
+  const selectedObjectIds = getSelectedObjectIds();
+  const marqueeRect = getCanvasMarqueeRect();
+  const marqueeMarkup = marqueeRect && state.canvasMarquee?.moved ? `
+    <div
+      class="canvas-selection-box ${state.canvasMarquee.additive ? "is-additive" : ""}"
+      style="left:${marqueeRect.left}px; top:${marqueeRect.top}px; width:${marqueeRect.width}px; height:${marqueeRect.height}px;"
+      aria-hidden="true"
+    ></div>
+  ` : "";
 
   const viewportWidth = editorData.scene.viewport?.width ?? 1280;
   const viewportHeight = editorData.scene.viewport?.height ?? 720;
@@ -9255,7 +10071,11 @@ function renderEditorCanvas() {
       <span>Internal files only</span>
       <span>${viewLabel}</span>
       <span>${panLabel}</span>
-      <span>${selectedObject ? `Selected: ${selectedObject.displayName}` : "No selection"}</span>
+      <span>${selectedObjectIds.length > 1
+        ? `Selected: ${selectedObjectIds.length} objects (${selectedObject?.displayName ?? "multi"})`
+        : selectedObject
+          ? `Selected: ${selectedObject.displayName}`
+          : "No selection"}</span>
       <span>Layer: ${selectedLayerLabel}</span>
       <span>Donor import target: ${escapeHtml(getDonorImportTargetLayerLabel())}</span>
       <span>${snapLabel}</span>
@@ -9266,9 +10086,61 @@ function renderEditorCanvas() {
       <div class="${stageClassNames}">
         ${dropIntentMarkup}
         <div class="canvas-camera" style="${cameraInlineStyle}">
+          ${marqueeMarkup}
           ${objectMarkup}
         </div>
       </div>
+    </div>
+  `;
+}
+
+function renderMultiSelectionInspector(selectedProject, selectedObjects) {
+  const primaryObject = getSelectedObject();
+  const donorBackedObjects = selectedObjects.filter((object) => Boolean(getDonorAssetForObject(object)));
+  const layerNames = uniqueStrings(selectedObjects.map((object) => getLayerById(object.layerId)?.displayName ?? object.layerId));
+  const primaryDonorAsset = primaryObject ? getDonorAssetForObject(primaryObject) : null;
+
+  return `
+    <div class="tree-row multi-selection-summary">
+      <strong>Multi-selection (${selectedObjects.length})</strong>
+      <span>${selectedProject.displayName} · ${selectedObjects.length} editable objects are selected for composition actions.</span>
+      <div class="chip-row">
+        <span>primary ${escapeHtml(primaryObject?.displayName ?? "none")}</span>
+        <span>${donorBackedObjects.length} donor-backed</span>
+        <span>${layerNames.length} layer${layerNames.length === 1 ? "" : "s"}</span>
+      </div>
+      <small>Use the composition toolbar for align/distribute. Inspector field editing stays on the primary selection only.</small>
+    </div>
+    ${primaryDonorAsset ? `
+      <div class="donor-linkage-summary">
+        <div class="donor-linkage-summary-head">
+          <div>
+            <strong>Primary Donor Source</strong>
+            <small>${escapeHtml(primaryObject?.displayName ?? primaryDonorAsset.title ?? primaryDonorAsset.assetId)} is donor-backed and can jump back to its source asset or evidence.</small>
+          </div>
+          <div class="evidence-actions">
+            <button type="button" class="copy-button" data-focus-donor-asset-id="${escapeAttribute(primaryDonorAsset.assetId)}">Show Asset In Palette</button>
+            ${primaryDonorAsset.evidenceId ? `<button type="button" class="copy-button" data-focus-donor-evidence-id="${escapeAttribute(primaryDonorAsset.evidenceId)}">Show Evidence</button>` : ""}
+          </div>
+        </div>
+        <div class="chip-row donor-asset-chip-row">
+          <span class="object-row-badge is-donor">Donor-backed</span>
+          ${primaryDonorAsset.fileType ? `<span class="asset-format-badge">${escapeHtml(String(primaryDonorAsset.fileType).toUpperCase())}</span>` : ""}
+          ${primaryDonorAsset.evidenceId ? `<span><code>${escapeHtml(primaryDonorAsset.evidenceId)}</code></span>` : ""}
+          <span>${escapeHtml(primaryDonorAsset.filename ?? primaryDonorAsset.title ?? primaryDonorAsset.assetId)}</span>
+        </div>
+      </div>
+    ` : ""}
+    <div class="linked-object-list">
+      ${selectedObjects.map((object) => {
+        const donorAsset = getDonorAssetForObject(object);
+        return `
+          <div class="linked-object-button">
+            <strong>${escapeHtml(object.displayName)}</strong>
+            <small><code>${escapeHtml(object.id)}</code> · ${escapeHtml(getLayerById(object.layerId)?.displayName ?? object.layerId)} · ${donorAsset ? "donor-backed" : object.type}</small>
+          </div>
+        `;
+      }).join("")}
     </div>
   `;
 }
@@ -9280,6 +10152,7 @@ function renderInspector() {
 
   const selectedProject = getSelectedProject();
   const selectedObject = getSelectedObject();
+  const selectedObjects = getSelectedObjects();
   const editorData = state.editorData;
 
   if (!selectedProject) {
@@ -9304,6 +10177,11 @@ function renderInspector() {
         <span>Select an object from the scene explorer or canvas to edit it.</span>
       </div>
     `;
+    return;
+  }
+
+  if (selectedObjects.length > 1) {
+    elements.inspector.innerHTML = renderMultiSelectionInspector(selectedProject, selectedObjects);
     return;
   }
 
@@ -9662,6 +10540,8 @@ function renderInspector() {
             <small>This object is backed by read-only donor image evidence. Editing still happens on the internal scene object only.</small>
           </div>
           <div class="evidence-actions">
+            <button type="button" class="copy-button" data-focus-donor-asset-id="${escapeAttribute(donorAsset.assetId)}">Show Asset In Palette</button>
+            ${donorAsset.evidenceId ? `<button type="button" class="copy-button" data-focus-donor-evidence-id="${escapeAttribute(donorAsset.evidenceId)}">Show Evidence</button>` : ""}
             ${renderCopyButton(donorAsset.assetId, "donor asset id")}
             ${renderCopyButton(donorAsset.absolutePath ?? donorAsset.repoRelativePath ?? "", "donor source path", "Copy Path")}
           </div>
@@ -9878,14 +10758,28 @@ function renderAll() {
     elements.actionNewObject.textContent = `New ${getSelectedPlaceholderPreset()?.label ?? "Placeholder"}`;
   }
   const selectedObject = getSelectedObject();
+  const selectedObjectIds = getSelectedObjectIds();
+  const selectedObjectCount = selectedObjectIds.length;
   const canMutateSelectedObject = Boolean(selectedObject && isObjectEditable(selectedObject) && !state.canvasDrag);
   const orderContext = getSelectedObjectOrderContext();
+  const compositionContext = getCompositionSelectionContext();
   if (elements.editorToolbar) {
     const canAlignSelectedObject = Boolean(selectedObject && isViewportAlignableObject(selectedObject) && !state.canvasDrag);
     elements.editorToolbar.querySelectorAll("[data-align-action]").forEach((button) => {
       if (button instanceof HTMLButtonElement) {
         button.disabled = !canAlignSelectedObject;
       }
+    });
+    elements.editorToolbar.querySelectorAll("[data-compose-action]").forEach((button) => {
+      if (!(button instanceof HTMLButtonElement)) {
+        return;
+      }
+
+      const action = button.dataset.composeAction;
+      const enabled = action === "distribute-h" || action === "distribute-v"
+        ? compositionContext.count >= 3 && !state.canvasDrag
+        : compositionContext.count >= 2 && !state.canvasDrag;
+      button.disabled = !enabled;
     });
     elements.editorToolbar.querySelectorAll("[data-order-action]").forEach((button) => {
       if (!(button instanceof HTMLButtonElement)) {
@@ -9895,6 +10789,7 @@ function renderAll() {
       const action = button.dataset.orderAction;
       const enabled = Boolean(
         canMutateSelectedObject
+        && selectedObjectCount <= 1
         && orderContext
         && (
           action === "send-backward"
@@ -9920,10 +10815,10 @@ function renderAll() {
   const previousNavigationContext = getSelectedObjectNavigationContext("previous");
   const nextNavigationContext = getSelectedObjectNavigationContext("next");
   if (elements.actionSelectPrevious) {
-    elements.actionSelectPrevious.disabled = !Boolean(previousNavigationContext?.targetObjectId && !state.canvasDrag);
+    elements.actionSelectPrevious.disabled = !Boolean(previousNavigationContext?.targetObjectId && !state.canvasDrag && selectedObjectCount <= 1);
   }
   if (elements.actionSelectNext) {
-    elements.actionSelectNext.disabled = !Boolean(nextNavigationContext?.targetObjectId && !state.canvasDrag);
+    elements.actionSelectNext.disabled = !Boolean(nextNavigationContext?.targetObjectId && !state.canvasDrag && selectedObjectCount <= 1);
   }
   if (elements.actionSave) {
     elements.actionSave.disabled = !state.editorData || !state.dirty;
@@ -9940,7 +10835,10 @@ function renderAll() {
     elements.viewportIndicator.dataset.tone = isViewportTransformed() ? "info" : "default";
   }
   if (elements.orderContextIndicator) {
-    if (orderContext) {
+    if (selectedObjectCount > 1) {
+      elements.orderContextIndicator.textContent = `${selectedObjectCount} selected · ${compositionContext.donorBackedCount} donor-backed`;
+      elements.orderContextIndicator.dataset.tone = "info";
+    } else if (orderContext) {
       elements.orderContextIndicator.textContent = `${orderContext.index + 1} of ${orderContext.total} in ${orderContext.layerName}`;
       elements.orderContextIndicator.dataset.tone = "info";
     } else {
@@ -9989,6 +10887,7 @@ function escapeHtml(value) {
 window.render_game_to_text = () => JSON.stringify({
   selectedProjectId: state.selectedProjectId,
   selectedObjectId: state.selectedObjectId,
+  selectedObjectIds: getSelectedObjectIds(),
   dirty: state.dirty,
   vabs: state.bundle?.vabs ? {
     currentStatus: state.bundle.vabs.currentStatus,

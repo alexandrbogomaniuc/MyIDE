@@ -848,6 +848,190 @@
     };
   }
 
+  function getObjectCompositionRect(object) {
+    const width = sanitizeObjectDimension(object?.width, MIN_OBJECT_SIZE);
+    const height = sanitizeObjectDimension(object?.height, MIN_OBJECT_SIZE);
+    const scaleX = Number.isFinite(object?.scaleX) ? Math.abs(object.scaleX) : 1;
+    const scaleY = Number.isFinite(object?.scaleY) ? Math.abs(object.scaleY) : 1;
+    const extentWidth = Math.max(1, Math.round(width * scaleX));
+    const extentHeight = Math.max(1, Math.round(height * scaleY));
+
+    return {
+      x: Number.isFinite(object?.x) ? Math.round(object.x) : 0,
+      y: Number.isFinite(object?.y) ? Math.round(object.y) : 0,
+      width: extentWidth,
+      height: extentHeight,
+      right: (Number.isFinite(object?.x) ? Math.round(object.x) : 0) + extentWidth,
+      bottom: (Number.isFinite(object?.y) ? Math.round(object.y) : 0) + extentHeight,
+      centerX: (Number.isFinite(object?.x) ? Math.round(object.x) : 0) + extentWidth / 2,
+      centerY: (Number.isFinite(object?.y) ? Math.round(object.y) : 0) + extentHeight / 2
+    };
+  }
+
+  function getViewportRect(editorData, viewport = null) {
+    const viewportWidth = Number.isFinite(viewport?.width)
+      ? Math.max(1, Math.round(viewport.width))
+      : Math.max(1, Math.round(editorData?.scene?.viewport?.width ?? 1280));
+    const viewportHeight = Number.isFinite(viewport?.height)
+      ? Math.max(1, Math.round(viewport.height))
+      : Math.max(1, Math.round(editorData?.scene?.viewport?.height ?? 720));
+
+    return {
+      width: viewportWidth,
+      height: viewportHeight
+    };
+  }
+
+  function clampCompositionPosition(editorData, object, x, y, viewport = null) {
+    const viewportRect = getViewportRect(editorData, viewport);
+    const bounds = getObjectCompositionRect(object);
+    const maxX = Math.max(0, viewportRect.width - bounds.width);
+    const maxY = Math.max(0, viewportRect.height - bounds.height);
+
+    return {
+      x: Math.min(maxX, Math.max(0, Math.round(x))),
+      y: Math.min(maxY, Math.max(0, Math.round(y)))
+    };
+  }
+
+  function getCompositionSelection(editorData, selectedObjectIds) {
+    if (!editorData || !Array.isArray(editorData.objects) || !Array.isArray(selectedObjectIds)) {
+      return [];
+    }
+
+    const editableLayerIds = new Set(getEditableLayers(editorData.layers).map((entry) => entry.id));
+    const usableIds = [...new Set(selectedObjectIds.filter((entry) => typeof entry === "string" && entry.length > 0))];
+
+    return usableIds
+      .map((objectId) => editorData.objects.find((entry) => entry.id === objectId) ?? null)
+      .filter((object) => Boolean(object)
+        && !object.locked
+        && editableLayerIds.has(object.layerId)
+        && isObjectAlignable(object));
+  }
+
+  function getSelectionBounds(editorData, selectedObjectIds) {
+    const selectedObjects = getCompositionSelection(editorData, selectedObjectIds);
+    if (selectedObjects.length === 0) {
+      return null;
+    }
+
+    const rects = selectedObjects.map((object) => ({
+      object,
+      rect: getObjectCompositionRect(object)
+    }));
+    const left = Math.min(...rects.map((entry) => entry.rect.x));
+    const top = Math.min(...rects.map((entry) => entry.rect.y));
+    const right = Math.max(...rects.map((entry) => entry.rect.right));
+    const bottom = Math.max(...rects.map((entry) => entry.rect.bottom));
+
+    return {
+      objectCount: rects.length,
+      left,
+      top,
+      right,
+      bottom,
+      width: Math.max(1, right - left),
+      height: Math.max(1, bottom - top),
+      centerX: left + (right - left) / 2,
+      centerY: top + (bottom - top) / 2,
+      entries: rects
+    };
+  }
+
+  function alignSelection(editorData, selectedObjectIds, action, viewport = null) {
+    const selectionBounds = getSelectionBounds(editorData, selectedObjectIds);
+    if (!selectionBounds || selectionBounds.entries.length < 2) {
+      return null;
+    }
+
+    let changed = false;
+    for (const entry of selectionBounds.entries) {
+      const { object, rect } = entry;
+      let nextX = object.x;
+      let nextY = object.y;
+
+      if (action === "align-left") {
+        nextX = selectionBounds.left;
+      } else if (action === "align-right") {
+        nextX = selectionBounds.right - rect.width;
+      } else if (action === "align-top") {
+        nextY = selectionBounds.top;
+      } else if (action === "align-bottom") {
+        nextY = selectionBounds.bottom - rect.height;
+      } else if (action === "align-center-h" || action === "align-center-horizontal") {
+        nextX = Math.round(selectionBounds.centerX - rect.width / 2);
+      } else if (action === "align-middle-v" || action === "align-center-vertical" || action === "align-middle-vertical") {
+        nextY = Math.round(selectionBounds.centerY - rect.height / 2);
+      } else {
+        return null;
+      }
+
+      const clamped = clampCompositionPosition(editorData, object, nextX, nextY, viewport);
+      if (clamped.x !== object.x || clamped.y !== object.y) {
+        object.x = clamped.x;
+        object.y = clamped.y;
+        changed = true;
+      }
+    }
+
+    return {
+      action,
+      changed,
+      objectIds: selectionBounds.entries.map((entry) => entry.object.id),
+      objectCount: selectionBounds.entries.length
+    };
+  }
+
+  function distributeSelection(editorData, selectedObjectIds, axis, viewport = null) {
+    const selectionBounds = getSelectionBounds(editorData, selectedObjectIds);
+    if (!selectionBounds || selectionBounds.entries.length < 3) {
+      return null;
+    }
+
+    const sortedEntries = [...selectionBounds.entries].sort((left, right) => {
+      const leftValue = axis === "vertical" ? left.rect.y : left.rect.x;
+      const rightValue = axis === "vertical" ? right.rect.y : right.rect.x;
+      if (leftValue !== rightValue) {
+        return leftValue - rightValue;
+      }
+
+      return String(left.object.id).localeCompare(String(right.object.id));
+    });
+
+    const first = sortedEntries[0];
+    const last = sortedEntries[sortedEntries.length - 1];
+    const totalSize = sortedEntries.reduce((sum, entry) => sum + (axis === "vertical" ? entry.rect.height : entry.rect.width), 0);
+    const span = axis === "vertical"
+      ? last.rect.bottom - first.rect.y
+      : last.rect.right - first.rect.x;
+    const gap = sortedEntries.length > 1 ? (span - totalSize) / (sortedEntries.length - 1) : 0;
+    let cursor = axis === "vertical"
+      ? first.rect.y + first.rect.height + gap
+      : first.rect.x + first.rect.width + gap;
+    let changed = false;
+
+    for (let index = 1; index < sortedEntries.length - 1; index += 1) {
+      const entry = sortedEntries[index];
+      const nextX = axis === "vertical" ? entry.object.x : Math.round(cursor);
+      const nextY = axis === "vertical" ? Math.round(cursor) : entry.object.y;
+      const clamped = clampCompositionPosition(editorData, entry.object, nextX, nextY, viewport);
+      if (clamped.x !== entry.object.x || clamped.y !== entry.object.y) {
+        entry.object.x = clamped.x;
+        entry.object.y = clamped.y;
+        changed = true;
+      }
+      cursor += (axis === "vertical" ? entry.rect.height : entry.rect.width) + gap;
+    }
+
+    return {
+      axis,
+      changed,
+      objectIds: sortedEntries.map((entry) => entry.object.id),
+      objectCount: sortedEntries.length
+    };
+  }
+
   function getLayerObjectsInOrder(editorData, layerId) {
     if (!editorData || !Array.isArray(editorData.objects)) {
       return [];
@@ -1067,6 +1251,9 @@
     deleteObject,
     reassignObjectLayer,
     alignObjectToViewport,
+    getSelectionBounds,
+    alignSelection,
+    distributeSelection,
     getObjectOrderContext,
     getAdjacentObjectInLayer,
     reorderObjectInLayer,

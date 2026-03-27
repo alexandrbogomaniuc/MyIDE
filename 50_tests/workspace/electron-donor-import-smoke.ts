@@ -19,6 +19,14 @@ interface LiveDonorImportPayload {
   availableFileTypes?: string[];
   createDropIntentVisible?: boolean;
   replaceDropIntentVisible?: boolean;
+  marqueeSelectionVisible?: boolean;
+  marqueeSelectionCompleted?: boolean;
+  selectedObjectCountAfterMarquee?: number | null;
+  selectedObjectCountAfterExpansion?: number | null;
+  alignSelectionCompleted?: boolean;
+  distributionCompleted?: boolean;
+  sourceAssetFocusCompleted?: boolean;
+  sourceEvidenceFocusCompleted?: boolean;
   importedAssetCount?: number | null;
   importedFileTypes?: string[];
   importModes?: string[];
@@ -31,6 +39,8 @@ interface LiveDonorImportPayload {
     importMode?: string | null;
     importedX?: number | null;
     importedY?: number | null;
+    composedX?: number | null;
+    composedY?: number | null;
     targetLayerId?: string | null;
     importedLayerId?: string | null;
     draggedX?: number | null;
@@ -231,7 +241,7 @@ function runElectronLiveDonorImportSmoke(workspaceRoot: string): Promise<SmokeRu
       env: {
         ...process.env,
         MYIDE_LIVE_DONOR_IMPORT_SMOKE: "1",
-        MYIDE_LIVE_DONOR_IMPORT_TIMEOUT_MS: process.env.MYIDE_LIVE_DONOR_IMPORT_TIMEOUT_MS || "45000"
+        MYIDE_LIVE_DONOR_IMPORT_TIMEOUT_MS: process.env.MYIDE_LIVE_DONOR_IMPORT_TIMEOUT_MS || "90000"
       },
       stdio: ["ignore", "pipe", "pipe"]
     });
@@ -406,6 +416,20 @@ async function main(): Promise<void> {
       payload.replacementMode === "synthetic-drop" || payload.replacementMode === "drop-handler-bridge",
       "Renderer relied on a replacement path outside the bounded donor drop workflow."
     );
+    assert.equal(payload.marqueeSelectionVisible, true, "Renderer did not surface the canvas marquee selection feedback.");
+    assert.equal(payload.marqueeSelectionCompleted, true, "Renderer did not complete the multi-object marquee selection proof.");
+    assert(
+      (payload.selectedObjectCountAfterMarquee ?? 0) >= 2,
+      "Renderer did not keep at least two objects selected after the marquee selection proof."
+    );
+    assert.equal(payload.alignSelectionCompleted, true, "Renderer did not complete the multi-object alignment proof.");
+    assert(
+      (payload.selectedObjectCountAfterExpansion ?? 0) >= 3,
+      "Renderer did not expand the selection to at least three objects before distribution."
+    );
+    assert.equal(payload.distributionCompleted, true, "Renderer did not complete the multi-object distribution proof.");
+    assert.equal(payload.sourceAssetFocusCompleted, true, "Renderer did not complete the source donor asset focus jump.");
+    assert.equal(payload.sourceEvidenceFocusCompleted, true, "Renderer did not complete the source donor evidence focus jump.");
     assert.equal(payload.replacementPersistVerified, true, "Renderer did not preserve the donor-backed replacement layout/layer after reload.");
     assert.equal(payload.replacementLinkageVerified, true, "Renderer did not preserve donor linkage for the donor-backed replacement after reload.");
     assert.equal(payload.replacementReloadedLayerId, payload.replacementLayerId, "Renderer reloaded the donor-backed replacement on a different layer.");

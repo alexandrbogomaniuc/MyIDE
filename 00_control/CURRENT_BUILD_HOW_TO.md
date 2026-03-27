@@ -33,10 +33,14 @@ Current editable workflow:
 - drag a second supported donor image asset into the canvas if you want to confirm multiple donor-backed imports in one session
 - drag one supported donor image asset directly over an editable canvas object if you want to replace it while keeping the same object slot, layer, and layout
 - use **Replace Selected Object** on a donor asset card if you want the bounded button path instead of direct drop-to-replace
+- drag a marquee box across visible canvas objects if you want a bounded multi-select path
+- use `Shift`/`Cmd` click in the scene list or canvas if you want to add or remove one object from the current selection
 - move objects on the canvas
 - change bounded inspector fields
 - resize placeholder-backed objects
 - resize donor-backed imported image objects with the small bottom-right canvas handle on the selected donor-backed image
+- align or distribute the current multi-selection from the canvas toolbar
+- use **Show Asset In Palette** or **Show Evidence** from the donor summary on a selected donor-backed object if you want to jump back to donor source context quickly
 - align placeholder-backed objects to the viewport
 - reassign objects between unlocked layers
 - reorder objects within the current layer
@@ -70,11 +74,14 @@ The donor file remains read-only evidence. Drag/drop creates a new internal scen
 2. Drag one donor image into empty canvas space.
 3. If both `png` and `webp` donor assets are visible in the palette, import one of each for the stronger bounded donor proof.
 4. Optionally drag a donor image over an existing editable object to replace it directly.
-5. Select an imported donor-backed image and drag its small bottom-right resize handle if you want to test bounded direct manipulation.
-6. Click **Save Scene Changes** or use `Ctrl/Cmd+S`.
-7. Check that the editor state returns to **Saved**.
-8. Click **Reload From Disk**.
-9. Confirm the imported or replaced donor-backed objects still appear after reload, on the intended layer, with donor linkage details intact.
+5. Drag a marquee box across two or more visible objects, or refine the selection with `Shift`/`Cmd` click from the scene list.
+6. Use one or two toolbar composition actions such as **Align Left**, **Align Top**, **Align Center Horizontally**, **Distribute Horizontally**, or **Distribute Vertically**.
+7. Select one donor-backed image and drag its small bottom-right resize handle if you want to test bounded direct manipulation.
+8. Use **Show Asset In Palette** or **Show Evidence** from the donor summary if you want to confirm source-jump behavior.
+9. Click **Save Scene Changes** or use `Ctrl/Cmd+S`.
+10. Check that the editor state returns to **Saved**.
+11. Click **Reload From Disk**.
+12. Confirm the imported or replaced donor-backed objects still appear after reload, on the intended layer, with donor linkage details intact.
 
 ## 7. If You Hit A Bug
 1. Stop after the first clear failure.
