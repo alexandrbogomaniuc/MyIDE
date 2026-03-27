@@ -1,5 +1,6 @@
 import { app, BrowserWindow, ipcMain, session } from "electron";
 import { existsSync } from "node:fs";
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import path from "node:path";
 import { loadProjectSlice } from "./projectSlice";
 import { createProjectFromInput, type ShellCreateProjectInput } from "../workspace/createProject";
@@ -12,6 +13,15 @@ import {
   createRuntimeAssetOverride,
   type RuntimeAssetOverrideHitInfo
 } from "../workspace/donorOverride";
+import {
+  buildLocalRuntimeLaunchHtml,
+  buildLocalRuntimeMirrorRedirectMap,
+  buildLocalRuntimeMirrorStatus,
+  getLocalRuntimeMirrorPort,
+  readLocalRuntimeMirrorFile,
+  readLocalRuntimeMirrorFileByRelativePath,
+  type LocalRuntimeMirrorStatus
+} from "../runtime/localRuntimeMirror";
 
 const isBridgeSmokeMode = process.env.MYIDE_BRIDGE_SMOKE === "1";
 const isLivePersistSmokeMode = process.env.MYIDE_LIVE_PERSIST_SMOKE === "1";
@@ -133,9 +143,12 @@ let activeLiveResizeSmokeReporter: ((payload: LiveResizeSmokePayload) => void) |
 let activeLiveAlignSmokeReporter: ((payload: LiveAlignSmokePayload) => void) | null = null;
 let activeLiveUndoRedoSmokeReporter: ((payload: LiveUndoRedoSmokePayload) => void) | null = null;
 let runtimeAssetOverrideRedirectMap = new Map<string, string>();
+let runtimeLocalMirrorRedirectMap = new Map<string, string>();
 let runtimeAssetOverrideInterceptionInstalled = false;
 const runtimeAssetOverrideHits = new Map<string, RuntimeAssetOverrideHitInfo>();
 const runtimeWebviewPartition = "persist:myide-runtime-project001";
+let runtimeLocalMirrorStatus: LocalRuntimeMirrorStatus | null = null;
+let runtimeLocalMirrorServer: Server | null = null;
 
 function resolvePreloadPath(): string {
   return path.resolve(__dirname, "preload.js");
@@ -348,8 +361,44 @@ function finishLiveUndoRedoSmoke(exitCode: number, message: string): void {
 }
 
 async function refreshRuntimeAssetOverrideRedirects(): Promise<void> {
-  const status = await buildRuntimeAssetOverrideStatus("project_001", runtimeAssetOverrideHits);
-  runtimeAssetOverrideRedirectMap = buildRuntimeAssetOverrideRedirectMap(status);
+  const [overrideStatus, mirrorStatus] = await Promise.all([
+    buildRuntimeAssetOverrideStatus("project_001", runtimeAssetOverrideHits),
+    buildLocalRuntimeMirrorStatus("project_001")
+  ]);
+  runtimeAssetOverrideRedirectMap = buildRuntimeAssetOverrideRedirectMap(overrideStatus);
+  runtimeLocalMirrorStatus = mirrorStatus;
+  runtimeLocalMirrorRedirectMap = buildLocalRuntimeMirrorRedirectMap(mirrorStatus);
+}
+
+function getRuntimeRedirectUrl(requestUrl: string): string | null {
+  return runtimeAssetOverrideRedirectMap.get(requestUrl)
+    ?? runtimeLocalMirrorRedirectMap.get(requestUrl)
+    ?? null;
+}
+
+function recordRuntimeOverrideHit(runtimeSourceUrl: string): void {
+  const current = runtimeAssetOverrideHits.get(runtimeSourceUrl) ?? {
+    count: 0,
+    lastHitAtUtc: null
+  };
+  runtimeAssetOverrideHits.set(runtimeSourceUrl, {
+    count: current.count + 1,
+    lastHitAtUtc: new Date().toISOString()
+  });
+}
+
+function getRuntimeOverrideAbsolutePath(runtimeSourceUrl: string): string | null {
+  const redirectUrl = runtimeAssetOverrideRedirectMap.get(runtimeSourceUrl);
+  if (!redirectUrl) {
+    return null;
+  }
+
+  try {
+    const parsedUrl = new URL(redirectUrl);
+    return parsedUrl.protocol === "file:" ? decodeURIComponent(parsedUrl.pathname) : null;
+  } catch {
+    return null;
+  }
 }
 
 function installRuntimeAssetOverrideInterception(): void {
@@ -362,31 +411,191 @@ function installRuntimeAssetOverrideInterception(): void {
     details: Electron.OnBeforeRequestListenerDetails,
     callback: (response: Electron.CallbackResponse) => void
   ) => {
-    const redirectURL = runtimeAssetOverrideRedirectMap.get(details.url);
+    const redirectURL = getRuntimeRedirectUrl(details.url);
     if (!redirectURL) {
       callback({});
       return;
     }
 
-    const current = runtimeAssetOverrideHits.get(details.url) ?? {
-      count: 0,
-      lastHitAtUtc: null
-    };
-    runtimeAssetOverrideHits.set(details.url, {
-      count: current.count + 1,
-      lastHitAtUtc: new Date().toISOString()
-    });
+    if (runtimeAssetOverrideRedirectMap.has(details.url)) {
+      recordRuntimeOverrideHit(details.url);
+    }
     callback({ redirectURL });
   };
 
   session.defaultSession.webRequest.onBeforeRequest(
-    { urls: ["https://cdn.bgaming-network.com/*"] },
+    {
+      urls: [
+        "https://cdn.bgaming-network.com/*",
+        "https://boost2.bgaming-network.com/*",
+        "https://lobby.bgaming-network.com/*",
+        "https://drops-fe.bgaming-network.com/*"
+      ]
+    },
     onBeforeRequest
   );
   session.fromPartition(runtimeWebviewPartition).webRequest.onBeforeRequest(
-    { urls: ["https://cdn.bgaming-network.com/*"] },
+    {
+      urls: [
+        "https://cdn.bgaming-network.com/*",
+        "https://boost2.bgaming-network.com/*",
+        "https://lobby.bgaming-network.com/*",
+        "https://drops-fe.bgaming-network.com/*"
+      ]
+    },
     onBeforeRequest
   );
+}
+
+function sendRuntimeMirrorResponse(
+  response: ServerResponse,
+  statusCode: number,
+  headers: Record<string, string>,
+  body: string | Uint8Array
+): void {
+  response.writeHead(statusCode, headers);
+  response.end(body);
+}
+
+function getRuntimeMirrorContentType(fileType: string): string {
+  switch (fileType.toLowerCase()) {
+    case "js":
+      return "application/javascript; charset=utf-8";
+    case "json":
+      return "application/json; charset=utf-8";
+    case "png":
+      return "image/png";
+    case "webp":
+      return "image/webp";
+    case "jpg":
+    case "jpeg":
+      return "image/jpeg";
+    case "svg":
+      return "image/svg+xml";
+    case "gif":
+      return "image/gif";
+    case "html":
+      return "text/html; charset=utf-8";
+    default:
+      return "application/octet-stream";
+  }
+}
+
+async function handleRuntimeMirrorRequest(request: IncomingMessage, response: ServerResponse): Promise<void> {
+  const origin = `http://127.0.0.1:${getLocalRuntimeMirrorPort()}`;
+  const parsedUrl = new URL(request.url ?? "/", origin);
+
+  if (request.method !== "GET") {
+    sendRuntimeMirrorResponse(response, 405, { "content-type": "text/plain; charset=utf-8" }, "Method not allowed");
+    return;
+  }
+
+  if (parsedUrl.pathname === "/runtime/project_001/launch") {
+    if (!runtimeLocalMirrorStatus?.available) {
+      sendRuntimeMirrorResponse(
+        response,
+        503,
+        { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" },
+        runtimeLocalMirrorStatus?.blocker ?? "Local runtime mirror is not available."
+      );
+      return;
+    }
+
+    const launch = await buildLocalRuntimeLaunchHtml("project_001");
+    sendRuntimeMirrorResponse(response, 200, {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "no-store",
+      "x-myide-runtime-source": "local-mirror",
+      "x-myide-runtime-final-url": launch.finalUrl
+    }, launch.html);
+    return;
+  }
+
+  if (parsedUrl.pathname === "/runtime/project_001/mirror") {
+    const sourceUrl = parsedUrl.searchParams.get("source");
+    if (!sourceUrl) {
+      sendRuntimeMirrorResponse(response, 400, { "content-type": "text/plain; charset=utf-8" }, "Missing mirror source URL.");
+      return;
+    }
+
+    const mirrorFile = await readLocalRuntimeMirrorFile("project_001", sourceUrl);
+    if (!mirrorFile) {
+      sendRuntimeMirrorResponse(response, 404, { "content-type": "text/plain; charset=utf-8" }, "Mirror asset not found.");
+      return;
+    }
+
+    const overrideAbsolutePath = getRuntimeOverrideAbsolutePath(sourceUrl);
+    if (overrideAbsolutePath) {
+      recordRuntimeOverrideHit(sourceUrl);
+      sendRuntimeMirrorResponse(response, 200, {
+        "content-type": getRuntimeMirrorContentType(mirrorFile.fileType),
+        "cache-control": "no-store",
+        "x-myide-runtime-source": "project-local-override",
+        "x-myide-runtime-local-path": overrideAbsolutePath
+      }, new Uint8Array(await import("node:fs").then(({ promises }) => promises.readFile(overrideAbsolutePath))));
+      return;
+    }
+
+    sendRuntimeMirrorResponse(response, 200, {
+      "content-type": getRuntimeMirrorContentType(mirrorFile.fileType),
+      "cache-control": "public, max-age=300",
+      "x-myide-runtime-source": "local-mirror-asset",
+      "x-myide-runtime-local-path": mirrorFile.absolutePath
+    }, mirrorFile.content);
+    return;
+  }
+
+  if (parsedUrl.pathname.startsWith("/runtime/project_001/assets/")) {
+    const relativePath = parsedUrl.pathname.replace("/runtime/project_001/assets/", "");
+    const mirrorFile = await readLocalRuntimeMirrorFileByRelativePath("project_001", relativePath);
+    if (!mirrorFile) {
+      sendRuntimeMirrorResponse(response, 404, { "content-type": "text/plain; charset=utf-8" }, "Mirror asset not found.");
+      return;
+    }
+
+    const overrideAbsolutePath = getRuntimeOverrideAbsolutePath(mirrorFile.sourceUrl);
+    if (overrideAbsolutePath) {
+      recordRuntimeOverrideHit(mirrorFile.sourceUrl);
+      sendRuntimeMirrorResponse(response, 200, {
+        "content-type": getRuntimeMirrorContentType(mirrorFile.fileType),
+        "cache-control": "no-store",
+        "x-myide-runtime-source": "project-local-override",
+        "x-myide-runtime-local-path": overrideAbsolutePath
+      }, new Uint8Array(await import("node:fs").then(({ promises }) => promises.readFile(overrideAbsolutePath))));
+      return;
+    }
+
+    sendRuntimeMirrorResponse(response, 200, {
+      "content-type": getRuntimeMirrorContentType(mirrorFile.fileType),
+      "cache-control": "public, max-age=300",
+      "x-myide-runtime-source": "local-mirror-asset",
+      "x-myide-runtime-local-path": mirrorFile.absolutePath
+    }, mirrorFile.content);
+    return;
+  }
+
+  sendRuntimeMirrorResponse(response, 404, { "content-type": "text/plain; charset=utf-8" }, "Not found");
+}
+
+async function startRuntimeLocalMirrorServer(): Promise<void> {
+  if (runtimeLocalMirrorServer) {
+    return;
+  }
+
+  runtimeLocalMirrorServer = createServer((request, response) => {
+    void handleRuntimeMirrorRequest(request, response).catch((error) => {
+      const message = error instanceof Error ? error.message : String(error);
+      sendRuntimeMirrorResponse(response, 500, { "content-type": "text/plain; charset=utf-8" }, message);
+    });
+  });
+
+  await new Promise<void>((resolve, reject) => {
+    runtimeLocalMirrorServer?.once("error", reject);
+    runtimeLocalMirrorServer?.listen(getLocalRuntimeMirrorPort(), "127.0.0.1", () => {
+      runtimeLocalMirrorServer?.off("error", reject);
+      resolve();
+    });
+  });
 }
 
 function getInitialWindowVisibility(): boolean {
@@ -1096,7 +1305,13 @@ app.whenReady().then(() => {
     })
     .finally(() => {
       installRuntimeAssetOverrideInterception();
-      createWindow();
+      void startRuntimeLocalMirrorServer()
+        .catch((error) => {
+          console.error(`MYIDE_RUNTIME_MIRROR_SERVER_FAIL:${error instanceof Error ? error.message : String(error)}`);
+        })
+        .finally(() => {
+          createWindow();
+        });
     });
 
   app.on("activate", () => {
@@ -1110,4 +1325,9 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
     app.quit();
   }
+});
+
+app.on("before-quit", () => {
+  runtimeLocalMirrorServer?.close();
+  runtimeLocalMirrorServer = null;
 });

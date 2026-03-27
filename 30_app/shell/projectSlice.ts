@@ -19,6 +19,10 @@ import {
   buildRuntimeAssetOverrideStatus,
   type RuntimeAssetOverrideStatus
 } from "../workspace/donorOverride";
+import {
+  buildLocalRuntimeMirrorStatus,
+  type LocalRuntimeMirrorStatus
+} from "../runtime/localRuntimeMirror";
 import { buildProjectVabsStatus, type ProjectVabsStatus } from "./vabsStatus";
 
 type JsonValue = null | boolean | number | string | JsonObject | JsonValue[];
@@ -79,12 +83,13 @@ export interface DonorAssetCatalog {
 
 export interface RuntimeLaunchStatus {
   projectId: string;
-  availability: "public-demo" | "blocked";
-  launchSurface: "integrated-remote-runtime" | "blocked";
+  availability: "local-mirror" | "public-demo" | "blocked";
+  launchSurface: "integrated-local-runtime" | "integrated-remote-runtime" | "blocked";
   localRuntimePackageAvailable: boolean;
   blocker: string | null;
   entryUrl: string | null;
   resolvedRuntimeHost: string | null;
+  runtimeSourceLabel: "Local mirror" | "Public fallback" | "Blocked";
   captureSessionId: string | null;
   evidenceIds: string[];
   sourcePaths: string[];
@@ -120,6 +125,7 @@ export interface ProjectSliceBundle {
     mockedLastAction: JsonObject;
   };
   runtimeLaunch: RuntimeLaunchStatus | null;
+  runtimeMirror: LocalRuntimeMirrorStatus | null;
   runtimeOverrides: RuntimeAssetOverrideStatus | null;
 }
 
@@ -481,7 +487,10 @@ function extractSingleMatch(raw: string, pattern: RegExp): string | null {
   return value.length > 0 ? value : null;
 }
 
-async function buildRuntimeLaunchStatus(selectedProjectId: string): Promise<RuntimeLaunchStatus | null> {
+async function buildRuntimeLaunchStatus(
+  selectedProjectId: string,
+  runtimeMirror: LocalRuntimeMirrorStatus | null
+): Promise<RuntimeLaunchStatus | null> {
   if (selectedProjectId !== "project_001") {
     return null;
   }
@@ -501,6 +510,7 @@ async function buildRuntimeLaunchStatus(selectedProjectId: string): Promise<Runt
       blocker: "No grounded donor runtime entry is indexed for this project yet.",
       entryUrl: null,
       resolvedRuntimeHost: null,
+      runtimeSourceLabel: "Blocked",
       captureSessionId: null,
       evidenceIds: [],
       sourcePaths: [],
@@ -555,6 +565,13 @@ async function buildRuntimeLaunchStatus(selectedProjectId: string): Promise<Runt
     "No local donor HTML/runtime package is present under the project_001 donor local-only roots."
   ];
 
+  const runtimeMirrorSourcePaths = runtimeMirror?.available
+    ? [
+      runtimeMirror.manifestRepoRelativePath,
+      runtimeMirror.mirrorRootRepoRelativePath
+    ]
+    : [];
+
   if (!entryUrl) {
     return {
       projectId: selectedProjectId,
@@ -564,11 +581,13 @@ async function buildRuntimeLaunchStatus(selectedProjectId: string): Promise<Runt
       blocker: "The donor runtime session is documented, but no grounded launch URL is indexed for this project.",
       entryUrl: null,
       resolvedRuntimeHost,
+      runtimeSourceLabel: "Blocked",
       captureSessionId: donorRuntimeSessionId,
       evidenceIds,
       sourcePaths: [
         path.relative(workspaceRoot, donorRuntimeReadmePath),
-        path.relative(workspaceRoot, donorRuntimeObservationPath)
+        path.relative(workspaceRoot, donorRuntimeObservationPath),
+        ...runtimeMirrorSourcePaths
       ],
       availableActions,
       roundId,
@@ -583,6 +602,40 @@ async function buildRuntimeLaunchStatus(selectedProjectId: string): Promise<Runt
     };
   }
 
+  if (runtimeMirror?.available && runtimeMirror.launchUrl) {
+    return {
+      projectId: selectedProjectId,
+      availability: "local-mirror",
+      launchSurface: "integrated-local-runtime",
+      localRuntimePackageAvailable: true,
+      blocker: "No full local donor runtime package is captured for project_001 yet; Runtime Mode is using a partial local runtime mirror that still refreshes live launch HTML/API state from the recorded donor runtime entry.",
+      entryUrl: runtimeMirror.launchUrl,
+      resolvedRuntimeHost,
+      runtimeSourceLabel: "Local mirror",
+      captureSessionId: donorRuntimeSessionId,
+      evidenceIds,
+      sourcePaths: [
+        path.relative(workspaceRoot, donorRuntimeReadmePath),
+        path.relative(workspaceRoot, donorRuntimeObservationPath),
+        path.relative(workspaceRoot, donorRuntimeInitResponsePath),
+        ...runtimeMirrorSourcePaths
+      ],
+      availableActions,
+      roundId,
+      currencyCode,
+      wrapperVersion,
+      buildVersion,
+      gameVersion,
+      pixiVersion,
+      spineVersion,
+      observedAssetGroups,
+      notes: [
+        "Runtime Mode is preferring the local Mystery Garden runtime mirror on this machine.",
+        "The local mirror is partial: launch HTML still refreshes from the recorded donor runtime entry to keep live token/API state valid."
+      ]
+    };
+  }
+
   return {
     projectId: selectedProjectId,
     availability: "public-demo",
@@ -591,12 +644,14 @@ async function buildRuntimeLaunchStatus(selectedProjectId: string): Promise<Runt
     blocker: "No local donor runtime package is captured for project_001 yet; Runtime Mode uses the recorded public donor demo entry instead.",
     entryUrl,
     resolvedRuntimeHost,
+    runtimeSourceLabel: "Public fallback",
     captureSessionId: donorRuntimeSessionId,
     evidenceIds,
     sourcePaths: [
       path.relative(workspaceRoot, donorRuntimeReadmePath),
       path.relative(workspaceRoot, donorRuntimeObservationPath),
-      path.relative(workspaceRoot, donorRuntimeInitResponsePath)
+      path.relative(workspaceRoot, donorRuntimeInitResponsePath),
+      ...runtimeMirrorSourcePaths
     ],
     availableActions,
     roundId,
@@ -671,7 +726,10 @@ export async function loadProjectSlice(requestedProjectId?: string): Promise<Pro
   const selectedProject = workspace.projects.find((entry) => entry.projectId === selectedProjectId) ?? null;
   const evidenceCatalog = await loadDonorEvidenceCatalog(importArtifact);
   const donorAssetCatalog = await loadDonorAssetCatalog(selectedProjectId);
-  const runtimeLaunch = await buildRuntimeLaunchStatus(selectedProjectId);
+  const runtimeMirror = selectedProjectId === "project_001"
+    ? await buildLocalRuntimeMirrorStatus(selectedProjectId)
+    : null;
+  const runtimeLaunch = await buildRuntimeLaunchStatus(selectedProjectId, runtimeMirror);
   const runtimeOverrides = selectedProjectId === "project_001"
     ? await buildRuntimeAssetOverrideStatus(selectedProjectId)
     : null;
@@ -708,6 +766,7 @@ export async function loadProjectSlice(requestedProjectId?: string): Promise<Pro
       mockedLastAction
     },
     runtimeLaunch,
+    runtimeMirror,
     runtimeOverrides
   };
 }

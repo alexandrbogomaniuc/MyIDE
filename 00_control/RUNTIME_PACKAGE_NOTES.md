@@ -1,8 +1,9 @@
 # Runtime Package Notes
 
 ## Current grounded result
-- `project_001` does **not** currently have a captured local donor runtime package or local HTML runtime entry that the shell can launch honestly.
-- Runtime Mode therefore continues to use the recorded public Mystery Garden donor demo entry inside the shell.
+- `project_001` still does **not** currently have a full captured local donor runtime package or a standalone local HTML runtime entry.
+- The shell now does have a bounded **partial local runtime mirror** for the strongest grounded Mystery Garden launch path on this machine.
+- Runtime Mode now prefers that local mirror when it is available.
 
 ## Checked local candidates
 - `10_donors/donor_001_mystery_garden/evidence/local_only/`
@@ -22,15 +23,25 @@
 - no grounded local static host path for the donor runtime package
 - no local donor asset root that can be launched as the real Mystery Garden runtime package
 
+## What now exists
+- `40_projects/project_001/runtime/local-mirror/manifest.json`
+- `40_projects/project_001/runtime/local-mirror/files/`
+- bounded local mirror launch URL:
+  - `http://127.0.0.1:38901/runtime/project_001/launch`
+- bounded local mirror asset host:
+  - `http://127.0.0.1:38901/runtime/project_001/assets/...`
+
 ## Current best launch target
 - Recorded donor runtime entry from the live capture session:
   - `https://demo.bgaming-network.com/play/MysteryGarden/FUN?server=demo`
 
 ## Exact blocker
-- Source availability is still the blocker.
-- Until one real local donor runtime package or entry point is captured into the donor/runtime boundary, Runtime Mode cannot honestly prefer a local package over the recorded public donor runtime entry.
+- Source availability is still the blocker for a **full local donor runtime package**.
+- Runtime Mode can now honestly prefer the bounded local mirror, but it still cannot honestly claim a full captured local donor package until one real local donor HTML/JS package or entry point is captured into the donor/runtime boundary.
 
 ## Current bounded workaround
-- The shell now supports one bounded project-local static override slice even without a local donor runtime package.
-- When Runtime pick/inspect exposes a grounded static Mystery Garden runtime image URL, the shell can create a project-local override under `40_projects/project_001/overrides/`, reload Runtime Mode without cache, and redirect the live runtime request to that local file.
-- This does not change the blocker above: Runtime Mode is still not launching a local donor package, and raw donor files remain untouched.
+- The shell now supports one bounded project-local static override slice on top of the local mirror/runtime boundary.
+- When Runtime pick/inspect exposes the strongest grounded static Mystery Garden runtime source we can prove, the shell can create a project-local override under `40_projects/project_001/overrides/`, reload Runtime Mode without cache, and keep raw donor files untouched.
+- Honest current limit:
+  - Runtime Mode now launches from the local mirror URL and can trace one grounded static runtime candidate back to a local mirror file path.
+  - The current slice still does **not** prove a reload-time hit on that mirrored candidate yet, so local-runtime-backed override application remains partially blocked.

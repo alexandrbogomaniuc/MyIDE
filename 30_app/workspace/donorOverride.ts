@@ -114,17 +114,33 @@ function getSupportedFileType(value: string): SupportedDonorAssetType | null {
     : null;
 }
 
-function parseRuntimeSourceInfo(runtimeSourceUrl: string): RuntimeSourceInfo {
+function resolveCanonicalRuntimeSourceUrl(runtimeSourceUrl: string): string {
   let parsedUrl: URL;
   try {
     parsedUrl = new URL(runtimeSourceUrl);
-  } catch (error) {
+  } catch {
     throw new Error(`Runtime source URL is invalid: ${runtimeSourceUrl}`);
   }
 
+  const mirroredSourceUrl = parsedUrl.searchParams.get("source");
+  if (
+    parsedUrl.hostname === "127.0.0.1"
+    && /^\/runtime\/[^/]+\/mirror$/.test(parsedUrl.pathname)
+    && mirroredSourceUrl
+  ) {
+    return new URL(mirroredSourceUrl).toString();
+  }
+
+  return parsedUrl.toString();
+}
+
+function parseRuntimeSourceInfo(runtimeSourceUrl: string): RuntimeSourceInfo {
+  const canonicalRuntimeSourceUrl = resolveCanonicalRuntimeSourceUrl(runtimeSourceUrl);
+  const parsedUrl = new URL(canonicalRuntimeSourceUrl);
+
   const fileType = getSupportedFileType(parsedUrl.pathname);
   if (!fileType) {
-    throw new Error(`Runtime source URL does not point to a supported static image: ${runtimeSourceUrl}`);
+    throw new Error(`Runtime source URL does not point to a supported static image: ${canonicalRuntimeSourceUrl}`);
   }
 
   const runtimeFilename = path.basename(parsedUrl.pathname);

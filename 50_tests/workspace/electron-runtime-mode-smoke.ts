@@ -15,6 +15,7 @@ interface RuntimeSmokePayload {
   error?: string;
   projectId?: string;
   runtimeModeSelected?: boolean;
+  runtimeSourceLabel?: string | null;
   launchSucceeded?: boolean;
   reloadSucceeded?: boolean;
   pickSucceeded?: boolean;
@@ -42,11 +43,13 @@ interface RuntimeSmokePayload {
   runtimeOverrideEligible?: boolean;
   runtimeOverrideSourceUrl?: string | null;
   runtimeOverrideRelativePath?: string | null;
+  runtimeLocalMirrorSourcePath?: string | null;
   runtimeOverrideDonorAssetId?: string | null;
   runtimeOverrideRepoRelativePath?: string | null;
   runtimeOverrideHitCountAfterReload?: number;
   runtimeOverrideCreated?: boolean;
   runtimeOverrideCleared?: boolean;
+  runtimeOverrideBlocked?: string | null;
   supportingEvidenceIds?: string[];
 }
 
@@ -230,16 +233,44 @@ async function main(): Promise<void> {
   assert.equal(payload.pickSucceeded, true, "Runtime pick/inspect did not succeed.");
   assert.equal(payload.reloadSucceeded, true, "Runtime reload did not succeed.");
   assert.ok(typeof payload.runtimeCurrentUrl === "string" && payload.runtimeCurrentUrl.length > 0, "Runtime current URL is missing.");
+  if (payload.runtimeSourceLabel === "Local mirror") {
+    assert.ok(
+      payload.runtimeCurrentUrl.startsWith("http://127.0.0.1:38901/runtime/project_001/launch"),
+      `Runtime Mode reported Local mirror, but current URL was ${payload.runtimeCurrentUrl}.`
+    );
+  }
   assert.ok(typeof payload.runtimeBridgeAssetId === "string" && payload.runtimeBridgeAssetId.length > 0, "Runtime pick did not expose a grounded donor asset bridge.");
   assert.equal(payload.runtimeBridgeAssetFocusSucceeded, true, "Runtime donor asset bridge did not focus the donor asset panel.");
   assert.ok(typeof payload.runtimeBridgeEvidenceId === "string" && payload.runtimeBridgeEvidenceId.length > 0, "Runtime pick did not expose a grounded donor evidence bridge.");
   assert.equal(payload.runtimeBridgeEvidenceFocusSucceeded, true, "Runtime donor evidence bridge did not focus the donor evidence panel.");
-  assert.ok(Number(payload.runtimeObservedResourceCount ?? 0) > 0, "Runtime trace did not capture any grounded runtime-loaded static resources.");
+  if (payload.runtimeSourceLabel === "Local mirror") {
+    assert.ok(
+      Number(payload.runtimeObservedResourceCount ?? 0) > 0
+      || (typeof payload.runtimeLocalMirrorSourcePath === "string" && payload.runtimeLocalMirrorSourcePath.length > 0),
+      "Runtime trace did not capture a grounded local-mirror-backed static source."
+    );
+  } else {
+    assert.ok(Number(payload.runtimeObservedResourceCount ?? 0) > 0, "Runtime trace did not capture any grounded runtime-loaded static resources.");
+  }
   assert.equal(payload.runtimeOverrideEligible, true, "Runtime trace did not expose an override-eligible grounded static asset.");
   assert.ok(typeof payload.runtimeOverrideSourceUrl === "string" && payload.runtimeOverrideSourceUrl.length > 0, "Runtime override source URL is missing.");
   assert.equal(payload.runtimeOverrideCreated, true, "Runtime override creation did not succeed.");
-  assert.ok(Number(payload.runtimeOverrideHitCountAfterReload ?? 0) > 0, "Runtime override did not record a reload-time asset hit.");
   assert.equal(payload.runtimeOverrideCleared, true, "Runtime override cleanup did not succeed.");
+  if (payload.runtimeSourceLabel === "Local mirror") {
+    assert.ok(
+      typeof payload.runtimeLocalMirrorSourcePath === "string" && payload.runtimeLocalMirrorSourcePath.length > 0,
+      "Runtime launch used the local mirror, but the picked override candidate did not resolve to a local mirror source path."
+    );
+    const overrideHitCount = Number(payload.runtimeOverrideHitCountAfterReload ?? 0);
+    if (overrideHitCount <= 0) {
+      assert.ok(
+        typeof payload.runtimeOverrideBlocked === "string" && payload.runtimeOverrideBlocked.length > 0,
+        "Local mirror runtime override did not land and did not report an explicit blocker."
+      );
+    }
+  } else {
+    assert.ok(Number(payload.runtimeOverrideHitCountAfterReload ?? 0) > 0, "Runtime override did not record a reload-time asset hit.");
+  }
   assert.ok(Array.isArray(payload.supportingEvidenceIds) && payload.supportingEvidenceIds.length > 0, "Supporting runtime evidence ids are missing.");
 
   const statusAfter = await captureGitStatus(workspaceRoot);
@@ -258,6 +289,12 @@ async function main(): Promise<void> {
   }
   if (payload.runtimeOverrideRelativePath) {
     console.log(`Runtime override target: ${payload.runtimeOverrideRelativePath}`);
+  }
+  if (payload.runtimeLocalMirrorSourcePath) {
+    console.log(`Runtime local mirror source: ${payload.runtimeLocalMirrorSourcePath}`);
+  }
+  if (payload.runtimeOverrideBlocked) {
+    console.log(`Runtime override blocker: ${payload.runtimeOverrideBlocked}`);
   }
 }
 

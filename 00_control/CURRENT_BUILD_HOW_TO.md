@@ -18,6 +18,7 @@ Use this when you want to test the current MyIDE build exactly as it works today
 2. Use the new **Workflow Hub** in the left column to switch the side context between **Runtime**, **Donor**, **Compose**, **VABS**, and **Project** without hunting through one long stack of panels.
 3. Runtime Mode is the main working surface; **Compose** mode is the bounded secondary workflow.
 4. Use **Launch Runtime** to open the recorded Mystery Garden donor runtime inside the shell.
+4. Use **Launch Runtime** to open the bounded local Mystery Garden runtime mirror inside the shell when it is available on this machine.
 5. Use **Reload Runtime** to refresh the runtime surface.
 6. Use **Click To Start** if the donor runtime needs one bounded pointer click to begin.
 7. Use **Spin / Trigger** if you want the bounded runtime action path that currently sends `Space` to the runtime surface.
@@ -28,7 +29,7 @@ Use this when you want to test the current MyIDE build exactly as it works today
    - focus the strongest grounded donor evidence entry
    - focus a related compose object if one already exists for that donor-linked asset
 11. If the picked runtime trace shows **Eligible static image override**, click **Create Override**.
-12. Runtime Mode will reload the runtime without cache and prefer the project-local override file for that grounded static image URL.
+12. Runtime Mode will reload the runtime without cache and keep the project-local override active for that grounded static image source.
 13. Use **Clear Override** if you want to restore the original donor runtime asset.
 14. Use **Show Runtime Note** or **Show Init Response** to jump back to the grounded runtime evidence behind the current Runtime Mode slice.
 
@@ -84,8 +85,10 @@ Save still syncs the replay-facing:
 You still cannot edit donor source files directly, and the current runtime-first slice has real limits.
 
 Current hard limits:
-- there is no captured local donor runtime package for `project_001` yet, so Runtime Mode currently launches the recorded public donor demo entry inside the shell
+- there is still no captured full local donor runtime package for `project_001`
+- Runtime Mode now prefers a bounded local runtime mirror when it is available, but that mirror still depends on the live donor launch upstream for launch HTML/token/API state
 - the first static override slice works only for grounded static runtime image URLs that the current runtime trace can prove and that match a supported donor image file type
+- when Runtime Mode uses the local mirror, the shell can now trace one grounded static runtime candidate back to a local mirror file path, but the current slice still does not confirm a reload-time hit on that mirrored candidate yet
 - pause, resume, and step only work if the embedded runtime exposes a stable ticker-like hook; if it does not, the shell shows the blocker instead of faking the control
 - only `project_001` is supported in this slice
 - only static donor image files are supported
@@ -100,12 +103,16 @@ The donor file remains read-only evidence. Runtime Mode can now create one bound
 1. Stay in **Runtime** mode.
 2. Click **Launch Runtime**.
 3. Use **Pick / Inspect** and click the live runtime surface.
-4. Confirm the inspector shows a grounded static runtime source path and says the current trace is override-eligible.
+4. Confirm the inspector shows:
+   - `Runtime Source: Local mirror` when the bounded mirror is available
+   - a grounded static runtime source path or the strongest grounded local mirror candidate path
+   - whether the current trace is override-eligible
 5. Click **Create Override**.
 6. Wait for Runtime Mode to reload.
 7. Read the **Project-local Overrides** card or the active override detail in the inspector.
-8. Use **Clear Override** when you want to restore the original runtime asset.
-9. The override file stays under `40_projects/project_001/overrides/`, and raw donor files under `10_donors/` stay untouched.
+8. If the current slice reports a blocker for the local mirrored candidate instead of a reload-time hit, treat that as the current honest limit rather than a silent failure.
+9. Use **Clear Override** when you want to restore the original runtime asset.
+10. The override file stays under `40_projects/project_001/overrides/`, and raw donor files under `10_donors/` stay untouched.
 
 ## 9. Save / Reload Loop For Scene Composition
 1. Switch to **Compose** mode.

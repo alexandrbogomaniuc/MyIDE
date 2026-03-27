@@ -764,9 +764,79 @@ function getRuntimeOverrideStatus() {
   return overrideStatus && typeof overrideStatus === "object" ? overrideStatus : null;
 }
 
-function getRuntimeResourceFileType(resourceUrl) {
+function getRuntimeMirrorStatus() {
+  const runtimeMirror = state.bundle?.runtimeMirror;
+  return runtimeMirror && typeof runtimeMirror === "object" ? runtimeMirror : null;
+}
+
+function getRuntimeMirrorEntry(sourceUrl) {
+  const canonicalSourceUrl = getRuntimeCanonicalSourceUrl(sourceUrl);
+  if (!canonicalSourceUrl) {
+    return null;
+  }
+
+  return getRuntimeMirrorStatus()?.entries?.find((entry) => entry.sourceUrl === canonicalSourceUrl) ?? null;
+}
+
+function buildLocalMirrorObservedUrl(sourceUrl) {
+  const runtimeMirrorStatus = getRuntimeMirrorStatus();
+  if (!runtimeMirrorStatus?.launchUrl) {
+    return sourceUrl;
+  }
+
+  try {
+    const launchUrl = new URL(runtimeMirrorStatus.launchUrl);
+    const projectId = runtimeMirrorStatus.projectId || "project_001";
+    return `${launchUrl.protocol}//${launchUrl.host}/runtime/${projectId}/mirror?source=${encodeURIComponent(sourceUrl)}`;
+  } catch {
+    return sourceUrl;
+  }
+}
+
+function getRuntimeCanonicalSourceUrl(resourceUrl) {
   try {
     const parsedUrl = new URL(String(resourceUrl));
+    const mirroredSourceUrl = parsedUrl.searchParams.get("source");
+    if (
+      parsedUrl.hostname === "127.0.0.1"
+      && /^\/runtime\/[^/]+\/mirror$/.test(parsedUrl.pathname)
+      && mirroredSourceUrl
+    ) {
+      return new URL(mirroredSourceUrl).toString();
+    }
+    if (
+      parsedUrl.hostname === "127.0.0.1"
+      && /^\/runtime\/[^/]+\/assets\//.test(parsedUrl.pathname)
+    ) {
+      const relativePath = parsedUrl.pathname.replace(/^\/runtime\/[^/]+\/assets\//, "");
+      const runtimeMirrorEntry = (getRuntimeMirrorStatus()?.entries ?? []).find((entry) => {
+        try {
+          const entryUrl = new URL(entry.sourceUrl);
+          const entryRelativePath = entryUrl.pathname.includes("/html/MysteryGarden/")
+            ? `${entryUrl.pathname.split("/html/MysteryGarden/")[1]}${entryUrl.search}`
+            : entryUrl.pathname.replace(/^\/+/, "");
+          return entryRelativePath === relativePath;
+        } catch {
+          return false;
+        }
+      });
+      if (runtimeMirrorEntry?.sourceUrl) {
+        return runtimeMirrorEntry.sourceUrl;
+      }
+    }
+    return parsedUrl.toString();
+  } catch {
+    return null;
+  }
+}
+
+function getRuntimeResourceFileType(resourceUrl) {
+  try {
+    const canonicalSourceUrl = getRuntimeCanonicalSourceUrl(resourceUrl);
+    if (!canonicalSourceUrl) {
+      return null;
+    }
+    const parsedUrl = new URL(canonicalSourceUrl);
     const match = parsedUrl.pathname.match(/\.([a-z0-9]+)$/i);
     if (!match) {
       return null;
@@ -780,7 +850,11 @@ function getRuntimeResourceFileType(resourceUrl) {
 
 function getRuntimeResourceRelativePath(resourceUrl) {
   try {
-    const parsedUrl = new URL(String(resourceUrl));
+    const canonicalSourceUrl = getRuntimeCanonicalSourceUrl(resourceUrl);
+    if (!canonicalSourceUrl) {
+      return null;
+    }
+    const parsedUrl = new URL(canonicalSourceUrl);
     if (parsedUrl.pathname.includes("/html/MysteryGarden/")) {
       return parsedUrl.pathname.split("/html/MysteryGarden/")[1];
     }
@@ -797,22 +871,24 @@ function normalizeRuntimeResourceEntries(rawEntries) {
 
   return rawEntries
     .map((entry) => {
-      const url = typeof entry?.url === "string" ? entry.url : "";
-      const fileType = getRuntimeResourceFileType(url);
-      if (!url || !fileType) {
+      const observedUrl = typeof entry?.url === "string" ? entry.url : "";
+      const canonicalUrl = getRuntimeCanonicalSourceUrl(observedUrl);
+      const fileType = getRuntimeResourceFileType(observedUrl);
+      if (!canonicalUrl || !fileType) {
         return null;
       }
 
       return {
-        url,
+        url: canonicalUrl,
+        observedUrl,
         fileType,
         initiatorType: typeof entry?.initiatorType === "string" ? entry.initiatorType : null,
-        relativePath: getRuntimeResourceRelativePath(url),
+        relativePath: getRuntimeResourceRelativePath(observedUrl),
         filename: typeof entry?.filename === "string" && entry.filename.length > 0
           ? entry.filename
           : (() => {
               try {
-                return String(new URL(url).pathname.split("/").pop() ?? "");
+                return String(new URL(canonicalUrl).pathname.split("/").pop() ?? "");
               } catch {
                 return "";
               }
@@ -1116,21 +1192,46 @@ function buildRuntimeGuestBridgeScript() {
   }
 
   function summarizeLoadedResources() {
+    function getCanonicalResourceUrl(resourceUrl) {
+      try {
+        const parsedUrl = new URL(resourceUrl);
+        const mirroredSourceUrl = parsedUrl.searchParams.get("source");
+        if (
+          parsedUrl.hostname === "127.0.0.1"
+          && /^\/runtime\/[^/]+\/mirror$/.test(parsedUrl.pathname)
+          && mirroredSourceUrl
+        ) {
+          return new URL(mirroredSourceUrl).toString();
+        }
+        return parsedUrl.toString();
+      } catch {
+        return null;
+      }
+    }
+
     try {
       return performance.getEntriesByType("resource")
         .map((entry) => ({
           url: typeof entry.name === "string" ? entry.name : null,
+          canonicalUrl: typeof entry.name === "string" ? getCanonicalResourceUrl(entry.name) : null,
           initiatorType: typeof entry.initiatorType === "string" ? entry.initiatorType : null
         }))
         .filter((entry) => (
           entry.url
-          && /^https:\/\/cdn\.bgaming-network\.com\/html\/MysteryGarden\//.test(entry.url)
-          && /\.(png|webp|jpg|jpeg|svg)(\?|$)/i.test(entry.url)
+          && (
+            (
+              entry.canonicalUrl
+              && /^https:\/\/cdn\.bgaming-network\.com\/html\/MysteryGarden\//.test(entry.canonicalUrl)
+              && /\.(png|webp|jpg|jpeg|svg)(\?|$)/i.test(entry.canonicalUrl)
+            )
+            || /^http:\/\/127\.0\.0\.1:38901\/runtime\/project_001\/assets\/.+\.(png|webp|jpg|jpeg|svg)(\?|$)/i.test(entry.url)
+          )
         ))
         .map((entry) => ({
           url: entry.url,
+          observedUrl: entry.url,
           initiatorType: entry.initiatorType,
-          filename: entry.url.split("?")[0].split("/").pop() || null
+          filename: (entry.canonicalUrl ?? entry.url).split("?")[0].split("/").pop() || null
         }))
         .slice(0, 80);
     } catch {
@@ -1499,7 +1600,7 @@ async function handleRuntimeLaunch() {
   setRuntimeLaunched(true);
   renderAll();
   setPreviewStatus(runtimeLaunch.localRuntimePackageAvailable
-    ? "Launching the captured local donor runtime package inside Runtime Mode."
+    ? "Launching the grounded local Mystery Garden runtime mirror inside Runtime Mode."
     : "Launching the recorded donor runtime entry inside Runtime Mode.");
   webview.src = runtimeLaunch.entryUrl;
   return true;
@@ -4170,6 +4271,7 @@ async function runLiveRuntimeSmoke() {
     projectLoaded: false,
     runtimeModeSelected: false,
     launchEntryUrl: null,
+    runtimeSourceLabel: null,
     launchSucceeded: false,
     reloadSucceeded: false,
     runtimeCurrentUrl: null,
@@ -4198,11 +4300,13 @@ async function runLiveRuntimeSmoke() {
     runtimeOverrideEligible: false,
     runtimeOverrideSourceUrl: null,
     runtimeOverrideRelativePath: null,
+    runtimeLocalMirrorSourcePath: null,
     runtimeOverrideDonorAssetId: null,
     runtimeOverrideRepoRelativePath: null,
     runtimeOverrideHitCountAfterReload: 0,
     runtimeOverrideCreated: false,
     runtimeOverrideCleared: false,
+    runtimeOverrideBlocked: null,
     supportingEvidenceIds: [],
     previewStatus: null
   };
@@ -4242,6 +4346,7 @@ async function runLiveRuntimeSmoke() {
     }
 
     baseResult.launchEntryUrl = runtimeLaunch.entryUrl;
+    baseResult.runtimeSourceLabel = runtimeLaunch.runtimeSourceLabel ?? null;
     baseResult.runtimeResolvedHost = runtimeLaunch.resolvedRuntimeHost;
     baseResult.supportingEvidenceIds = Array.isArray(runtimeLaunch.evidenceIds) ? runtimeLaunch.evidenceIds.slice() : [];
 
@@ -4355,6 +4460,7 @@ async function runLiveRuntimeSmoke() {
     const runtimeOverrideCandidate = getRuntimeOverrideCandidate();
     baseResult.runtimeOverrideSourceUrl = runtimeOverrideCandidate.runtimeSourceUrl;
     baseResult.runtimeOverrideRelativePath = runtimeOverrideCandidate.runtimeRelativePath;
+    baseResult.runtimeLocalMirrorSourcePath = runtimeOverrideCandidate.localMirrorEntry?.repoRelativePath ?? null;
     baseResult.runtimeOverrideDonorAssetId = runtimeOverrideCandidate.donorAsset?.assetId ?? null;
     clickRendererElement(createOverrideButton);
     await waitForRendererCondition(
@@ -4369,14 +4475,22 @@ async function runLiveRuntimeSmoke() {
       "runtime reload to finish",
       { timeoutMs: 60000 }
     );
-    await waitForRendererCondition(
-      () => {
-        const activeEntry = state.runtimeUi.overrideStatus?.entries?.find((entry) => entry.runtimeSourceUrl === baseResult.runtimeOverrideSourceUrl);
-        return activeEntry && activeEntry.hitCount > 0 ? activeEntry : null;
-      },
-      "runtime override to be applied after reload",
-      { timeoutMs: 30000 }
-    );
+    try {
+      await waitForRendererCondition(
+        () => {
+          const activeEntry = state.runtimeUi.overrideStatus?.entries?.find((entry) => entry.runtimeSourceUrl === baseResult.runtimeOverrideSourceUrl);
+          return activeEntry && activeEntry.hitCount > 0 ? activeEntry : null;
+        },
+        "runtime override to be applied after reload",
+        { timeoutMs: 30000 }
+      );
+    } catch (error) {
+      if (baseResult.runtimeSourceLabel === "Local mirror") {
+        baseResult.runtimeOverrideBlocked = "Local mirror launch succeeded, but the runtime did not record a reload-time hit for the current mirrored static asset candidate.";
+      } else {
+        throw error;
+      }
+    }
     const activeOverrideEntry = state.runtimeUi.overrideStatus?.entries?.find((entry) => entry.runtimeSourceUrl === baseResult.runtimeOverrideSourceUrl) ?? null;
     baseResult.runtimeOverrideRepoRelativePath = activeOverrideEntry?.overrideRepoRelativePath ?? null;
     baseResult.runtimeOverrideHitCountAfterReload = activeOverrideEntry?.hitCount ?? 0;
@@ -4400,7 +4514,9 @@ async function runLiveRuntimeSmoke() {
     );
     baseResult.runtimeOverrideCleared = true;
 
-    const successMessage = `Runtime smoke passed: launched ${trimRuntimeText(baseResult.runtimeCurrentUrl ?? baseResult.launchEntryUrl, 96)}, captured a runtime pick on ${baseResult.pickedTargetTag ?? "the live surface"}, created a project-local override for ${baseResult.runtimeOverrideRelativePath ?? "the grounded runtime source"}, and reloaded the donor runtime inside Runtime Mode.`;
+    const successMessage = baseResult.runtimeOverrideBlocked
+      ? `Runtime smoke passed with blocker: launched ${trimRuntimeText(baseResult.runtimeCurrentUrl ?? baseResult.launchEntryUrl, 96)}, captured a runtime pick on ${baseResult.pickedTargetTag ?? "the live surface"}, traced ${baseResult.runtimeOverrideRelativePath ?? "the grounded runtime source"} to ${baseResult.runtimeLocalMirrorSourcePath ?? "the local mirror"}, but the runtime did not confirm a reload-time hit for that mirrored candidate.`
+      : `Runtime smoke passed: launched ${trimRuntimeText(baseResult.runtimeCurrentUrl ?? baseResult.launchEntryUrl, 96)}, captured a runtime pick on ${baseResult.pickedTargetTag ?? "the live surface"}, created a project-local override for ${baseResult.runtimeOverrideRelativePath ?? "the grounded runtime source"}, and reloaded the donor runtime inside Runtime Mode.`;
     setPreviewStatus(successMessage);
     baseResult.previewStatus = successMessage;
     document.body.dataset.liveRuntimeSmoke = "pass";
@@ -7413,7 +7529,7 @@ function getRuntimeOverrideCandidate() {
   const donorAsset = workflowBridge.donorAsset;
   const preferredFileType = donorAsset?.fileType ?? null;
   const directResourceUrl = typeof state.runtimeUi.lastPick?.topDisplayObject?.texture?.resourceUrl === "string"
-    ? state.runtimeUi.lastPick.topDisplayObject.texture.resourceUrl
+    ? getRuntimeCanonicalSourceUrl(state.runtimeUi.lastPick.topDisplayObject.texture.resourceUrl)
     : null;
   const directFileType = directResourceUrl ? getRuntimeResourceFileType(directResourceUrl) : null;
   const directEntry = directResourceUrl && directFileType && (!preferredFileType || directFileType === preferredFileType)
@@ -7434,17 +7550,50 @@ function getRuntimeOverrideCandidate() {
 
   const observedResources = getObservedRuntimeResources()
     .filter((entry) => !preferredFileType || entry.fileType === preferredFileType);
+  const mirroredResources = (getRuntimeMirrorStatus()?.entries ?? [])
+    .filter((entry) => (
+      entry.kind === "static-image"
+      && (!preferredFileType || entry.fileType === preferredFileType)
+      && ["png", "webp", "jpg", "jpeg", "svg"].includes(String(entry.fileType ?? "").toLowerCase())
+    ))
+    .map((entry) => ({
+      url: entry.sourceUrl,
+      observedUrl: buildLocalMirrorObservedUrl(entry.sourceUrl),
+      fileType: entry.fileType,
+      relativePath: getRuntimeResourceRelativePath(entry.sourceUrl),
+      filename: (() => {
+        try {
+          return String(new URL(entry.sourceUrl).pathname.split("/").pop() ?? "");
+        } catch {
+          return "";
+        }
+      })(),
+      initiatorType: "local-mirror-manifest"
+    }));
   const phaseKey = getRuntimePhaseReferenceKey();
   const phaseMatchers = phaseKey === "intro"
-    ? [/preloader-assets\//i, /img\/ui\/brand-logo/i, /img\/ui\//i]
+    ? [
+        /preloader-assets\/logo-lights\.png/i,
+        /preloader-assets\/logo\.png/i,
+        /preloader-assets\/logo\.jpg/i,
+        /preloader-assets\/split\.png/i,
+        /preloader-assets\//i,
+        /img\/ui\/brand-logo/i,
+        /img\/ui\//i
+      ]
     : [/img\/ui\//i, /preloader-assets\//i];
   const observedEntry = directEntry
     ?? phaseMatchers
       .map((matcher) => observedResources.find((entry) => matcher.test(entry.relativePath ?? "")))
       .find(Boolean)
     ?? observedResources[0]
+    ?? phaseMatchers
+      .map((matcher) => mirroredResources.find((entry) => matcher.test(entry.relativePath ?? "")))
+      .find(Boolean)
+    ?? mirroredResources[0]
     ?? null;
   const activeOverride = observedEntry ? getRuntimeOverrideEntry(observedEntry.url) : null;
+  const localMirrorEntry = observedEntry ? getRuntimeMirrorEntry(observedEntry.url) : null;
 
   if (!observedEntry) {
     return {
@@ -7455,6 +7604,7 @@ function getRuntimeOverrideCandidate() {
       fileType: preferredFileType,
       donorAsset,
       activeOverride: null,
+      localMirrorEntry: null,
       note: "No grounded runtime-loaded static image resource is available for an override in this slice yet."
     };
   }
@@ -7468,21 +7618,37 @@ function getRuntimeOverrideCandidate() {
       fileType: observedEntry.fileType,
       donorAsset: null,
       activeOverride,
-      note: "A runtime-loaded static resource was observed, but the current runtime pick does not yet expose a grounded donor asset to use as the override source."
+      localMirrorEntry,
+      note: localMirrorEntry
+        ? `A runtime-loaded static resource was observed and resolved to local mirror path ${localMirrorEntry.repoRelativePath}, but the current runtime pick does not yet expose a grounded donor asset to use as the override source.`
+        : "A runtime-loaded static resource was observed, but the current runtime pick does not yet expose a grounded donor asset to use as the override source."
     };
   }
 
   return {
     eligible: true,
-    sourceKind: directEntry ? "direct-texture" : "observed-resource",
+    sourceKind: directEntry
+      ? "direct-texture"
+      : observedResources.some((entry) => entry.url === observedEntry.url)
+        ? "observed-resource"
+        : "local-mirror-manifest",
     runtimeSourceUrl: observedEntry.url,
     runtimeRelativePath: observedEntry.relativePath,
     fileType: observedEntry.fileType,
     donorAsset,
     activeOverride,
+    localMirrorEntry,
     note: directEntry
-      ? "The live runtime exposed a direct texture/resource URL for this static image."
-      : `A grounded runtime-loaded ${observedEntry.fileType} resource was observed for the current runtime phase and matches the bridged donor asset file type.`
+      ? localMirrorEntry
+        ? `The live runtime exposed a direct texture/resource URL for this static image, and that source resolves to local mirror path ${localMirrorEntry.repoRelativePath}.`
+        : "The live runtime exposed a direct texture/resource URL for this static image."
+      : observedResources.some((entry) => entry.url === observedEntry.url)
+        ? localMirrorEntry
+          ? `A grounded runtime-loaded ${observedEntry.fileType} resource was observed for the current runtime phase, matches the bridged donor asset file type, and resolves to local mirror path ${localMirrorEntry.repoRelativePath}.`
+          : `A grounded runtime-loaded ${observedEntry.fileType} resource was observed for the current runtime phase and matches the bridged donor asset file type.`
+      : localMirrorEntry
+        ? `The live runtime did not expose a stable resource timing entry for this slice, so the strongest grounded candidate comes from the local runtime mirror manifest for the current phase and resolves to ${localMirrorEntry.repoRelativePath}.`
+        : `The live runtime did not expose a stable resource timing entry for this slice, so the strongest grounded candidate comes from the local runtime mirror manifest for the current phase.`
   };
 }
 
@@ -10345,15 +10511,15 @@ function renderOnboardingCard() {
       <div class="chip-row">
         <span>${escapeHtml(getWorkbenchModeLabel())} mode active</span>
         <span>${escapeHtml(getWorkflowPanelLabel(workflowPanel))} panel active</span>
-        <span>${runtimeLaunch?.localRuntimePackageAvailable ? "local donor runtime package available" : "local donor runtime package not captured"}</span>
+        <span>${runtimeLaunch?.localRuntimePackageAvailable ? "local runtime mirror available" : "public runtime fallback"}</span>
       </div>
     </div>
     <div class="detail-grid">
       <div class="detail-card">
-        <span>Runtime Package</span>
-        <strong>${runtimeLaunch?.localRuntimePackageAvailable ? "Local donor runtime package" : "Recorded public donor runtime"}</strong>
+        <span>Runtime Source</span>
+        <strong>${escapeHtml(runtimeLaunch?.runtimeSourceLabel ?? "Blocked")}</strong>
         <small>${escapeHtml(runtimeLaunch?.localRuntimePackageAvailable
-          ? "Runtime Mode prefers the captured local donor runtime package for this project."
+          ? runtimeLaunch?.blocker ?? "Runtime Mode prefers the grounded local Mystery Garden runtime mirror on this machine."
           : runtimeLaunch?.blocker ?? "No grounded donor runtime package is captured for project_001 yet.")}</small>
       </div>
       <div class="detail-card">
@@ -12630,6 +12796,7 @@ function renderRuntimeWorkbench() {
   const runtimeModeActive = state.workbenchMode === "runtime";
   const runtimeWebview = getRuntimeWebview();
   const runtimeOverrideStatus = getRuntimeOverrideStatus();
+  const runtimeMirrorStatus = getRuntimeMirrorStatus();
 
   if (elements.runtimeWorkbench) {
     elements.runtimeWorkbench.hidden = !runtimeModeActive;
@@ -12696,10 +12863,11 @@ function renderRuntimeWorkbench() {
     <div class="tree-row runtime-status-summary">
       <strong>Runtime Mode</strong>
       <span>${escapeHtml(currentStatus)}. ${runtimeLaunch.localRuntimePackageAvailable
-        ? "A local donor package is available."
-        : "No local donor runtime package is captured, so this mode uses the recorded public donor runtime entry."}</span>
+        ? "A grounded local runtime mirror is active on this machine."
+        : "No local donor runtime mirror is captured, so this mode uses the recorded public donor runtime entry."}</span>
       <div class="chip-row">
         <span>${escapeHtml(runtimeLaunch.captureSessionId ?? "runtime session unknown")}</span>
+        <span>${escapeHtml(runtimeLaunch.runtimeSourceLabel ?? "Blocked")}</span>
         <span>${runtimeLaunch.entryUrl ? "launch target ready" : "launch blocked"}</span>
         <span>${state.runtimeUi.inspectEnabled ? "pick mode armed" : "pick mode idle"}</span>
         <span>${state.runtimeUi.diagnostics?.pixiVersion ? `Pixi ${escapeHtml(state.runtimeUi.diagnostics.pixiVersion)}` : runtimeLaunch.pixiVersion ? `Pixi ${escapeHtml(runtimeLaunch.pixiVersion)}` : "Pixi version unknown"}</span>
@@ -12708,7 +12876,7 @@ function renderRuntimeWorkbench() {
     <div class="detail-grid runtime-detail-grid">
       <div class="detail-card">
         <span>Runtime Entry</span>
-        <strong>${runtimeLaunch.entryUrl ? "Recorded donor demo URL" : "Not indexed"}</strong>
+        <strong>${escapeHtml(runtimeLaunch.runtimeSourceLabel ?? "Blocked")}</strong>
         <small>${runtimeLaunch.entryUrl ? `<code>${escapeHtml(runtimeLaunch.entryUrl)}</code>` : "No grounded launch URL is recorded."}</small>
       </div>
       <div class="detail-card">
@@ -12730,6 +12898,13 @@ function renderRuntimeWorkbench() {
         <span>Observed Asset Groups</span>
         <strong>${runtimeLaunch.observedAssetGroups.length > 0 ? `${runtimeLaunch.observedAssetGroups.length} runtime asset groups` : "No grouped observation yet"}</strong>
         <small>${escapeHtml(assetGroupSummary)}</small>
+      </div>
+      <div class="detail-card ${runtimeMirrorStatus?.available ? "is-positive" : "is-alert"}">
+        <span>Local Mirror Status</span>
+        <strong>${runtimeMirrorStatus?.available ? `${runtimeMirrorStatus.entryCount} mirrored runtime files` : "Local mirror unavailable"}</strong>
+        <small>${escapeHtml(runtimeMirrorStatus?.available
+          ? `${runtimeMirrorStatus.manifestRepoRelativePath} · ${runtimeMirrorStatus.resourceVersion ? `v${runtimeMirrorStatus.resourceVersion}` : "version unknown"}`
+          : runtimeMirrorStatus?.blocker ?? "Capture the local runtime mirror to prefer a local host path.")}</small>
       </div>
       <div class="detail-card ${runtimeOverrideStatus?.entryCount ? "is-positive" : ""}">
         <span>Project-local Overrides</span>
@@ -12754,6 +12929,7 @@ function renderRuntimeInspector() {
   const workflowBridge = getRuntimeWorkflowBridge();
   const runtimeOverrideCandidate = getRuntimeOverrideCandidate();
   const runtimeOverrideStatus = getRuntimeOverrideStatus();
+  const runtimeMirrorStatus = getRuntimeMirrorStatus();
   const candidateSummaries = Array.isArray(lastPick?.candidateApps) && lastPick.candidateApps.length > 0
     ? lastPick.candidateApps.map((entry) => `${entry.key}${entry.childCount != null ? ` · ${entry.childCount} stage children` : ""}`).join("; ")
     : Array.isArray(diagnostics?.candidateApps) && diagnostics.candidateApps.length > 0
@@ -12773,6 +12949,7 @@ function renderRuntimeInspector() {
     <p class="inspector-purpose">Runtime Mode surfaces the strongest grounded trace available from the live donor runtime surface. When the runtime does not expose a stable app/ticker/object handle, this panel says so plainly instead of inventing provenance.</p>
     <div class="chip-row">
       <span>${escapeHtml(runtimeLaunch?.availability ?? "blocked")}</span>
+      <span>${escapeHtml(runtimeLaunch?.runtimeSourceLabel ?? "Blocked")}</span>
       <span>${state.runtimeUi.inspectEnabled ? "pick mode armed" : "pick mode idle"}</span>
       <span>${diagnostics?.pixiVersion ? `Pixi ${escapeHtml(diagnostics.pixiVersion)}` : runtimeLaunch?.pixiVersion ? `Pixi ${escapeHtml(runtimeLaunch.pixiVersion)}` : "Pixi unknown"}</span>
       <span>${topDisplayObject ? "display-object candidate detected" : "canvas / DOM level trace only"}</span>
@@ -12833,6 +13010,15 @@ function renderRuntimeInspector() {
         <span>Runtime Source Path</span>
         <strong>${escapeHtml(runtimeOverrideCandidate.runtimeRelativePath ?? "No grounded runtime image path yet")}</strong>
         <small>${escapeHtml(runtimeOverrideCandidate.runtimeSourceUrl ?? "The current runtime trace has not surfaced a supported static image URL.")}</small>
+      </div>
+      <div class="detail-card ${runtimeOverrideCandidate.localMirrorEntry ? "is-positive" : runtimeMirrorStatus?.available ? "is-alert" : ""}">
+        <span>Local Runtime Source</span>
+        <strong>${escapeHtml(runtimeOverrideCandidate.localMirrorEntry?.repoRelativePath ?? "Current picked source is not mirrored locally")}</strong>
+        <small>${escapeHtml(runtimeOverrideCandidate.localMirrorEntry
+          ? `Runtime source ${runtimeOverrideCandidate.runtimeRelativePath ?? runtimeOverrideCandidate.runtimeSourceUrl} resolves to a local mirror file on this machine.`
+          : runtimeMirrorStatus?.available
+            ? "A local mirror exists, but this picked runtime trace has not resolved to one of the mirrored local files yet."
+            : runtimeMirrorStatus?.blocker ?? "No local mirror is available yet.")}</small>
       </div>
       <div class="detail-card">
         <span>Active Override</span>
