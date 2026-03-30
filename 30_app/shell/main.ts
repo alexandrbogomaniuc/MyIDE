@@ -77,6 +77,7 @@ const shouldKeepLiveAlignWindowOpen = process.env.MYIDE_LIVE_ALIGN_KEEP_OPEN ===
 const shouldShowLiveAlignWindow = process.env.MYIDE_LIVE_ALIGN_SHOW === "1" || shouldKeepLiveAlignWindowOpen;
 const shouldKeepLiveUndoRedoWindowOpen = process.env.MYIDE_LIVE_UNDO_REDO_KEEP_OPEN === "1";
 const shouldShowLiveUndoRedoWindow = process.env.MYIDE_LIVE_UNDO_REDO_SHOW === "1" || shouldKeepLiveUndoRedoWindowOpen;
+const shouldDisableHardwareAcceleration = process.env.MYIDE_DISABLE_HARDWARE_ACCELERATION === "1";
 
 interface BridgeHealthSnapshot {
   preloadPath: string;
@@ -1778,7 +1779,12 @@ function createWindow(): void {
   void window.loadFile(rendererPath, query ? { query } : undefined);
 }
 
-app.disableHardwareAcceleration();
+if (shouldDisableHardwareAcceleration) {
+  app.disableHardwareAcceleration();
+} else {
+  // Runtime Debug Host needs WebGL; let Electron use the GPU unless explicitly forced off.
+  app.commandLine.appendSwitch("ignore-gpu-blocklist");
+}
 app.setAppUserModelId("dev.myide");
 
 ipcMain.on("myide:preload-ready", () => {
