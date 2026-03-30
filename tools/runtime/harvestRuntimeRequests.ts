@@ -10,6 +10,11 @@ interface CommandResult {
   stderr: string;
 }
 
+interface HarvestOptions {
+  projectId: string;
+  refreshWithSmoke: boolean;
+}
+
 function resolveWorkspaceRoot(): string {
   return path.resolve(__dirname, "../../..");
 }
@@ -21,6 +26,28 @@ function summarizeOutput(output: string): string {
   }
 
   return trimmed.split(/\r?\n/).slice(-60).join("\n");
+}
+
+function formatSmokeFailureMessage(output: string): string {
+  const summary = summarizeOutput(output);
+  if (output.includes("EADDRINUSE") && output.includes("127.0.0.1:38901")) {
+    return [
+      "Runtime debug smoke failed during harvest refresh because the local runtime mirror port is already in use (`127.0.0.1:38901`).",
+      "Close any running MyIDE app or Runtime Debug Host window first, then retry `npm run runtime:harvest:smoke:project_001`.",
+      "If you only want a safe mirror refresh without launching Electron, run `npm run runtime:harvest:project_001` instead.",
+      "",
+      summary
+    ].join("\n");
+  }
+  return `Runtime debug smoke failed during harvest refresh.\n${summary}`;
+}
+
+function parseOptions(argv: string[]): HarvestOptions {
+  const positional = argv.filter((value) => !value.startsWith("--"));
+  return {
+    projectId: positional[0] ?? "project_001",
+    refreshWithSmoke: argv.includes("--refresh-with-smoke")
+  };
 }
 
 function runNodeScript(command: string, args: string[], cwd: string): Promise<CommandResult> {
@@ -51,33 +78,43 @@ function runNodeScript(command: string, args: string[], cwd: string): Promise<Co
 }
 
 async function main(): Promise<void> {
-  const projectId = process.argv[2] ?? "project_001";
+  const options = parseOptions(process.argv.slice(2));
+  const { projectId, refreshWithSmoke } = options;
   const workspaceRoot = resolveWorkspaceRoot();
-  const smokeScriptPath = path.join(workspaceRoot, "dist", "50_tests", "workspace", "electron-runtime-mode-smoke.js");
 
-  if (!existsSync(smokeScriptPath)) {
-    throw new Error(`Runtime smoke script is missing at ${smokeScriptPath}. Run npm run build first.`);
-  }
+  if (refreshWithSmoke) {
+    const smokeScriptPath = path.join(workspaceRoot, "dist", "50_tests", "workspace", "electron-runtime-debug-smoke.js");
+    if (!existsSync(smokeScriptPath)) {
+      throw new Error(`Runtime debug smoke script is missing at ${smokeScriptPath}. Run npm run build first.`);
+    }
 
-  const smoke = await runNodeScript(process.execPath, [smokeScriptPath], workspaceRoot);
-  if (smoke.exitCode !== 0) {
-    const combined = `${smoke.stdout}\n${smoke.stderr}`.trim();
-    throw new Error(`Runtime smoke failed during harvest.\n${summarizeOutput(combined)}`);
-  }
-
-  const snapshot = await readRuntimeResourceMapSnapshot(projectId);
-  if (!snapshot) {
-    throw new Error(`Runtime harvest did not produce a resource-map snapshot for ${projectId}.`);
+    const smoke = await runNodeScript(process.execPath, [smokeScriptPath], workspaceRoot);
+    if (smoke.exitCode !== 0) {
+      const combined = `${smoke.stdout}\n${smoke.stderr}`.trim();
+      throw new Error(formatSmokeFailureMessage(combined));
+    }
   }
 
   const mirrorResult = await captureLocalRuntimeMirror(projectId);
+  const snapshot = await readRuntimeResourceMapSnapshot(projectId);
+
   console.log("PASS runtime:harvest");
   console.log(`Project: ${projectId}`);
-  console.log(`Resource map entries: ${snapshot.entryCount}`);
-  console.log(`Local static coverage: ${snapshot.coverage.localStaticEntryCount}`);
-  console.log(`Upstream static coverage: ${snapshot.coverage.upstreamStaticEntryCount}`);
-  console.log(`Unresolved upstream sample: ${snapshot.coverage.unresolvedUpstreamSample.join(", ") || "<none>"}`);
-  console.log(`Snapshot: ${snapshot.snapshotRepoRelativePath}`);
+  console.log(`Mode: ${refreshWithSmoke ? "refresh-with-debug-smoke" : "safe-local-refresh"}`);
+  if (snapshot) {
+    console.log(`Resource map entries: ${snapshot.entryCount}`);
+    console.log(`Local static coverage: ${snapshot.coverage.localStaticEntryCount}`);
+    console.log(`Upstream static coverage: ${snapshot.coverage.upstreamStaticEntryCount}`);
+    console.log(`Unresolved upstream sample: ${snapshot.coverage.unresolvedUpstreamSample.join(", ") || "<none>"}`);
+    console.log(`Snapshot: ${snapshot.snapshotRepoRelativePath}`);
+  } else {
+    console.log("Resource map entries: 0");
+    console.log("Local static coverage: 0");
+    console.log("Upstream static coverage: 0");
+    console.log("Unresolved upstream sample: <none>");
+    console.log("Snapshot: unavailable");
+    console.log("Note: no existing runtime request snapshot was found. Open the app with `npm run dev` and use `Use Debug Host`, or run `npm run runtime:harvest:smoke:project_001` if you want an automated request-backed refresh.");
+  }
   console.log(`Mirror launch URL: ${mirrorResult.status.launchUrl ?? "unavailable"}`);
   console.log(`Mirror entries: ${mirrorResult.status.entryCount}`);
   console.log(`Manifest: ${mirrorResult.status.manifestRepoRelativePath}`);

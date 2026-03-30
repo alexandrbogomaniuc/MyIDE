@@ -12,7 +12,8 @@ MyIDE is a universal local-first IDE for multiple game projects over time, with 
 - Runtime Mode now prefers a bounded local Mystery Garden runtime mirror when it is available on this machine, with the recorded donor demo entry kept only as the live launch/token upstream dependency for that mirror.
 - Runtime pick/inspect now also exposes one bounded static asset override slice for grounded static Mystery Garden runtime image URLs: the shell can create a project-local override under `40_projects/project_001/overrides/`, reload the runtime without cache, and keep raw donor files untouched.
 - Runtime Mode now records a bounded local runtime resource map for `project_001` that captures requested runtime URLs, the matched local mirror file when one exists, project-local override paths when one is active, and hit counts for the current launch/reload cycle.
-- `npm run runtime:harvest:project_001` now refreshes the local mirror from the strongest observed launch/start/spin request set and writes the current machine-readable request map to `40_projects/project_001/runtime/local-mirror/request-log.latest.json`.
+- `npm run runtime:harvest:project_001` now performs a safe local mirror refresh from the strongest already-known runtime evidence and reports any existing machine-readable request map at `40_projects/project_001/runtime/local-mirror/request-log.latest.json` without launching Electron smoke windows.
+- `npm run runtime:harvest:smoke:project_001` is the explicit maintenance variant that first runs the Runtime Debug Host smoke, then refreshes the mirror from that request-backed runtime evidence.
 - The current strongest local-runtime proof is narrower and better grounded: the local mirror now serves the observed launch path by default on this machine, the bounded slice leaves no unresolved upstream bootstrap/static dependency in the current launch/start/spin cycle, the embedded runtime request tap now proves a real local `bundle.js` hit inside Runtime Mode, and direct local launch inspection proves the same mirror can serve local static preloader images.
 - The shell now has one official runtime workbench path for `project_001`: the bounded dedicated Runtime Debug Host loads the same local mirror in a separate BrowserWindow, anchors the runtime asset/request workbench inside the shell, and is the path to use when runtime asset tracing or override proof matters.
 - The current strongest previously verified embedded-runtime result is still explicit: `frameCount=0`, `accessibleFrameCount=0`, `canvasCount=0`, the only observed resource window is `top`, and the embedded path still does not expose a request-backed static image or display-object handle for override proof.
@@ -55,6 +56,7 @@ Public publication rules are defined in [`00_control/PUBLIC_REPO_POLICY.md`](./0
 - `npm run manual:reset:project_001`
 - `npm run runtime:mirror:project_001`
 - `npm run runtime:harvest:project_001`
+- `npm run runtime:harvest:smoke:project_001`
 - `npm run donor-assets:index:project_001`
 - `npm run donor-assets:verify-override:project_001`
 - `npm run vabs:scaffold:project_001`

@@ -6,7 +6,8 @@ Use this when testing the current local MyIDE build by hand.
 1. This test edits reconstructed internal scene data under `40_projects/project_001/internal`; raw donor files under `10_donors/` stay read-only even when a donor image is imported.
 2. Run `npm run manual:prepare:project_001`.
 3. Run `npm run donor-assets:index:project_001`.
-4. Run `npm run runtime:harvest:project_001` if you want the strongest current local-runtime mirror coverage before opening the shell.
+4. Run `npm run runtime:harvest:project_001` if you want a safe local mirror refresh before opening the shell.
+5. Run `npm run runtime:harvest:smoke:project_001` only if you intentionally want a smoke-backed refresh from fresh Runtime Debug Host evidence.
 5. If you only need a quick context check, run `npm run manual:status`.
 6. Launch the shell with `npm run dev`.
 7. Test the LOCAL build on this machine, not the public GitHub snapshot.

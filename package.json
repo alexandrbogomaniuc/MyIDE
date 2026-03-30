@@ -15,6 +15,7 @@
     "manual:reset:project_001": "npm run build && node dist/tools/manual/resetProject001.js",
     "runtime:mirror:project_001": "npm run build && node dist/tools/runtime/mirrorProjectRuntime.js project_001",
     "runtime:harvest:project_001": "npm run build && node dist/tools/runtime/harvestRuntimeRequests.js project_001",
+    "runtime:harvest:smoke:project_001": "npm run build && node dist/tools/runtime/harvestRuntimeRequests.js project_001 --refresh-with-smoke",
     "runtime:debug:project_001": "npm run build && MYIDE_RUNTIME_DEBUG_HOST=1 electron .",
     "donor-assets:index:project_001": "npm run build && node dist/tools/donor-assets/indexProjectAssets.js project_001",
     "donor-assets:verify-override:project_001": "npm run build && node dist/tools/donor-assets/verifyOverride.js project_001",
