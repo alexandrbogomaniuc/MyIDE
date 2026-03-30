@@ -128,6 +128,14 @@ interface RuntimeDebugSmokePayload {
   error?: string;
 }
 
+interface RuntimeDebugHostOptions {
+  showWindow?: boolean;
+  smokeMode?: boolean;
+  closeWhenDone?: boolean;
+}
+
+type RuntimeDebugHostResult = Record<string, unknown>;
+
 interface LiveDuplicateDeleteSmokePayload {
   status?: string;
   error?: string;
@@ -181,6 +189,8 @@ let runtimeLocalMirrorStatus: LocalRuntimeMirrorStatus | null = null;
 let runtimeLocalMirrorServer: Server | null = null;
 let runtimeRequestStage = "launch";
 const recentRuntimeObservationFingerprints = new Map<string, number>();
+let activeRuntimeDebugWindow: BrowserWindow | null = null;
+let lastRuntimeDebugResult: RuntimeDebugHostResult | null = null;
 
 function resolvePreloadPath(): string {
   return path.resolve(__dirname, "preload.js");
@@ -518,10 +528,22 @@ async function loadPreferredRuntimeDebugDonorAsset(): Promise<IndexedDonorAsset 
     ?? null;
 }
 
-async function runRuntimeDebugHost(): Promise<void> {
+async function runRuntimeDebugHost(options: RuntimeDebugHostOptions = {}): Promise<RuntimeDebugHostResult | null> {
   const timeoutMs = Number.parseInt(process.env.MYIDE_RUNTIME_DEBUG_TIMEOUT_MS ?? "90000", 10);
   const runtimeInspectorPreloadPath = resolveRuntimeInspectorPreloadPath();
-  console.log("MYIDE_RUNTIME_DEBUG_MAIN_READY");
+  const showWindow = options.showWindow ?? shouldShowRuntimeDebugWindow;
+  const smokeMode = options.smokeMode ?? isRuntimeDebugSmokeMode;
+  const closeWhenDone = options.closeWhenDone ?? !showWindow;
+
+  if (smokeMode) {
+    console.log("MYIDE_RUNTIME_DEBUG_MAIN_READY");
+  }
+
+  if (!smokeMode && activeRuntimeDebugWindow && !activeRuntimeDebugWindow.isDestroyed()) {
+    activeRuntimeDebugWindow.show();
+    activeRuntimeDebugWindow.focus();
+    return lastRuntimeDebugResult;
+  }
 
   try {
     const bundle = await loadProjectSlice("project_001");
@@ -539,7 +561,7 @@ async function runRuntimeDebugHost(): Promise<void> {
     const debugWindow = new BrowserWindow({
       width: 1440,
       height: 960,
-      show: shouldShowRuntimeDebugWindow,
+      show: showWindow,
       backgroundColor: "#0b1017",
       title: "MyIDE Runtime Debug Host",
       webPreferences: {
@@ -551,14 +573,21 @@ async function runRuntimeDebugHost(): Promise<void> {
         partition: runtimeDebugPartition
       }
     });
+    activeRuntimeDebugWindow = debugWindow;
+    debugWindow.on("closed", () => {
+      if (activeRuntimeDebugWindow === debugWindow) {
+        activeRuntimeDebugWindow = null;
+      }
+    });
 
     const failIfGone = (_event: unknown, details: { reason: string }) => {
       const payload = {
         status: "fail",
         error: `Runtime debug host renderer exited (${details.reason}).`
       };
+      lastRuntimeDebugResult = payload;
       console.log(`MYIDE_RUNTIME_DEBUG_RESULT:${JSON.stringify(payload)}`);
-      if (isRuntimeDebugSmokeMode) {
+      if (smokeMode) {
         finishRuntimeDebugSmoke(1, `FAIL smoke:electron-runtime-debug - ${payload.error}`);
       }
     };
@@ -670,21 +699,23 @@ async function runRuntimeDebugHost(): Promise<void> {
       overrideStatusEntryCount: finalOverrideStatus.entryCount,
       overrideBlocked
     };
+    lastRuntimeDebugResult = payload;
 
     console.log(`MYIDE_RUNTIME_DEBUG_RESULT:${JSON.stringify(payload)}`);
 
-    if (isRuntimeDebugSmokeMode) {
+    if (smokeMode) {
       if (payload.status === "pass") {
         finishRuntimeDebugSmoke(0, "PASS smoke:electron-runtime-debug");
       } else {
         finishRuntimeDebugSmoke(1, `FAIL smoke:electron-runtime-debug - ${payload.error ?? "runtime debug host reported failure"}`);
       }
-      return;
+      return payload;
     }
 
-    if (!shouldShowRuntimeDebugWindow) {
+    if (closeWhenDone) {
       debugWindow.close();
     }
+    return payload;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     const payload = {
@@ -692,10 +723,12 @@ async function runRuntimeDebugHost(): Promise<void> {
       error: message,
       pathDecision: "embedded-no-go-debug-host"
     };
+    lastRuntimeDebugResult = payload;
     console.log(`MYIDE_RUNTIME_DEBUG_RESULT:${JSON.stringify(payload)}`);
-    if (isRuntimeDebugSmokeMode) {
+    if (smokeMode) {
       finishRuntimeDebugSmoke(1, `FAIL smoke:electron-runtime-debug - ${message}`);
     }
+    return payload;
   }
 }
 
@@ -1900,6 +1933,13 @@ ipcMain.handle("myide:set-runtime-request-stage", async (_event, stage: string) 
   return { stage: runtimeRequestStage };
 });
 ipcMain.handle("myide:clear-runtime-cache", async () => clearRuntimeWebviewCache());
+ipcMain.handle("myide:open-runtime-debug-host", async () => {
+  return runRuntimeDebugHost({
+    showWindow: true,
+    smokeMode: false,
+    closeWhenDone: false
+  });
+});
 ipcMain.handle("myide:get-runtime-override-status", async (_event, projectId: string) => {
   return buildRuntimeAssetOverrideStatus(projectId, runtimeAssetOverrideHits);
 });
@@ -1933,7 +1973,11 @@ app.whenReady().then(() => {
         })
         .finally(() => {
           if (isRuntimeDebugHostMode) {
-            void runRuntimeDebugHost();
+            void runRuntimeDebugHost({
+              showWindow: shouldShowRuntimeDebugWindow,
+              smokeMode: isRuntimeDebugSmokeMode,
+              closeWhenDone: !shouldShowRuntimeDebugWindow
+            });
             return;
           }
 
@@ -1941,12 +1985,16 @@ app.whenReady().then(() => {
         });
     });
 
-  app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      if (isRuntimeDebugHostMode) {
-        void runRuntimeDebugHost();
-        return;
-      }
+app.on("activate", () => {
+  if (BrowserWindow.getAllWindows().length === 0) {
+    if (isRuntimeDebugHostMode) {
+      void runRuntimeDebugHost({
+        showWindow: shouldShowRuntimeDebugWindow,
+        smokeMode: isRuntimeDebugSmokeMode,
+        closeWhenDone: !shouldShowRuntimeDebugWindow
+      });
+      return;
+    }
 
       createWindow();
     }

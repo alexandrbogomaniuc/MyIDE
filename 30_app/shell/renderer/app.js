@@ -60,6 +60,7 @@ const state = {
     diagnostics: null,
     resourceMap: null,
     overrideStatus: null,
+    debugHost: null,
     controlSupport: {
       pause: false,
       resume: false,
@@ -2958,6 +2959,30 @@ async function clearRuntimeOverrideForCurrentCandidate() {
   }
 }
 
+async function openRuntimeDebugHostWindow() {
+  const api = window.myideApi;
+  if (!api || typeof api.openRuntimeDebugHost !== "function") {
+    setPreviewStatus("Runtime Debug Host is not available in this renderer session.");
+    return;
+  }
+
+  const result = await api.openRuntimeDebugHost();
+  state.runtimeUi.debugHost = result ?? null;
+  renderAll();
+
+  const runtimeSourceLabel = typeof result?.runtimeSourceLabel === "string" ? result.runtimeSourceLabel : "runtime source unknown";
+  const candidatePath = result?.candidateRuntimeRelativePath ?? result?.candidateRuntimeSourceUrl ?? "no request-backed static image candidate";
+  const hitCount = Number(result?.overrideHitCountAfterReload ?? 0);
+  const error = typeof result?.error === "string" ? result.error : null;
+
+  if (error) {
+    setPreviewStatus(`Opened Runtime Debug Host on ${runtimeSourceLabel}, but it reported: ${error}`);
+    return;
+  }
+
+  setPreviewStatus(`Opened Runtime Debug Host on ${runtimeSourceLabel}. Candidate ${candidatePath} recorded ${hitCount} override hit${hitCount === 1 ? "" : "s"} after reload.`);
+}
+
 async function handleRuntimeAction(action) {
   if (action === "launch") {
     await handleRuntimeLaunch();
@@ -2966,6 +2991,11 @@ async function handleRuntimeAction(action) {
 
   if (action === "reload") {
     await handleRuntimeReload();
+    return;
+  }
+
+  if (action === "open-debug-host") {
+    await openRuntimeDebugHostWindow();
     return;
   }
 
@@ -14463,6 +14493,16 @@ function renderRuntimeWorkbench() {
           ? `${runtimeOverrideStatus.entries[0].runtimeRelativePath} -> ${runtimeOverrideStatus.entries[0].donorAssetId} (${runtimeOverrideStatus.entries[0].hitCount} runtime hit${runtimeOverrideStatus.entries[0].hitCount === 1 ? "" : "s"})`
           : "Create a bounded project-local override from the runtime trace when an eligible static image is grounded.")}</small>
       </div>
+      <div class="detail-card ${state.runtimeUi.debugHost?.status === "pass" ? "is-positive" : state.runtimeUi.debugHost?.error ? "is-alert" : ""}">
+        <span>Runtime Debug Host</span>
+        <strong>${escapeHtml(state.runtimeUi.debugHost?.status === "pass"
+          ? `${state.runtimeUi.debugHost.overrideHitCountAfterReload ?? 0} override hit${state.runtimeUi.debugHost.overrideHitCountAfterReload === 1 ? "" : "s"} proved`
+          : state.runtimeUi.debugHost?.pathDecision ?? "Not opened in this session")}</strong>
+        <small>${escapeHtml(state.runtimeUi.debugHost
+          ? state.runtimeUi.debugHost.error
+            ?? `${state.runtimeUi.debugHost.candidateRuntimeRelativePath ?? state.runtimeUi.debugHost.candidateRuntimeSourceUrl ?? "No candidate path"} · ${state.runtimeUi.debugHost.candidateRequestSource ?? "request source unknown"}`
+          : "Open Debug Host to run the dedicated local-mirror trace and override-proof path in a separate window.")}</small>
+      </div>
       <div class="detail-card ${blockerSummary.length > 0 ? "is-alert" : "is-positive"}">
         <span>Current Runtime Blocker</span>
         <strong>${blockerSummary.length > 0 ? "Partial runtime control limits remain" : "No runtime blocker recorded in this slice"}</strong>
@@ -14774,7 +14814,7 @@ function renderAll() {
       const runtimeOverrideCandidate = getRuntimeOverrideCandidate();
       if (action === "launch") {
         disabled = !Boolean(runtimeLaunch?.entryUrl);
-      } else if (action === "reload" || action === "inspect-toggle" || action === "focus-note" || action === "focus-init") {
+      } else if (action === "reload" || action === "inspect-toggle" || action === "open-debug-host" || action === "focus-note" || action === "focus-init") {
         disabled = !state.runtimeUi.launched;
       } else if (action === "pause" || action === "resume" || action === "step") {
         disabled = !state.runtimeUi.launched || !Boolean(state.runtimeUi.controlSupport[action]);

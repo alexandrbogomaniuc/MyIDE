@@ -41,7 +41,7 @@ Use this when testing the current local MyIDE build by hand.
   - `main-world-execute-js`
   - or `guest-preload`
 - If the app aborts before the runtime smoke even reaches the MyIDE main-process marker, record that exact launch blocker separately from runtime-trace blockers.
- - If you are testing the runtime-trace pivot path directly, run `npm run runtime:debug:project_001` or `npm run smoke:electron-runtime-debug` and record whether the dedicated debug-host marker appears.
+- If you are testing the strongest current runtime-trace path directly, use **Open Debug Host** in Runtime Mode or run `npm run runtime:debug:project_001` / `npm run smoke:electron-runtime-debug`.
    - Use **Clear Override** once and confirm the project-local override is removed cleanly.
    - Use **Show Runtime Note** or **Show Init Response** once and confirm the supporting donor evidence is focused.
    - If **Pause**, **Resume**, or **Step One Tick** are disabled, the shell should explain the blocker plainly instead of pretending those controls work.
@@ -107,6 +107,7 @@ Use this when testing the current local MyIDE build by hand.
 - When the current runtime slice resolves that source through the bounded local mirror, the shell should also show the grounded local mirror file path.
 - Runtime Mode now also shows the current launch/reload resource-map record when one has been captured.
 - If the mirrored candidate still does not record a reload-time hit, the shell should report that blocker plainly instead of inventing success.
+- The stronger dedicated Runtime Debug Host path should now prove one request-backed static image candidate and one bounded override hit after reload.
 - The created object remains editable.
 - At least one donor asset is visible in the donor asset palette.
 - More than one donor asset can be imported into the scene as editable internal image objects when multiple grounded donor images are available locally.
@@ -125,8 +126,8 @@ Use this when testing the current local MyIDE build by hand.
   - the bounded runtime override slice only works when the current runtime trace exposes a grounded static image URL and the chosen donor asset matches that file type
   - the current local-mirror override path now has a real request map, and no unresolved upstream bootstrap/static dependency remains in the bounded cycle
   - direct local launch inspection proves the mirror can serve local static assets, but the mirrored static override candidate is still only mirror-manifest-backed inside the strongest previously verified embedded Runtime Mode proof, so that part remains partially blocked
-  - the embedded runtime path is now treated as a no-go for stronger proof in this environment, so the repo also includes a bounded dedicated Runtime Debug Host path that loads the same local mirror in a separate BrowserWindow
-  - Electron smoke now aborts in macOS AppKit before MyIDE emits its own embedded or debug-host markers, so the stronger trace path still needs a healthy Electron GUI run to be proved end-to-end
+  - the embedded runtime path is still weaker for asset ownership truth than the dedicated Runtime Debug Host path
+  - the dedicated Runtime Debug Host now proves the first request-backed static image override hit, but the embedded Runtime Mode surface still does not expose the same asset-level truth
   - pause/resume/step only work when the embedded donor runtime exposes a stable ticker-like hook; otherwise the shell reports that blocker plainly
   - only `project_001` is supported
   - only supported local donor image files are importable

@@ -8,7 +8,7 @@ Use this when you want to test the current MyIDE build exactly as it works today
 3. Recommended for the strongest local-runtime path on this machine: run `npm run runtime:harvest:project_001`.
 4. Run `npm run dev`.
 5. Wait for the Electron shell window to open.
-6. If you are specifically testing the runtime-trace pivot path instead of the main shell, run `npm run runtime:debug:project_001`.
+6. If you are specifically testing the stronger runtime-debug path, run `npm run runtime:debug:project_001`.
 
 ## 2. Open The Validated Project
 1. In the shell, use **Project Browser**.
@@ -25,7 +25,9 @@ Use this when you want to test the current MyIDE build exactly as it works today
 6. Use **Click To Start** if the donor runtime needs one bounded pointer click to begin.
 7. Use **Spin / Trigger** if you want the bounded runtime action path that currently sends `Space` to the runtime surface.
 8. Use **Pick / Inspect** and then click the live runtime surface to capture the strongest grounded runtime trace available.
-9. Read the right-hand inspector for picked target, runtime/display-object trace when exposed, texture/frame info when exposed, runtime URL, local mirror file path when grounded, the current runtime resource-map record, override eligibility, and supporting evidence refs.
+9. If you need the strongest current runtime asset proof, use **Open Debug Host** from the Runtime toolbar.
+10. The dedicated Runtime Debug Host loads the same local mirror in a separate window and is the current path that can prove a request-backed static image override hit.
+11. Read the right-hand inspector for picked target, runtime/display-object trace when exposed, texture/frame info when exposed, runtime URL, local mirror file path when grounded, the current runtime resource-map record, override eligibility, and supporting evidence refs.
 10. Use the new runtime bridge actions in the inspector or Workflow Hub to:
    - focus the strongest grounded donor asset card
    - focus the strongest grounded donor evidence entry
@@ -91,9 +93,9 @@ Current hard limits:
 - Runtime Mode now prefers a bounded local runtime mirror when it is available, but that mirror still depends on the live donor launch upstream for launch HTML/token/API state
 - the first static override slice works only for grounded static runtime image URLs that the current runtime trace can prove and that match a supported donor image file type
 - when Runtime Mode uses the local mirror, the shell can now trace one grounded static runtime candidate back to a local mirror file path and show the current request map; no unresolved upstream bootstrap/static dependency remains in the current bounded cycle, the embedded runtime tap now proves a local `bundle.js` hit, direct local launch inspection proves the mirror can serve local static assets, but the embedded Runtime Mode slice still does not confirm a request-backed static override hit
-- the embedded runtime webview is now treated as a no-go for stronger asset-level proof in this environment, so the repo also includes a bounded dedicated Runtime Debug Host path that loads the same local mirror in a separate BrowserWindow
+- the embedded runtime webview is still weaker for live asset-level proof, so the repo now includes a bounded dedicated Runtime Debug Host path that loads the same local mirror in a separate BrowserWindow
 - the strongest previously verified embedded-runtime proof is still also the current blocker: `frameCount=0`, `accessibleFrameCount=0`, `canvasCount=0`, resource window labels stay at `top`, and no request-backed static image or display-object handle is exposed in the bounded embedded slice
-- this run could not end-to-end verify either the embedded path or the dedicated debug-host path in Codex because Electron smoke now aborts in macOS AppKit before MyIDE emits its main-process smoke marker
+- the dedicated Runtime Debug Host is now the stronger proof path: it can surface a request-backed static image candidate from the local mirror and prove a bounded project-local override hit after reload
 - pause, resume, and step only work if the embedded runtime exposes a stable ticker-like hook; if it does not, the shell shows the blocker instead of faking the control
 - only `project_001` is supported in this slice
 - only static donor image files are supported
