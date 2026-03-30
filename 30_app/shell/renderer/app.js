@@ -1144,169 +1144,143 @@ function renderWorkflowPanels() {
 }
 
 function buildRuntimeGuestBridgeScript() {
-  return String.raw`(() => {
-  const PREFIX = "__MYIDE_RUNTIME__";
-  const state = window.__MYIDE_RUNTIME_BRIDGE_STATE__ || {
-    inspectEnabled: false,
-    lastPick: null,
-    paused: false
-  };
-  window.__MYIDE_RUNTIME_BRIDGE_STATE__ = state;
-
-  function emit(type, payload) {
-    try {
-      console.log(PREFIX + JSON.stringify({ type, ...payload }));
-    } catch (error) {
-      console.log(PREFIX + JSON.stringify({
-        type: "error",
-        error: error instanceof Error ? error.message : String(error)
-      }));
-    }
-  }
-
-  function safeWindowValue(key) {
-    try {
-      return window[key];
-    } catch {
-      return undefined;
-    }
-  }
-
-  function getPixi() {
-    return typeof window.PIXI === "object" && window.PIXI ? window.PIXI : null;
-  }
-
-  function summarizeTexture(texture) {
-    if (!texture || typeof texture !== "object") {
-      return null;
+  function installRuntimeMainWorldBridge() {
+    const PREFIX = "__MYIDE_RUNTIME__";
+    const staticFileTypes = new Set(["png", "webp", "jpg", "jpeg", "svg", "gif"]);
+    const existingBridge = window.__MYIDE_RUNTIME_MAIN_WORLD_BRIDGE__;
+    if (existingBridge && typeof existingBridge.getStatus === "function") {
+      return existingBridge.getStatus();
     }
 
-    const baseTexture = texture.baseTexture && typeof texture.baseTexture === "object"
-      ? texture.baseTexture
-      : null;
-    const resource = baseTexture && baseTexture.resource && typeof baseTexture.resource === "object"
-      ? baseTexture.resource
-      : null;
-    const frame = texture.frame && typeof texture.frame === "object"
-      ? texture.frame
-      : null;
-    const cacheId = Array.isArray(texture.textureCacheIds) && texture.textureCacheIds.length > 0
-      ? String(texture.textureCacheIds[0] ?? "")
-      : null;
-    const resourceUrl = resource && typeof resource.url === "string"
-      ? resource.url
-      : (baseTexture && typeof baseTexture.imageUrl === "string" ? baseTexture.imageUrl : null);
-
-    return {
-      cacheId: cacheId || null,
-      resourceUrl: resourceUrl || null,
-      frame: frame
-        ? {
-            x: Number.isFinite(frame.x) ? Math.round(frame.x) : null,
-            y: Number.isFinite(frame.y) ? Math.round(frame.y) : null,
-            width: Number.isFinite(frame.width) ? Math.round(frame.width) : null,
-            height: Number.isFinite(frame.height) ? Math.round(frame.height) : null
-          }
-        : null
-    };
-  }
-
-  function summarizeDisplayObject(displayObject) {
-    if (!displayObject || typeof displayObject !== "object") {
-      return null;
-    }
-
-    const texture = summarizeTexture(displayObject.texture);
-    return {
-      id: typeof displayObject.id === "string" ? displayObject.id : null,
-      name: typeof displayObject.name === "string" ? displayObject.name : null,
-      label: typeof displayObject.label === "string" ? displayObject.label : null,
-      constructorName: displayObject.constructor && displayObject.constructor.name ? String(displayObject.constructor.name) : null,
-      zIndex: Number.isFinite(displayObject.zIndex) ? Number(displayObject.zIndex) : null,
-      texture
-    };
-  }
-
-  function collectRuntimeCandidates() {
-    const keys = Object.getOwnPropertyNames(window).slice(0, 512);
-    const candidates = [];
-
-    for (const key of keys) {
-      const value = safeWindowValue(key);
-      if (!value || typeof value !== "object") {
-        continue;
-      }
-
-      const stage = value.stage;
-      const renderer = value.renderer;
-      if (!stage || typeof stage !== "object" || !renderer || typeof renderer !== "object") {
-        continue;
-      }
-
-      const view = renderer.view && typeof renderer.view === "object" ? renderer.view : null;
-      const childCount = Array.isArray(stage.children) ? stage.children.length : null;
-      candidates.push({
-        key,
-        object: value,
-        summary: {
-          key,
-          childCount,
-          viewWidth: Number.isFinite(view?.width) ? Number(view.width) : null,
-          viewHeight: Number.isFinite(view?.height) ? Number(view.height) : null
-        }
-      });
-    }
-
-    candidates.sort((left, right) => (right.summary.childCount ?? 0) - (left.summary.childCount ?? 0));
-    return candidates.slice(0, 8);
-  }
-
-  function getTickerTarget() {
-    const candidates = collectRuntimeCandidates();
-    for (const candidate of candidates) {
-      const ticker = candidate.object && candidate.object.ticker;
-      if (ticker && typeof ticker.stop === "function" && typeof ticker.start === "function") {
-        return {
-          label: candidate.summary.key,
-          ticker
-        };
-      }
-    }
-
-    const pixi = getPixi();
-    const sharedTicker = pixi && pixi.Ticker && pixi.Ticker.shared;
-    if (sharedTicker && typeof sharedTicker.stop === "function" && typeof sharedTicker.start === "function") {
-      return {
-        label: "PIXI.Ticker.shared",
-        ticker: sharedTicker
-      };
-    }
-
-    return null;
-  }
-
-  function buildSupport() {
-    const tickerTarget = getTickerTarget();
-    const pauseResumeBlocked = tickerTarget ? null : "No exposed Pixi ticker or application handle is available in the live donor runtime.";
-    const stepBlocked = tickerTarget && typeof tickerTarget.ticker.update === "function"
-      ? null
-      : "No stable ticker update hook is exposed for single-step runtime control.";
-    return {
-      pause: Boolean(tickerTarget),
-      resume: Boolean(tickerTarget),
-      step: Boolean(tickerTarget && typeof tickerTarget.ticker.update === "function"),
-      blockers: {
-        pause: pauseResumeBlocked,
-        resume: pauseResumeBlocked,
-        step: stepBlocked
-      }
-    };
-  }
-
-  function summarizeLoadedResources() {
-    function getCanonicalResourceUrl(resourceUrl) {
+    function emit(type, payload) {
       try {
-        const parsedUrl = new URL(resourceUrl);
+        console.log(PREFIX + JSON.stringify({ type, ...payload }));
+      } catch (error) {
+        console.log(PREFIX + JSON.stringify({
+          type: "error",
+          error: error instanceof Error ? error.message : String(error)
+        }));
+      }
+    }
+
+    function isRecord(value) {
+      return Boolean(value) && typeof value === "object";
+    }
+
+    function normalizeNumber(value) {
+      return typeof value === "number" && Number.isFinite(value) ? Math.round(value) : null;
+    }
+
+    function nowIso() {
+      return new Date().toISOString();
+    }
+
+    function nowMs() {
+      return Date.now();
+    }
+
+    function safeLocationHref(targetWindow) {
+      try {
+        return typeof targetWindow.location?.href === "string" ? targetWindow.location.href : null;
+      } catch {
+        return null;
+      }
+    }
+
+    function safeDocumentTitle(targetWindow) {
+      try {
+        return typeof targetWindow.document?.title === "string" ? targetWindow.document.title || null : null;
+      } catch {
+        return null;
+      }
+    }
+
+    function collectInspectableWindows(maxDepth = 2, maxFramesPerWindow = 6) {
+      const root = {
+        win: window,
+        label: "top",
+        href: safeLocationHref(window),
+        title: safeDocumentTitle(window),
+        depth: 0,
+        offsetX: 0,
+        offsetY: 0
+      };
+      const results = [root];
+      const queue = [root];
+      const seen = new WeakSet([window]);
+
+      while (queue.length > 0) {
+        const current = queue.shift();
+        if (!current || current.depth >= maxDepth) {
+          continue;
+        }
+
+        let frameElements = [];
+        try {
+          frameElements = Array.from(current.win.document.querySelectorAll("iframe, frame")).slice(0, maxFramesPerWindow);
+        } catch {
+          frameElements = [];
+        }
+
+        frameElements.forEach((frameElement, index) => {
+          const childWindow = frameElement?.contentWindow;
+          if (!childWindow || seen.has(childWindow)) {
+            return;
+          }
+          seen.add(childWindow);
+
+          try {
+            const frameRect = typeof frameElement.getBoundingClientRect === "function"
+              ? frameElement.getBoundingClientRect()
+              : null;
+            const target = {
+              win: childWindow,
+              label: `${current.label}/frame-${index + 1}`,
+              href: safeLocationHref(childWindow),
+              title: safeDocumentTitle(childWindow),
+              depth: current.depth + 1,
+              offsetX: current.offsetX + Math.round(frameRect?.left ?? 0),
+              offsetY: current.offsetY + Math.round(frameRect?.top ?? 0)
+            };
+            results.push(target);
+            queue.push(target);
+          } catch {
+            // Cross-origin frames remain best-effort only in the main-world bridge.
+          }
+        });
+      }
+
+      return results;
+    }
+
+    function normalizeContextLabel(value) {
+      const normalized = String(value ?? "").trim().toLowerCase();
+      return normalized === "experimental-webgl" ? "webgl" : normalized;
+    }
+
+    function normalizeObservedUrl(resourceUrl, baseHref) {
+      if (typeof resourceUrl !== "string" || resourceUrl.trim().length === 0) {
+        return null;
+      }
+
+      try {
+        const normalizedBaseHref = typeof baseHref === "string" && baseHref.trim().length > 0
+          ? baseHref
+          : window.location.href;
+        return new URL(resourceUrl, normalizedBaseHref).toString();
+      } catch {
+        return null;
+      }
+    }
+
+    function getCanonicalResourceUrl(resourceUrl, baseHref) {
+      const observedUrl = normalizeObservedUrl(resourceUrl, baseHref);
+      if (!observedUrl) {
+        return null;
+      }
+
+      try {
+        const parsedUrl = new URL(observedUrl);
         const mirroredSourceUrl = parsedUrl.searchParams.get("source");
         if (
           parsedUrl.hostname === "127.0.0.1"
@@ -1321,267 +1295,1261 @@ function buildRuntimeGuestBridgeScript() {
       }
     }
 
-    try {
-      return performance.getEntriesByType("resource")
-        .map((entry) => ({
-          url: typeof entry.name === "string" ? entry.name : null,
-          canonicalUrl: typeof entry.name === "string" ? getCanonicalResourceUrl(entry.name) : null,
-          initiatorType: typeof entry.initiatorType === "string" ? entry.initiatorType : null
-        }))
-        .filter((entry) => (
-          entry.url
-          && (
-            (
-              entry.canonicalUrl
-              && /^https:\/\/cdn\.bgaming-network\.com\/html\/MysteryGarden\//.test(entry.canonicalUrl)
-              && /\.(png|webp|jpg|jpeg|svg)(\?|$)/i.test(entry.canonicalUrl)
-            )
-            || /^http:\/\/127\.0\.0\.1:38901\/runtime\/project_001\/assets\/.+\.(png|webp|jpg|jpeg|svg)(\?|$)/i.test(entry.url)
-          )
-        ))
-        .map((entry) => ({
-          url: entry.url,
-          observedUrl: entry.url,
-          initiatorType: entry.initiatorType,
-          filename: (entry.canonicalUrl ?? entry.url).split("?")[0].split("/").pop() || null
-        }))
-        .slice(0, 80);
-    } catch {
-      return [];
-    }
-  }
-
-  function getCanvasPoint(canvas, clientX, clientY) {
-    if (!canvas || typeof canvas.getBoundingClientRect !== "function") {
-      return null;
-    }
-
-    const rect = canvas.getBoundingClientRect();
-    if (!rect || rect.width <= 0 || rect.height <= 0) {
-      return null;
-    }
-
-    const internalWidth = Number.isFinite(canvas.width) ? Number(canvas.width) : rect.width;
-    const internalHeight = Number.isFinite(canvas.height) ? Number(canvas.height) : rect.height;
-    return {
-      x: Math.round((clientX - rect.left) * (internalWidth / rect.width)),
-      y: Math.round((clientY - rect.top) * (internalHeight / rect.height))
-    };
-  }
-
-  function collectDisplayHits(displayObject, point, hits, depth) {
-    if (!displayObject || typeof displayObject !== "object" || hits.length >= 10 || depth > 32) {
-      return;
-    }
-
-    const children = Array.isArray(displayObject.children) ? displayObject.children : [];
-    for (let index = children.length - 1; index >= 0; index -= 1) {
-      collectDisplayHits(children[index], point, hits, depth + 1);
-    }
-
-    if (displayObject.visible === false || typeof displayObject.getBounds !== "function") {
-      return;
-    }
-
-    try {
-      const bounds = displayObject.getBounds();
-      if (
-        bounds
-        && Number.isFinite(bounds.x)
-        && Number.isFinite(bounds.y)
-        && Number.isFinite(bounds.width)
-        && Number.isFinite(bounds.height)
-        && point.x >= bounds.x
-        && point.x <= bounds.x + bounds.width
-        && point.y >= bounds.y
-        && point.y <= bounds.y + bounds.height
-      ) {
-        hits.push({
-          ...summarizeDisplayObject(displayObject),
-          bounds: {
-            x: Math.round(bounds.x),
-            y: Math.round(bounds.y),
-            width: Math.round(bounds.width),
-            height: Math.round(bounds.height)
-          }
-        });
+    function getRuntimeRelativePath(resourceUrl, baseHref) {
+      const canonicalUrl = getCanonicalResourceUrl(resourceUrl, baseHref) ?? normalizeObservedUrl(resourceUrl, baseHref);
+      if (!canonicalUrl) {
+        return null;
       }
-    } catch {
-      // Bound checks are best-effort only for live runtime inspection.
-    }
-  }
 
-  function pickAtPoint(clientX, clientY) {
-    const target = document.elementFromPoint(clientX, clientY);
-    const canvas = target && typeof target.closest === "function"
-      ? (target.closest("canvas") || (target.tagName === "CANVAS" ? target : null))
-      : (target && target.tagName === "CANVAS" ? target : null);
-    const pixi = getPixi();
-    const candidates = collectRuntimeCandidates();
-    const canvasPoint = canvas ? getCanvasPoint(canvas, clientX, clientY) : null;
-    const displayHits = [];
-
-    if (canvasPoint && candidates.length > 0) {
-      collectDisplayHits(candidates[0].object.stage, canvasPoint, displayHits, 0);
+      try {
+        const parsedUrl = new URL(canonicalUrl);
+        if (parsedUrl.pathname.includes("/html/MysteryGarden/")) {
+          return parsedUrl.pathname.split("/html/MysteryGarden/")[1] ?? null;
+        }
+        const assetMatch = parsedUrl.pathname.match(/^\/runtime\/[^/]+\/assets\/(.+)$/);
+        if (assetMatch?.[1]) {
+          return assetMatch[1];
+        }
+        return parsedUrl.pathname.replace(/^\/+/, "") || null;
+      } catch {
+        return null;
+      }
     }
 
-    const payload = {
-      title: document.title || null,
-      href: location.href,
-      bridgeSource: "execute-js-fallback",
-      bridgeVersion: "runtime-fallback-v1",
-      clientX: Math.round(clientX),
-      clientY: Math.round(clientY),
-      targetTag: target && target.tagName ? String(target.tagName).toLowerCase() : null,
-      targetId: target && typeof target.id === "string" && target.id.length > 0 ? target.id : null,
-      targetClassName: target && typeof target.className === "string" ? target.className : null,
-      canvasDetected: Boolean(canvas),
-      canvasPoint,
-      canvasSize: canvas ? {
-        width: Number.isFinite(canvas.width) ? Number(canvas.width) : null,
-        height: Number.isFinite(canvas.height) ? Number(canvas.height) : null
-      } : null,
-      pixiDetected: Boolean(pixi),
-      pixiVersion: pixi && typeof pixi.VERSION === "string" ? pixi.VERSION : null,
-      candidateApps: candidates.map((candidate) => candidate.summary),
-      assetUseEntries: [],
-      contextTypes: [],
-      engineKind: pixi
-        ? "pixi-global"
-        : candidates.length > 0
-          ? "pixi-handle-scan"
-          : document.querySelectorAll("canvas").length > 0
-            ? "canvas-runtime-unknown"
-            : "dom-only-or-hidden-runtime",
-      engineNote: pixi
-        ? "window.PIXI is exposed with version " + (pixi.VERSION || "unknown") + "."
-        : candidates.length > 0
-          ? "A stage/renderer candidate is exposed through " + candidates[0].summary.key + "."
-          : document.querySelectorAll("canvas").length > 0
-            ? "Canvas is present, but the executeJavaScript fallback bridge could not expose a stable app handle."
-            : "No stable canvas or app handle was exposed through the executeJavaScript fallback bridge.",
-      topDisplayObject: displayHits[0] ?? null,
-      displayHitCount: displayHits.length,
-      resourceEntries: summarizeLoadedResources()
+    function getFileType(resourceUrl, baseHref) {
+      const canonicalUrl = getCanonicalResourceUrl(resourceUrl, baseHref) ?? normalizeObservedUrl(resourceUrl, baseHref);
+      if (!canonicalUrl) {
+        return null;
+      }
+
+      try {
+        const parsedUrl = new URL(canonicalUrl);
+        const extension = parsedUrl.pathname.split(".").pop()?.toLowerCase() ?? null;
+        return extension && extension.length > 0 ? extension : null;
+      } catch {
+        return null;
+      }
+    }
+
+    function summarizeRect(rect) {
+      if (!rect) {
+        return null;
+      }
+
+      return {
+        x: Math.round(rect.x),
+        y: Math.round(rect.y),
+        width: Math.round(rect.width),
+        height: Math.round(rect.height)
+      };
+    }
+
+    function translateRect(rect, offsetX, offsetY) {
+      if (!rect) {
+        return null;
+      }
+
+      return {
+        x: rect.x + offsetX,
+        y: rect.y + offsetY,
+        width: rect.width,
+        height: rect.height
+      };
+    }
+
+    function getTagName(value) {
+      return isRecord(value) && typeof value.tagName === "string"
+        ? value.tagName.toLowerCase()
+        : null;
+    }
+
+    function isElementLike(value) {
+      return Boolean(getTagName(value))
+        && isRecord(value)
+        && typeof value.getBoundingClientRect === "function";
+    }
+
+    function isCanvasLike(value) {
+      return getTagName(value) === "canvas"
+        && isRecord(value)
+        && typeof value.getContext === "function";
+    }
+
+    function isRuntimeTickerLike(value) {
+      return isRecord(value)
+        && typeof value.stop === "function"
+        && typeof value.start === "function";
+    }
+
+    function getImageLikeDescriptor(source, baseHref) {
+      if (!source) {
+        return null;
+      }
+
+      if (source instanceof HTMLImageElement) {
+        const observedUrl = normalizeObservedUrl(source.currentSrc || source.src, baseHref);
+        return {
+          observedUrl,
+          canonicalUrl: getCanonicalResourceUrl(observedUrl, baseHref),
+          runtimeRelativePath: getRuntimeRelativePath(observedUrl, baseHref),
+          fileType: getFileType(observedUrl, baseHref),
+          naturalWidth: Number.isFinite(source.naturalWidth) ? Number(source.naturalWidth) : null,
+          naturalHeight: Number.isFinite(source.naturalHeight) ? Number(source.naturalHeight) : null
+        };
+      }
+
+      if (typeof SVGImageElement !== "undefined" && source instanceof SVGImageElement) {
+        const observedUrl = normalizeObservedUrl(source.href?.baseVal ?? null, baseHref);
+        return {
+          observedUrl,
+          canonicalUrl: getCanonicalResourceUrl(observedUrl, baseHref),
+          runtimeRelativePath: getRuntimeRelativePath(observedUrl, baseHref),
+          fileType: getFileType(observedUrl, baseHref),
+          naturalWidth: null,
+          naturalHeight: null
+        };
+      }
+
+      if (source instanceof HTMLVideoElement) {
+        const observedUrl = normalizeObservedUrl(source.currentSrc || source.src, baseHref);
+        return {
+          observedUrl,
+          canonicalUrl: getCanonicalResourceUrl(observedUrl, baseHref),
+          runtimeRelativePath: getRuntimeRelativePath(observedUrl, baseHref),
+          fileType: getFileType(observedUrl, baseHref),
+          naturalWidth: Number.isFinite(source.videoWidth) ? Number(source.videoWidth) : null,
+          naturalHeight: Number.isFinite(source.videoHeight) ? Number(source.videoHeight) : null
+        };
+      }
+
+      if (source instanceof HTMLCanvasElement) {
+        return {
+          observedUrl: null,
+          canonicalUrl: null,
+          runtimeRelativePath: null,
+          fileType: null,
+          naturalWidth: Number.isFinite(source.width) ? Number(source.width) : null,
+          naturalHeight: Number.isFinite(source.height) ? Number(source.height) : null
+        };
+      }
+
+      if (typeof ImageBitmap !== "undefined" && source instanceof ImageBitmap) {
+        return {
+          observedUrl: null,
+          canonicalUrl: null,
+          runtimeRelativePath: null,
+          fileType: null,
+          naturalWidth: Number.isFinite(source.width) ? Number(source.width) : null,
+          naturalHeight: Number.isFinite(source.height) ? Number(source.height) : null
+        };
+      }
+
+      if (isRecord(source) && getTagName(source) === "img" && typeof source.src === "string") {
+        const observedUrl = normalizeObservedUrl(
+          typeof source.currentSrc === "string" && source.currentSrc.length > 0 ? source.currentSrc : source.src,
+          baseHref
+        );
+        return {
+          observedUrl,
+          canonicalUrl: getCanonicalResourceUrl(observedUrl, baseHref),
+          runtimeRelativePath: getRuntimeRelativePath(observedUrl, baseHref),
+          fileType: getFileType(observedUrl, baseHref),
+          naturalWidth: normalizeNumber(source.naturalWidth ?? source.width),
+          naturalHeight: normalizeNumber(source.naturalHeight ?? source.height)
+        };
+      }
+
+      if (isRecord(source) && typeof source.src === "string") {
+        const observedUrl = normalizeObservedUrl(source.src, baseHref);
+        return {
+          observedUrl,
+          canonicalUrl: getCanonicalResourceUrl(observedUrl, baseHref),
+          runtimeRelativePath: getRuntimeRelativePath(observedUrl, baseHref),
+          fileType: getFileType(observedUrl, baseHref),
+          naturalWidth: normalizeNumber(source.naturalWidth ?? source.width),
+          naturalHeight: normalizeNumber(source.naturalHeight ?? source.height)
+        };
+      }
+
+      return null;
+    }
+
+    function buildAssetUseKey(info) {
+      return info.canonicalUrl
+        ?? info.observedUrl
+        ?? `inline:${info.naturalWidth ?? 0}x${info.naturalHeight ?? 0}`;
+    }
+
+    const state = window.__MYIDE_RUNTIME_MAIN_WORLD_BRIDGE_STATE__ || {
+      inspectEnabled: false,
+      lastPick: null,
+      paused: false,
+      assetUseRecords: new Map(),
+      contextTypes: new Set(),
+      webglBindings: new WeakMap(),
+      textureInfo: new WeakMap()
+    };
+    window.__MYIDE_RUNTIME_MAIN_WORLD_BRIDGE_STATE__ = state;
+
+    function recordAssetUse(info, sourceKind, contextLabel, canvasRect = null) {
+      const fileType = info.fileType?.toLowerCase() ?? null;
+      if (!fileType || !staticFileTypes.has(fileType)) {
+        return null;
+      }
+
+      const key = buildAssetUseKey(info);
+      const existing = state.assetUseRecords.get(key);
+      const next = existing ?? {
+        key,
+        observedUrl: info.observedUrl,
+        canonicalUrl: info.canonicalUrl,
+        runtimeRelativePath: info.runtimeRelativePath,
+        fileType,
+        hitCount: 0,
+        lastUsedAtUtc: null,
+        sourceKinds: [],
+        contexts: [],
+        naturalWidth: info.naturalWidth,
+        naturalHeight: info.naturalHeight,
+        canvasRect: null,
+        lastCanvasRectTimestamp: null,
+        lastUsedAtMs: null
+      };
+
+      next.hitCount += 1;
+      next.lastUsedAtUtc = nowIso();
+      next.lastUsedAtMs = nowMs();
+      if (!next.sourceKinds.includes(sourceKind)) {
+        next.sourceKinds.push(sourceKind);
+      }
+      if (!next.contexts.includes(contextLabel)) {
+        next.contexts.push(contextLabel);
+      }
+      if (info.observedUrl) {
+        next.observedUrl = info.observedUrl;
+      }
+      if (info.canonicalUrl) {
+        next.canonicalUrl = info.canonicalUrl;
+      }
+      if (info.runtimeRelativePath) {
+        next.runtimeRelativePath = info.runtimeRelativePath;
+      }
+      if (info.naturalWidth != null) {
+        next.naturalWidth = info.naturalWidth;
+      }
+      if (info.naturalHeight != null) {
+        next.naturalHeight = info.naturalHeight;
+      }
+      if (canvasRect) {
+        next.canvasRect = canvasRect;
+        next.lastCanvasRectTimestamp = nowMs();
+      }
+
+      state.assetUseRecords.set(key, next);
+      return next;
+    }
+
+    function extractCssUrls(value) {
+      if (typeof value !== "string" || value.length === 0) {
+        return [];
+      }
+
+      return Array.from(value.matchAll(/url\((['"]?)([^'")]+)\1\)/gi))
+        .map((match) => normalizeObservedUrl(match[2]))
+        .filter(Boolean);
+    }
+
+    function recordElementAssetUse(targetWindow, element, sourceKind) {
+      const rect = element.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) {
+        return;
+      }
+
+      if (getTagName(element) === "img") {
+        const info = getImageLikeDescriptor(element, targetWindow.href);
+        if (info) {
+          recordAssetUse(
+            info,
+            sourceKind,
+            `${targetWindow.label}:dom`,
+            translateRect(summarizeRect(rect), targetWindow.offsetX, targetWindow.offsetY)
+          );
+        }
+      }
+
+      const style = targetWindow.win.getComputedStyle(element);
+      for (const url of [
+        ...extractCssUrls(style.backgroundImage),
+        ...extractCssUrls(style.maskImage),
+        ...extractCssUrls(style.listStyleImage),
+        ...extractCssUrls(style.content)
+      ]) {
+        recordAssetUse(
+          {
+            observedUrl: url,
+            canonicalUrl: getCanonicalResourceUrl(url, targetWindow.href),
+            runtimeRelativePath: getRuntimeRelativePath(url, targetWindow.href),
+            fileType: getFileType(url, targetWindow.href),
+            naturalWidth: null,
+            naturalHeight: null
+          },
+          sourceKind,
+          `${targetWindow.label}:dom`,
+          translateRect(summarizeRect(rect), targetWindow.offsetX, targetWindow.offsetY)
+        );
+      }
+    }
+
+    function scanDomAssetUse() {
+      for (const targetWindow of collectInspectableWindows()) {
+        let elements = [];
+        try {
+          elements = Array.from(targetWindow.win.document.querySelectorAll("*")).slice(0, 512);
+        } catch {
+          elements = [];
+        }
+
+        for (const element of elements) {
+          if (!isElementLike(element)) {
+            continue;
+          }
+          if (getTagName(element) === "img") {
+            recordElementAssetUse(targetWindow, element, "dom-image-element");
+            continue;
+          }
+          recordElementAssetUse(targetWindow, element, "dom-style-image");
+        }
+      }
+    }
+
+    function buildAssetUseEntries() {
+      return Array.from(state.assetUseRecords.values())
+        .sort((left, right) => {
+          const rightMs = right.lastUsedAtMs ?? 0;
+          const leftMs = left.lastUsedAtMs ?? 0;
+          if (rightMs !== leftMs) {
+            return rightMs - leftMs;
+          }
+          if (right.hitCount !== left.hitCount) {
+            return right.hitCount - left.hitCount;
+          }
+          return String(left.runtimeRelativePath ?? left.canonicalUrl ?? left.observedUrl)
+            .localeCompare(String(right.runtimeRelativePath ?? right.canonicalUrl ?? right.observedUrl));
+        })
+        .slice(0, 80)
+        .map((entry) => ({
+          observedUrl: entry.observedUrl,
+          canonicalUrl: entry.canonicalUrl,
+          runtimeRelativePath: entry.runtimeRelativePath,
+          fileType: entry.fileType,
+          hitCount: entry.hitCount,
+          lastUsedAtUtc: entry.lastUsedAtUtc,
+          sourceKinds: entry.sourceKinds.slice(),
+          contexts: entry.contexts.slice(),
+          naturalWidth: entry.naturalWidth,
+          naturalHeight: entry.naturalHeight,
+          canvasRect: entry.canvasRect ? { ...entry.canvasRect } : null
+        }));
+    }
+
+    function pointInsideRect(point, rect) {
+      if (!rect) {
+        return false;
+      }
+      return (
+        point.x >= rect.x
+        && point.x <= rect.x + rect.width
+        && point.y >= rect.y
+        && point.y <= rect.y + rect.height
+      );
+    }
+
+    function selectTopAssetForPoint(point) {
+      const entries = buildAssetUseEntries();
+      if (entries.length === 0) {
+        return null;
+      }
+      if (point) {
+        const directMatch = entries.find((entry) => pointInsideRect(point, entry.canvasRect));
+        if (directMatch) {
+          return directMatch;
+        }
+      }
+      return entries[0] ?? null;
+    }
+
+    function getCanvasPoint(canvas, clientX, clientY) {
+      if (!canvas) {
+        return null;
+      }
+
+      const rect = canvas.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) {
+        return null;
+      }
+
+      const internalWidth = Number.isFinite(canvas.width) ? Number(canvas.width) : rect.width;
+      const internalHeight = Number.isFinite(canvas.height) ? Number(canvas.height) : rect.height;
+      return {
+        x: Math.round((clientX - rect.left) * (internalWidth / rect.width)),
+        y: Math.round((clientY - rect.top) * (internalHeight / rect.height))
+      };
+    }
+
+    function applyCanvasTransform(ctx, rect) {
+      if (typeof ctx.getTransform !== "function") {
+        return rect;
+      }
+
+      try {
+        const matrix = ctx.getTransform();
+        const points = [
+          new DOMPoint(rect.x, rect.y).matrixTransform(matrix),
+          new DOMPoint(rect.x + rect.width, rect.y).matrixTransform(matrix),
+          new DOMPoint(rect.x, rect.y + rect.height).matrixTransform(matrix),
+          new DOMPoint(rect.x + rect.width, rect.y + rect.height).matrixTransform(matrix)
+        ];
+        const xs = points.map((point) => point.x);
+        const ys = points.map((point) => point.y);
+        const minX = Math.min(...xs);
+        const minY = Math.min(...ys);
+        const maxX = Math.max(...xs);
+        const maxY = Math.max(...ys);
+        return {
+          x: Math.round(minX),
+          y: Math.round(minY),
+          width: Math.round(maxX - minX),
+          height: Math.round(maxY - minY)
+        };
+      } catch {
+        return rect;
+      }
+    }
+
+    function installCanvasInstrumentationForWindow(targetWindow) {
+      const runtimeWindow = targetWindow.win;
+      if (runtimeWindow.__MYIDE_RUNTIME_MAIN_WORLD_CANVAS_PATCHED__) {
+        return;
+      }
+      runtimeWindow.__MYIDE_RUNTIME_MAIN_WORLD_CANVAS_PATCHED__ = true;
+
+      const canvasConstructor = runtimeWindow.HTMLCanvasElement;
+      const canvas2dConstructor = runtimeWindow.CanvasRenderingContext2D;
+      if (!canvasConstructor || !canvas2dConstructor) {
+        return;
+      }
+
+      const originalGetContext = canvasConstructor.prototype.getContext;
+      canvasConstructor.prototype.getContext = function patchedGetContext(contextId, options) {
+        const contextLabel = normalizeContextLabel(contextId);
+        if (contextLabel.length > 0) {
+          state.contextTypes.add(contextLabel);
+        }
+        return originalGetContext.call(this, contextId, options);
+      };
+
+      const originalDrawImage = canvas2dConstructor.prototype.drawImage;
+      canvas2dConstructor.prototype.drawImage = function patchedDrawImage(image, ...rest) {
+        const info = getImageLikeDescriptor(image, targetWindow.href);
+        if (info) {
+          let rect = null;
+          if (rest.length === 2) {
+            rect = {
+              x: Math.round(rest[0]),
+              y: Math.round(rest[1]),
+              width: info.naturalWidth ?? 0,
+              height: info.naturalHeight ?? 0
+            };
+          } else if (rest.length === 4) {
+            rect = {
+              x: Math.round(rest[0]),
+              y: Math.round(rest[1]),
+              width: Math.round(rest[2]),
+              height: Math.round(rest[3])
+            };
+          } else if (rest.length >= 8) {
+            rect = {
+              x: Math.round(rest[4]),
+              y: Math.round(rest[5]),
+              width: Math.round(rest[6]),
+              height: Math.round(rest[7])
+            };
+          }
+          recordAssetUse(
+            info,
+            "canvas-2d-draw",
+            `${targetWindow.label}:2d`,
+            rect
+              ? translateRect(applyCanvasTransform(this, rect), targetWindow.offsetX, targetWindow.offsetY)
+              : null
+          );
+        }
+
+        return Reflect.apply(originalDrawImage, this, [image, ...rest]);
+      };
+    }
+
+    function getOrCreateTextureBindingState(context, contextLabel) {
+      const existing = state.webglBindings.get(context);
+      if (existing) {
+        return existing;
+      }
+
+      const created = {
+        activeTextureUnit: 0,
+        boundTextures: new Map(),
+        contextLabel
+      };
+      state.webglBindings.set(context, created);
+      return created;
+    }
+
+    function installWebGlInstrumentationForPrototype(targetWindow, canvasConstructor, prototype, contextLabel, patchMarker) {
+      if (prototype[patchMarker] === true) {
+        return;
+      }
+      prototype[patchMarker] = true;
+
+      const originalGetContext = canvasConstructor.prototype.getContext;
+      canvasConstructor.prototype.getContext = function patchedGetContext(requestedContextId, options) {
+        const context = originalGetContext.call(this, requestedContextId, options);
+        const normalized = normalizeContextLabel(requestedContextId);
+        if (
+          context
+          && (
+            normalized === contextLabel
+            || (contextLabel === "webgl" && normalized === "experimental-webgl")
+          )
+        ) {
+          state.contextTypes.add(contextLabel);
+          getOrCreateTextureBindingState(context, contextLabel);
+        }
+        return context;
+      };
+
+      const originalActiveTexture = prototype.activeTexture;
+      prototype.activeTexture = function patchedActiveTexture(texture) {
+        const bindingState = getOrCreateTextureBindingState(this, contextLabel);
+        bindingState.activeTextureUnit = Number(texture) - Number(this.TEXTURE0);
+        return Reflect.apply(originalActiveTexture, this, [texture]);
+      };
+
+      const originalBindTexture = prototype.bindTexture;
+      prototype.bindTexture = function patchedBindTexture(target, texture) {
+        const bindingState = getOrCreateTextureBindingState(this, contextLabel);
+        if (target === this.TEXTURE_2D) {
+          bindingState.boundTextures.set(bindingState.activeTextureUnit, texture);
+        }
+        return Reflect.apply(originalBindTexture, this, [target, texture]);
+      };
+
+      for (const methodName of ["texImage2D", "texSubImage2D"]) {
+        const originalMethod = prototype[methodName];
+        if (typeof originalMethod !== "function") {
+          continue;
+        }
+        prototype[methodName] = function patchedTextureUpload(...args) {
+          const bindingState = getOrCreateTextureBindingState(this, contextLabel);
+          const boundTexture = bindingState.boundTextures.get(bindingState.activeTextureUnit) ?? null;
+          if (boundTexture) {
+            const sourceArgument = args.find((value) => getImageLikeDescriptor(value, targetWindow.href) !== null);
+            const info = getImageLikeDescriptor(sourceArgument, targetWindow.href);
+            if (info) {
+              state.textureInfo.set(boundTexture, info);
+              recordAssetUse(info, "webgl-texture-upload", `${targetWindow.label}:${contextLabel}`, null);
+            }
+          }
+
+          return Reflect.apply(originalMethod, this, args);
+        };
+      }
+
+      for (const methodName of ["drawArrays", "drawElements"]) {
+        const originalMethod = prototype[methodName];
+        if (typeof originalMethod !== "function") {
+          continue;
+        }
+        prototype[methodName] = function patchedDraw(...args) {
+          const bindingState = getOrCreateTextureBindingState(this, contextLabel);
+          for (const texture of bindingState.boundTextures.values()) {
+            if (!texture) {
+              continue;
+            }
+            const info = state.textureInfo.get(texture);
+            if (info) {
+              recordAssetUse(info, "webgl-draw", `${targetWindow.label}:${contextLabel}`, null);
+            }
+          }
+
+          return Reflect.apply(originalMethod, this, args);
+        };
+      }
+    }
+
+    function installWebGlInstrumentationForWindow(targetWindow) {
+      const runtimeWindow = targetWindow.win;
+      const canvasConstructor = runtimeWindow.HTMLCanvasElement;
+      if (!canvasConstructor) {
+        return;
+      }
+
+      if (typeof runtimeWindow.WebGLRenderingContext !== "undefined") {
+        installWebGlInstrumentationForPrototype(
+          targetWindow,
+          canvasConstructor,
+          runtimeWindow.WebGLRenderingContext.prototype,
+          "webgl",
+          "__MYIDE_RUNTIME_MAIN_WORLD_WEBGL_PATCHED__"
+        );
+      }
+
+      if (typeof runtimeWindow.WebGL2RenderingContext !== "undefined") {
+        installWebGlInstrumentationForPrototype(
+          targetWindow,
+          canvasConstructor,
+          runtimeWindow.WebGL2RenderingContext.prototype,
+          "webgl2",
+          "__MYIDE_RUNTIME_MAIN_WORLD_WEBGL2_PATCHED__"
+        );
+      }
+    }
+
+    function installInspectableWindowInstrumentation() {
+      for (const targetWindow of collectInspectableWindows()) {
+        installCanvasInstrumentationForWindow(targetWindow);
+        installWebGlInstrumentationForWindow(targetWindow);
+      }
+    }
+
+    function safeWindowValue(targetWindow, key) {
+      try {
+        return targetWindow[key];
+      } catch {
+        return undefined;
+      }
+    }
+
+    function summarizeTexture(texture, baseHref) {
+      if (!isRecord(texture)) {
+        return null;
+      }
+
+      const baseTexture = isRecord(texture.baseTexture) ? texture.baseTexture : null;
+      const resource = baseTexture && isRecord(baseTexture.resource) ? baseTexture.resource : null;
+      const frame = isRecord(texture.frame) ? texture.frame : null;
+      const cacheIds = Array.isArray(texture.textureCacheIds) ? texture.textureCacheIds.filter(Boolean).map(String) : [];
+      const resourceUrl = typeof resource?.url === "string"
+        ? resource.url
+        : typeof baseTexture?.imageUrl === "string"
+          ? baseTexture.imageUrl
+          : null;
+      const resourceSourceUrl = resource && isRecord(resource.source)
+        ? normalizeObservedUrl(resource.source.currentSrc ?? resource.source.src ?? null, baseHref)
+        : null;
+
+      return {
+        cacheId: typeof cacheIds[0] === "string" ? cacheIds[0] : null,
+        cacheIds,
+        resourceUrl: resourceUrl ? getCanonicalResourceUrl(resourceUrl, baseHref) ?? resourceUrl : null,
+        resourceSourceUrl,
+        baseTextureUid: normalizeNumber(baseTexture?.uid),
+        baseTextureUrl: typeof baseTexture?.imageUrl === "string"
+          ? getCanonicalResourceUrl(baseTexture.imageUrl, baseHref) ?? baseTexture.imageUrl
+          : null,
+        frame: frame
+          ? {
+              x: normalizeNumber(frame.x) ?? 0,
+              y: normalizeNumber(frame.y) ?? 0,
+              width: normalizeNumber(frame.width) ?? 0,
+              height: normalizeNumber(frame.height) ?? 0
+            }
+          : null
+      };
+    }
+
+    function summarizeDisplayObject(displayObject, baseHref) {
+      if (!isRecord(displayObject)) {
+        return null;
+      }
+
+      const pathEntries = [];
+      let current = displayObject;
+      let depth = 0;
+      while (isRecord(current) && depth < 6) {
+        pathEntries.push({
+          name: typeof current.name === "string" ? current.name : null,
+          label: typeof current.label === "string" ? current.label : null,
+          constructorName: current.constructor && isRecord(current.constructor) && typeof current.constructor.name === "string"
+            ? current.constructor.name
+            : null
+        });
+        current = isRecord(current.parent) ? current.parent : null;
+        depth += 1;
+      }
+
+      return {
+        id: typeof displayObject.id === "string" ? displayObject.id : null,
+        name: typeof displayObject.name === "string" ? displayObject.name : null,
+        label: typeof displayObject.label === "string" ? displayObject.label : null,
+        constructorName: displayObject.constructor && isRecord(displayObject.constructor) && typeof displayObject.constructor.name === "string"
+          ? displayObject.constructor.name
+          : null,
+        zIndex: typeof displayObject.zIndex === "number" && Number.isFinite(displayObject.zIndex)
+          ? Number(displayObject.zIndex)
+          : null,
+        visible: displayObject.visible !== false,
+        renderable: displayObject.renderable !== false,
+        worldAlpha: typeof displayObject.worldAlpha === "number" && Number.isFinite(displayObject.worldAlpha)
+          ? Number(displayObject.worldAlpha)
+          : null,
+        displayObjectPath: pathEntries,
+        texture: summarizeTexture(displayObject.texture, baseHref)
+      };
+    }
+
+    function isRuntimeCandidateObject(value) {
+      return isRecord(value)
+        && isRecord(value.stage)
+        && isRecord(value.renderer);
+    }
+
+    function collectRuntimeCandidates() {
+      const results = [];
+      const visited = new WeakSet();
+      const queue = collectInspectableWindows()
+        .flatMap((targetWindow) => Object.getOwnPropertyNames(targetWindow.win)
+          .slice(0, 256)
+          .map((key) => ({
+            key: `${targetWindow.label}.${key}`,
+            value: safeWindowValue(targetWindow.win, key),
+            depth: 0,
+            windowTarget: targetWindow
+          })));
+
+      while (queue.length > 0 && results.length < 12) {
+        const current = queue.shift();
+        if (!current || !isRecord(current.value)) {
+          continue;
+        }
+        if (visited.has(current.value)) {
+          continue;
+        }
+        visited.add(current.value);
+
+        if (isRuntimeCandidateObject(current.value)) {
+          const renderer = isRecord(current.value.renderer) ? current.value.renderer : null;
+          const view = renderer && isCanvasLike(renderer.view) ? renderer.view : null;
+          const childCount = Array.isArray(current.value.stage.children)
+            ? current.value.stage.children.length
+            : null;
+          results.push({
+            key: current.key,
+            object: current.value,
+            windowTarget: current.windowTarget,
+            summary: {
+              key: current.key,
+              childCount,
+              viewWidth: view ? normalizeNumber(view.width) : null,
+              viewHeight: view ? normalizeNumber(view.height) : null
+            }
+          });
+          continue;
+        }
+
+        if (current.depth >= 2) {
+          continue;
+        }
+
+        for (const childKey of Object.getOwnPropertyNames(current.value).slice(0, 24)) {
+          let childValue;
+          try {
+            childValue = current.value[childKey];
+          } catch {
+            childValue = undefined;
+          }
+          if (!isRecord(childValue) || visited.has(childValue)) {
+            continue;
+          }
+          queue.push({
+            key: `${current.key}.${childKey}`,
+            value: childValue,
+            depth: current.depth + 1,
+            windowTarget: current.windowTarget
+          });
+        }
+      }
+
+      results.sort((left, right) => (right.summary.childCount ?? 0) - (left.summary.childCount ?? 0));
+      return results.slice(0, 8);
+    }
+
+    function getPixiHit(candidate, point) {
+      if (!candidate || !point) {
+        return null;
+      }
+
+      const renderer = isRecord(candidate.object.renderer) ? candidate.object.renderer : null;
+      const interaction = renderer && isRecord(renderer.plugins) ? renderer.plugins.interaction : null;
+      if (!interaction || typeof interaction.hitTest !== "function") {
+        return null;
+      }
+
+      try {
+        return interaction.hitTest(point, candidate.object.stage) ?? null;
+      } catch {
+        return null;
+      }
+    }
+
+    function getTickerTarget() {
+      for (const candidate of collectRuntimeCandidates()) {
+        const ticker = candidate.object.ticker;
+        if (isRuntimeTickerLike(ticker)) {
+          return {
+            label: candidate.summary.key,
+            ticker
+          };
+        }
+      }
+
+      for (const targetWindow of collectInspectableWindows()) {
+        const pixi = safeWindowValue(targetWindow.win, "PIXI");
+        const sharedTicker = isRecord(pixi) && isRecord(pixi.Ticker) ? pixi.Ticker.shared : null;
+        if (isRuntimeTickerLike(sharedTicker)) {
+          return {
+            label: `${targetWindow.label}.PIXI.Ticker.shared`,
+            ticker: sharedTicker
+          };
+        }
+      }
+
+      return null;
+    }
+
+    function buildSupport() {
+      const tickerTarget = getTickerTarget();
+      const pauseResumeBlocked = tickerTarget ? null : "No exposed Pixi ticker or application handle is available in the live donor runtime.";
+      const stepBlocked = tickerTarget && typeof tickerTarget.ticker.update === "function"
+        ? null
+        : "No stable ticker update hook is exposed for single-step runtime control.";
+      return {
+        pause: Boolean(tickerTarget),
+        resume: Boolean(tickerTarget),
+        step: Boolean(tickerTarget && typeof tickerTarget.ticker.update === "function"),
+        blockers: {
+          pause: pauseResumeBlocked,
+          resume: pauseResumeBlocked,
+          step: stepBlocked
+        }
+      };
+    }
+
+    function summarizeLoadedResources() {
+      const entries = [];
+
+      for (const targetWindow of collectInspectableWindows()) {
+        try {
+          const resourceEntries = targetWindow.win.performance.getEntriesByType("resource");
+          for (const entry of resourceEntries) {
+            const url = typeof entry.name === "string" ? entry.name : null;
+            if (!url) {
+              continue;
+            }
+            entries.push({
+              url,
+              canonicalUrl: getCanonicalResourceUrl(url, targetWindow.href),
+              observedUrl: url,
+              initiatorType: typeof entry.initiatorType === "string" ? entry.initiatorType : null,
+              filename: url.split("?")[0].split("/").pop() ?? null,
+              windowLabel: targetWindow.label
+            });
+          }
+        } catch {
+          // Resource timing reads are best-effort only.
+        }
+      }
+
+      return entries
+        .filter((entry) => Boolean(entry.url))
+        .slice(0, 120);
+    }
+
+    function collectDisplayHits(displayObject, point, hits, depth, baseHref) {
+      if (!isRecord(displayObject) || hits.length >= 12 || depth > 40) {
+        return;
+      }
+
+      const children = Array.isArray(displayObject.children) ? displayObject.children : [];
+      for (let index = children.length - 1; index >= 0; index -= 1) {
+        collectDisplayHits(children[index], point, hits, depth + 1, baseHref);
+      }
+
+      if (displayObject.visible === false || typeof displayObject.getBounds !== "function") {
+        return;
+      }
+
+      try {
+        const boundsValue = displayObject.getBounds();
+        if (!isRecord(boundsValue)) {
+          return;
+        }
+        const bounds = {
+          x: normalizeNumber(boundsValue.x) ?? 0,
+          y: normalizeNumber(boundsValue.y) ?? 0,
+          width: normalizeNumber(boundsValue.width) ?? 0,
+          height: normalizeNumber(boundsValue.height) ?? 0
+        };
+        if (
+          point.x >= bounds.x
+          && point.x <= bounds.x + bounds.width
+          && point.y >= bounds.y
+          && point.y <= bounds.y + bounds.height
+        ) {
+          hits.push({
+            ...(summarizeDisplayObject(displayObject, baseHref) ?? {
+              id: null,
+              name: null,
+              label: null,
+              constructorName: null,
+              zIndex: null,
+              texture: null
+            }),
+            bounds
+          });
+        }
+      } catch {
+        // Display-object bounds checks are best-effort only.
+      }
+    }
+
+    function getEngineKind(candidateApps, inspectableWindows, totalCanvasCount) {
+      const contextTypes = Array.from(state.contextTypes.values()).sort();
+      for (const targetWindow of inspectableWindows) {
+        const pixi = safeWindowValue(targetWindow.win, "PIXI");
+        if (isRecord(pixi) && typeof pixi.VERSION === "string") {
+          return {
+            kind: "pixi-global",
+            note: `${targetWindow.label} exposes window.PIXI with version ${pixi.VERSION}.`,
+            pixiVersion: pixi.VERSION
+          };
+        }
+      }
+      if (candidateApps.length > 0) {
+        return {
+          kind: "pixi-handle-scan",
+          note: `A stage/renderer candidate is exposed through ${candidateApps[0].summary.key}.`,
+          pixiVersion: null
+        };
+      }
+      if (typeof window.Phaser === "object" && window.Phaser) {
+        return {
+          kind: "phaser-global",
+          note: "window.Phaser is exposed in the main world, but no stable app/stage handle was surfaced yet.",
+          pixiVersion: null
+        };
+      }
+      if (contextTypes.some((entry) => entry.startsWith("webgl"))) {
+        return {
+          kind: "bundled-webgl-runtime",
+          note: "The donor runtime requested a WebGL context in main world, but no stable global app handle is exposed.",
+          pixiVersion: null
+        };
+      }
+      if (contextTypes.includes("2d")) {
+        return {
+          kind: "canvas-2d-runtime",
+          note: "The donor runtime requested a 2D canvas context in main world, but no stable global app handle is exposed.",
+          pixiVersion: null
+        };
+      }
+      if (totalCanvasCount > 0) {
+        return {
+          kind: "canvas-runtime-in-main-world",
+          note: `The donor runtime exposes ${totalCanvasCount} canvas surface${totalCanvasCount === 1 ? "" : "s"} in main world, but no stable app handle is exposed.`,
+          pixiVersion: null
+        };
+      }
+      return {
+        kind: "dom-only-or-hidden-runtime",
+        note: "Main-world inspection did not expose a stable canvas/WebGL runtime handle yet.",
+        pixiVersion: null
+      };
+    }
+
+    function buildStatus() {
+      const candidateApps = collectRuntimeCandidates();
+      const inspectableWindows = collectInspectableWindows();
+      const totalCanvasCount = inspectableWindows.reduce((count, targetWindow) => {
+        try {
+          return count + targetWindow.win.document.querySelectorAll("canvas").length;
+        } catch {
+          return count;
+        }
+      }, 0);
+      const engine = getEngineKind(candidateApps, inspectableWindows, totalCanvasCount);
+      return {
+        href: window.location.href,
+        title: document.title || null,
+        bridgeSource: "main-world-execute-js",
+        bridgeVersion: "runtime-main-world-v1",
+        frameCount: Math.max(0, inspectableWindows.length - 1),
+        accessibleFrameCount: Math.max(0, inspectableWindows.length - 1),
+        canvasCount: totalCanvasCount,
+        pixiDetected: engine.kind === "pixi-global" || candidateApps.length > 0,
+        pixiVersion: engine.pixiVersion,
+        candidateApps: candidateApps.map((candidate) => candidate.summary),
+        inspectEnabled: state.inspectEnabled,
+        paused: state.paused,
+        support: buildSupport(),
+        resourceEntries: summarizeLoadedResources(),
+        assetUseEntries: buildAssetUseEntries(),
+        contextTypes: Array.from(state.contextTypes.values()).sort(),
+        engineKind: engine.kind,
+        engineNote: engine.note
+      };
+    }
+
+    function setInspectEnabled(flag) {
+      state.inspectEnabled = Boolean(flag);
+      emit("inspect", { enabled: state.inspectEnabled });
+      return { enabled: state.inspectEnabled };
+    }
+
+    function pause() {
+      const target = getTickerTarget();
+      if (!target) {
+        return { ok: false, blocked: buildSupport().blockers.pause };
+      }
+      try {
+        target.ticker.stop();
+        state.paused = true;
+        emit("control", { action: "pause", ok: true, label: target.label });
+        return { ok: true, label: target.label };
+      } catch (error) {
+        return { ok: false, blocked: error instanceof Error ? error.message : String(error) };
+      }
+    }
+
+    function resume() {
+      const target = getTickerTarget();
+      if (!target) {
+        return { ok: false, blocked: buildSupport().blockers.resume };
+      }
+      try {
+        target.ticker.start();
+        state.paused = false;
+        emit("control", { action: "resume", ok: true, label: target.label });
+        return { ok: true, label: target.label };
+      } catch (error) {
+        return { ok: false, blocked: error instanceof Error ? error.message : String(error) };
+      }
+    }
+
+    function step() {
+      const target = getTickerTarget();
+      if (!target || typeof target.ticker.update !== "function") {
+        return { ok: false, blocked: buildSupport().blockers.step };
+      }
+      try {
+        target.ticker.update(performance.now());
+        emit("control", { action: "step", ok: true, label: target.label });
+        return { ok: true, label: target.label };
+      } catch (error) {
+        return { ok: false, blocked: error instanceof Error ? error.message : String(error) };
+      }
+    }
+
+    function pickAtPoint(clientX, clientY) {
+      const inspectableWindows = collectInspectableWindows().sort((left, right) => right.depth - left.depth);
+      const pickedWindowTarget = inspectableWindows.find((targetWindow) => {
+        if (targetWindow.label === "top") {
+          return true;
+        }
+        try {
+          const localX = clientX - targetWindow.offsetX;
+          const localY = clientY - targetWindow.offsetY;
+          return (
+            localX >= 0
+            && localY >= 0
+            && localX <= targetWindow.win.innerWidth
+            && localY <= targetWindow.win.innerHeight
+          );
+        } catch {
+          return false;
+        }
+      }) ?? inspectableWindows[inspectableWindows.length - 1] ?? {
+        win: window,
+        label: "top",
+        href: safeLocationHref(window),
+        title: safeDocumentTitle(window),
+        depth: 0,
+        offsetX: 0,
+        offsetY: 0
+      };
+
+      const localClientX = Math.round(clientX - pickedWindowTarget.offsetX);
+      const localClientY = Math.round(clientY - pickedWindowTarget.offsetY);
+      let target = null;
+      try {
+        target = pickedWindowTarget.win.document.elementFromPoint(localClientX, localClientY);
+      } catch {
+        target = null;
+      }
+      if (!target && pickedWindowTarget.label !== "top") {
+        target = document.elementFromPoint(clientX, clientY);
+      }
+
+      const canvasElement = target && typeof target.closest === "function"
+        ? target.closest("canvas")
+        : null;
+      const canvas = canvasElement ?? (isCanvasLike(target) ? target : null);
+      const canvasPoint = canvas ? getCanvasPoint(canvas, localClientX, localClientY) : null;
+      const candidates = collectRuntimeCandidates();
+      const candidateForWindow = candidates.find((candidate) => candidate.windowTarget.label === pickedWindowTarget.label)
+        ?? candidates[0]
+        ?? null;
+      const displayHits = [];
+
+      if (canvasPoint && candidateForWindow) {
+        const pixiHit = getPixiHit(candidateForWindow, canvasPoint);
+        if (pixiHit) {
+          let hitBounds = null;
+          try {
+            if (typeof pixiHit.getBounds === "function") {
+              const bounds = pixiHit.getBounds();
+              hitBounds = isRecord(bounds)
+                ? {
+                    x: normalizeNumber(bounds.x) ?? 0,
+                    y: normalizeNumber(bounds.y) ?? 0,
+                    width: normalizeNumber(bounds.width) ?? 0,
+                    height: normalizeNumber(bounds.height) ?? 0
+                  }
+                : null;
+            }
+          } catch {
+            hitBounds = null;
+          }
+          displayHits.push({
+            ...(summarizeDisplayObject(pixiHit, pickedWindowTarget.href) ?? {
+              id: null,
+              name: null,
+              label: null,
+              constructorName: null,
+              zIndex: null,
+              texture: null
+            }),
+            bounds: hitBounds
+          });
+        }
+        if (displayHits.length === 0) {
+          collectDisplayHits(candidateForWindow.object.stage, canvasPoint, displayHits, 0, pickedWindowTarget.href);
+        }
+      }
+
+      const topRuntimeAsset = selectTopAssetForPoint({ x: clientX, y: clientY });
+      const status = buildStatus();
+      const payload = {
+        ...status,
+        clientX: Math.round(clientX),
+        clientY: Math.round(clientY),
+        targetTag: target && target.tagName ? String(target.tagName).toLowerCase() : null,
+        targetId: target instanceof HTMLElement && typeof target.id === "string" && target.id.length > 0 ? target.id : null,
+        targetClassName: target instanceof HTMLElement && typeof target.className === "string" ? target.className : null,
+        canvasDetected: Boolean(canvas),
+        canvasPoint,
+        canvasSize: canvas ? {
+          width: normalizeNumber(canvas.width),
+          height: normalizeNumber(canvas.height)
+        } : null,
+        topDisplayObject: displayHits[0] ?? null,
+        displayHitCount: displayHits.length,
+        topRuntimeAsset
+      };
+
+      state.lastPick = payload;
+      emit("pick", payload);
+      return payload;
+    }
+
+    function installInspectPointerListener() {
+      if (window.__MYIDE_RUNTIME_MAIN_WORLD_POINTER_LISTENER__) {
+        return;
+      }
+      window.__MYIDE_RUNTIME_MAIN_WORLD_POINTER_LISTENER__ = true;
+
+      window.addEventListener("pointerdown", (event) => {
+        if (!state.inspectEnabled) {
+          return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        pickAtPoint(event.clientX, event.clientY);
+      }, true);
+    }
+
+    function installDomAssetScanner() {
+      if (typeof window.__MYIDE_RUNTIME_MAIN_WORLD_DOM_SCAN__ === "number") {
+        return;
+      }
+
+      const runScan = () => {
+        try {
+          installInspectableWindowInstrumentation();
+          scanDomAssetUse();
+        } catch {
+          // DOM asset scan remains best-effort only.
+        }
+      };
+
+      runScan();
+      window.addEventListener("load", runScan, { once: true });
+      window.__MYIDE_RUNTIME_MAIN_WORLD_DOM_SCAN__ = window.setInterval(runScan, 750);
+
+      const attachObserver = () => {
+        if (window.__MYIDE_RUNTIME_MAIN_WORLD_DOM_OBSERVER_READY__) {
+          return;
+        }
+        const root = document.documentElement;
+        if (!(root instanceof HTMLElement)) {
+          return;
+        }
+        const observer = new MutationObserver(() => runScan());
+        observer.observe(root, {
+          subtree: true,
+          childList: true,
+          attributes: true,
+          attributeFilter: ["class", "style", "src"]
+        });
+        window.__MYIDE_RUNTIME_MAIN_WORLD_DOM_MUTATION__ = observer;
+        window.__MYIDE_RUNTIME_MAIN_WORLD_DOM_OBSERVER_READY__ = true;
+      };
+
+      attachObserver();
+      if (!window.__MYIDE_RUNTIME_MAIN_WORLD_DOM_OBSERVER_READY__) {
+        window.addEventListener("DOMContentLoaded", attachObserver, { once: true });
+      }
+    }
+
+    const bridge = {
+      getStatus: () => buildStatus(),
+      setInspectEnabled: (flag) => setInspectEnabled(flag),
+      pickAtPoint: (clientX, clientY) => pickAtPoint(clientX, clientY),
+      pause: () => pause(),
+      resume: () => resume(),
+      step: () => step()
     };
 
-    state.lastPick = payload;
-    emit("pick", payload);
-    return payload;
+    window.__MYIDE_RUNTIME_MAIN_WORLD_BRIDGE__ = bridge;
+    installInspectableWindowInstrumentation();
+    installInspectPointerListener();
+    installDomAssetScanner();
+
+    const status = bridge.getStatus();
+    emit("ready", status);
+    return status;
   }
 
-  function setInspectEnabled(flag) {
-    state.inspectEnabled = Boolean(flag);
-    emit("inspect", { enabled: state.inspectEnabled });
-    return { enabled: state.inspectEnabled };
-  }
-
-  function pause() {
-    const target = getTickerTarget();
-    if (!target) {
-      return { ok: false, blocked: buildSupport().blockers.pause };
-    }
-
-    try {
-      target.ticker.stop();
-      state.paused = true;
-      emit("control", { action: "pause", ok: true, label: target.label });
-      return { ok: true, label: target.label };
-    } catch (error) {
-      return { ok: false, blocked: error instanceof Error ? error.message : String(error) };
-    }
-  }
-
-  function resume() {
-    const target = getTickerTarget();
-    if (!target) {
-      return { ok: false, blocked: buildSupport().blockers.resume };
-    }
-
-    try {
-      target.ticker.start();
-      state.paused = false;
-      emit("control", { action: "resume", ok: true, label: target.label });
-      return { ok: true, label: target.label };
-    } catch (error) {
-      return { ok: false, blocked: error instanceof Error ? error.message : String(error) };
-    }
-  }
-
-  function step() {
-    const target = getTickerTarget();
-    if (!target || typeof target.ticker.update !== "function") {
-      return { ok: false, blocked: buildSupport().blockers.step };
-    }
-
-    try {
-      target.ticker.update(performance.now());
-      emit("control", { action: "step", ok: true, label: target.label });
-      return { ok: true, label: target.label };
-    } catch (error) {
-      return { ok: false, blocked: error instanceof Error ? error.message : String(error) };
-    }
-  }
-
-  function getStatus() {
-    const candidates = collectRuntimeCandidates();
-    const support = buildSupport();
-    const pixi = getPixi();
-    return {
-      href: location.href,
-      title: document.title || null,
-      bridgeSource: "execute-js-fallback",
-      bridgeVersion: "runtime-fallback-v1",
-      canvasCount: document.querySelectorAll("canvas").length,
-      pixiDetected: Boolean(pixi),
-      pixiVersion: pixi && typeof pixi.VERSION === "string" ? pixi.VERSION : null,
-      candidateApps: candidates.map((candidate) => candidate.summary),
-      inspectEnabled: state.inspectEnabled,
-      paused: state.paused,
-      support,
-      resourceEntries: summarizeLoadedResources(),
-      assetUseEntries: [],
-      contextTypes: [],
-      engineKind: pixi
-        ? "pixi-global"
-        : candidates.length > 0
-          ? "pixi-handle-scan"
-          : document.querySelectorAll("canvas").length > 0
-            ? "canvas-runtime-unknown"
-            : "dom-only-or-hidden-runtime",
-      engineNote: pixi
-        ? "window.PIXI is exposed with version " + (pixi.VERSION || "unknown") + "."
-        : candidates.length > 0
-          ? "A stage/renderer candidate is exposed through " + candidates[0].summary.key + "."
-          : document.querySelectorAll("canvas").length > 0
-            ? "Canvas is present, but the executeJavaScript fallback bridge could not expose a stable app handle."
-            : "No stable canvas or app handle was exposed through the executeJavaScript fallback bridge."
-    };
-  }
-
-  window.addEventListener("pointerdown", (event) => {
-    if (!state.inspectEnabled) {
-      return;
-    }
-
-    event.preventDefault();
-    event.stopPropagation();
-    pickAtPoint(event.clientX, event.clientY);
-  }, true);
-
-  window.__MYIDE_RUNTIME_BRIDGE__ = {
-    getStatus,
-    setInspectEnabled,
-    pickAtPoint,
-    pause,
-    resume,
-    step
-  };
-
-  const status = getStatus();
-  emit("ready", status);
-  return status;
-})();`;
+  return `(${installRuntimeMainWorldBridge.toString()})();`;
 }
 
 function recordRuntimeConsoleEvent(entry) {
@@ -1677,30 +2645,18 @@ function handleRuntimeConsoleMessage(message) {
 }
 
 async function installRuntimeBridge() {
-  const directStatus = await callRuntimeBridge("getStatus");
-  if (directStatus && typeof directStatus === "object" && !Array.isArray(directStatus) && !directStatus.blocked) {
-    applyRuntimeBridgeStatus(directStatus);
+  const status = await callRuntimeBridge("getStatus");
+  if (status && typeof status === "object" && !Array.isArray(status) && !status.blocked) {
+    applyRuntimeBridgeStatus(status);
     renderAll();
-    return directStatus;
-  }
-
-  const webview = getRuntimeWebview();
-  if (!webview) {
-    return null;
-  }
-
-  try {
-    const status = await webview.executeJavaScript(buildRuntimeGuestBridgeScript(), true);
-    if (status && typeof status === "object") {
-      applyRuntimeBridgeStatus(status);
-      renderAll();
-    }
     return status;
-  } catch (error) {
-    state.runtimeUi.lastError = error instanceof Error ? error.message : String(error);
-    renderAll();
-    return null;
   }
+
+  if (status?.blocked) {
+    state.runtimeUi.lastError = String(status.blocked);
+    renderAll();
+  }
+  return null;
 }
 
 async function callRuntimeBridge(method, ...args) {
@@ -1712,8 +2668,8 @@ async function callRuntimeBridge(method, ...args) {
   const serializedMethod = JSON.stringify(String(method));
   const serializedArgs = JSON.stringify(args);
   try {
-    return await webview.executeJavaScript(`(() => {
-      const bridge = window.__MYIDE_RUNTIME_BRIDGE__;
+    return await webview.executeJavaScript(`${buildRuntimeGuestBridgeScript()}; (() => {
+      const bridge = window.__MYIDE_RUNTIME_MAIN_WORLD_BRIDGE__ || window.__MYIDE_RUNTIME_BRIDGE__;
       if (!bridge || typeof bridge[${serializedMethod}] !== "function") {
         return { ok: false, blocked: "Runtime bridge is not ready yet." };
       }
@@ -13580,6 +14536,11 @@ function renderRuntimeInspector() {
         <span>Runtime Stack</span>
         <strong>${escapeHtml(runtimeLaunch?.gameVersion ?? "Mystery Garden runtime")}</strong>
         <small>${escapeHtml(runtimeLaunch?.wrapperVersion ? `wrapper ${runtimeLaunch.wrapperVersion}` : runtimeLaunch?.buildVersion ?? "No wrapper/build version indexed yet.")}</small>
+      </div>
+      <div class="detail-card ${diagnostics?.bridgeSource === "main-world-execute-js" ? "is-positive" : ""}">
+        <span>Inspection Bridge</span>
+        <strong>${escapeHtml(diagnostics?.bridgeSource ?? "Runtime bridge not attached yet")}</strong>
+        <small>${escapeHtml(diagnostics?.bridgeVersion ?? diagnostics?.engineNote ?? "The runtime bridge version will appear after Runtime Mode finishes loading.")}</small>
       </div>
       <div class="detail-card">
         <span>Source Trace Strength</span>

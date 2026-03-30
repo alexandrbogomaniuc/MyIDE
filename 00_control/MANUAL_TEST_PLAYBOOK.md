@@ -37,6 +37,10 @@ Use this when testing the current local MyIDE build by hand.
    - Confirm the inspector also shows a runtime resource-map record for the current launch/reload cycle.
    - Confirm the stronger embedded-runtime truth is visible when available: current bounded proof should show no accessible child frames or canvas surface in the embedded path, and the blocker should stay explicit rather than implying a hidden Pixi object.
 - If the active override card shows a blocker instead of a request-backed hit for the current mirrored candidate, record that blocker exactly; the current stronger proof may still show a request-backed local `bundle.js` hit without any request-backed static image hit, and that is still a blocker for the override loop.
+- Record which bridge attached in the Runtime inspector:
+  - `main-world-execute-js`
+  - or `guest-preload`
+- If the app aborts before the runtime smoke even reaches the MyIDE main-process marker, record that exact launch blocker separately from runtime-trace blockers.
    - Use **Clear Override** once and confirm the project-local override is removed cleanly.
    - Use **Show Runtime Note** or **Show Init Response** once and confirm the supporting donor evidence is focused.
    - If **Pause**, **Resume**, or **Step One Tick** are disabled, the shell should explain the blocker plainly instead of pretending those controls work.
@@ -119,7 +123,7 @@ Use this when testing the current local MyIDE build by hand.
   - Runtime Mode can prefer a bounded local runtime mirror on this machine, but that is still not the same as a full captured local donor bundle
   - the bounded runtime override slice only works when the current runtime trace exposes a grounded static image URL and the chosen donor asset matches that file type
   - the current local-mirror override path now has a real request map, and no unresolved upstream bootstrap/static dependency remains in the bounded cycle
-  - direct local launch inspection proves the mirror can serve local static assets, but the mirrored static override candidate is still only mirror-manifest-backed inside the embedded Runtime Mode proof, so that part remains partially blocked
+  - direct local launch inspection proves the mirror can serve local static assets, but the mirrored static override candidate is still only mirror-manifest-backed inside the strongest previously verified embedded Runtime Mode proof, so that part remains partially blocked
   - pause/resume/step only work when the embedded donor runtime exposes a stable ticker-like hook; otherwise the shell reports that blocker plainly
   - only `project_001` is supported
   - only supported local donor image files are importable

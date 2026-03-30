@@ -50,8 +50,9 @@
 - When Runtime pick/inspect exposes the strongest grounded static Mystery Garden runtime source we can prove, the shell can create a project-local override under `40_projects/project_001/overrides/`, reload Runtime Mode without cache, and keep raw donor files untouched.
 - Honest current limit:
   - Runtime Mode now launches from the local mirror URL, can trace one grounded static runtime candidate back to a local mirror file path, and can show the current launch/reload request map in the shell.
-  - No unresolved upstream bootstrap/static dependency remains in the current bounded launch/start/spin cycle.
-  - Direct local launch inspection now proves the bounded mirror can serve local `bundle.js` plus local preloader images such as `logo-lights.png`, `split.png`, and `a.png`.
-  - The embedded Electron Runtime Mode request tap now proves a real local `bundle.js` request inside the runtime webview partition.
-  - The new embedded guest-preload runtime introspection bridge now also proves `frameCount=0`, `accessibleFrameCount=0`, `canvasCount=0`, and resource window labels only at `top` in the current bounded embedded slice.
-  - The embedded Electron Runtime Mode proof still does not surface a request-backed static image in the current bounded slice, so the selected static override candidate remains mirror-manifest-backed rather than request-backed and the first hit-confirmed local override is still blocked.
+- No unresolved upstream bootstrap/static dependency remains in the current bounded launch/start/spin cycle.
+- Direct local launch inspection now proves the bounded mirror can serve local `bundle.js` plus local preloader images such as `logo-lights.png`, `split.png`, and `a.png`.
+- The embedded Electron Runtime Mode request tap now proves a real local `bundle.js` request inside the runtime webview partition.
+- The strongest previously verified embedded guest-preload runtime introspection bridge proved `frameCount=0`, `accessibleFrameCount=0`, `canvasCount=0`, and resource window labels only at `top` in the current bounded embedded slice.
+- This run landed a stronger preferred main-world `executeJavaScript` bridge path in the shell, but the Electron smoke environment is now aborting in macOS AppKit before MyIDE emits its own main-process marker, so that new bridge could not be verified end-to-end here.
+- The embedded Electron Runtime Mode proof still does not surface a request-backed static image in the current bounded slice, so the selected static override candidate remains mirror-manifest-backed rather than request-backed and the first hit-confirmed local override is still blocked.
