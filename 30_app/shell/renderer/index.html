@@ -12,7 +12,7 @@
         <div class="brand">
           <p class="eyebrow">Local-first reconstruction studio</p>
           <h1>MyIDE</h1>
-          <p class="lede">Current build: a runtime-first donor workflow for the validated <code>project_001</code> Mystery Garden slice. Runtime Mode launches the strongest grounded donor runtime entry inside the shell, traces the strongest grounded source we can prove, and now supports one bounded project-local static asset override workflow when the runtime trace is eligible. Compose Mode keeps the bounded internal compositor available as a secondary workflow.</p>
+          <p class="lede">Current build: the dedicated Runtime Debug Host is the official runtime work mode for the validated <code>project_001</code> Mystery Garden slice. Use it for the strongest local runtime trace, request-backed asset selection, and bounded override proof; use the embedded Runtime surface as secondary context and Compose as the bounded donor-backed compositor.</p>
         </div>
         <div class="chips" aria-label="Project constraints">
           <span>MULTI PROJECT</span>
@@ -124,31 +124,28 @@
         <section class="panel editor-panel">
           <div class="panel-head">
             <h2>Workbench</h2>
-            <span>Runtime-first for project_001</span>
+            <span>Runtime Debug Host official for project_001</span>
           </div>
-          <p class="context-hint">Runtime Mode is the primary donor workflow in this slice. It launches the strongest grounded Mystery Garden donor runtime entry inside the shell when available, surfaces bounded runtime controls, records the strongest source trace we can prove, and allows one project-local static asset override path without mutating raw donor files. Compose Mode keeps the internal compositor, donor import, and save/reload workflow available as the bounded secondary workflow.</p>
+          <p class="context-hint">Use Debug Host is the primary runtime workflow in this slice. It runs the stronger local-mirror runtime proof path, surfaces the best current request-backed asset truth, and keeps raw donor files read-only. The embedded Runtime surface remains available as secondary context, while Compose keeps the bounded internal compositor, donor import, and save/reload loop available for practical day-to-day work.</p>
           <div id="workbench-modebar" class="mode-bar" role="tablist" aria-label="Workbench mode">
             <button type="button" data-workbench-mode="runtime" aria-selected="true">Runtime</button>
             <button type="button" data-workbench-mode="scene" aria-selected="false">Compose</button>
           </div>
           <div id="runtime-toolbar" class="runtime-toolbar">
             <div class="toolbar-group">
-              <span class="toolbar-group-label">Runtime</span>
+              <span class="toolbar-group-label">Debug Host</span>
+              <button type="button" data-runtime-action="open-debug-host">Use Debug Host</button>
+            </div>
+            <div class="toolbar-group">
+              <span class="toolbar-group-label">Embedded Runtime</span>
               <button type="button" data-runtime-action="launch">Launch Runtime</button>
               <button type="button" data-runtime-action="reload">Reload Runtime</button>
               <button type="button" data-runtime-action="enter">Click To Start</button>
               <button type="button" data-runtime-action="spin">Spin / Trigger</button>
             </div>
             <div class="toolbar-group">
-              <span class="toolbar-group-label">Playback</span>
-              <button type="button" data-runtime-action="pause">Pause</button>
-              <button type="button" data-runtime-action="resume">Resume</button>
-              <button type="button" data-runtime-action="step">Step One Tick</button>
-            </div>
-            <div class="toolbar-group">
-              <span class="toolbar-group-label">Inspect</span>
+              <span class="toolbar-group-label">Trace</span>
               <button type="button" data-runtime-action="inspect-toggle">Pick / Inspect</button>
-              <button type="button" data-runtime-action="open-debug-host">Open Debug Host</button>
               <button type="button" data-runtime-action="focus-note">Show Runtime Note</button>
               <button type="button" data-runtime-action="focus-init">Show Init Response</button>
             </div>
@@ -163,8 +160,14 @@
               <button type="button" data-runtime-action="create-override">Create Override</button>
               <button type="button" data-runtime-action="clear-override">Clear Override</button>
             </div>
+            <div class="toolbar-group">
+              <span class="toolbar-group-label">Playback</span>
+              <button type="button" data-runtime-action="pause">Pause</button>
+              <button type="button" data-runtime-action="resume">Resume</button>
+              <button type="button" data-runtime-action="step">Step One Tick</button>
+            </div>
             <div class="toolbar-group toolbar-group-grow">
-              <span id="runtime-control-note" class="toolbar-hint">Runtime controls stay grounded: launch/reload/pick are primary, and the override path only activates when one supported static image URL is traced honestly.</span>
+              <span id="runtime-control-note" class="toolbar-hint">Use Debug Host first for trustworthy runtime work. The embedded surface remains available for bounded local context, but it is still weaker for asset-level truth and override proof.</span>
             </div>
           </div>
           <div id="editor-toolbar" class="editor-toolbar">
@@ -261,9 +264,9 @@
         <aside class="panel inspector-panel">
           <div class="panel-head">
             <h2>Inspector</h2>
-            <span>Runtime trace or compose selection</span>
+            <span>Runtime workbench or compose selection</span>
           </div>
-          <p class="context-hint">Runtime Mode uses this panel for picked runtime-element trace, grounded source links, and the bounded static override path. Compose Mode uses it for the existing internal object editor and evidence linkage. Raw donor captures remain read-only in both modes.</p>
+          <p class="context-hint">Runtime Mode uses this panel as the daily runtime workbench: Debug Host proof, request-backed asset list, grounded source jumps, and bounded override actions. Compose Mode uses it for the existing internal object editor and evidence linkage. Raw donor captures remain read-only in both modes.</p>
           <div id="inspector" class="inspector-card"></div>
           <div class="panel-head panel-head-tight">
             <h2>Activity</h2>

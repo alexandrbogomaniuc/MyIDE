@@ -61,6 +61,7 @@ const state = {
     resourceMap: null,
     overrideStatus: null,
     debugHost: null,
+    workbenchSourceUrl: null,
     controlSupport: {
       pause: false,
       resume: false,
@@ -1026,6 +1027,31 @@ function getRuntimeOverrideEntry(runtimeSourceUrl) {
   }
 
   return getRuntimeOverrideStatus()?.entries?.find((entry) => entry.runtimeSourceUrl === runtimeSourceUrl) ?? null;
+}
+
+function getRuntimeWorkbenchSourceUrl() {
+  const explicitSourceUrl = getRuntimeCanonicalSourceUrl(state.runtimeUi.workbenchSourceUrl);
+  if (explicitSourceUrl) {
+    return explicitSourceUrl;
+  }
+
+  const debugHostSourceUrl = getRuntimeCanonicalSourceUrl(state.runtimeUi.debugHost?.candidateRuntimeSourceUrl);
+  if (debugHostSourceUrl) {
+    return debugHostSourceUrl;
+  }
+
+  return null;
+}
+
+function setRuntimeWorkbenchSource(sourceUrl, options = {}) {
+  const canonicalSourceUrl = typeof sourceUrl === "string" && sourceUrl.length > 0
+    ? (getRuntimeCanonicalSourceUrl(sourceUrl) ?? sourceUrl)
+    : null;
+  state.runtimeUi.workbenchSourceUrl = canonicalSourceUrl;
+  if (options.render !== false) {
+    renderAll();
+  }
+  return canonicalSourceUrl;
 }
 
 function getWorkbenchModeLabel(mode = state.workbenchMode) {
@@ -2928,7 +2954,7 @@ async function createRuntimeOverrideFromCurrentBridge() {
     state.bundle.runtimeOverrides = status ?? null;
   }
   renderAll();
-  setPreviewStatus(`Created a project-local runtime override for ${candidate.runtimeRelativePath ?? candidate.runtimeSourceUrl} from donor asset ${candidate.donorAsset.assetId}. Reloading Runtime Mode to apply it.`);
+  setPreviewStatus(`Created a project-local runtime override for ${candidate.runtimeRelativePath ?? candidate.runtimeSourceUrl} from donor asset ${candidate.donorAsset.assetId}. Reloading the embedded runtime now; use Debug Host again when you want the strongest override-hit confirmation.`);
   if (state.runtimeUi.launched) {
     await handleRuntimeReload();
   }
@@ -2953,7 +2979,7 @@ async function clearRuntimeOverrideForCurrentCandidate() {
     state.bundle.runtimeOverrides = status ?? null;
   }
   renderAll();
-  setPreviewStatus(`Cleared the project-local runtime override for ${candidate.runtimeRelativePath ?? candidate.runtimeSourceUrl}. Reloading Runtime Mode to restore the original donor asset.`);
+  setPreviewStatus(`Cleared the project-local runtime override for ${candidate.runtimeRelativePath ?? candidate.runtimeSourceUrl}. Reloading the embedded runtime now; re-open Debug Host if you want to confirm the clean runtime path again.`);
   if (state.runtimeUi.launched) {
     await handleRuntimeReload();
   }
@@ -2968,6 +2994,9 @@ async function openRuntimeDebugHostWindow() {
 
   const result = await api.openRuntimeDebugHost();
   state.runtimeUi.debugHost = result ?? null;
+  if (typeof result?.candidateRuntimeSourceUrl === "string" && result.candidateRuntimeSourceUrl.length > 0) {
+    state.runtimeUi.workbenchSourceUrl = getRuntimeCanonicalSourceUrl(result.candidateRuntimeSourceUrl) ?? result.candidateRuntimeSourceUrl;
+  }
   renderAll();
 
   const runtimeSourceLabel = typeof result?.runtimeSourceLabel === "string" ? result.runtimeSourceLabel : "runtime source unknown";
@@ -8809,6 +8838,66 @@ function matchDonorAssetFromRuntimePick(lastPick = state.runtimeUi.lastPick) {
   }) ?? null;
 }
 
+function matchDonorAssetFromRuntimeSource(runtimeSourceUrl, runtimeRelativePath = null, explicitAssetId = null) {
+  if (typeof explicitAssetId === "string" && explicitAssetId.length > 0) {
+    const directAsset = getDonorAssetById(explicitAssetId);
+    if (directAsset) {
+      return directAsset;
+    }
+  }
+
+  const signals = uniqueStrings([
+    typeof runtimeSourceUrl === "string" ? runtimeSourceUrl : "",
+    typeof runtimeRelativePath === "string" ? runtimeRelativePath : "",
+    (() => {
+      try {
+        return typeof runtimeSourceUrl === "string"
+          ? String(new URL(runtimeSourceUrl).pathname.split("/").pop() ?? "")
+          : "";
+      } catch {
+        return "";
+      }
+    })()
+  ]).map((value) => value.toLowerCase());
+
+  if (signals.length === 0) {
+    return null;
+  }
+
+  return getDonorAssetCatalogItems().find((asset) => {
+    const filename = String(asset.filename ?? "").toLowerCase();
+    const stem = filename.replace(/\.[^.]+$/, "");
+    const evidenceId = String(asset.evidenceId ?? "").toLowerCase();
+    const assetId = String(asset.assetId ?? "").toLowerCase();
+    return signals.some((signal) => (
+      (filename.length > 0 && signal.includes(filename))
+      || (stem.length > 0 && signal.includes(stem))
+      || (evidenceId.length > 0 && signal.includes(evidenceId))
+      || (assetId.length > 0 && signal.includes(assetId))
+    ));
+  }) ?? null;
+}
+
+function buildRuntimeSourceBridge(runtimeSourceUrl, options = {}) {
+  const runtimeRelativePath = typeof options.runtimeRelativePath === "string" && options.runtimeRelativePath.length > 0
+    ? options.runtimeRelativePath
+    : getRuntimeResourceRelativePath(runtimeSourceUrl);
+  const donorAsset = options.donorAsset
+    ?? matchDonorAssetFromRuntimeSource(runtimeSourceUrl, runtimeRelativePath, options.overrideDonorAssetId);
+  const evidenceItem = donorAsset?.evidenceId
+    ? getEvidenceItemById(donorAsset.evidenceId)
+    : null;
+  const sceneObject = donorAsset
+    ? getSceneObjectsForDonorAssetId(donorAsset.assetId)[0] ?? null
+    : null;
+
+  return {
+    donorAsset,
+    evidenceItem,
+    sceneObject
+  };
+}
+
 function getVisibleDonorAssetItems() {
   const items = getDonorAssetCatalogItems();
   const searchQuery = String(state.donorAssetUi?.searchQuery ?? "").trim().toLowerCase();
@@ -8953,9 +9042,24 @@ function getRuntimeWorkflowBridge() {
 
 function getRuntimeOverrideCandidate() {
   const workflowBridge = getRuntimeWorkflowBridge();
-  const donorAsset = workflowBridge.donorAsset;
+  const selectedWorkbenchSourceUrl = getRuntimeWorkbenchSourceUrl();
+  const donorAsset = selectedWorkbenchSourceUrl
+    ? matchDonorAssetFromRuntimeSource(
+        selectedWorkbenchSourceUrl,
+        getRuntimeResourceRelativePath(selectedWorkbenchSourceUrl),
+        state.runtimeUi.debugHost?.candidateRuntimeSourceUrl === selectedWorkbenchSourceUrl
+          ? state.runtimeUi.debugHost?.overrideDonorAssetId
+          : null
+      ) ?? workflowBridge.donorAsset
+    : workflowBridge.donorAsset;
   const preferredFileType = donorAsset?.fileType ?? null;
   const pickedRuntimeAsset = (() => {
+    if (selectedWorkbenchSourceUrl) {
+      const selectedAssetUseEntry = getRuntimeAssetUseEntries().find((entry) => entry.url === selectedWorkbenchSourceUrl);
+      if (selectedAssetUseEntry && (!preferredFileType || selectedAssetUseEntry.fileType === preferredFileType)) {
+        return selectedAssetUseEntry;
+      }
+    }
     const topRuntimeAsset = normalizeRuntimeAssetUseEntries(
       state.runtimeUi.lastPick?.topRuntimeAsset ? [state.runtimeUi.lastPick.topRuntimeAsset] : []
     )[0] ?? null;
@@ -8965,9 +9069,10 @@ function getRuntimeOverrideCandidate() {
     return getRuntimeAssetUseEntries()
       .filter((entry) => !preferredFileType || entry.fileType === preferredFileType)[0] ?? null;
   })();
-  const directResourceUrl = typeof state.runtimeUi.lastPick?.topDisplayObject?.texture?.resourceUrl === "string"
-    ? getRuntimeCanonicalSourceUrl(state.runtimeUi.lastPick.topDisplayObject.texture.resourceUrl)
-    : pickedRuntimeAsset?.url ?? null;
+  const directResourceUrl = selectedWorkbenchSourceUrl
+    ?? (typeof state.runtimeUi.lastPick?.topDisplayObject?.texture?.resourceUrl === "string"
+      ? getRuntimeCanonicalSourceUrl(state.runtimeUi.lastPick.topDisplayObject.texture.resourceUrl)
+      : pickedRuntimeAsset?.url ?? null);
   const directFileType = directResourceUrl ? getRuntimeResourceFileType(directResourceUrl) : null;
   const directEntry = directResourceUrl && directFileType && (!preferredFileType || directFileType === preferredFileType)
     ? {
@@ -8981,9 +9086,11 @@ function getRuntimeOverrideCandidate() {
             return "";
           }
         })(),
-        initiatorType: typeof state.runtimeUi.lastPick?.topDisplayObject?.texture?.resourceUrl === "string"
-          ? "texture"
-          : (pickedRuntimeAsset?.initiatorType ?? "runtime-asset-use"),
+        initiatorType: selectedWorkbenchSourceUrl
+          ? (pickedRuntimeAsset?.initiatorType ?? "runtime-workbench")
+          : (typeof state.runtimeUi.lastPick?.topDisplayObject?.texture?.resourceUrl === "string"
+            ? "texture"
+            : (pickedRuntimeAsset?.initiatorType ?? "runtime-asset-use")),
         assetUseEntry: pickedRuntimeAsset
       }
     : null;
@@ -9202,6 +9309,191 @@ function getRuntimeOverrideCandidate() {
         ? `The current runtime cycle matched this source through the local runtime mirror at ${localMirrorEntry.repoRelativePath}.`
         : "The current runtime cycle matched this source through the strongest grounded runtime request record."
   };
+}
+
+function isAnalyticsLikeRuntimeUrl(sourceUrl) {
+  const normalized = String(sourceUrl ?? "").toLowerCase();
+  return normalized.includes("analytics")
+    || normalized.includes("googletagmanager")
+    || normalized.includes("google.co.uk/ads")
+    || normalized.includes("/g/collect")
+    || normalized.includes("amplitude");
+}
+
+function scoreRuntimeWorkbenchEntry(entry) {
+  let score = Number(entry.hitCount ?? 0);
+
+  if (entry.kind === "debug-host-proof") {
+    score += 6000;
+  }
+  if (entry.overrideHitCountAfterReload > 0) {
+    score += 3000 + Number(entry.overrideHitCountAfterReload);
+  }
+  if (entry.overrideRepoRelativePath) {
+    score += 1800;
+  }
+  if (entry.isStaticImage) {
+    score += 1000;
+  }
+  if (entry.requestBacked) {
+    score += 700;
+  }
+  if (entry.requestSource === "project-local-override") {
+    score += 1200;
+  } else if (entry.requestSource === "local-mirror-asset") {
+    score += 800;
+  } else if (entry.requestSource === "local-mirror-launch") {
+    score += 300;
+  }
+  if (entry.requestCategory === "html-bootstrap") {
+    score += 120;
+  }
+  if ((entry.relativePath ?? "").toLowerCase().endsWith("bundle.js")) {
+    score += 150;
+  }
+  if (isAnalyticsLikeRuntimeUrl(entry.sourceUrl)) {
+    score -= 2000;
+  }
+
+  return score;
+}
+
+function createRuntimeWorkbenchEntry(input) {
+  const sourceUrl = getRuntimeCanonicalSourceUrl(input.sourceUrl) ?? input.sourceUrl;
+  if (!sourceUrl) {
+    return null;
+  }
+
+  const relativePath = input.relativePath ?? getRuntimeResourceRelativePath(sourceUrl);
+  const fileType = input.fileType ?? getRuntimeResourceFileType(sourceUrl);
+  const bridge = buildRuntimeSourceBridge(sourceUrl, {
+    runtimeRelativePath: relativePath,
+    donorAsset: input.donorAsset,
+    overrideDonorAssetId: input.overrideDonorAssetId
+  });
+  const activeOverride = getRuntimeOverrideEntry(sourceUrl);
+  const localMirrorEntry = getRuntimeMirrorEntry(sourceUrl);
+
+  return {
+    kind: input.kind,
+    sourceUrl,
+    relativePath,
+    fileType,
+    requestBacked: Boolean(input.requestBacked),
+    isStaticImage: ["png", "webp", "jpg", "jpeg", "svg"].includes(String(fileType ?? "").toLowerCase()),
+    requestSource: input.requestSource ?? null,
+    requestCategory: input.requestCategory ?? null,
+    captureMethods: Array.isArray(input.captureMethods) ? input.captureMethods : [],
+    hitCount: Number(input.hitCount ?? 0),
+    overrideHitCountAfterReload: Number(input.overrideHitCountAfterReload ?? 0),
+    localMirrorRepoRelativePath: input.localMirrorRepoRelativePath ?? localMirrorEntry?.repoRelativePath ?? null,
+    overrideRepoRelativePath: input.overrideRepoRelativePath ?? activeOverride?.overrideRepoRelativePath ?? null,
+    donorAsset: bridge.donorAsset,
+    evidenceItem: bridge.evidenceItem,
+    sceneObject: bridge.sceneObject,
+    activeOverride,
+    note: input.note ?? "",
+    statusLabel: input.statusLabel ?? "",
+    requestSummary: input.requestSummary ?? ""
+  };
+}
+
+function getRuntimeWorkbenchEntries() {
+  const entryMap = new Map();
+  const pushEntry = (candidate) => {
+    if (!candidate || !candidate.sourceUrl) {
+      return;
+    }
+
+    const existing = entryMap.get(candidate.sourceUrl);
+    if (!existing) {
+      entryMap.set(candidate.sourceUrl, candidate);
+      return;
+    }
+
+    const existingScore = scoreRuntimeWorkbenchEntry(existing);
+    const nextScore = scoreRuntimeWorkbenchEntry(candidate);
+    entryMap.set(candidate.sourceUrl, nextScore >= existingScore
+      ? {
+          ...existing,
+          ...candidate,
+          donorAsset: candidate.donorAsset ?? existing.donorAsset,
+          evidenceItem: candidate.evidenceItem ?? existing.evidenceItem,
+          sceneObject: candidate.sceneObject ?? existing.sceneObject,
+          activeOverride: candidate.activeOverride ?? existing.activeOverride,
+          localMirrorRepoRelativePath: candidate.localMirrorRepoRelativePath ?? existing.localMirrorRepoRelativePath,
+          overrideRepoRelativePath: candidate.overrideRepoRelativePath ?? existing.overrideRepoRelativePath,
+          captureMethods: uniqueStrings([...(existing.captureMethods ?? []), ...(candidate.captureMethods ?? [])])
+        }
+      : {
+          ...candidate,
+          ...existing,
+          donorAsset: existing.donorAsset ?? candidate.donorAsset,
+          evidenceItem: existing.evidenceItem ?? candidate.evidenceItem,
+          sceneObject: existing.sceneObject ?? candidate.sceneObject,
+          activeOverride: existing.activeOverride ?? candidate.activeOverride,
+          localMirrorRepoRelativePath: existing.localMirrorRepoRelativePath ?? candidate.localMirrorRepoRelativePath,
+          overrideRepoRelativePath: existing.overrideRepoRelativePath ?? candidate.overrideRepoRelativePath,
+          captureMethods: uniqueStrings([...(existing.captureMethods ?? []), ...(candidate.captureMethods ?? [])])
+        });
+  };
+
+  const debugHost = state.runtimeUi.debugHost;
+  if (typeof debugHost?.candidateRuntimeSourceUrl === "string" && debugHost.candidateRuntimeSourceUrl.length > 0) {
+    pushEntry(createRuntimeWorkbenchEntry({
+      kind: "debug-host-proof",
+      sourceUrl: debugHost.candidateRuntimeSourceUrl,
+      relativePath: debugHost.candidateRuntimeRelativePath ?? getRuntimeResourceRelativePath(debugHost.candidateRuntimeSourceUrl),
+      fileType: getRuntimeResourceFileType(debugHost.candidateRuntimeSourceUrl),
+      requestBacked: true,
+      requestSource: debugHost.candidateRequestSource ?? "local-mirror-asset",
+      requestCategory: "static-asset",
+      captureMethods: debugHost.candidateCaptureMethods ?? [],
+      hitCount: debugHost.candidateHitCount ?? 0,
+      overrideHitCountAfterReload: debugHost.overrideHitCountAfterReload ?? 0,
+      localMirrorRepoRelativePath: debugHost.localMirrorSourcePath ?? null,
+      overrideDonorAssetId: debugHost.overrideDonorAssetId ?? null,
+      statusLabel: debugHost.status === "pass" ? "Debug Host proved override hit" : "Debug Host candidate",
+      requestSummary: `${debugHost.candidateRequestSource ?? "request source unknown"} · ${debugHost.candidateHitCount ?? 0} hit${Number(debugHost.candidateHitCount ?? 0) === 1 ? "" : "s"}`,
+      note: debugHost.status === "pass"
+        ? `Dedicated Runtime Debug Host recorded ${debugHost.overrideHitCountAfterReload ?? 0} override hit${Number(debugHost.overrideHitCountAfterReload ?? 0) === 1 ? "" : "s"} after reload for this request-backed static image.`
+        : debugHost.overrideBlocked ?? "Dedicated Runtime Debug Host has not proved an override hit for this source yet."
+    }));
+  }
+
+  getRuntimeResourceMapEntries().forEach((entry) => {
+    pushEntry(createRuntimeWorkbenchEntry({
+      kind: "resource-map",
+      sourceUrl: entry.canonicalSourceUrl,
+      relativePath: entry.runtimeRelativePath,
+      fileType: entry.fileType,
+      requestBacked: true,
+      requestSource: entry.requestSource,
+      requestCategory: entry.requestCategory,
+      captureMethods: entry.captureMethods,
+      hitCount: entry.hitCount,
+      localMirrorRepoRelativePath: entry.localMirrorRepoRelativePath,
+      overrideRepoRelativePath: entry.overrideRepoRelativePath,
+      statusLabel: entry.requestCategory === "static-asset"
+        ? "Request-backed runtime asset"
+        : "Request-backed runtime dependency",
+      requestSummary: `${entry.requestSource} · ${entry.requestCategory} · ${entry.hitCount} hit${entry.hitCount === 1 ? "" : "s"}`,
+      note: entry.overrideRepoRelativePath
+        ? `This runtime source currently resolves through override ${entry.overrideRepoRelativePath}.`
+        : entry.localMirrorRepoRelativePath
+          ? `This runtime source currently resolves to local mirror path ${entry.localMirrorRepoRelativePath}.`
+          : "This runtime source is currently still upstream-backed."
+    }));
+  });
+
+  return Array.from(entryMap.values())
+    .sort((left, right) => {
+      const scoreDiff = scoreRuntimeWorkbenchEntry(right) - scoreRuntimeWorkbenchEntry(left);
+      if (scoreDiff !== 0) {
+        return scoreDiff;
+      }
+      return String(left.relativePath ?? left.sourceUrl).localeCompare(String(right.relativePath ?? right.sourceUrl));
+    });
 }
 
 function getSelectedProjectEvidenceSummary() {
@@ -9609,6 +9901,36 @@ function handleNavigationClick(event) {
     }
     setPreviewStatus(workbenchButton.dataset.switchStatus
       ?? `${getWorkbenchModeLabel(workbenchButton.dataset.switchWorkbenchMode)} Mode is active.`);
+    return true;
+  }
+
+  const runtimeSourceButton = target.closest("[data-runtime-source-url]");
+  if (runtimeSourceButton instanceof HTMLElement && runtimeSourceButton.dataset.runtimeSourceUrl) {
+    event.preventDefault();
+    const runtimeSourceUrl = runtimeSourceButton.dataset.runtimeSourceUrl;
+    const action = runtimeSourceButton.dataset.runtimeSourceAction ?? "select";
+    setRuntimeWorkbenchSource(runtimeSourceUrl, { render: false });
+    if (action === "select") {
+      renderAll();
+      setPreviewStatus(`Runtime workbench is now focused on ${getRuntimeResourceRelativePath(runtimeSourceUrl) ?? runtimeSourceUrl}.`);
+      return true;
+    }
+    if (action === "create-override") {
+      renderAll();
+      void createRuntimeOverrideForCurrentCandidate();
+      return true;
+    }
+    if (action === "clear-override") {
+      renderAll();
+      void clearRuntimeOverrideForCurrentCandidate();
+      return true;
+    }
+    if (action === "open-debug-host") {
+      renderAll();
+      void openRuntimeDebugHostWindow();
+      return true;
+    }
+    renderAll();
     return true;
   }
 
@@ -12026,13 +12348,14 @@ function renderOnboardingCard() {
   const workflowBridge = getRuntimeWorkflowBridge();
   const runtimeOverrideCandidate = getRuntimeOverrideCandidate();
   const workflowFocusSummary = {
-    runtime: "Live donor runtime first, then jump out to source or compose context from the bridge.",
+    runtime: "Use Debug Host first for trustworthy runtime asset proof, then jump out to donor source or compose context from the same workbench.",
     donor: "Source donor assets, evidence cards, and grounded linked-object context stay together here.",
     compose: "Internal scene composition stays bounded here: select, replace, align, resize, save, reload.",
     vabs: "VABS stays visible as a read-only blocker and readiness module for this project.",
     project: "Project scaffolding and workspace refresh stay separate from the runtime/composer workflow."
   };
   const bridgeActions = [
+    `<button type="button" class="copy-button" data-runtime-action="open-debug-host">Use Debug Host</button>`,
     workflowBridge.donorAsset
       ? `<button type="button" class="copy-button" data-focus-donor-asset-id="${escapeAttribute(workflowBridge.donorAsset.assetId)}">Focus Asset</button>`
       : "",
@@ -12046,9 +12369,9 @@ function renderOnboardingCard() {
   ].filter(Boolean).join("");
   const quickSteps = state.workbenchMode === "runtime"
     ? [
-      "Launch or reload the donor runtime in the main viewport.",
-      "Arm Pick / Inspect and click the live donor surface.",
-      "Use the bridge buttons below to jump into donor evidence, donor assets, or a related compose object, then create one project-local static override when the trace is eligible."
+      "Use Debug Host first to run the official runtime trace and override-proof cycle on the local mirror.",
+      "From the workbench, jump straight into donor asset, donor evidence, or the related compose object.",
+      "Use the embedded runtime only when you need secondary live context, then save/reload in Compose and re-open Debug Host when you want the strongest confirmation."
     ]
     : [
       "Drag or replace donor assets in Compose Mode as needed.",
@@ -12072,7 +12395,7 @@ function renderOnboardingCard() {
         <span>Runtime Source</span>
         <strong>${escapeHtml(runtimeLaunch?.runtimeSourceLabel ?? "Blocked")}</strong>
         <small>${escapeHtml(runtimeLaunch?.localRuntimePackageAvailable
-          ? runtimeLaunch?.blocker ?? "Runtime Mode prefers the grounded local Mystery Garden runtime mirror on this machine."
+          ? runtimeLaunch?.blocker ?? "Runtime Debug Host and the embedded runtime both use the grounded local Mystery Garden runtime mirror on this machine."
           : runtimeLaunch?.blocker ?? "No grounded donor runtime package is captured for project_001 yet.")}</small>
       </div>
       <div class="detail-card">
@@ -14344,6 +14667,82 @@ function renderActivityLog() {
     .join("");
 }
 
+function renderRuntimeWorkbenchAssetList() {
+  const entries = getRuntimeWorkbenchEntries();
+  const focusedSourceUrl = getRuntimeWorkbenchSourceUrl()
+    ?? getRuntimeOverrideCandidate().runtimeSourceUrl
+    ?? entries[0]?.sourceUrl
+    ?? null;
+  const embeddedRequestBackedImages = getRuntimeResourceMapEntries().filter((entry) => (
+    entry.requestCategory === "static-asset"
+    && ["png", "webp", "jpg", "jpeg", "svg"].includes(String(entry.fileType ?? "").toLowerCase())
+  ));
+  const workbenchMessage = entries.length === 0
+    ? "Open Debug Host to populate the official runtime workbench. The embedded path has not recorded any usable runtime source entries in this session yet."
+    : embeddedRequestBackedImages.length === 0
+      ? "No request-backed static image is available from the weaker embedded runtime path yet. The dedicated Runtime Debug Host result is ranked first and should be treated as the official daily runtime path."
+      : "Request-backed runtime items are ranked with the strongest debug-host/static candidates first so you can jump quickly into source, evidence, compose, and override actions.";
+
+  const listMarkup = entries.slice(0, 10).map((entry) => {
+    const isFocused = focusedSourceUrl === entry.sourceUrl;
+    const rowClasses = [
+      "runtime-workbench-entry",
+      entry.kind === "debug-host-proof" ? "is-proven" : "",
+      entry.overrideRepoRelativePath ? "is-override" : "",
+      isFocused ? "is-focused" : ""
+    ].filter(Boolean).join(" ");
+    const actionButtons = [
+      `<button type="button" class="copy-button" data-runtime-source-url="${escapeAttribute(entry.sourceUrl)}" data-runtime-source-action="select">${isFocused ? "Focused" : "Use Trace"}</button>`,
+      `<button type="button" class="copy-button" data-runtime-source-url="${escapeAttribute(entry.sourceUrl)}" data-runtime-source-action="open-debug-host">Use Debug Host</button>`,
+      entry.donorAsset ? `<button type="button" class="copy-button" data-focus-donor-asset-id="${escapeAttribute(entry.donorAsset.assetId)}">Asset</button>` : "",
+      entry.evidenceItem ? `<button type="button" class="copy-button" data-focus-donor-evidence-id="${escapeAttribute(entry.evidenceItem.evidenceId)}">Evidence</button>` : "",
+      entry.sceneObject ? `<button type="button" class="copy-button" data-focus-scene-object-id="${escapeAttribute(entry.sceneObject.id)}">Compose</button>` : "",
+      entry.isStaticImage && entry.donorAsset
+        ? `<button type="button" class="copy-button" data-runtime-source-url="${escapeAttribute(entry.sourceUrl)}" data-runtime-source-action="create-override">Create Override</button>`
+        : "",
+      entry.activeOverride
+        ? `<button type="button" class="copy-button" data-runtime-source-url="${escapeAttribute(entry.sourceUrl)}" data-runtime-source-action="clear-override">Clear Override</button>`
+        : ""
+    ].filter(Boolean).join("");
+
+    return `
+      <article class="${rowClasses}">
+        <div class="runtime-workbench-entry-head">
+          <div class="runtime-workbench-entry-title">
+            <strong>${escapeHtml(entry.relativePath ?? entry.sourceUrl)}</strong>
+            <small>${escapeHtml(entry.note || entry.requestSummary || "No additional runtime note recorded.")}</small>
+          </div>
+          <div class="chip-row runtime-workbench-chips">
+            <span>${escapeHtml(entry.statusLabel || (entry.isStaticImage ? "Static asset" : "Runtime dependency"))}</span>
+            <span>${escapeHtml(entry.requestSource ?? entry.kind)}</span>
+            <span>${entry.hitCount} hit${entry.hitCount === 1 ? "" : "s"}</span>
+            ${entry.overrideHitCountAfterReload > 0 ? `<span>${entry.overrideHitCountAfterReload} override hit${entry.overrideHitCountAfterReload === 1 ? "" : "s"}</span>` : ""}
+          </div>
+        </div>
+        <div class="runtime-workbench-meta">
+          <span><strong>URL</strong> <code>${escapeHtml(entry.sourceUrl)}</code></span>
+          <span><strong>Local</strong> ${escapeHtml(entry.localMirrorRepoRelativePath ?? "not mirrored locally")}</span>
+          <span><strong>Override</strong> ${escapeHtml(entry.overrideRepoRelativePath ?? "no active override")}</span>
+          <span><strong>Source bridge</strong> ${escapeHtml(entry.donorAsset?.assetId ?? entry.evidenceItem?.evidenceId ?? entry.sceneObject?.id ?? "not grounded yet")}</span>
+        </div>
+        <div class="evidence-actions">
+          ${actionButtons}
+        </div>
+      </article>
+    `;
+  }).join("");
+
+  return `
+    <div class="tree-row runtime-workbench-summary">
+      <strong>Runtime Asset Workbench</strong>
+      <span>${escapeHtml(workbenchMessage)}</span>
+    </div>
+    ${entries.length > 0
+      ? `<div class="runtime-workbench-list">${listMarkup}</div>`
+      : `<div class="tree-row"><strong>No runtime workbench items yet</strong><span>${escapeHtml(workbenchMessage)}</span></div>`}
+  `;
+}
+
 function renderRuntimeWorkbench() {
   const runtimeLaunch = getRuntimeLaunchInfo();
   const runtimeModeActive = state.workbenchMode === "runtime";
@@ -14354,6 +14753,7 @@ function renderRuntimeWorkbench() {
   const runtimeCoverage = getRuntimeCoverageStatus();
   const runtimeAssetUseEntries = getRuntimeAssetUseEntries();
   const latestResourceEntry = getRuntimeResourceMapEntries()[0] ?? null;
+  const debugHostResult = state.runtimeUi.debugHost;
 
   if (elements.runtimeWorkbench) {
     elements.runtimeWorkbench.hidden = !runtimeModeActive;
@@ -14418,19 +14818,41 @@ function renderRuntimeWorkbench() {
 
   elements.runtimeStatus.innerHTML = `
     <div class="tree-row runtime-status-summary">
-      <strong>Runtime Mode</strong>
+      <strong>Runtime Workbench</strong>
       <span>${escapeHtml(currentStatus)}. ${runtimeLaunch.localRuntimePackageAvailable
-        ? "A grounded local runtime mirror is active on this machine."
-        : "No local donor runtime mirror is captured, so this mode uses the recorded public donor runtime entry."}</span>
+        ? "The grounded local runtime mirror is active on this machine, and the dedicated Runtime Debug Host is the official daily runtime path."
+        : "No local donor runtime mirror is captured, so runtime work still falls back to the recorded donor entry."}</span>
       <div class="chip-row">
         <span>${escapeHtml(runtimeLaunch.captureSessionId ?? "runtime session unknown")}</span>
         <span>${escapeHtml(runtimeLaunch.runtimeSourceLabel ?? "Blocked")}</span>
-        <span>${runtimeLaunch.entryUrl ? "launch target ready" : "launch blocked"}</span>
-        <span>${state.runtimeUi.inspectEnabled ? "pick mode armed" : "pick mode idle"}</span>
+        <span>${debugHostResult?.status === "pass" ? "debug host proved" : "debug host pending"}</span>
+        <span>${runtimeLaunch.entryUrl ? "runtime entry ready" : "launch blocked"}</span>
+        <span>${state.runtimeUi.inspectEnabled ? "embedded pick armed" : "embedded pick idle"}</span>
         <span>${state.runtimeUi.diagnostics?.pixiVersion ? `Pixi ${escapeHtml(state.runtimeUi.diagnostics.pixiVersion)}` : runtimeLaunch.pixiVersion ? `Pixi ${escapeHtml(runtimeLaunch.pixiVersion)}` : "Pixi version unknown"}</span>
       </div>
     </div>
+    <div class="tree-row runtime-workbench-callout">
+      <strong>Official daily path</strong>
+      <span>${escapeHtml(debugHostResult?.status === "pass"
+        ? `Use Debug Host is now the practical runtime workflow for project_001. The latest run proved ${debugHostResult.candidateRuntimeRelativePath ?? debugHostResult.candidateRuntimeSourceUrl ?? "the current request-backed image"} with ${debugHostResult.overrideHitCountAfterReload ?? 0} override hit${Number(debugHostResult.overrideHitCountAfterReload ?? 0) === 1 ? "" : "s"} after reload.`
+        : "Use Debug Host to run the official runtime trace and override-proof cycle. The integrated embedded runtime remains available, but it is secondary until it exposes stronger asset truth.")}</span>
+      <div class="evidence-actions">
+        <button type="button" class="copy-button" data-runtime-action="open-debug-host">Use Debug Host</button>
+        <button type="button" class="copy-button" data-runtime-action="launch">Launch Embedded Runtime</button>
+        <button type="button" class="copy-button" data-switch-workflow-panel="runtime" data-switch-workbench-mode="scene" data-switch-status="Compose Mode is active. The runtime workbench kept the current project context.">Switch To Compose</button>
+      </div>
+    </div>
     <div class="detail-grid runtime-detail-grid">
+      <div class="detail-card ${debugHostResult?.status === "pass" ? "is-positive" : debugHostResult?.error ? "is-alert" : ""}">
+        <span>Runtime Debug Host</span>
+        <strong>${escapeHtml(debugHostResult?.status === "pass"
+          ? `${debugHostResult.overrideHitCountAfterReload ?? 0} override hit${debugHostResult.overrideHitCountAfterReload === 1 ? "" : "s"} proved`
+          : "Open Debug Host to start official runtime work")}</strong>
+        <small>${escapeHtml(debugHostResult
+          ? debugHostResult.error
+            ?? `${debugHostResult.candidateRuntimeRelativePath ?? debugHostResult.candidateRuntimeSourceUrl ?? "No request-backed candidate"} · ${debugHostResult.candidateRequestSource ?? "request source unknown"}`
+          : "The dedicated Runtime Debug Host uses the same local mirror, but it is the path that currently proves request-backed static image work.")}</small>
+      </div>
       <div class="detail-card">
         <span>Runtime Entry</span>
         <strong>${escapeHtml(runtimeLaunch.runtimeSourceLabel ?? "Blocked")}</strong>
@@ -14493,16 +14915,6 @@ function renderRuntimeWorkbench() {
           ? `${runtimeOverrideStatus.entries[0].runtimeRelativePath} -> ${runtimeOverrideStatus.entries[0].donorAssetId} (${runtimeOverrideStatus.entries[0].hitCount} runtime hit${runtimeOverrideStatus.entries[0].hitCount === 1 ? "" : "s"})`
           : "Create a bounded project-local override from the runtime trace when an eligible static image is grounded.")}</small>
       </div>
-      <div class="detail-card ${state.runtimeUi.debugHost?.status === "pass" ? "is-positive" : state.runtimeUi.debugHost?.error ? "is-alert" : ""}">
-        <span>Runtime Debug Host</span>
-        <strong>${escapeHtml(state.runtimeUi.debugHost?.status === "pass"
-          ? `${state.runtimeUi.debugHost.overrideHitCountAfterReload ?? 0} override hit${state.runtimeUi.debugHost.overrideHitCountAfterReload === 1 ? "" : "s"} proved`
-          : state.runtimeUi.debugHost?.pathDecision ?? "Not opened in this session")}</strong>
-        <small>${escapeHtml(state.runtimeUi.debugHost
-          ? state.runtimeUi.debugHost.error
-            ?? `${state.runtimeUi.debugHost.candidateRuntimeRelativePath ?? state.runtimeUi.debugHost.candidateRuntimeSourceUrl ?? "No candidate path"} · ${state.runtimeUi.debugHost.candidateRequestSource ?? "request source unknown"}`
-          : "Open Debug Host to run the dedicated local-mirror trace and override-proof path in a separate window.")}</small>
-      </div>
       <div class="detail-card ${blockerSummary.length > 0 ? "is-alert" : "is-positive"}">
         <span>Current Runtime Blocker</span>
         <strong>${blockerSummary.length > 0 ? "Partial runtime control limits remain" : "No runtime blocker recorded in this slice"}</strong>
@@ -14535,20 +14947,80 @@ function renderRuntimeInspector() {
     .join("");
   const sourcePaths = Array.isArray(runtimeLaunch?.sourcePaths) ? runtimeLaunch.sourcePaths : [];
   const topRuntimeAsset = lastPick?.topRuntimeAsset ?? runtimeAssetUseEntries[0] ?? null;
+  const workbenchEntries = getRuntimeWorkbenchEntries();
+  const activeWorkbenchSourceUrl = getRuntimeWorkbenchSourceUrl()
+    ?? runtimeOverrideCandidate.runtimeSourceUrl
+    ?? workbenchEntries[0]?.sourceUrl
+    ?? null;
+  const activeWorkbenchEntry = workbenchEntries.find((entry) => entry.sourceUrl === activeWorkbenchSourceUrl) ?? workbenchEntries[0] ?? null;
+  const embeddedRequestBackedImages = getRuntimeResourceMapEntries().filter((entry) => (
+    entry.requestCategory === "static-asset"
+    && ["png", "webp", "jpg", "jpeg", "svg"].includes(String(entry.fileType ?? "").toLowerCase())
+  ));
+  const inspectorTitle = activeWorkbenchEntry?.relativePath
+    ?? (lastPick?.targetTag
+      ? `Picked ${lastPick.targetTag}`
+      : runtimeLaunch?.captureSessionId ?? "Runtime Mode");
 
   return `
     <div class="inspector-title">
-      <p>Runtime Element Trace</p>
-      <h3>${escapeHtml(lastPick?.targetTag ? `Picked ${lastPick.targetTag}` : runtimeLaunch?.captureSessionId ?? "Runtime Mode")}</h3>
+      <p>Runtime Debug Workbench</p>
+      <h3>${escapeHtml(inspectorTitle)}</h3>
     </div>
-    <p class="inspector-purpose">Runtime Mode surfaces the strongest grounded trace available from the live donor runtime surface. When the runtime does not expose a stable app/ticker/object handle, this panel says so plainly instead of inventing provenance.</p>
+    <p class="inspector-purpose">The dedicated Runtime Debug Host is the official daily runtime path for <code>project_001</code>. This panel keeps the stronger debug-host candidate, the practical runtime asset/request list, and the secondary embedded trace in one place so you can move between runtime, donor source, compose, and override work without guessing.</p>
     <div class="chip-row">
       <span>${escapeHtml(runtimeLaunch?.availability ?? "blocked")}</span>
       <span>${escapeHtml(runtimeLaunch?.runtimeSourceLabel ?? "Blocked")}</span>
-      <span>${state.runtimeUi.inspectEnabled ? "pick mode armed" : "pick mode idle"}</span>
+      <span>${state.runtimeUi.debugHost?.status === "pass" ? "debug host official" : "debug host ready"}</span>
+      <span>${state.runtimeUi.inspectEnabled ? "embedded pick armed" : "embedded pick idle"}</span>
       <span>${diagnostics?.pixiVersion ? `Pixi ${escapeHtml(diagnostics.pixiVersion)}` : runtimeLaunch?.pixiVersion ? `Pixi ${escapeHtml(runtimeLaunch.pixiVersion)}` : escapeHtml(diagnostics?.engineKind ?? "Pixi unknown")}</span>
       <span>${topDisplayObject ? "display-object candidate detected" : topRuntimeAsset ? "live asset-use candidate detected" : "canvas / DOM level trace only"}</span>
     </div>
+    <div class="tree-row runtime-workbench-summary">
+      <strong>Official Runtime Work Mode</strong>
+      <span>${escapeHtml(state.runtimeUi.debugHost?.status === "pass"
+        ? `Debug Host already proved ${state.runtimeUi.debugHost.candidateRuntimeRelativePath ?? state.runtimeUi.debugHost.candidateRuntimeSourceUrl ?? "the current request-backed candidate"} with ${state.runtimeUi.debugHost.overrideHitCountAfterReload ?? 0} override hit${Number(state.runtimeUi.debugHost.overrideHitCountAfterReload ?? 0) === 1 ? "" : "s"} after reload.`
+        : "Use Debug Host first when you need trustworthy runtime asset selection or override proof. The embedded runtime trace below remains secondary until it exposes stronger asset truth.")}</span>
+      <div class="evidence-actions">
+        <button type="button" class="copy-button" data-runtime-action="open-debug-host">Use Debug Host</button>
+        ${activeWorkbenchEntry?.donorAsset ? `<button type="button" class="copy-button" data-focus-donor-asset-id="${escapeAttribute(activeWorkbenchEntry.donorAsset.assetId)}">Focus Asset</button>` : ""}
+        ${activeWorkbenchEntry?.evidenceItem ? `<button type="button" class="copy-button" data-focus-donor-evidence-id="${escapeAttribute(activeWorkbenchEntry.evidenceItem.evidenceId)}">Focus Evidence</button>` : ""}
+        ${activeWorkbenchEntry?.sceneObject ? `<button type="button" class="copy-button" data-focus-scene-object-id="${escapeAttribute(activeWorkbenchEntry.sceneObject.id)}">Focus Compose Object</button>` : ""}
+      </div>
+    </div>
+    <div class="detail-grid runtime-workbench-grid">
+      <div class="detail-card ${state.runtimeUi.debugHost?.status === "pass" ? "is-positive" : "is-alert"}">
+        <span>Preferred Candidate</span>
+        <strong>${escapeHtml(activeWorkbenchEntry?.relativePath ?? "Open Debug Host to choose a runtime candidate")}</strong>
+        <small>${escapeHtml(activeWorkbenchEntry?.note ?? "No request-backed runtime workbench item is selected yet.")}</small>
+      </div>
+      <div class="detail-card ${activeWorkbenchEntry?.donorAsset ? "is-positive" : "is-alert"}">
+        <span>Source Bridge</span>
+        <strong>${escapeHtml(activeWorkbenchEntry?.donorAsset?.assetId ?? activeWorkbenchEntry?.evidenceItem?.evidenceId ?? "No grounded donor bridge yet")}</strong>
+        <small>${escapeHtml(activeWorkbenchEntry?.sceneObject
+          ? `${activeWorkbenchEntry.sceneObject.displayName} · compose-linked`
+          : activeWorkbenchEntry?.donorAsset
+            ? `${activeWorkbenchEntry.donorAsset.filename} · donor-backed`
+            : "This runtime source does not yet map to a grounded donor asset or compose object.")}</small>
+      </div>
+      <div class="detail-card ${activeWorkbenchEntry?.localMirrorRepoRelativePath ? "is-positive" : "is-alert"}">
+        <span>Local Mirror Path</span>
+        <strong>${escapeHtml(activeWorkbenchEntry?.localMirrorRepoRelativePath ?? "No grounded local mirror path")}</strong>
+        <small>${escapeHtml(activeWorkbenchEntry?.requestSummary ?? "Open Debug Host or capture runtime requests to populate the workbench list.")}</small>
+      </div>
+      <div class="detail-card ${activeWorkbenchEntry?.overrideRepoRelativePath || state.runtimeUi.debugHost?.overrideHitCountAfterReload > 0 ? "is-positive" : ""}">
+        <span>Override Status</span>
+        <strong>${escapeHtml(activeWorkbenchEntry?.overrideRepoRelativePath
+          ? activeWorkbenchEntry.overrideRepoRelativePath
+          : state.runtimeUi.debugHost?.overrideHitCountAfterReload > 0
+            ? `${state.runtimeUi.debugHost.overrideHitCountAfterReload} debug-host hit${state.runtimeUi.debugHost.overrideHitCountAfterReload === 1 ? "" : "s"}`
+            : "No active override for the selected workbench source")}</strong>
+        <small>${escapeHtml(embeddedRequestBackedImages.length > 0
+          ? "Embedded runtime has request-backed image evidence in this session."
+          : "Embedded runtime still has no request-backed static image in this session; treat Debug Host as the trustworthy override-proof path.")}</small>
+      </div>
+    </div>
+    ${renderRuntimeWorkbenchAssetList()}
     <div class="tree-row">
       <strong>Live Runtime Surface</strong>
       <span>${escapeHtml(state.runtimeUi.currentUrl ?? runtimeLaunch?.entryUrl ?? "No runtime URL loaded yet.")}</span>
@@ -14669,10 +15141,10 @@ function renderRuntimeInspector() {
       </div>
     </div>
     <div class="tree-row">
-      <strong>Bridge Actions</strong>
+      <strong>Embedded Runtime Bridge Actions</strong>
       <span>${escapeHtml(workflowBridge.donorAsset
-        ? "Jump straight from the runtime trace into donor asset, donor evidence, or related compose context."
-        : "Jump into the strongest grounded runtime evidence while the live donor runtime remains partially opaque.")}</span>
+        ? "Jump straight from the current embedded runtime trace into donor asset, donor evidence, or related compose context."
+        : "Jump into the strongest grounded embedded-runtime evidence while the live donor runtime remains partially opaque.")}</span>
       <div class="evidence-actions">
         ${workflowBridge.donorAsset ? `<button type="button" class="copy-button" data-focus-donor-asset-id="${escapeAttribute(workflowBridge.donorAsset.assetId)}">Focus Asset</button>` : ""}
         ${workflowBridge.evidenceItem ? `<button type="button" class="copy-button" data-focus-donor-evidence-id="${escapeAttribute(workflowBridge.evidenceItem.evidenceId)}">Focus Evidence</button>` : ""}
@@ -14814,7 +15286,9 @@ function renderAll() {
       const runtimeOverrideCandidate = getRuntimeOverrideCandidate();
       if (action === "launch") {
         disabled = !Boolean(runtimeLaunch?.entryUrl);
-      } else if (action === "reload" || action === "inspect-toggle" || action === "open-debug-host" || action === "focus-note" || action === "focus-init") {
+      } else if (action === "open-debug-host") {
+        disabled = !Boolean(runtimeLaunch?.entryUrl);
+      } else if (action === "reload" || action === "inspect-toggle" || action === "focus-note" || action === "focus-init") {
         disabled = !state.runtimeUi.launched;
       } else if (action === "pause" || action === "resume" || action === "step") {
         disabled = !state.runtimeUi.launched || !Boolean(state.runtimeUi.controlSupport[action]);

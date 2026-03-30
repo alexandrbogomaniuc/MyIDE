@@ -8,7 +8,7 @@ Use this when you want to test the current MyIDE build exactly as it works today
 3. Recommended for the strongest local-runtime path on this machine: run `npm run runtime:harvest:project_001`.
 4. Run `npm run dev`.
 5. Wait for the Electron shell window to open.
-6. If you are specifically testing the stronger runtime-debug path, run `npm run runtime:debug:project_001`.
+6. If you want the official runtime workflow for real work on `project_001`, run `npm run runtime:debug:project_001`.
 
 ## 2. Open The Validated Project
 1. In the shell, use **Project Browser**.
@@ -24,18 +24,18 @@ Use this when you want to test the current MyIDE build exactly as it works today
 5. Use **Reload Runtime** to refresh the runtime surface.
 6. Use **Click To Start** if the donor runtime needs one bounded pointer click to begin.
 7. Use **Spin / Trigger** if you want the bounded runtime action path that currently sends `Space` to the runtime surface.
-8. Use **Pick / Inspect** and then click the live runtime surface to capture the strongest grounded runtime trace available.
-9. If you need the strongest current runtime asset proof, use **Open Debug Host** from the Runtime toolbar.
-10. The dedicated Runtime Debug Host loads the same local mirror in a separate window and is the current path that can prove a request-backed static image override hit.
-11. Read the right-hand inspector for picked target, runtime/display-object trace when exposed, texture/frame info when exposed, runtime URL, local mirror file path when grounded, the current runtime resource-map record, override eligibility, and supporting evidence refs.
-10. Use the new runtime bridge actions in the inspector or Workflow Hub to:
+8. Use **Use Debug Host** from the Runtime toolbar as the primary runtime action.
+9. The dedicated Runtime Debug Host loads the same local mirror in a separate window and is the current path that can prove a request-backed static image override hit.
+10. Use **Pick / Inspect** and then click the live runtime surface when you need the strongest grounded runtime trace available inside the shell.
+11. Read the right-hand inspector and runtime asset workbench for picked target, request-backed source priority, runtime/display-object trace when exposed, texture/frame info when exposed, runtime URL, local mirror file path when grounded, the current runtime resource-map record, override eligibility, and supporting evidence refs.
+12. Use the new runtime bridge actions in the inspector or workbench to:
    - focus the strongest grounded donor asset card
    - focus the strongest grounded donor evidence entry
    - focus a related compose object if one already exists for that donor-linked asset
-11. If the picked runtime trace shows **Eligible static image override**, click **Create Override**.
-12. Runtime Mode will reload the runtime without cache and keep the project-local override active for that grounded static image source.
-13. Use **Clear Override** if you want to restore the original donor runtime asset.
-14. Use **Show Runtime Note** or **Show Init Response** to jump back to the grounded runtime evidence behind the current Runtime Mode slice.
+13. If the picked runtime trace or runtime asset workbench shows **Eligible static image override**, click **Create Override**.
+14. The embedded runtime reloads immediately, and you should reopen or keep using **Use Debug Host** for the strongest override-hit confirmation path.
+15. Use **Clear Override** if you want to restore the original donor runtime asset.
+16. Use **Show Runtime Note** or **Show Init Response** to jump back to the grounded runtime evidence behind the current Runtime Mode slice.
 
 ## 4. Where Donor Evidence Appears
 1. In the shell, donor content appears in **Donor Assets & Evidence**.
@@ -93,9 +93,9 @@ Current hard limits:
 - Runtime Mode now prefers a bounded local runtime mirror when it is available, but that mirror still depends on the live donor launch upstream for launch HTML/token/API state
 - the first static override slice works only for grounded static runtime image URLs that the current runtime trace can prove and that match a supported donor image file type
 - when Runtime Mode uses the local mirror, the shell can now trace one grounded static runtime candidate back to a local mirror file path and show the current request map; no unresolved upstream bootstrap/static dependency remains in the current bounded cycle, the embedded runtime tap now proves a local `bundle.js` hit, direct local launch inspection proves the mirror can serve local static assets, but the embedded Runtime Mode slice still does not confirm a request-backed static override hit
-- the embedded runtime webview is still weaker for live asset-level proof, so the repo now includes a bounded dedicated Runtime Debug Host path that loads the same local mirror in a separate BrowserWindow
-- the strongest previously verified embedded-runtime proof is still also the current blocker: `frameCount=0`, `accessibleFrameCount=0`, `canvasCount=0`, resource window labels stay at `top`, and no request-backed static image or display-object handle is exposed in the bounded embedded slice
-- the dedicated Runtime Debug Host is now the stronger proof path: it can surface a request-backed static image candidate from the local mirror and prove a bounded project-local override hit after reload
+- the embedded runtime webview is still weaker for live asset-level proof, so the bounded dedicated Runtime Debug Host is now the official runtime work mode for `project_001`
+- the strongest previously verified embedded-runtime proof is still the reason it stays secondary: `frameCount=0`, `accessibleFrameCount=0`, `canvasCount=0`, resource window labels stay at `top`, and no request-backed static image or display-object handle is exposed in the bounded embedded slice
+- the dedicated Runtime Debug Host is the stronger proof path in daily use: it can surface a request-backed static image candidate from the local mirror and prove a bounded project-local override hit after reload
 - pause, resume, and step only work if the embedded runtime exposes a stable ticker-like hook; if it does not, the shell shows the blocker instead of faking the control
 - only `project_001` is supported in this slice
 - only static donor image files are supported
@@ -108,16 +108,16 @@ The donor file remains read-only evidence. Runtime Mode can now create one bound
 
 ## 8. Runtime Override Loop
 1. Stay in **Runtime** mode.
-2. Click **Launch Runtime**.
+2. Click **Use Debug Host**.
 3. Use **Pick / Inspect** and click the live runtime surface.
-4. Confirm the inspector shows:
+4. Confirm the inspector or runtime asset workbench shows:
    - `Runtime Source: Local mirror` when the bounded mirror is available
-   - a grounded static runtime source path or the strongest grounded local mirror candidate path
+   - a request-backed runtime source first when one exists, otherwise the strongest grounded local mirror candidate path
    - a runtime resource-map record for the current launch/reload cycle when one has been captured
    - whether the current trace is override-eligible
 5. Click **Create Override**.
-6. Wait for Runtime Mode to reload.
-7. Read the **Project-local Overrides** card or the active override detail in the inspector.
+6. Wait for the embedded runtime to reload and keep using the Debug Host window for the strongest confirmation path.
+7. Read the **Project-local Overrides** card, the active override detail in the inspector, or the selected runtime asset entry in the workbench.
 8. If the current slice reports a blocker for the local mirrored candidate instead of a reload-time hit, treat that as the current honest limit rather than a silent failure.
 9. Watch the `Inspection Bridge` card in Runtime Mode:
    - `main-world-execute-js` means the new preferred bridge attached

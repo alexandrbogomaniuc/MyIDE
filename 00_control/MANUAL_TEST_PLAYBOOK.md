@@ -107,7 +107,7 @@ Use this when testing the current local MyIDE build by hand.
 - When the current runtime slice resolves that source through the bounded local mirror, the shell should also show the grounded local mirror file path.
 - Runtime Mode now also shows the current launch/reload resource-map record when one has been captured.
 - If the mirrored candidate still does not record a reload-time hit, the shell should report that blocker plainly instead of inventing success.
-- The stronger dedicated Runtime Debug Host path should now prove one request-backed static image candidate and one bounded override hit after reload.
+- The official Runtime Debug Host path should now prove one request-backed static image candidate and one bounded override hit after reload.
 - The created object remains editable.
 - At least one donor asset is visible in the donor asset palette.
 - More than one donor asset can be imported into the scene as editable internal image objects when multiple grounded donor images are available locally.
@@ -126,8 +126,8 @@ Use this when testing the current local MyIDE build by hand.
   - the bounded runtime override slice only works when the current runtime trace exposes a grounded static image URL and the chosen donor asset matches that file type
   - the current local-mirror override path now has a real request map, and no unresolved upstream bootstrap/static dependency remains in the bounded cycle
   - direct local launch inspection proves the mirror can serve local static assets, but the mirrored static override candidate is still only mirror-manifest-backed inside the strongest previously verified embedded Runtime Mode proof, so that part remains partially blocked
-  - the embedded runtime path is still weaker for asset ownership truth than the dedicated Runtime Debug Host path
-  - the dedicated Runtime Debug Host now proves the first request-backed static image override hit, but the embedded Runtime Mode surface still does not expose the same asset-level truth
+  - the embedded runtime path is still weaker for asset ownership truth than the dedicated Runtime Debug Host path and should be treated as secondary
+  - the dedicated Runtime Debug Host now proves the first request-backed static image override hit and is the official runtime work mode for this validated slice, but the embedded Runtime Mode surface still does not expose the same asset-level truth
   - pause/resume/step only work when the embedded donor runtime exposes a stable ticker-like hook; otherwise the shell reports that blocker plainly
   - only `project_001` is supported
   - only supported local donor image files are importable

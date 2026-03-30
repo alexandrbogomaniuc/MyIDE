@@ -238,6 +238,12 @@ select {
   background: linear-gradient(180deg, rgba(82, 64, 24, 0.96), rgba(42, 32, 12, 0.98));
 }
 
+#runtime-toolbar [data-runtime-action="open-debug-host"] {
+  border-color: rgba(110, 169, 216, 0.46);
+  background: linear-gradient(180deg, rgba(38, 62, 88, 0.96), rgba(18, 34, 52, 0.98));
+  color: #d9ebf7;
+}
+
 .editor-toolbar .is-danger {
   border-color: rgba(232, 138, 93, 0.38);
   background: linear-gradient(180deg, rgba(88, 42, 28, 0.96), rgba(52, 25, 16, 0.98));
@@ -723,6 +729,88 @@ button:disabled {
 .runtime-detail-grid,
 .runtime-trace-grid {
   align-items: stretch;
+}
+
+.runtime-workbench-callout,
+.runtime-workbench-summary {
+  gap: 10px;
+}
+
+.runtime-workbench-grid {
+  margin-top: 2px;
+}
+
+.runtime-workbench-list {
+  display: grid;
+  gap: 10px;
+}
+
+.runtime-workbench-entry {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(179, 209, 186, 0.14);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.runtime-workbench-entry.is-proven {
+  border-color: rgba(147, 201, 133, 0.34);
+  background: rgba(147, 201, 133, 0.08);
+}
+
+.runtime-workbench-entry.is-override {
+  border-color: rgba(230, 191, 100, 0.34);
+  background: rgba(230, 191, 100, 0.08);
+}
+
+.runtime-workbench-entry.is-focused {
+  box-shadow: inset 0 0 0 1px rgba(110, 169, 216, 0.5);
+}
+
+.runtime-workbench-entry-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.runtime-workbench-entry-title {
+  display: grid;
+  gap: 4px;
+}
+
+.runtime-workbench-entry-title strong {
+  font-size: 0.95rem;
+}
+
+.runtime-workbench-entry-title small {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.runtime-workbench-chips {
+  justify-content: flex-end;
+}
+
+.runtime-workbench-meta {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.runtime-workbench-meta strong {
+  color: var(--text);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-right: 6px;
+}
+
+.runtime-workbench-meta code {
+  color: var(--accent);
+  word-break: break-all;
 }
 
 .sync-status-card {
