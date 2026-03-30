@@ -14,6 +14,11 @@ import {
   type RuntimeAssetOverrideHitInfo
 } from "../workspace/donorOverride";
 import {
+  buildProjectDonorAssetIndex,
+  readProjectDonorAssetIndex,
+  type IndexedDonorAsset
+} from "../../tools/donor-assets/shared";
+import {
   buildLocalRuntimeLaunchHtml,
   buildLocalRuntimeMirrorRedirectMap,
   findLocalRuntimeMirrorEntry,
@@ -30,8 +35,17 @@ import {
   recordRuntimeResourceRequest,
   resetRuntimeResourceMap
 } from "../runtime/runtimeResourceMap";
+import {
+  buildRuntimeDebugCenterPickScript,
+  buildRuntimeDebugStatusScript,
+  selectRuntimeDebugCandidate,
+  type RuntimeDebugBridgeStatus,
+  type RuntimeDebugPickPayload
+} from "../runtime/runtimeDebugHost";
 
 const isBridgeSmokeMode = process.env.MYIDE_BRIDGE_SMOKE === "1";
+const isRuntimeDebugSmokeMode = process.env.MYIDE_RUNTIME_DEBUG_SMOKE === "1";
+const isRuntimeDebugHostMode = process.env.MYIDE_RUNTIME_DEBUG_HOST === "1" || isRuntimeDebugSmokeMode;
 const isLivePersistSmokeMode = process.env.MYIDE_LIVE_PERSIST_SMOKE === "1";
 const isLiveDragSmokeMode = process.env.MYIDE_LIVE_DRAG_SMOKE === "1";
 const isLiveCreateDragSmokeMode = process.env.MYIDE_LIVE_CREATE_DRAG_SMOKE === "1";
@@ -44,6 +58,7 @@ const isLiveResizeSmokeMode = process.env.MYIDE_LIVE_RESIZE_SMOKE === "1";
 const isLiveAlignSmokeMode = process.env.MYIDE_LIVE_ALIGN_SMOKE === "1";
 const isLiveUndoRedoSmokeMode = process.env.MYIDE_LIVE_UNDO_REDO_SMOKE === "1";
 const shouldShowLiveRuntimeWindow = process.env.MYIDE_LIVE_RUNTIME_SHOW === "1";
+const shouldShowRuntimeDebugWindow = process.env.MYIDE_RUNTIME_DEBUG_SHOW === "1" || (isRuntimeDebugHostMode && !isRuntimeDebugSmokeMode);
 const shouldKeepLivePersistWindowOpen = process.env.MYIDE_LIVE_PERSIST_KEEP_OPEN === "1";
 const shouldShowLivePersistWindow = process.env.MYIDE_LIVE_PERSIST_SHOW === "1" || shouldKeepLivePersistWindowOpen;
 const shouldKeepLiveDragWindowOpen = process.env.MYIDE_LIVE_DRAG_KEEP_OPEN === "1";
@@ -108,6 +123,11 @@ interface LiveRuntimeSmokePayload {
   error?: string;
 }
 
+interface RuntimeDebugSmokePayload {
+  status?: string;
+  error?: string;
+}
+
 interface LiveDuplicateDeleteSmokePayload {
   status?: string;
   error?: string;
@@ -156,6 +176,7 @@ let runtimeLocalMirrorRedirectMap = new Map<string, string>();
 let runtimeAssetOverrideInterceptionInstalled = false;
 const runtimeAssetOverrideHits = new Map<string, RuntimeAssetOverrideHitInfo>();
 const runtimeWebviewPartition = "persist:myide-runtime-project001";
+const runtimeDebugPartition = "persist:myide-runtime-debug-project001";
 let runtimeLocalMirrorStatus: LocalRuntimeMirrorStatus | null = null;
 let runtimeLocalMirrorServer: Server | null = null;
 let runtimeRequestStage = "launch";
@@ -386,12 +407,296 @@ async function refreshRuntimeAssetOverrideRedirects(): Promise<void> {
 }
 
 async function clearRuntimeWebviewCache(): Promise<{ cleared: true; partition: string }> {
-  const runtimeSession = session.fromPartition(runtimeWebviewPartition);
+  return clearRuntimeSessionCache(runtimeWebviewPartition);
+}
+
+async function clearRuntimeSessionCache(partition: string): Promise<{ cleared: true; partition: string }> {
+  const runtimeSession = session.fromPartition(partition);
   await runtimeSession.clearCache();
   return {
     cleared: true,
-    partition: runtimeWebviewPartition
+    partition
   };
+}
+
+function finishRuntimeDebugSmoke(exitCode: number, message: string): void {
+  if (exitCode === 0) {
+    console.log(message);
+  } else {
+    console.error(message);
+  }
+
+  setTimeout(() => {
+    app.exit(exitCode);
+  }, 0);
+}
+
+function delay(delayMs: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, delayMs);
+  });
+}
+
+async function waitForNextLoad(window: BrowserWindow, timeoutMs = 45000): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error(`Runtime debug host timed out waiting for load after ${timeoutMs}ms.`));
+    }, timeoutMs);
+
+    const cleanup = () => {
+      clearTimeout(timeout);
+      window.webContents.removeListener("did-finish-load", onDidFinishLoad);
+      window.webContents.removeListener("did-fail-load", onDidFailLoad);
+      window.webContents.removeListener("render-process-gone", onRenderProcessGone);
+    };
+
+    const onDidFinishLoad = () => {
+      cleanup();
+      resolve();
+    };
+    const onDidFailLoad = (_event: unknown, errorCode: number, errorDescription: string) => {
+      cleanup();
+      reject(new Error(`Runtime debug host failed to load (${errorCode} ${errorDescription}).`));
+    };
+    const onRenderProcessGone = (_event: unknown, details: { reason: string }) => {
+      cleanup();
+      reject(new Error(`Runtime debug host renderer exited (${details.reason}).`));
+    };
+
+    window.webContents.once("did-finish-load", onDidFinishLoad);
+    window.webContents.once("did-fail-load", onDidFailLoad);
+    window.webContents.once("render-process-gone", onRenderProcessGone);
+  });
+}
+
+async function safeExecuteDebugScript<T>(window: BrowserWindow, script: string): Promise<T | null> {
+  try {
+    return await window.webContents.executeJavaScript(script, true) as T | null;
+  } catch {
+    return null;
+  }
+}
+
+async function sendRuntimeDebugCenterClick(window: BrowserWindow): Promise<void> {
+  try {
+    const point = await window.webContents.executeJavaScript(
+      "({ x: Math.round(window.innerWidth / 2), y: Math.round(window.innerHeight / 2) })",
+      true
+    ) as { x?: number; y?: number } | null;
+    const x = Number(point?.x ?? 0);
+    const y = Number(point?.y ?? 0);
+    if (!(x > 0 && y > 0)) {
+      return;
+    }
+
+    window.webContents.focus();
+    window.webContents.sendInputEvent({ type: "mouseMove", x, y });
+    window.webContents.sendInputEvent({ type: "mouseDown", x, y, button: "left", clickCount: 1 });
+    window.webContents.sendInputEvent({ type: "mouseUp", x, y, button: "left", clickCount: 1 });
+  } catch {
+    // Best-effort only.
+  }
+}
+
+function sendRuntimeDebugSpace(window: BrowserWindow): void {
+  try {
+    window.webContents.focus();
+    window.webContents.sendInputEvent({ type: "keyDown", keyCode: "Space" });
+    window.webContents.sendInputEvent({ type: "char", keyCode: " " });
+    window.webContents.sendInputEvent({ type: "keyUp", keyCode: "Space" });
+  } catch {
+    // Best-effort only.
+  }
+}
+
+async function loadPreferredRuntimeDebugDonorAsset(): Promise<IndexedDonorAsset | null> {
+  const donorIndex = await readProjectDonorAssetIndex("project_001") ?? await buildProjectDonorAssetIndex("project_001");
+  return donorIndex.assets.find((entry) => entry.fileType === "png")
+    ?? donorIndex.assets.find((entry) => entry.fileType === "webp")
+    ?? donorIndex.assets[0]
+    ?? null;
+}
+
+async function runRuntimeDebugHost(): Promise<void> {
+  const timeoutMs = Number.parseInt(process.env.MYIDE_RUNTIME_DEBUG_TIMEOUT_MS ?? "90000", 10);
+  const runtimeInspectorPreloadPath = resolveRuntimeInspectorPreloadPath();
+  console.log("MYIDE_RUNTIME_DEBUG_MAIN_READY");
+
+  try {
+    const bundle = await loadProjectSlice("project_001");
+    const runtimeLaunch = bundle.runtimeLaunch;
+    if (!runtimeLaunch?.entryUrl) {
+      throw new Error(runtimeLaunch?.blocker ?? "No grounded runtime launch URL is available for project_001.");
+    }
+
+    recentRuntimeObservationFingerprints.clear();
+    runtimeAssetOverrideHits.clear();
+    resetRuntimeResourceMap("project_001");
+    setRuntimeRequestStage("launch");
+    await clearRuntimeSessionCache(runtimeDebugPartition);
+
+    const debugWindow = new BrowserWindow({
+      width: 1440,
+      height: 960,
+      show: shouldShowRuntimeDebugWindow,
+      backgroundColor: "#0b1017",
+      title: "MyIDE Runtime Debug Host",
+      webPreferences: {
+        preload: runtimeInspectorPreloadPath,
+        backgroundThrottling: false,
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+        partition: runtimeDebugPartition
+      }
+    });
+
+    const failIfGone = (_event: unknown, details: { reason: string }) => {
+      const payload = {
+        status: "fail",
+        error: `Runtime debug host renderer exited (${details.reason}).`
+      };
+      console.log(`MYIDE_RUNTIME_DEBUG_RESULT:${JSON.stringify(payload)}`);
+      if (isRuntimeDebugSmokeMode) {
+        finishRuntimeDebugSmoke(1, `FAIL smoke:electron-runtime-debug - ${payload.error}`);
+      }
+    };
+    debugWindow.webContents.once("render-process-gone", failIfGone);
+
+    await debugWindow.loadURL(runtimeLaunch.entryUrl);
+    await delay(3000);
+
+    const initialStatus = await safeExecuteDebugScript<RuntimeDebugBridgeStatus>(debugWindow, buildRuntimeDebugStatusScript());
+    const initialPick = await safeExecuteDebugScript<RuntimeDebugPickPayload>(debugWindow, buildRuntimeDebugCenterPickScript());
+
+    setRuntimeRequestStage("start");
+    await sendRuntimeDebugCenterClick(debugWindow);
+    await delay(2500);
+
+    setRuntimeRequestStage("spin");
+    sendRuntimeDebugSpace(debugWindow);
+    await delay(2500);
+
+    const resourceMapBeforeOverride = buildRuntimeResourceMapStatus("project_001");
+    const candidate = selectRuntimeDebugCandidate(resourceMapBeforeOverride);
+    const donorAsset = await loadPreferredRuntimeDebugDonorAsset();
+
+    let overrideCreated = false;
+    let overrideCleared = false;
+    let overrideHitCountAfterReload = 0;
+    let overrideBlocked: string | null = null;
+
+    if (!candidate) {
+      overrideBlocked = "Dedicated Runtime Debug Host still did not capture any request-backed static image candidate.";
+    } else if (!donorAsset) {
+      overrideBlocked = "No compatible local donor asset exists to drive the bounded project-local override proof.";
+    } else {
+      await createRuntimeAssetOverride({
+        projectId: "project_001",
+        runtimeSourceUrl: candidate.canonicalSourceUrl,
+        donorAssetId: donorAsset.assetId
+      });
+      await refreshRuntimeAssetOverrideRedirects();
+      runtimeAssetOverrideHits.delete(candidate.canonicalSourceUrl);
+      overrideCreated = true;
+
+      setRuntimeRequestStage("reload");
+      await clearRuntimeSessionCache(runtimeDebugPartition);
+      const reloadPromise = waitForNextLoad(debugWindow, timeoutMs);
+      const debugContents = debugWindow.webContents as Electron.WebContents & {
+        reloadIgnoringCache?: () => void;
+      };
+      if (typeof debugContents.reloadIgnoringCache === "function") {
+        debugContents.reloadIgnoringCache();
+      } else {
+        debugWindow.webContents.reload();
+      }
+      await reloadPromise;
+      await delay(3000);
+      overrideHitCountAfterReload = runtimeAssetOverrideHits.get(candidate.canonicalSourceUrl)?.count ?? 0;
+
+      if (overrideHitCountAfterReload <= 0) {
+        overrideBlocked = `Dedicated Runtime Debug Host found request-backed static image ${candidate.runtimeRelativePath ?? candidate.canonicalSourceUrl}, but the override path was not hit after reload.`;
+      }
+
+      await clearRuntimeAssetOverride("project_001", candidate.canonicalSourceUrl);
+      await refreshRuntimeAssetOverrideRedirects();
+      overrideCleared = true;
+    }
+
+    const finalStatus = await safeExecuteDebugScript<RuntimeDebugBridgeStatus>(debugWindow, buildRuntimeDebugStatusScript());
+    const finalPick = await safeExecuteDebugScript<RuntimeDebugPickPayload>(debugWindow, buildRuntimeDebugCenterPickScript());
+    const finalResourceMap = buildRuntimeResourceMapStatus("project_001");
+    const finalOverrideStatus = await buildRuntimeAssetOverrideStatus("project_001", runtimeAssetOverrideHits);
+
+    const payload = {
+      status: overrideHitCountAfterReload > 0 ? "pass" : "fail",
+      error: overrideHitCountAfterReload > 0 ? null : overrideBlocked,
+      pathDecision: "embedded-no-go-debug-host",
+      projectId: "project_001",
+      runtimeSourceLabel: runtimeLaunch.runtimeSourceLabel,
+      entryUrl: runtimeLaunch.entryUrl,
+      bridgeSource: finalStatus?.bridgeSource ?? initialStatus?.bridgeSource ?? null,
+      bridgeVersion: finalStatus?.bridgeVersion ?? initialStatus?.bridgeVersion ?? null,
+      engineKind: finalStatus?.engineKind ?? initialStatus?.engineKind ?? null,
+      engineNote: finalStatus?.engineNote ?? initialStatus?.engineNote ?? null,
+      frameCount: finalStatus?.frameCount ?? initialStatus?.frameCount ?? 0,
+      accessibleFrameCount: finalStatus?.accessibleFrameCount ?? initialStatus?.accessibleFrameCount ?? 0,
+      canvasCount: finalStatus?.canvasCount ?? initialStatus?.canvasCount ?? 0,
+      pixiDetected: finalStatus?.pixiDetected ?? initialStatus?.pixiDetected ?? false,
+      pixiVersion: finalStatus?.pixiVersion ?? initialStatus?.pixiVersion ?? null,
+      candidateApps: finalStatus?.candidateApps ?? initialStatus?.candidateApps ?? [],
+      assetUseEntryCount: finalStatus?.assetUseEntries?.length ?? initialStatus?.assetUseEntries?.length ?? 0,
+      assetUseTopUrl: finalPick?.topRuntimeAsset?.canonicalUrl
+        ?? finalStatus?.assetUseEntries?.[0]?.canonicalUrl
+        ?? initialPick?.topRuntimeAsset?.canonicalUrl
+        ?? null,
+      pickedTargetTag: finalPick?.targetTag ?? initialPick?.targetTag ?? null,
+      pickedDisplayObjectName: finalPick?.topDisplayObject?.name ?? initialPick?.topDisplayObject?.name ?? null,
+      pickedTextureResourceUrl: finalPick?.topDisplayObject?.texture?.resourceUrl ?? initialPick?.topDisplayObject?.texture?.resourceUrl ?? null,
+      resourceMapCount: finalResourceMap.entryCount,
+      staticImageEntryCount: finalResourceMap.entries.filter((entry) => entry.requestCategory === "static-asset").length,
+      candidateRuntimeSourceUrl: candidate?.canonicalSourceUrl ?? null,
+      candidateRuntimeRelativePath: candidate?.runtimeRelativePath ?? null,
+      candidateRequestSource: candidate?.requestSource ?? null,
+      candidateHitCount: candidate?.hitCount ?? 0,
+      candidateCaptureMethods: candidate?.captureMethods ?? [],
+      localMirrorSourcePath: candidate?.localMirrorRepoRelativePath ?? null,
+      overrideDonorAssetId: donorAsset?.assetId ?? null,
+      overrideCreated,
+      overrideCleared,
+      overrideHitCountAfterReload,
+      overrideStatusEntryCount: finalOverrideStatus.entryCount,
+      overrideBlocked
+    };
+
+    console.log(`MYIDE_RUNTIME_DEBUG_RESULT:${JSON.stringify(payload)}`);
+
+    if (isRuntimeDebugSmokeMode) {
+      if (payload.status === "pass") {
+        finishRuntimeDebugSmoke(0, "PASS smoke:electron-runtime-debug");
+      } else {
+        finishRuntimeDebugSmoke(1, `FAIL smoke:electron-runtime-debug - ${payload.error ?? "runtime debug host reported failure"}`);
+      }
+      return;
+    }
+
+    if (!shouldShowRuntimeDebugWindow) {
+      debugWindow.close();
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const payload = {
+      status: "fail",
+      error: message,
+      pathDecision: "embedded-no-go-debug-host"
+    };
+    console.log(`MYIDE_RUNTIME_DEBUG_RESULT:${JSON.stringify(payload)}`);
+    if (isRuntimeDebugSmokeMode) {
+      finishRuntimeDebugSmoke(1, `FAIL smoke:electron-runtime-debug - ${message}`);
+    }
+  }
 }
 
 function getRuntimeRedirectUrl(requestUrl: string): string | null {
@@ -1627,12 +1932,22 @@ app.whenReady().then(() => {
           console.error(`MYIDE_RUNTIME_MIRROR_SERVER_FAIL:${error instanceof Error ? error.message : String(error)}`);
         })
         .finally(() => {
+          if (isRuntimeDebugHostMode) {
+            void runRuntimeDebugHost();
+            return;
+          }
+
           createWindow();
         });
     });
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
+      if (isRuntimeDebugHostMode) {
+        void runRuntimeDebugHost();
+        return;
+      }
+
       createWindow();
     }
   });

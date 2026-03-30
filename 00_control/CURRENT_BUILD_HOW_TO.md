@@ -8,6 +8,7 @@ Use this when you want to test the current MyIDE build exactly as it works today
 3. Recommended for the strongest local-runtime path on this machine: run `npm run runtime:harvest:project_001`.
 4. Run `npm run dev`.
 5. Wait for the Electron shell window to open.
+6. If you are specifically testing the runtime-trace pivot path instead of the main shell, run `npm run runtime:debug:project_001`.
 
 ## 2. Open The Validated Project
 1. In the shell, use **Project Browser**.
@@ -90,9 +91,9 @@ Current hard limits:
 - Runtime Mode now prefers a bounded local runtime mirror when it is available, but that mirror still depends on the live donor launch upstream for launch HTML/token/API state
 - the first static override slice works only for grounded static runtime image URLs that the current runtime trace can prove and that match a supported donor image file type
 - when Runtime Mode uses the local mirror, the shell can now trace one grounded static runtime candidate back to a local mirror file path and show the current request map; no unresolved upstream bootstrap/static dependency remains in the current bounded cycle, the embedded runtime tap now proves a local `bundle.js` hit, direct local launch inspection proves the mirror can serve local static assets, but the embedded Runtime Mode slice still does not confirm a request-backed static override hit
-- the shell now installs a stronger main-world runtime introspection bridge first and only falls back to the older guest-preload bridge when needed
+- the embedded runtime webview is now treated as a no-go for stronger asset-level proof in this environment, so the repo also includes a bounded dedicated Runtime Debug Host path that loads the same local mirror in a separate BrowserWindow
 - the strongest previously verified embedded-runtime proof is still also the current blocker: `frameCount=0`, `accessibleFrameCount=0`, `canvasCount=0`, resource window labels stay at `top`, and no request-backed static image or display-object handle is exposed in the bounded embedded slice
-- this run could not end-to-end verify the new main-world bridge in Codex because Electron smoke now aborts in macOS AppKit before MyIDE emits its main-process smoke marker
+- this run could not end-to-end verify either the embedded path or the dedicated debug-host path in Codex because Electron smoke now aborts in macOS AppKit before MyIDE emits its main-process smoke marker
 - pause, resume, and step only work if the embedded runtime exposes a stable ticker-like hook; if it does not, the shell shows the blocker instead of faking the control
 - only `project_001` is supported in this slice
 - only static donor image files are supported

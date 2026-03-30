@@ -11,6 +11,8 @@ Local-first helper for the bounded `project_001` Mystery Garden runtime mirror s
 ## Command
 - `npm run runtime:mirror:project_001`
 - `npm run runtime:harvest:project_001`
+- `npm run runtime:debug:project_001`
+- `npm run smoke:electron-runtime-debug`
 
 ## Output
 - `40_projects/project_001/runtime/local-mirror/manifest.json`
@@ -21,7 +23,7 @@ Local-first helper for the bounded `project_001` Mystery Garden runtime mirror s
 - This tool captures the strongest grounded local mirror we can support today.
 - It does **not** create or claim a full standalone local donor runtime package.
 - The strongest current proof now leaves no unresolved upstream bootstrap/static dependency in the current launch/start/spin cycle, the embedded runtime tap proves a real local `bundle.js` request inside Runtime Mode, and direct local launch inspection proves the bounded mirror can serve local `bundle.js` plus local preloader images.
-- The shell now prefers a stronger main-world `executeJavaScript` runtime introspection bridge before falling back to the older guest-preload bridge.
+- The embedded runtime path is now treated as a no-go for stronger proof in this environment, so the repo also includes a bounded dedicated Runtime Debug Host path that loads the same local mirror in a separate BrowserWindow.
 - The strongest current static override candidate inside the strongest previously verified embedded Electron Runtime Mode proof is still mirror-manifest-backed, not request-backed, so the runtime does not yet prove an override hit in this bounded slice.
 - The strongest previously verified guest-preload bridge proved the embedded slice exposes `frameCount=0`, `accessibleFrameCount=0`, `canvasCount=0`, and resource windows only at `top`.
-- Current verification blocker in this environment: Electron smoke is aborting in macOS AppKit before MyIDE emits its main-process marker, so the new preferred main-world bridge path could not be verified end-to-end here.
+- Current verification blocker in this environment: Electron smoke is aborting in macOS AppKit before MyIDE emits its embedded or debug-host markers, so the stronger trace path could not be verified end-to-end here.

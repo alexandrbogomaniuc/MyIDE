@@ -54,5 +54,6 @@
 - Direct local launch inspection now proves the bounded mirror can serve local `bundle.js` plus local preloader images such as `logo-lights.png`, `split.png`, and `a.png`.
 - The embedded Electron Runtime Mode request tap now proves a real local `bundle.js` request inside the runtime webview partition.
 - The strongest previously verified embedded guest-preload runtime introspection bridge proved `frameCount=0`, `accessibleFrameCount=0`, `canvasCount=0`, and resource window labels only at `top` in the current bounded embedded slice.
-- This run landed a stronger preferred main-world `executeJavaScript` bridge path in the shell, but the Electron smoke environment is now aborting in macOS AppKit before MyIDE emits its own main-process marker, so that new bridge could not be verified end-to-end here.
+- The embedded runtime path is now treated as a no-go for stronger asset-level proof in this environment, so the repo also includes a bounded dedicated Runtime Debug Host path that loads the same local mirror in a separate BrowserWindow.
+- The new exact blocker is environment-level: Electron smoke is aborting in macOS AppKit before MyIDE emits either the embedded or debug-host markers, so the stronger trace path still needs a healthy Electron GUI run.
 - The embedded Electron Runtime Mode proof still does not surface a request-backed static image in the current bounded slice, so the selected static override candidate remains mirror-manifest-backed rather than request-backed and the first hit-confirmed local override is still blocked.
