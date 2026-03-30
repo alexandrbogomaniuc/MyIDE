@@ -964,37 +964,43 @@ function installRuntimeAssetOverrideInterception(): void {
     callback({ redirectURL });
   };
 
-  session.fromPartition(runtimeWebviewPartition).webRequest.onBeforeRequest(
-    {
-      urls: ["<all_urls>"]
-    },
-    onBeforeRequest
-  );
-  session.fromPartition(runtimeWebviewPartition).webRequest.onCompleted(
-    {
-      urls: ["<all_urls>"]
-    },
-    (details) => {
-      const observed = getRuntimeObservedRequestMetadata(details.url);
-      if (!observed) {
-        return;
-      }
-      recordRuntimeResourceHit(
-        details.url,
-        observed.canonicalSourceUrl,
-        observed.requestSource,
-        {
-          captureMethod: "partition-webrequest",
-          localMirrorAbsolutePath: observed.localMirrorAbsolutePath ?? null,
-          overrideAbsolutePath: observed.overrideAbsolutePath ?? null,
-          fileType: observed.fileType ?? null,
-          runtimeRelativePath: observed.runtimeRelativePath ?? null,
-          resourceType: details.resourceType,
-          stage: runtimeRequestStage
+  const installPartitionHooks = (partition: string) => {
+    const partitionSession = session.fromPartition(partition);
+    partitionSession.webRequest.onBeforeRequest(
+      {
+        urls: ["<all_urls>"]
+      },
+      onBeforeRequest
+    );
+    partitionSession.webRequest.onCompleted(
+      {
+        urls: ["<all_urls>"]
+      },
+      (details) => {
+        const observed = getRuntimeObservedRequestMetadata(details.url);
+        if (!observed) {
+          return;
         }
-      );
-    }
-  );
+        recordRuntimeResourceHit(
+          details.url,
+          observed.canonicalSourceUrl,
+          observed.requestSource,
+          {
+            captureMethod: "partition-webrequest",
+            localMirrorAbsolutePath: observed.localMirrorAbsolutePath ?? null,
+            overrideAbsolutePath: observed.overrideAbsolutePath ?? null,
+            fileType: observed.fileType ?? null,
+            runtimeRelativePath: observed.runtimeRelativePath ?? null,
+            resourceType: details.resourceType,
+            stage: runtimeRequestStage
+          }
+        );
+      }
+    );
+  };
+
+  installPartitionHooks(runtimeWebviewPartition);
+  installPartitionHooks(runtimeDebugPartition);
   session.defaultSession.webRequest.onBeforeRequest(
     {
       urls: [
@@ -1030,6 +1036,14 @@ function getRuntimeMirrorContentType(fileType: string): string {
       return "application/javascript; charset=utf-8";
     case "json":
       return "application/json; charset=utf-8";
+    case "woff2":
+      return "font/woff2";
+    case "woff":
+      return "font/woff";
+    case "ogg":
+      return "audio/ogg";
+    case "mp3":
+      return "audio/mpeg";
     case "png":
       return "image/png";
     case "webp":
@@ -1046,6 +1060,72 @@ function getRuntimeMirrorContentType(fileType: string): string {
     default:
       return "application/octet-stream";
   }
+}
+
+function buildRuntimeUpstreamFallbackUrl(relativePath: string): string {
+  const normalizedRelativePath = relativePath.replace(/^\/+/, "");
+  return `https://cdn.bgaming-network.com/html/MysteryGarden/${normalizedRelativePath}`;
+}
+
+function inferRuntimeResourceTypeFromContentType(contentType: string | null): string | null {
+  const normalized = String(contentType ?? "").toLowerCase();
+  if (normalized.startsWith("image/")) {
+    return "image";
+  }
+  if (normalized.includes("javascript")) {
+    return "script";
+  }
+  if (normalized.includes("json")) {
+    return "fetch";
+  }
+  if (normalized.startsWith("audio/")) {
+    return "media";
+  }
+  if (normalized.startsWith("font/")) {
+    return "font";
+  }
+  if (normalized.startsWith("text/css")) {
+    return "stylesheet";
+  }
+  if (normalized.startsWith("text/html")) {
+    return "mainFrame";
+  }
+  return null;
+}
+
+async function fetchRuntimeUpstreamFallbackAsset(relativePath: string): Promise<{
+  sourceUrl: string;
+  content: Uint8Array;
+  contentType: string | null;
+  fileType: string | null;
+}> {
+  return fetchRuntimeUpstreamFallbackUrl(buildRuntimeUpstreamFallbackUrl(relativePath));
+}
+
+async function fetchRuntimeUpstreamFallbackUrl(sourceUrl: string): Promise<{
+  sourceUrl: string;
+  content: Uint8Array;
+  contentType: string | null;
+  fileType: string | null;
+}> {
+  const response = await fetch(sourceUrl, {
+    headers: {
+      "user-agent": "Mozilla/5.0 (MyIDE runtime fallback proxy)"
+    },
+    redirect: "follow"
+  });
+
+  if (!response.ok) {
+    throw new Error(`Upstream fallback fetch failed for ${sourceUrl}: ${response.status} ${response.statusText}`);
+  }
+
+  const contentType = response.headers.get("content-type");
+  return {
+    sourceUrl,
+    content: new Uint8Array(await response.arrayBuffer()),
+    contentType,
+    fileType: path.extname(new URL(sourceUrl).pathname).replace(/^\./, "").toLowerCase() || null
+  };
 }
 
 async function handleRuntimeMirrorRequest(request: IncomingMessage, response: ServerResponse): Promise<void> {
@@ -1097,8 +1177,23 @@ async function handleRuntimeMirrorRequest(request: IncomingMessage, response: Se
 
     const mirrorFile = await readLocalRuntimeMirrorFile("project_001", sourceUrl);
     if (!mirrorFile) {
-      sendRuntimeMirrorResponse(response, 404, { "content-type": "text/plain; charset=utf-8" }, "Mirror asset not found.");
-      return;
+      try {
+        const upstreamFallback = await fetchRuntimeUpstreamFallbackUrl(sourceUrl);
+        recordRuntimeResourceHit(parsedUrl.toString(), upstreamFallback.sourceUrl, "upstream-request", {
+          fileType: upstreamFallback.fileType,
+          resourceType: inferRuntimeResourceTypeFromContentType(upstreamFallback.contentType)
+        });
+        sendRuntimeMirrorResponse(response, 200, {
+          "content-type": upstreamFallback.contentType ?? getRuntimeMirrorContentType(upstreamFallback.fileType ?? "bin"),
+          "cache-control": "no-store",
+          "x-myide-runtime-source": "upstream-fallback",
+          "x-myide-runtime-final-url": upstreamFallback.sourceUrl
+        }, upstreamFallback.content);
+        return;
+      } catch {
+        sendRuntimeMirrorResponse(response, 404, { "content-type": "text/plain; charset=utf-8" }, "Mirror asset not found.");
+        return;
+      }
     }
 
     const overrideAbsolutePath = getRuntimeOverrideAbsolutePath(sourceUrl);
@@ -1137,8 +1232,24 @@ async function handleRuntimeMirrorRequest(request: IncomingMessage, response: Se
     const relativePath = parsedUrl.pathname.replace("/runtime/project_001/assets/", "");
     const mirrorFile = await readLocalRuntimeMirrorFileByRelativePath("project_001", relativePath);
     if (!mirrorFile) {
-      sendRuntimeMirrorResponse(response, 404, { "content-type": "text/plain; charset=utf-8" }, "Mirror asset not found.");
-      return;
+      try {
+        const upstreamFallback = await fetchRuntimeUpstreamFallbackAsset(relativePath);
+        recordRuntimeResourceHit(parsedUrl.toString(), upstreamFallback.sourceUrl, "upstream-request", {
+          fileType: upstreamFallback.fileType,
+          runtimeRelativePath: relativePath,
+          resourceType: inferRuntimeResourceTypeFromContentType(upstreamFallback.contentType)
+        });
+        sendRuntimeMirrorResponse(response, 200, {
+          "content-type": upstreamFallback.contentType ?? getRuntimeMirrorContentType(upstreamFallback.fileType ?? "bin"),
+          "cache-control": "no-store",
+          "x-myide-runtime-source": "upstream-fallback",
+          "x-myide-runtime-final-url": upstreamFallback.sourceUrl
+        }, upstreamFallback.content);
+        return;
+      } catch {
+        sendRuntimeMirrorResponse(response, 404, { "content-type": "text/plain; charset=utf-8" }, "Mirror asset not found.");
+        return;
+      }
     }
 
     const overrideAbsolutePath = getRuntimeOverrideAbsolutePath(mirrorFile.sourceUrl);
