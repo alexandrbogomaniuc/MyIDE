@@ -127,6 +127,9 @@ contextBridge.exposeInMainWorld("myideApi", {
   reportLiveRuntimeSmokeResult: (payload: unknown): void => {
     ipcRenderer.send("myide:live-runtime-smoke-result", payload);
   },
+  reportLiveRuntimeSmokeProgress: (payload: unknown): void => {
+    ipcRenderer.send("myide:live-runtime-smoke-progress", payload);
+  },
   reportLiveDuplicateDeleteSmokeResult: (payload: unknown): void => {
     ipcRenderer.send("myide:live-duplicate-delete-smoke-result", payload);
   },

@@ -25,3 +25,4 @@
 - No unresolved upstream bootstrap/static dependency remains in the current bounded launch/start/spin cycle.
 - Direct local launch inspection shows the bounded mirror can serve local `bundle.js` plus local preloader images such as `logo-lights.png`, `split.png`, and `a.png`.
 - The embedded Electron Runtime Mode proof now exposes a request-backed local `bundle.js` hit in the runtime partition, but it still does not expose a request-backed static image in the current bounded cycle, so the strongest current image candidate remains mirror-manifest-backed and cannot prove an override hit yet.
+- The new embedded guest-preload introspection bridge now also proves `frameCount=0`, `accessibleFrameCount=0`, `canvasCount=0`, and resource window labels only at `top`, so there is no hidden same-origin child frame or accessible canvas surface in this bounded embedded slice.

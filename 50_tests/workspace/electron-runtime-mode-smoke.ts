@@ -22,6 +22,17 @@ interface RuntimeSmokePayload {
   runtimeCurrentUrl?: string | null;
   runtimeResolvedHost?: string | null;
   runtimePageTitle?: string | null;
+  runtimeBridgeSource?: string | null;
+  runtimeBridgeVersion?: string | null;
+  runtimeEngineKind?: string | null;
+  runtimeEngineNote?: string | null;
+  runtimeFrameCount?: number;
+  runtimeAccessibleFrameCount?: number;
+  runtimeCanvasCount?: number;
+  runtimeContextTypes?: string[];
+  runtimeAssetUseEntryCount?: number;
+  runtimeAssetUseTopUrl?: string | null;
+  runtimeObservedResourceWindowLabels?: string[];
   pixiDetected?: boolean;
   pixiVersion?: string | null;
   candidateRuntimeApps?: string[];
@@ -303,6 +314,30 @@ async function main(): Promise<void> {
   console.log(`Artifact: ${artifactPath}`);
   if (payload.runtimeCurrentUrl) {
     console.log(`Runtime URL: ${payload.runtimeCurrentUrl}`);
+  }
+  if (payload.runtimeBridgeSource) {
+    console.log(`Runtime bridge: ${payload.runtimeBridgeSource}${payload.runtimeBridgeVersion ? ` (${payload.runtimeBridgeVersion})` : ""}`);
+  }
+  if (payload.runtimeEngineKind || payload.runtimeEngineNote) {
+    console.log(`Runtime engine: ${payload.runtimeEngineKind ?? "unknown"}${payload.runtimeEngineNote ? ` - ${payload.runtimeEngineNote}` : ""}`);
+  }
+  if (
+    payload.runtimeFrameCount != null
+    || payload.runtimeAccessibleFrameCount != null
+    || payload.runtimeCanvasCount != null
+  ) {
+    console.log(
+      `Runtime frames/canvases: total=${payload.runtimeFrameCount ?? 0} accessible=${payload.runtimeAccessibleFrameCount ?? 0} canvases=${payload.runtimeCanvasCount ?? 0}`
+    );
+  }
+  if (payload.runtimeAssetUseEntryCount != null) {
+    console.log(`Runtime asset-use entries: ${payload.runtimeAssetUseEntryCount}`);
+  }
+  if (payload.runtimeAssetUseTopUrl) {
+    console.log(`Runtime top asset-use URL: ${payload.runtimeAssetUseTopUrl}`);
+  }
+  if (Array.isArray(payload.runtimeObservedResourceWindowLabels) && payload.runtimeObservedResourceWindowLabels.length > 0) {
+    console.log(`Runtime resource windows: ${payload.runtimeObservedResourceWindowLabels.join(", ")}`);
   }
   if (payload.pickedTargetTag) {
     console.log(`Picked target: ${payload.pickedTargetTag}`);

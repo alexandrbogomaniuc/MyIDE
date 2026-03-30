@@ -35,6 +35,7 @@ Use this when testing the current local MyIDE build by hand.
    - If the picked trace is override-eligible, use **Create Override** once and confirm Runtime Mode reloads with a project-local override active.
    - If Runtime Mode is using the local mirror, confirm the inspector also shows a grounded local mirror source path for the current runtime candidate.
    - Confirm the inspector also shows a runtime resource-map record for the current launch/reload cycle.
+   - Confirm the stronger embedded-runtime truth is visible when available: current bounded proof should show no accessible child frames or canvas surface in the embedded path, and the blocker should stay explicit rather than implying a hidden Pixi object.
 - If the active override card shows a blocker instead of a request-backed hit for the current mirrored candidate, record that blocker exactly; the current stronger proof may still show a request-backed local `bundle.js` hit without any request-backed static image hit, and that is still a blocker for the override loop.
    - Use **Clear Override** once and confirm the project-local override is removed cleanly.
    - Use **Show Runtime Note** or **Show Init Response** once and confirm the supporting donor evidence is focused.

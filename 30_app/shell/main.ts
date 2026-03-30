@@ -165,6 +165,10 @@ function resolvePreloadPath(): string {
   return path.resolve(__dirname, "preload.js");
 }
 
+function resolveRuntimeInspectorPreloadPath(): string {
+  return path.resolve(__dirname, "../runtime/runtimeInspectorBridge.js");
+}
+
 function createBridgeHealthSnapshot(preloadPath: string): BridgeHealthSnapshot {
   return {
     preloadPath,
@@ -382,7 +386,8 @@ async function refreshRuntimeAssetOverrideRedirects(): Promise<void> {
 }
 
 async function clearRuntimeWebviewCache(): Promise<{ cleared: true; partition: string }> {
-  await session.fromPartition(runtimeWebviewPartition).clearCache();
+  const runtimeSession = session.fromPartition(runtimeWebviewPartition);
+  await runtimeSession.clearCache();
   return {
     cleared: true,
     partition: runtimeWebviewPartition
@@ -1350,6 +1355,7 @@ function attachLiveUndoRedoSmokeHandlers(window: BrowserWindow): void {
 
 function createWindow(): void {
   const preloadPath = resolvePreloadPath();
+  const runtimeInspectorPreloadPath = resolveRuntimeInspectorPreloadPath();
   resetBridgeHealthState(preloadPath);
 
   const window = new BrowserWindow({
@@ -1383,6 +1389,31 @@ function createWindow(): void {
   attachLiveResizeSmokeHandlers(window);
   attachLiveAlignSmokeHandlers(window);
   attachLiveUndoRedoSmokeHandlers(window);
+  if (isLiveRuntimeSmokeMode) {
+    const runtimeSmokeWebContents = window.webContents as Electron.WebContents & {
+      on: (event: string, listener: (...args: any[]) => void) => Electron.WebContents;
+    };
+    runtimeSmokeWebContents.on("console-message", (...args: any[]) => {
+      const params = args[1] && typeof args[1] === "object" ? args[1] as { message?: string } : {};
+      const message = typeof params.message === "string" ? params.message : "";
+      if (typeof message === "string" && message.startsWith("MYIDE_LIVE_RUNTIME_PROGRESS:")) {
+        console.log(message);
+      }
+    });
+  }
+  window.webContents.on(
+    "will-attach-webview",
+    (_event, webPreferences, params: { partition?: string | undefined }) => {
+      if (params.partition !== runtimeWebviewPartition) {
+        return;
+      }
+
+      webPreferences.preload = runtimeInspectorPreloadPath;
+      webPreferences.contextIsolation = true;
+      webPreferences.nodeIntegration = false;
+      webPreferences.sandbox = true;
+    }
+  );
   const query = {
     ...(isBridgeSmokeMode ? { bridgeSmoke: "1" } : {}),
     ...(isLivePersistSmokeMode ? { livePersistSmoke: "1" } : {}),
@@ -1468,6 +1499,18 @@ ipcMain.on("myide:live-donor-import-smoke-result", (_event, payload: LiveDonorIm
 ipcMain.on("myide:live-runtime-smoke-result", (_event, payload: LiveRuntimeSmokePayload) => {
   if (typeof activeLiveRuntimeSmokeReporter === "function") {
     activeLiveRuntimeSmokeReporter(payload ?? {});
+  }
+});
+
+ipcMain.on("myide:live-runtime-smoke-progress", (_event, payload: unknown) => {
+  if (!isLiveRuntimeSmokeMode) {
+    return;
+  }
+
+  try {
+    console.log(`MYIDE_LIVE_RUNTIME_PROGRESS:${JSON.stringify(payload ?? {})}`);
+  } catch {
+    console.log("MYIDE_LIVE_RUNTIME_PROGRESS:{}");
   }
 });
 

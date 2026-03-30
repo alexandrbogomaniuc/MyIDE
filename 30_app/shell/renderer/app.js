@@ -658,7 +658,33 @@ async function init() {
 }
 
 async function bootRenderer() {
+  const reportBootProgress = (step, extra = {}) => {
+    if (!isLiveRuntimeSmokeMode()) {
+      return;
+    }
+
+    if (window.myideApi && typeof window.myideApi.reportLiveRuntimeSmokeProgress === "function") {
+      try {
+        window.myideApi.reportLiveRuntimeSmokeProgress({ step, ...extra, phase: "boot" });
+        return;
+      } catch {
+        // Fall through to console logging.
+      }
+    }
+
+    try {
+      console.log(`MYIDE_LIVE_RUNTIME_PROGRESS:${JSON.stringify({ step, ...extra, phase: "boot" })}`);
+    } catch {
+      console.log(`MYIDE_LIVE_RUNTIME_PROGRESS:${step}`);
+    }
+  };
+
+  reportBootProgress("boot-start");
   await init();
+  reportBootProgress("boot-init-complete", {
+    selectedProjectId: state.selectedProjectId,
+    workspaceProjectCount: getWorkspaceProjects().length
+  });
 
   if (isLivePersistSmokeMode()) {
     await runLivePersistSmoke();
@@ -681,6 +707,7 @@ async function bootRenderer() {
   }
 
   if (isLiveRuntimeSmokeMode()) {
+    reportBootProgress("boot-enter-live-runtime-smoke");
     await runLiveRuntimeSmoke();
     return;
   }
@@ -921,6 +948,66 @@ function normalizeRuntimeResourceEntries(rawEntries) {
       };
     })
     .filter(Boolean);
+}
+
+function normalizeRuntimeAssetUseEntries(rawEntries) {
+  if (!Array.isArray(rawEntries)) {
+    return [];
+  }
+
+  return rawEntries
+    .map((entry) => {
+      const observedUrl = typeof entry?.observedUrl === "string" && entry.observedUrl.length > 0
+        ? entry.observedUrl
+        : (typeof entry?.canonicalUrl === "string" ? entry.canonicalUrl : "");
+      const canonicalUrl = getRuntimeCanonicalSourceUrl(
+        typeof entry?.canonicalUrl === "string" && entry.canonicalUrl.length > 0
+          ? entry.canonicalUrl
+          : observedUrl
+      );
+      const fileType = typeof entry?.fileType === "string" && entry.fileType.length > 0
+        ? entry.fileType.toLowerCase()
+        : getRuntimeResourceFileType(observedUrl);
+      if (!canonicalUrl || !fileType) {
+        return null;
+      }
+
+      return {
+        url: canonicalUrl,
+        observedUrl: observedUrl || canonicalUrl,
+        fileType,
+        relativePath: typeof entry?.runtimeRelativePath === "string" && entry.runtimeRelativePath.length > 0
+          ? entry.runtimeRelativePath
+          : getRuntimeResourceRelativePath(canonicalUrl),
+        filename: (() => {
+          try {
+            return String(new URL(canonicalUrl).pathname.split("/").pop() ?? "");
+          } catch {
+            return "";
+          }
+        })(),
+        initiatorType: Array.isArray(entry?.sourceKinds) && entry.sourceKinds.length > 0
+          ? entry.sourceKinds.join(", ")
+          : "runtime-asset-use",
+        hitCount: Number.isFinite(entry?.hitCount) ? Number(entry.hitCount) : 0,
+        naturalWidth: Number.isFinite(entry?.naturalWidth) ? Number(entry.naturalWidth) : null,
+        naturalHeight: Number.isFinite(entry?.naturalHeight) ? Number(entry.naturalHeight) : null,
+        sourceKinds: Array.isArray(entry?.sourceKinds) ? entry.sourceKinds.filter(Boolean) : [],
+        contexts: Array.isArray(entry?.contexts) ? entry.contexts.filter(Boolean) : [],
+        canvasRect: entry?.canvasRect && typeof entry.canvasRect === "object" ? entry.canvasRect : null,
+        lastUsedAtUtc: typeof entry?.lastUsedAtUtc === "string" ? entry.lastUsedAtUtc : null
+      };
+    })
+    .filter(Boolean);
+}
+
+function getRuntimeAssetUseEntries() {
+  const pickEntries = normalizeRuntimeAssetUseEntries(state.runtimeUi.lastPick?.assetUseEntries);
+  if (pickEntries.length > 0) {
+    return pickEntries;
+  }
+
+  return normalizeRuntimeAssetUseEntries(state.runtimeUi.diagnostics?.assetUseEntries);
 }
 
 function getObservedRuntimeResources() {
@@ -1341,6 +1428,8 @@ function buildRuntimeGuestBridgeScript() {
     const payload = {
       title: document.title || null,
       href: location.href,
+      bridgeSource: "execute-js-fallback",
+      bridgeVersion: "runtime-fallback-v1",
       clientX: Math.round(clientX),
       clientY: Math.round(clientY),
       targetTag: target && target.tagName ? String(target.tagName).toLowerCase() : null,
@@ -1355,6 +1444,22 @@ function buildRuntimeGuestBridgeScript() {
       pixiDetected: Boolean(pixi),
       pixiVersion: pixi && typeof pixi.VERSION === "string" ? pixi.VERSION : null,
       candidateApps: candidates.map((candidate) => candidate.summary),
+      assetUseEntries: [],
+      contextTypes: [],
+      engineKind: pixi
+        ? "pixi-global"
+        : candidates.length > 0
+          ? "pixi-handle-scan"
+          : document.querySelectorAll("canvas").length > 0
+            ? "canvas-runtime-unknown"
+            : "dom-only-or-hidden-runtime",
+      engineNote: pixi
+        ? "window.PIXI is exposed with version " + (pixi.VERSION || "unknown") + "."
+        : candidates.length > 0
+          ? "A stage/renderer candidate is exposed through " + candidates[0].summary.key + "."
+          : document.querySelectorAll("canvas").length > 0
+            ? "Canvas is present, but the executeJavaScript fallback bridge could not expose a stable app handle."
+            : "No stable canvas or app handle was exposed through the executeJavaScript fallback bridge.",
       topDisplayObject: displayHits[0] ?? null,
       displayHitCount: displayHits.length,
       resourceEntries: summarizeLoadedResources()
@@ -1421,17 +1526,36 @@ function buildRuntimeGuestBridgeScript() {
   function getStatus() {
     const candidates = collectRuntimeCandidates();
     const support = buildSupport();
+    const pixi = getPixi();
     return {
       href: location.href,
       title: document.title || null,
+      bridgeSource: "execute-js-fallback",
+      bridgeVersion: "runtime-fallback-v1",
       canvasCount: document.querySelectorAll("canvas").length,
-      pixiDetected: Boolean(getPixi()),
-      pixiVersion: getPixi() && typeof getPixi().VERSION === "string" ? getPixi().VERSION : null,
+      pixiDetected: Boolean(pixi),
+      pixiVersion: pixi && typeof pixi.VERSION === "string" ? pixi.VERSION : null,
       candidateApps: candidates.map((candidate) => candidate.summary),
       inspectEnabled: state.inspectEnabled,
       paused: state.paused,
       support,
-      resourceEntries: summarizeLoadedResources()
+      resourceEntries: summarizeLoadedResources(),
+      assetUseEntries: [],
+      contextTypes: [],
+      engineKind: pixi
+        ? "pixi-global"
+        : candidates.length > 0
+          ? "pixi-handle-scan"
+          : document.querySelectorAll("canvas").length > 0
+            ? "canvas-runtime-unknown"
+            : "dom-only-or-hidden-runtime",
+      engineNote: pixi
+        ? "window.PIXI is exposed with version " + (pixi.VERSION || "unknown") + "."
+        : candidates.length > 0
+          ? "A stage/renderer candidate is exposed through " + candidates[0].summary.key + "."
+          : document.querySelectorAll("canvas").length > 0
+            ? "Canvas is present, but the executeJavaScript fallback bridge could not expose a stable app handle."
+            : "No stable canvas or app handle was exposed through the executeJavaScript fallback bridge."
     };
   }
 
@@ -1553,6 +1677,13 @@ function handleRuntimeConsoleMessage(message) {
 }
 
 async function installRuntimeBridge() {
+  const directStatus = await callRuntimeBridge("getStatus");
+  if (directStatus && typeof directStatus === "object" && !Array.isArray(directStatus) && !directStatus.blocked) {
+    applyRuntimeBridgeStatus(directStatus);
+    renderAll();
+    return directStatus;
+  }
+
   const webview = getRuntimeWebview();
   if (!webview) {
     return null;
@@ -4386,6 +4517,21 @@ async function runLiveUndoRedoSmoke() {
 async function runLiveRuntimeSmoke() {
   const targetProjectId = "project_001";
   const startedAt = new Date().toISOString();
+  const reportProgress = (step, extra = {}) => {
+    if (window.myideApi && typeof window.myideApi.reportLiveRuntimeSmokeProgress === "function") {
+      try {
+        window.myideApi.reportLiveRuntimeSmokeProgress({ step, ...extra });
+        return;
+      } catch {
+        // Fall through to console logging if the preload bridge is unavailable.
+      }
+    }
+    try {
+      console.log(`MYIDE_LIVE_RUNTIME_PROGRESS:${JSON.stringify({ step, ...extra })}`);
+    } catch {
+      console.log(`MYIDE_LIVE_RUNTIME_PROGRESS:${step}`);
+    }
+  };
   const baseResult = {
     startedAt,
     projectId: targetProjectId,
@@ -4401,6 +4547,17 @@ async function runLiveRuntimeSmoke() {
     runtimeResolvedHost: null,
     runtimePageTitle: null,
     runtimeReady: false,
+    runtimeBridgeSource: null,
+    runtimeBridgeVersion: null,
+    runtimeEngineKind: null,
+    runtimeEngineNote: null,
+    runtimeFrameCount: 0,
+    runtimeAccessibleFrameCount: 0,
+    runtimeCanvasCount: 0,
+    runtimeContextTypes: [],
+    runtimeAssetUseEntryCount: 0,
+    runtimeAssetUseTopUrl: null,
+    runtimeObservedResourceWindowLabels: [],
     pixiDetected: false,
     pixiVersion: null,
     candidateRuntimeApps: [],
@@ -4446,6 +4603,9 @@ async function runLiveRuntimeSmoke() {
   };
 
   try {
+    reportProgress("start", {
+      projectId: targetProjectId
+    });
     const api = window.myideApi;
     if (
       !api
@@ -4459,6 +4619,9 @@ async function runLiveRuntimeSmoke() {
       () => Boolean(state.bundle && getWorkspaceProjects().length > 0),
       "workspace discovery"
     );
+    reportProgress("workspace-ready", {
+      projectCount: getWorkspaceProjects().length
+    });
 
     if (state.selectedProjectId !== targetProjectId) {
       const projectButton = await waitForRendererCondition(
@@ -4472,6 +4635,9 @@ async function runLiveRuntimeSmoke() {
       () => state.selectedProjectId === targetProjectId && Boolean(state.bundle),
       `${targetProjectId} to load in the renderer`
     );
+    reportProgress("project-selected", {
+      selectedProjectId: state.selectedProjectId
+    });
     baseResult.projectLoaded = true;
 
     const runtimeLaunch = getRuntimeLaunchInfo();
@@ -4494,22 +4660,35 @@ async function runLiveRuntimeSmoke() {
     if (!launched) {
       throw new Error("Runtime launch did not start from the renderer.");
     }
+    reportProgress("runtime-launch-requested", {
+      entryUrl: runtimeLaunch.entryUrl
+    });
 
     const webview = await waitForRendererCondition(
       () => getRuntimeWebview(),
       "runtime webview"
     );
+    reportProgress("runtime-webview-ready", {
+      hasWebview: Boolean(webview)
+    });
     await waitForRendererCondition(
       () => state.runtimeUi.loading === false && Boolean(state.runtimeUi.currentUrl),
       "runtime webview navigation",
       { timeoutMs: 60000 }
     );
+    reportProgress("runtime-navigation-finished", {
+      currentUrl: state.runtimeUi.currentUrl
+    });
     await sleep(3000);
     await waitForRendererCondition(
       () => Boolean(state.runtimeUi.diagnostics || state.runtimeUi.pageTitle || state.runtimeUi.currentUrl),
       "runtime diagnostics or page metadata",
       { timeoutMs: 20000 }
     );
+    reportProgress("runtime-diagnostics-ready", {
+      currentUrl: state.runtimeUi.currentUrl,
+      pageTitle: state.runtimeUi.pageTitle
+    });
     baseResult.launchSucceeded = true;
     baseResult.runtimeCurrentUrl = state.runtimeUi.currentUrl;
     baseResult.runtimePageTitle = state.runtimeUi.pageTitle;
@@ -4518,6 +4697,21 @@ async function runLiveRuntimeSmoke() {
     const status = await callRuntimeBridge("getStatus");
     if (status && typeof status === "object" && !Array.isArray(status)) {
       applyRuntimeBridgeStatus(status);
+      baseResult.runtimeBridgeSource = status.bridgeSource ?? null;
+      baseResult.runtimeBridgeVersion = status.bridgeVersion ?? null;
+      baseResult.runtimeEngineKind = status.engineKind ?? null;
+      baseResult.runtimeEngineNote = status.engineNote ?? null;
+      baseResult.runtimeFrameCount = Number.isFinite(status.frameCount) ? Number(status.frameCount) : 0;
+      baseResult.runtimeAccessibleFrameCount = Number.isFinite(status.accessibleFrameCount) ? Number(status.accessibleFrameCount) : 0;
+      baseResult.runtimeCanvasCount = Number.isFinite(status.canvasCount) ? Number(status.canvasCount) : 0;
+      baseResult.runtimeContextTypes = Array.isArray(status.contextTypes) ? status.contextTypes.filter(Boolean) : [];
+      baseResult.runtimeAssetUseEntryCount = Array.isArray(status.assetUseEntries) ? status.assetUseEntries.length : 0;
+      baseResult.runtimeAssetUseTopUrl = Array.isArray(status.assetUseEntries)
+        ? status.assetUseEntries.map((entry) => entry?.canonicalUrl ?? entry?.observedUrl ?? null).find(Boolean) ?? null
+        : null;
+      baseResult.runtimeObservedResourceWindowLabels = Array.isArray(status.resourceEntries)
+        ? Array.from(new Set(status.resourceEntries.map((entry) => entry?.windowLabel).filter(Boolean))).slice(0, 12)
+        : [];
       baseResult.pixiDetected = Boolean(status.pixiDetected);
       baseResult.pixiVersion = status.pixiVersion ?? null;
       baseResult.candidateRuntimeApps = Array.isArray(status.candidateApps)
@@ -4532,6 +4726,12 @@ async function runLiveRuntimeSmoke() {
       baseResult.runtimeObservedResourceSample = Array.isArray(status.resourceEntries)
         ? status.resourceEntries.slice(0, 12).map((entry) => entry?.observedUrl ?? entry?.url ?? null).filter(Boolean)
         : [];
+      reportProgress("runtime-status", {
+        bridgeSource: status.bridgeSource ?? null,
+        engineKind: status.engineKind ?? null,
+        contextTypes: Array.isArray(status.contextTypes) ? status.contextTypes.filter(Boolean) : [],
+        assetUseEntryCount: Array.isArray(status.assetUseEntries) ? status.assetUseEntries.length : 0
+      });
     }
     await refreshRuntimeResourceMap({ silent: true });
     baseResult.runtimeResourceMapCount = Number(getRuntimeResourceMapStatus()?.entryCount ?? 0);
@@ -4545,6 +4745,7 @@ async function runLiveRuntimeSmoke() {
     );
 
     await handleRuntimeAction("enter");
+    reportProgress("runtime-enter-dispatched");
     await sleep(1500);
     await refreshRuntimeResourceMap({ silent: true });
     baseResult.runtimeResourceMapCount = Number(getRuntimeResourceMapStatus()?.entryCount ?? 0);
@@ -4559,6 +4760,10 @@ async function runLiveRuntimeSmoke() {
 
     baseResult.runtimeSpinAttempted = true;
     const spinResult = await handleRuntimeAction("spin");
+    reportProgress("runtime-spin-dispatched", {
+      resultOk: spinResult?.ok ?? null,
+      blocked: state.runtimeUi.lastCommandStatus?.blocked ?? null
+    });
     if (state.runtimeUi.lastCommandStatus?.ok) {
       baseResult.runtimeSpinSucceeded = true;
     } else {
@@ -4580,13 +4785,48 @@ async function runLiveRuntimeSmoke() {
     if (!inspectResult?.enabled) {
       throw new Error("Runtime inspect mode did not arm successfully.");
     }
+    reportProgress("runtime-inspect-enabled");
     state.runtimeUi.inspectEnabled = true;
 
     const pickResult = await callRuntimeBridge("pickAtPoint", 220, 220);
     if (!pickResult || typeof pickResult !== "object") {
       throw new Error("Runtime pick did not return a usable payload.");
     }
+    reportProgress("runtime-pick-finished", {
+      targetTag: pickResult.targetTag ?? null,
+      bridgeSource: pickResult.bridgeSource ?? null,
+      engineKind: pickResult.engineKind ?? null,
+      assetUseEntryCount: Array.isArray(pickResult.assetUseEntries) ? pickResult.assetUseEntries.length : 0,
+      topRuntimeAsset: pickResult.topRuntimeAsset?.canonicalUrl ?? pickResult.topRuntimeAsset?.observedUrl ?? null
+    });
     state.runtimeUi.lastPick = pickResult;
+    baseResult.runtimeBridgeSource = pickResult.bridgeSource ?? baseResult.runtimeBridgeSource;
+    baseResult.runtimeBridgeVersion = pickResult.bridgeVersion ?? baseResult.runtimeBridgeVersion;
+    baseResult.runtimeEngineKind = pickResult.engineKind ?? baseResult.runtimeEngineKind;
+    baseResult.runtimeEngineNote = pickResult.engineNote ?? baseResult.runtimeEngineNote;
+    baseResult.runtimeFrameCount = Number.isFinite(pickResult.frameCount)
+      ? Number(pickResult.frameCount)
+      : baseResult.runtimeFrameCount;
+    baseResult.runtimeAccessibleFrameCount = Number.isFinite(pickResult.accessibleFrameCount)
+      ? Number(pickResult.accessibleFrameCount)
+      : baseResult.runtimeAccessibleFrameCount;
+    baseResult.runtimeCanvasCount = Number.isFinite(pickResult.canvasCount)
+      ? Number(pickResult.canvasCount)
+      : baseResult.runtimeCanvasCount;
+    baseResult.runtimeContextTypes = Array.isArray(pickResult.contextTypes)
+      ? pickResult.contextTypes.filter(Boolean)
+      : baseResult.runtimeContextTypes;
+    baseResult.runtimeAssetUseEntryCount = Array.isArray(pickResult.assetUseEntries)
+      ? pickResult.assetUseEntries.length
+      : baseResult.runtimeAssetUseEntryCount;
+    baseResult.runtimeAssetUseTopUrl = pickResult.topRuntimeAsset?.canonicalUrl
+      ?? pickResult.topRuntimeAsset?.observedUrl
+      ?? (Array.isArray(pickResult.assetUseEntries)
+        ? pickResult.assetUseEntries.map((entry) => entry?.canonicalUrl ?? entry?.observedUrl ?? null).find(Boolean) ?? null
+        : baseResult.runtimeAssetUseTopUrl);
+    baseResult.runtimeObservedResourceWindowLabels = Array.isArray(pickResult.resourceEntries)
+      ? Array.from(new Set(pickResult.resourceEntries.map((entry) => entry?.windowLabel).filter(Boolean))).slice(0, 12)
+      : baseResult.runtimeObservedResourceWindowLabels;
     baseResult.pickSucceeded = Boolean(pickResult.targetTag || pickResult.canvasDetected);
     baseResult.pickedTargetTag = pickResult.targetTag ?? null;
     baseResult.pickedCanvasDetected = Boolean(pickResult.canvasDetected);
@@ -7561,7 +7801,10 @@ function matchDonorAssetFromRuntimePick(lastPick = state.runtimeUi.lastPick) {
     typeof lastPick?.topDisplayObject?.texture?.resourceUrl === "string" ? lastPick.topDisplayObject.texture.resourceUrl : "",
     typeof lastPick?.topDisplayObject?.texture?.cacheId === "string" ? lastPick.topDisplayObject.texture.cacheId : "",
     typeof lastPick?.topDisplayObject?.name === "string" ? lastPick.topDisplayObject.name : "",
-    typeof lastPick?.topDisplayObject?.label === "string" ? lastPick.topDisplayObject.label : ""
+    typeof lastPick?.topDisplayObject?.label === "string" ? lastPick.topDisplayObject.label : "",
+    typeof lastPick?.topRuntimeAsset?.canonicalUrl === "string" ? lastPick.topRuntimeAsset.canonicalUrl : "",
+    typeof lastPick?.topRuntimeAsset?.observedUrl === "string" ? lastPick.topRuntimeAsset.observedUrl : "",
+    typeof lastPick?.topRuntimeAsset?.runtimeRelativePath === "string" ? lastPick.topRuntimeAsset.runtimeRelativePath : ""
   ]).map((value) => value.toLowerCase());
 
   if (signals.length === 0) {
@@ -7726,9 +7969,19 @@ function getRuntimeOverrideCandidate() {
   const workflowBridge = getRuntimeWorkflowBridge();
   const donorAsset = workflowBridge.donorAsset;
   const preferredFileType = donorAsset?.fileType ?? null;
+  const pickedRuntimeAsset = (() => {
+    const topRuntimeAsset = normalizeRuntimeAssetUseEntries(
+      state.runtimeUi.lastPick?.topRuntimeAsset ? [state.runtimeUi.lastPick.topRuntimeAsset] : []
+    )[0] ?? null;
+    if (topRuntimeAsset && (!preferredFileType || topRuntimeAsset.fileType === preferredFileType)) {
+      return topRuntimeAsset;
+    }
+    return getRuntimeAssetUseEntries()
+      .filter((entry) => !preferredFileType || entry.fileType === preferredFileType)[0] ?? null;
+  })();
   const directResourceUrl = typeof state.runtimeUi.lastPick?.topDisplayObject?.texture?.resourceUrl === "string"
     ? getRuntimeCanonicalSourceUrl(state.runtimeUi.lastPick.topDisplayObject.texture.resourceUrl)
-    : null;
+    : pickedRuntimeAsset?.url ?? null;
   const directFileType = directResourceUrl ? getRuntimeResourceFileType(directResourceUrl) : null;
   const directEntry = directResourceUrl && directFileType && (!preferredFileType || directFileType === preferredFileType)
     ? {
@@ -7742,7 +7995,10 @@ function getRuntimeOverrideCandidate() {
             return "";
           }
         })(),
-        initiatorType: "texture"
+        initiatorType: typeof state.runtimeUi.lastPick?.topDisplayObject?.texture?.resourceUrl === "string"
+          ? "texture"
+          : (pickedRuntimeAsset?.initiatorType ?? "runtime-asset-use"),
+        assetUseEntry: pickedRuntimeAsset
       }
     : null;
 
@@ -7803,6 +8059,8 @@ function getRuntimeOverrideCandidate() {
     })[0] ?? null;
   const observedResources = getObservedRuntimeResources()
     .filter((entry) => !preferredFileType || entry.fileType === preferredFileType);
+  const assetUseResources = getRuntimeAssetUseEntries()
+    .filter((entry) => !preferredFileType || entry.fileType === preferredFileType);
   const mirroredResources = (getRuntimeMirrorStatus()?.entries ?? [])
     .filter((entry) => (
       entry.kind === "static-image"
@@ -7837,6 +8095,9 @@ function getRuntimeOverrideCandidate() {
     : [/img\/ui\//i, /preloader-assets\//i];
   const requestBackedEntry = directEntry
     ?? phaseMatchers
+      .map((matcher) => assetUseResources.find((entry) => matcher.test(entry.relativePath ?? "")))
+      .find(Boolean)
+    ?? phaseMatchers
       .map((matcher) => resourceMapResources.find((entry) => matcher.test(entry.relativePath ?? "")))
       .find(Boolean)
     ?? phaseMatchers
@@ -7854,6 +8115,9 @@ function getRuntimeOverrideCandidate() {
   const activeOverride = selectedEntry ? getRuntimeOverrideEntry(selectedEntry.url) : null;
   const localMirrorEntry = selectedEntry ? getRuntimeMirrorEntry(selectedEntry.url) : null;
   const resourceMapEntry = requestBackedEntry?.resourceMapEntry ?? (requestBackedEntry ? getRuntimeResourceMapEntry(requestBackedEntry.url) : null);
+  const assetUseEntry = requestBackedEntry?.sourceKinds
+    ? requestBackedEntry
+    : (directEntry?.assetUseEntry ?? null);
 
   if (!selectedEntry) {
     return {
@@ -7866,6 +8130,7 @@ function getRuntimeOverrideCandidate() {
       activeOverride: null,
       localMirrorEntry: null,
       resourceMapEntry: null,
+      assetUseEntry: null,
       note: "No grounded runtime-loaded static image resource is available for an override in this slice yet."
     };
   }
@@ -7881,6 +8146,7 @@ function getRuntimeOverrideCandidate() {
       activeOverride,
       localMirrorEntry,
       resourceMapEntry: null,
+      assetUseEntry: null,
       note: localMirrorEntry
         ? `The strongest current match is only a local mirror manifest entry at ${localMirrorEntry.repoRelativePath}. No request-backed static image was observed in the current launch/start/spin cycle, so override hit proof is blocked until the runtime actually re-requests one.${requestBackedNonStaticEntry ? ` The strongest embedded request-backed source so far is ${requestBackedNonStaticEntry.runtimeRelativePath ?? requestBackedNonStaticEntry.canonicalSourceUrl} through ${requestBackedNonStaticEntry.requestSource}${Array.isArray(requestBackedNonStaticEntry.captureMethods) && requestBackedNonStaticEntry.captureMethods.length > 0 ? ` (${requestBackedNonStaticEntry.captureMethods.join(", ")})` : ""}.` : ""}`
         : `The strongest current match is only a local mirror manifest entry. No request-backed static image was observed in the current launch/start/spin cycle, so override hit proof is blocked until the runtime actually re-requests one.${requestBackedNonStaticEntry ? ` The strongest embedded request-backed source so far is ${requestBackedNonStaticEntry.runtimeRelativePath ?? requestBackedNonStaticEntry.canonicalSourceUrl} through ${requestBackedNonStaticEntry.requestSource}${Array.isArray(requestBackedNonStaticEntry.captureMethods) && requestBackedNonStaticEntry.captureMethods.length > 0 ? ` (${requestBackedNonStaticEntry.captureMethods.join(", ")})` : ""}.` : ""}`
@@ -7898,16 +8164,23 @@ function getRuntimeOverrideCandidate() {
       activeOverride,
       localMirrorEntry,
       resourceMapEntry,
+      assetUseEntry,
       note: localMirrorEntry
-        ? `A runtime-loaded static resource was observed and resolved to local mirror path ${localMirrorEntry.repoRelativePath}, but the current runtime pick does not yet expose a grounded donor asset to use as the override source.`
-        : "A runtime-loaded static resource was observed, but the current runtime pick does not yet expose a grounded donor asset to use as the override source."
+        ? assetUseEntry
+          ? `The live runtime is actively using this ${requestBackedEntry.fileType} source through ${assetUseEntry.sourceKinds.join(", ")}, and it resolves to local mirror path ${localMirrorEntry.repoRelativePath}, but the current runtime pick does not yet expose a grounded donor asset to use as the override source.`
+          : `A runtime-loaded static resource was observed and resolved to local mirror path ${localMirrorEntry.repoRelativePath}, but the current runtime pick does not yet expose a grounded donor asset to use as the override source.`
+        : assetUseEntry
+          ? `The live runtime is actively using this ${requestBackedEntry.fileType} source through ${assetUseEntry.sourceKinds.join(", ")}, but the current runtime pick does not yet expose a grounded donor asset to use as the override source.`
+          : "A runtime-loaded static resource was observed, but the current runtime pick does not yet expose a grounded donor asset to use as the override source."
     };
   }
 
   return {
     eligible: true,
     sourceKind: directEntry
-      ? "direct-texture"
+      ? (directEntry.assetUseEntry ? "runtime-asset-use" : "direct-texture")
+      : assetUseEntry
+        ? "runtime-asset-use"
       : observedResources.some((entry) => entry.url === requestBackedEntry.url)
         ? "observed-resource"
         : "runtime-resource-map",
@@ -7918,10 +8191,19 @@ function getRuntimeOverrideCandidate() {
     activeOverride,
     localMirrorEntry,
     resourceMapEntry,
+    assetUseEntry,
     note: directEntry
-      ? localMirrorEntry
-        ? `The live runtime exposed a direct texture/resource URL for this static image, and that source resolves to local mirror path ${localMirrorEntry.repoRelativePath}.`
-        : "The live runtime exposed a direct texture/resource URL for this static image."
+      ? directEntry.assetUseEntry
+        ? localMirrorEntry
+          ? `The live runtime is actively using this static image through ${directEntry.assetUseEntry.sourceKinds.join(", ")} at ${directEntry.assetUseEntry.naturalWidth ?? "unknown"}x${directEntry.assetUseEntry.naturalHeight ?? "unknown"}, and that source resolves to local mirror path ${localMirrorEntry.repoRelativePath}.`
+          : `The live runtime is actively using this static image through ${directEntry.assetUseEntry.sourceKinds.join(", ")} at ${directEntry.assetUseEntry.naturalWidth ?? "unknown"}x${directEntry.assetUseEntry.naturalHeight ?? "unknown"}.`
+        : localMirrorEntry
+          ? `The live runtime exposed a direct texture/resource URL for this static image, and that source resolves to local mirror path ${localMirrorEntry.repoRelativePath}.`
+          : "The live runtime exposed a direct texture/resource URL for this static image."
+      : assetUseEntry
+        ? localMirrorEntry
+          ? `The live runtime used this ${requestBackedEntry.fileType} source ${assetUseEntry.hitCount} time${assetUseEntry.hitCount === 1 ? "" : "s"} through ${assetUseEntry.sourceKinds.join(", ")} (${assetUseEntry.contexts.join(", ") || "runtime"}) at ${assetUseEntry.naturalWidth ?? "unknown"}x${assetUseEntry.naturalHeight ?? "unknown"}, and it resolves to local mirror path ${localMirrorEntry.repoRelativePath}.`
+          : `The live runtime used this ${requestBackedEntry.fileType} source ${assetUseEntry.hitCount} time${assetUseEntry.hitCount === 1 ? "" : "s"} through ${assetUseEntry.sourceKinds.join(", ")} (${assetUseEntry.contexts.join(", ") || "runtime"}) at ${assetUseEntry.naturalWidth ?? "unknown"}x${assetUseEntry.naturalHeight ?? "unknown"}.`
       : resourceMapEntry
         ? localMirrorEntry
           ? `The current runtime cycle requested this ${requestBackedEntry.fileType} source ${resourceMapEntry.hitCount} time${resourceMapEntry.hitCount === 1 ? "" : "s"} through ${resourceMapEntry.requestSource}${Array.isArray(resourceMapEntry.captureMethods) && resourceMapEntry.captureMethods.length > 0 ? ` (${resourceMapEntry.captureMethods.join(", ")})` : ""}, and it resolves to local mirror path ${localMirrorEntry.repoRelativePath}.`
@@ -13084,6 +13366,7 @@ function renderRuntimeWorkbench() {
   const runtimeMirrorStatus = getRuntimeMirrorStatus();
   const runtimeResourceMap = getRuntimeResourceMapStatus();
   const runtimeCoverage = getRuntimeCoverageStatus();
+  const runtimeAssetUseEntries = getRuntimeAssetUseEntries();
   const latestResourceEntry = getRuntimeResourceMapEntries()[0] ?? null;
 
   if (elements.runtimeWorkbench) {
@@ -13201,6 +13484,13 @@ function renderRuntimeWorkbench() {
           ? `${latestResourceEntry.runtimeRelativePath ?? latestResourceEntry.canonicalSourceUrl} · ${latestResourceEntry.hitCount} hit${latestResourceEntry.hitCount === 1 ? "" : "s"} · ${latestResourceEntry.requestSource}`
           : "Launch or reload Runtime Mode to capture requested URLs, local mirror files, override redirects, and hit counts.")}</small>
       </div>
+      <div class="detail-card ${runtimeAssetUseEntries.length > 0 ? "is-positive" : ""}">
+        <span>Live Asset-use Map</span>
+        <strong>${runtimeAssetUseEntries.length > 0 ? `${runtimeAssetUseEntries.length} live runtime asset hint${runtimeAssetUseEntries.length === 1 ? "" : "s"}` : "No live asset-use hints yet"}</strong>
+        <small>${escapeHtml(runtimeAssetUseEntries[0]
+          ? `${runtimeAssetUseEntries[0].relativePath ?? runtimeAssetUseEntries[0].url} · ${runtimeAssetUseEntries[0].hitCount} live hit${runtimeAssetUseEntries[0].hitCount === 1 ? "" : "s"} · ${runtimeAssetUseEntries[0].initiatorType}`
+          : state.runtimeUi.diagnostics?.engineNote ?? "Launch the runtime and inspect the live surface to populate the asset-use map.")}</small>
+      </div>
       <div class="detail-card ${runtimeCoverage?.localStaticEntryCount ? "is-positive" : runtimeCoverage?.upstreamStaticEntryCount ? "is-alert" : ""}">
         <span>Static Asset Coverage</span>
         <strong>${runtimeCoverage ? `${runtimeCoverage.localStaticEntryCount} local · ${runtimeCoverage.upstreamStaticEntryCount} upstream` : "No static runtime coverage yet"}</strong>
@@ -13236,6 +13526,7 @@ function renderRuntimeInspector() {
   const runtimeMirrorStatus = getRuntimeMirrorStatus();
   const runtimeResourceMap = getRuntimeResourceMapStatus();
   const runtimeCoverage = getRuntimeCoverageStatus();
+  const runtimeAssetUseEntries = getRuntimeAssetUseEntries();
   const activeResourceRecord = runtimeOverrideCandidate.resourceMapEntry ?? null;
   const candidateSummaries = Array.isArray(lastPick?.candidateApps) && lastPick.candidateApps.length > 0
     ? lastPick.candidateApps.map((entry) => `${entry.key}${entry.childCount != null ? ` · ${entry.childCount} stage children` : ""}`).join("; ")
@@ -13247,6 +13538,7 @@ function renderRuntimeInspector() {
     .map((evidenceId) => `<button type="button" class="copy-button" data-focus-donor-evidence-id="${escapeAttribute(evidenceId)}">Show ${escapeHtml(evidenceId)}</button>`)
     .join("");
   const sourcePaths = Array.isArray(runtimeLaunch?.sourcePaths) ? runtimeLaunch.sourcePaths : [];
+  const topRuntimeAsset = lastPick?.topRuntimeAsset ?? runtimeAssetUseEntries[0] ?? null;
 
   return `
     <div class="inspector-title">
@@ -13258,8 +13550,8 @@ function renderRuntimeInspector() {
       <span>${escapeHtml(runtimeLaunch?.availability ?? "blocked")}</span>
       <span>${escapeHtml(runtimeLaunch?.runtimeSourceLabel ?? "Blocked")}</span>
       <span>${state.runtimeUi.inspectEnabled ? "pick mode armed" : "pick mode idle"}</span>
-      <span>${diagnostics?.pixiVersion ? `Pixi ${escapeHtml(diagnostics.pixiVersion)}` : runtimeLaunch?.pixiVersion ? `Pixi ${escapeHtml(runtimeLaunch.pixiVersion)}` : "Pixi unknown"}</span>
-      <span>${topDisplayObject ? "display-object candidate detected" : "canvas / DOM level trace only"}</span>
+      <span>${diagnostics?.pixiVersion ? `Pixi ${escapeHtml(diagnostics.pixiVersion)}` : runtimeLaunch?.pixiVersion ? `Pixi ${escapeHtml(runtimeLaunch.pixiVersion)}` : escapeHtml(diagnostics?.engineKind ?? "Pixi unknown")}</span>
+      <span>${topDisplayObject ? "display-object candidate detected" : topRuntimeAsset ? "live asset-use candidate detected" : "canvas / DOM level trace only"}</span>
     </div>
     <div class="tree-row">
       <strong>Live Runtime Surface</strong>
@@ -13271,13 +13563,13 @@ function renderRuntimeInspector() {
     <div class="detail-grid runtime-trace-grid">
       <div class="detail-card">
         <span>Picked Target</span>
-        <strong>${escapeHtml(topDisplayObject?.name ?? topDisplayObject?.label ?? lastPick?.targetTag ?? "No runtime target picked yet")}</strong>
-        <small>${escapeHtml(lastPick?.targetClassName ?? topDisplayObject?.constructorName ?? "Click or inspect the live runtime to capture a target.")}</small>
+        <strong>${escapeHtml(topDisplayObject?.name ?? topDisplayObject?.label ?? topRuntimeAsset?.relativePath ?? lastPick?.targetTag ?? "No runtime target picked yet")}</strong>
+        <small>${escapeHtml(lastPick?.targetClassName ?? topDisplayObject?.constructorName ?? topRuntimeAsset?.initiatorType ?? "Click or inspect the live runtime to capture a target.")}</small>
       </div>
       <div class="detail-card">
         <span>Display / Texture Trace</span>
-        <strong>${escapeHtml(topDisplayObject?.texture?.cacheId ?? topDisplayObject?.id ?? "No exposed display-object id or texture cache id")}</strong>
-        <small>${escapeHtml(topDisplayObject?.texture?.resourceUrl ?? "The donor runtime does not expose a stable texture/source URL in this slice.")}</small>
+        <strong>${escapeHtml(topDisplayObject?.texture?.cacheId ?? topDisplayObject?.id ?? topRuntimeAsset?.relativePath ?? "No exposed display-object id or texture cache id")}</strong>
+        <small>${escapeHtml(topDisplayObject?.texture?.resourceUrl ?? topRuntimeAsset?.url ?? "The donor runtime does not expose a stable texture/source URL in this slice.")}</small>
       </div>
       <div class="detail-card">
         <span>Canvas Pick Coordinates</span>
@@ -13291,10 +13583,12 @@ function renderRuntimeInspector() {
       </div>
       <div class="detail-card">
         <span>Source Trace Strength</span>
-        <strong>${topDisplayObject ? "Canvas pick plus best-effort display-object trace" : "Runtime URL plus supporting evidence only"}</strong>
+        <strong>${topDisplayObject ? "Canvas pick plus best-effort display-object trace" : topRuntimeAsset ? "Canvas/WebGL asset-use trace plus supporting runtime evidence" : "Runtime URL plus supporting evidence only"}</strong>
         <small>${escapeHtml(topDisplayObject
           ? "The live runtime exposed enough surface to report a candidate display object or texture hint."
-          : "The embedded donor runtime is live, but it still does not expose a stable display-object/texture id in this slice.")}</small>
+          : topRuntimeAsset
+            ? `${diagnostics?.engineNote ?? "The embedded donor runtime stays opaque at object level, but the guest bridge captured a live asset-use hint from inside the runtime."}`
+            : "The embedded donor runtime is live, but it still does not expose a stable display-object/texture id in this slice.")}</small>
       </div>
       <div class="detail-card">
         <span>Runtime → Source Bridge</span>
@@ -13317,6 +13611,15 @@ function renderRuntimeInspector() {
         <span>Runtime Source Path</span>
         <strong>${escapeHtml(runtimeOverrideCandidate.runtimeRelativePath ?? "No grounded runtime image path yet")}</strong>
         <small>${escapeHtml(runtimeOverrideCandidate.runtimeSourceUrl ?? "The current runtime trace has not surfaced a supported static image URL.")}</small>
+      </div>
+      <div class="detail-card ${topRuntimeAsset ? "is-positive" : runtimeAssetUseEntries.length > 0 ? "is-alert" : ""}">
+        <span>Live Asset-use Trace</span>
+        <strong>${escapeHtml(topRuntimeAsset ? `${topRuntimeAsset.hitCount} live hit${topRuntimeAsset.hitCount === 1 ? "" : "s"}` : "No picked live asset-use hint yet")}</strong>
+        <small>${escapeHtml(topRuntimeAsset
+          ? `${topRuntimeAsset.initiatorType} · ${topRuntimeAsset.naturalWidth ?? "unknown"}x${topRuntimeAsset.naturalHeight ?? "unknown"}${topRuntimeAsset.canvasRect ? ` · rect ${topRuntimeAsset.canvasRect.x},${topRuntimeAsset.canvasRect.y} ${topRuntimeAsset.canvasRect.width}x${topRuntimeAsset.canvasRect.height}` : ""}`
+          : runtimeAssetUseEntries.length > 0
+            ? "Live runtime asset-use hints were captured, but the current pick did not land on a canvas-backed rect."
+            : "No live asset-use map entry has been captured yet.")}</small>
       </div>
       <div class="detail-card ${runtimeOverrideCandidate.localMirrorEntry ? "is-positive" : runtimeMirrorStatus?.available ? "is-alert" : ""}">
         <span>Local Runtime Source</span>

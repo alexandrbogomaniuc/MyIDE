@@ -22,3 +22,4 @@ Local-first helper for the bounded `project_001` Mystery Garden runtime mirror s
 - It does **not** create or claim a full standalone local donor runtime package.
 - The strongest current proof now leaves no unresolved upstream bootstrap/static dependency in the current launch/start/spin cycle, the embedded runtime tap proves a real local `bundle.js` request inside Runtime Mode, and direct local launch inspection proves the bounded mirror can serve local `bundle.js` plus local preloader images.
 - The strongest current static override candidate inside the embedded Electron Runtime Mode proof is still mirror-manifest-backed, not request-backed, so the runtime does not yet prove an override hit in this bounded slice.
+- The new guest-preload introspection bridge now also proves the current embedded slice exposes `frameCount=0`, `accessibleFrameCount=0`, `canvasCount=0`, and resource windows only at `top`.
