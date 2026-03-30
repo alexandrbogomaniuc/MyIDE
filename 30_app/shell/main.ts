@@ -17,6 +17,7 @@ import {
   buildLocalRuntimeLaunchHtml,
   buildLocalRuntimeMirrorRedirectMap,
   findLocalRuntimeMirrorEntry,
+  findLocalRuntimeMirrorEntryByRelativePath,
   buildLocalRuntimeMirrorStatus,
   getLocalRuntimeMirrorPort,
   readLocalRuntimeMirrorFile,
@@ -42,6 +43,7 @@ const isLiveLayerReassignSmokeMode = process.env.MYIDE_LIVE_LAYER_REASSIGN_SMOKE
 const isLiveResizeSmokeMode = process.env.MYIDE_LIVE_RESIZE_SMOKE === "1";
 const isLiveAlignSmokeMode = process.env.MYIDE_LIVE_ALIGN_SMOKE === "1";
 const isLiveUndoRedoSmokeMode = process.env.MYIDE_LIVE_UNDO_REDO_SMOKE === "1";
+const shouldShowLiveRuntimeWindow = process.env.MYIDE_LIVE_RUNTIME_SHOW === "1";
 const shouldKeepLivePersistWindowOpen = process.env.MYIDE_LIVE_PERSIST_KEEP_OPEN === "1";
 const shouldShowLivePersistWindow = process.env.MYIDE_LIVE_PERSIST_SHOW === "1" || shouldKeepLivePersistWindowOpen;
 const shouldKeepLiveDragWindowOpen = process.env.MYIDE_LIVE_DRAG_KEEP_OPEN === "1";
@@ -157,6 +159,7 @@ const runtimeWebviewPartition = "persist:myide-runtime-project001";
 let runtimeLocalMirrorStatus: LocalRuntimeMirrorStatus | null = null;
 let runtimeLocalMirrorServer: Server | null = null;
 let runtimeRequestStage = "launch";
+const recentRuntimeObservationFingerprints = new Map<string, number>();
 
 function resolvePreloadPath(): string {
   return path.resolve(__dirname, "preload.js");
@@ -403,6 +406,86 @@ function getRuntimeRedirectUrl(requestUrl: string): string | null {
     : null;
 }
 
+function getRuntimeMirrorRelativePathFromUrl(requestUrl: string): string | null {
+  try {
+    const parsedUrl = new URL(requestUrl);
+    if (!parsedUrl.pathname.startsWith("/runtime/project_001/assets/")) {
+      return null;
+    }
+    return parsedUrl.pathname.replace("/runtime/project_001/assets/", "").replace(/^\/+/, "") || null;
+  } catch {
+    return null;
+  }
+}
+
+function getRuntimeObservedRequestMetadata(requestUrl: string): {
+  canonicalSourceUrl: string;
+  requestSource: "local-mirror-launch" | "local-mirror-asset" | "local-mirror-proxy" | "project-local-override" | "upstream-request";
+  localMirrorAbsolutePath?: string | null;
+  overrideAbsolutePath?: string | null;
+  runtimeRelativePath?: string | null;
+  fileType?: string | null;
+} | null {
+  try {
+    const parsedUrl = new URL(requestUrl);
+    if (isRuntimeMirrorOrigin(requestUrl)) {
+      if (parsedUrl.pathname === "/runtime/project_001/launch") {
+        return {
+          canonicalSourceUrl: runtimeLocalMirrorStatus?.publicEntryUrl ?? requestUrl,
+          requestSource: "local-mirror-launch",
+          runtimeRelativePath: "launch.html",
+          fileType: "html"
+        };
+      }
+
+      if (parsedUrl.pathname === "/runtime/project_001/mirror") {
+        const sourceUrl = parsedUrl.searchParams.get("source");
+        if (!sourceUrl) {
+          return null;
+        }
+        const localMirrorEntry = findLocalRuntimeMirrorEntry(runtimeLocalMirrorStatus, sourceUrl);
+        const overrideAbsolutePath = getRuntimeOverrideAbsolutePath(sourceUrl);
+        return {
+          canonicalSourceUrl: sourceUrl,
+          requestSource: overrideAbsolutePath ? "project-local-override" : "local-mirror-proxy",
+          localMirrorAbsolutePath: localMirrorEntry?.absolutePath ?? null,
+          overrideAbsolutePath,
+          runtimeRelativePath: (() => {
+            try {
+              return new URL(sourceUrl).pathname.split("/html/MysteryGarden/")[1] ?? null;
+            } catch {
+              return null;
+            }
+          })(),
+          fileType: localMirrorEntry?.fileType ?? null
+        };
+      }
+
+      if (parsedUrl.pathname.startsWith("/runtime/project_001/assets/")) {
+        const runtimeRelativePath = getRuntimeMirrorRelativePathFromUrl(requestUrl);
+        const localMirrorEntry = findLocalRuntimeMirrorEntryByRelativePath(runtimeLocalMirrorStatus, runtimeRelativePath);
+        const canonicalSourceUrl = localMirrorEntry?.sourceUrl ?? requestUrl;
+        const overrideAbsolutePath = localMirrorEntry ? getRuntimeOverrideAbsolutePath(localMirrorEntry.sourceUrl) : null;
+        return {
+          canonicalSourceUrl,
+          requestSource: overrideAbsolutePath ? "project-local-override" : "local-mirror-asset",
+          localMirrorAbsolutePath: localMirrorEntry?.absolutePath ?? null,
+          overrideAbsolutePath,
+          runtimeRelativePath,
+          fileType: localMirrorEntry?.fileType ?? null
+        };
+      }
+    }
+
+    return {
+      canonicalSourceUrl: requestUrl,
+      requestSource: "upstream-request"
+    };
+  } catch {
+    return null;
+  }
+}
+
 function scheduleRuntimeResourceMapSnapshotWrite(): void {
   try {
     exportRuntimeResourceMapSnapshotSync("project_001");
@@ -441,6 +524,7 @@ function recordRuntimeResourceHit(
   canonicalSourceUrl: string,
   requestSource: "local-mirror-launch" | "local-mirror-asset" | "local-mirror-proxy" | "project-local-override" | "upstream-request",
   options: {
+    captureMethod?: "server-route" | "partition-webrequest";
     localMirrorAbsolutePath?: string | null;
     overrideAbsolutePath?: string | null;
     fileType?: string | null;
@@ -449,11 +533,35 @@ function recordRuntimeResourceHit(
     stage?: string | null;
   } = {}
 ): void {
+  const observationFingerprint = [
+    requestSource,
+    options.stage ?? runtimeRequestStage,
+    requestUrl,
+    canonicalSourceUrl,
+    options.resourceType ?? "",
+    options.overrideAbsolutePath ?? "",
+    options.localMirrorAbsolutePath ?? ""
+  ].join("|");
+  const now = Date.now();
+  const previousObservationAt = recentRuntimeObservationFingerprints.get(observationFingerprint) ?? 0;
+  if (now - previousObservationAt < 750) {
+    return;
+  }
+  recentRuntimeObservationFingerprints.set(observationFingerprint, now);
+  if (recentRuntimeObservationFingerprints.size > 512) {
+    for (const [fingerprint, observedAt] of recentRuntimeObservationFingerprints) {
+      if (now - observedAt > 30_000) {
+        recentRuntimeObservationFingerprints.delete(fingerprint);
+      }
+    }
+  }
+
   const entry = recordRuntimeResourceRequest({
     projectId: "project_001",
     requestUrl,
     canonicalSourceUrl,
     requestSource,
+    captureMethod: options.captureMethod ?? "server-route",
     localMirrorAbsolutePath: options.localMirrorAbsolutePath ?? null,
     overrideAbsolutePath: options.overrideAbsolutePath ?? null,
     fileType: options.fileType ?? null,
@@ -517,6 +625,31 @@ function installRuntimeAssetOverrideInterception(): void {
       urls: ["<all_urls>"]
     },
     onBeforeRequest
+  );
+  session.fromPartition(runtimeWebviewPartition).webRequest.onCompleted(
+    {
+      urls: ["<all_urls>"]
+    },
+    (details) => {
+      const observed = getRuntimeObservedRequestMetadata(details.url);
+      if (!observed) {
+        return;
+      }
+      recordRuntimeResourceHit(
+        details.url,
+        observed.canonicalSourceUrl,
+        observed.requestSource,
+        {
+          captureMethod: "partition-webrequest",
+          localMirrorAbsolutePath: observed.localMirrorAbsolutePath ?? null,
+          overrideAbsolutePath: observed.overrideAbsolutePath ?? null,
+          fileType: observed.fileType ?? null,
+          runtimeRelativePath: observed.runtimeRelativePath ?? null,
+          resourceType: details.resourceType,
+          stage: runtimeRequestStage
+        }
+      );
+    }
   );
   session.defaultSession.webRequest.onBeforeRequest(
     {
@@ -740,7 +873,7 @@ function getInitialWindowVisibility(): boolean {
   }
 
   if (isLiveDonorImportSmokeMode || isLiveRuntimeSmokeMode) {
-    return false;
+    return isLiveRuntimeSmokeMode ? shouldShowLiveRuntimeWindow : false;
   }
 
   if (isLiveDuplicateDeleteSmokeMode) {
@@ -1408,6 +1541,7 @@ ipcMain.handle("myide:get-runtime-resource-map", async (_event, projectId: strin
 });
 ipcMain.handle("myide:reset-runtime-resource-map", async (_event, projectId: string) => {
   runtimeAssetOverrideHits.clear();
+  recentRuntimeObservationFingerprints.clear();
   setRuntimeRequestStage("launch");
   const status = resetRuntimeResourceMap(projectId);
   scheduleRuntimeResourceMapSnapshotWrite();

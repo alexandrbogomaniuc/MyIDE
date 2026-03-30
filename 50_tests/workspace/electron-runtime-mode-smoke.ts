@@ -162,6 +162,7 @@ function runElectronLiveRuntimeSmoke(workspaceRoot: string): Promise<SmokeRunRes
       env: {
         ...process.env,
         MYIDE_LIVE_RUNTIME_SMOKE: "1",
+        MYIDE_LIVE_RUNTIME_SHOW: process.env.MYIDE_LIVE_RUNTIME_SHOW ?? "1",
         MYIDE_LIVE_RUNTIME_TIMEOUT_MS: process.env.MYIDE_LIVE_RUNTIME_TIMEOUT_MS ?? "90000"
       },
       stdio: ["ignore", "pipe", "pipe"]

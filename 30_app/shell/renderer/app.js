@@ -7762,6 +7762,45 @@ function getRuntimeOverrideCandidate() {
       initiatorType: "runtime-resource-map",
       resourceMapEntry: entry
     }));
+  const requestBackedNonStaticEntry = getRuntimeResourceMapEntries()
+    .filter((entry) => (
+      Boolean(entry.canonicalSourceUrl)
+      && !["png", "webp", "jpg", "jpeg", "svg"].includes(String(entry.fileType ?? "").toLowerCase())
+    ))
+    .sort((left, right) => {
+      const scoreEntry = (entry) => {
+        const relativePath = String(entry.runtimeRelativePath ?? "").toLowerCase();
+        const canonicalSourceUrl = String(entry.canonicalSourceUrl ?? "").toLowerCase();
+        let score = Number(entry.hitCount ?? 0);
+        if (entry.requestSource === "local-mirror-asset") {
+          score += 120;
+        } else if (entry.requestSource === "local-mirror-proxy") {
+          score += 60;
+        }
+        if (relativePath.endsWith("bundle.js") || canonicalSourceUrl.endsWith("/bundle.js")) {
+          score += 80;
+        } else if (relativePath.endsWith("loader.js") || canonicalSourceUrl.includes("/loader.js")) {
+          score += 40;
+        }
+        if (
+          canonicalSourceUrl.includes("analytics")
+          || canonicalSourceUrl.includes("googletagmanager")
+          || canonicalSourceUrl.includes("google.co.uk/ads")
+          || canonicalSourceUrl.includes("gtag")
+          || canonicalSourceUrl.includes("amplitude")
+        ) {
+          score -= 120;
+        }
+        return score;
+      };
+
+      const rightScore = scoreEntry(right);
+      const leftScore = scoreEntry(left);
+      if (rightScore !== leftScore) {
+        return rightScore - leftScore;
+      }
+      return String(left.runtimeRelativePath ?? left.canonicalSourceUrl).localeCompare(String(right.runtimeRelativePath ?? right.canonicalSourceUrl));
+    })[0] ?? null;
   const observedResources = getObservedRuntimeResources()
     .filter((entry) => !preferredFileType || entry.fileType === preferredFileType);
   const mirroredResources = (getRuntimeMirrorStatus()?.entries ?? [])
@@ -7843,8 +7882,8 @@ function getRuntimeOverrideCandidate() {
       localMirrorEntry,
       resourceMapEntry: null,
       note: localMirrorEntry
-        ? `The strongest current match is only a local mirror manifest entry at ${localMirrorEntry.repoRelativePath}. No request-backed static image was observed in the current launch/start/spin cycle, so override hit proof is blocked until the runtime actually re-requests one.`
-        : "The strongest current match is only a local mirror manifest entry. No request-backed static image was observed in the current launch/start/spin cycle, so override hit proof is blocked until the runtime actually re-requests one."
+        ? `The strongest current match is only a local mirror manifest entry at ${localMirrorEntry.repoRelativePath}. No request-backed static image was observed in the current launch/start/spin cycle, so override hit proof is blocked until the runtime actually re-requests one.${requestBackedNonStaticEntry ? ` The strongest embedded request-backed source so far is ${requestBackedNonStaticEntry.runtimeRelativePath ?? requestBackedNonStaticEntry.canonicalSourceUrl} through ${requestBackedNonStaticEntry.requestSource}${Array.isArray(requestBackedNonStaticEntry.captureMethods) && requestBackedNonStaticEntry.captureMethods.length > 0 ? ` (${requestBackedNonStaticEntry.captureMethods.join(", ")})` : ""}.` : ""}`
+        : `The strongest current match is only a local mirror manifest entry. No request-backed static image was observed in the current launch/start/spin cycle, so override hit proof is blocked until the runtime actually re-requests one.${requestBackedNonStaticEntry ? ` The strongest embedded request-backed source so far is ${requestBackedNonStaticEntry.runtimeRelativePath ?? requestBackedNonStaticEntry.canonicalSourceUrl} through ${requestBackedNonStaticEntry.requestSource}${Array.isArray(requestBackedNonStaticEntry.captureMethods) && requestBackedNonStaticEntry.captureMethods.length > 0 ? ` (${requestBackedNonStaticEntry.captureMethods.join(", ")})` : ""}.` : ""}`
     };
   }
 
@@ -7885,8 +7924,8 @@ function getRuntimeOverrideCandidate() {
         : "The live runtime exposed a direct texture/resource URL for this static image."
       : resourceMapEntry
         ? localMirrorEntry
-          ? `The current runtime cycle requested this ${requestBackedEntry.fileType} source ${resourceMapEntry.hitCount} time${resourceMapEntry.hitCount === 1 ? "" : "s"} through ${resourceMapEntry.requestSource}, and it resolves to local mirror path ${localMirrorEntry.repoRelativePath}.`
-          : `The current runtime cycle requested this ${requestBackedEntry.fileType} source ${resourceMapEntry.hitCount} time${resourceMapEntry.hitCount === 1 ? "" : "s"} through ${resourceMapEntry.requestSource}.`
+          ? `The current runtime cycle requested this ${requestBackedEntry.fileType} source ${resourceMapEntry.hitCount} time${resourceMapEntry.hitCount === 1 ? "" : "s"} through ${resourceMapEntry.requestSource}${Array.isArray(resourceMapEntry.captureMethods) && resourceMapEntry.captureMethods.length > 0 ? ` (${resourceMapEntry.captureMethods.join(", ")})` : ""}, and it resolves to local mirror path ${localMirrorEntry.repoRelativePath}.`
+          : `The current runtime cycle requested this ${requestBackedEntry.fileType} source ${resourceMapEntry.hitCount} time${resourceMapEntry.hitCount === 1 ? "" : "s"} through ${resourceMapEntry.requestSource}${Array.isArray(resourceMapEntry.captureMethods) && resourceMapEntry.captureMethods.length > 0 ? ` (${resourceMapEntry.captureMethods.join(", ")})` : ""}.`
       : observedResources.some((entry) => entry.url === requestBackedEntry.url)
         ? localMirrorEntry
           ? `A grounded runtime-loaded ${requestBackedEntry.fileType} resource was observed for the current runtime phase, matches the bridged donor asset file type, and resolves to local mirror path ${localMirrorEntry.repoRelativePath}.`
@@ -13294,7 +13333,7 @@ function renderRuntimeInspector() {
           ? `${activeResourceRecord.hitCount} runtime hit${activeResourceRecord.hitCount === 1 ? "" : "s"}`
           : "No recorded runtime request for this source yet")}</strong>
         <small>${escapeHtml(activeResourceRecord
-          ? `${activeResourceRecord.latestRequestUrl} · ${activeResourceRecord.requestCategory} · ${activeResourceRecord.requestSource}${activeResourceRecord.overrideRepoRelativePath ? ` · override ${activeResourceRecord.overrideRepoRelativePath}` : activeResourceRecord.localMirrorRepoRelativePath ? ` · local ${activeResourceRecord.localMirrorRepoRelativePath}` : ""}`
+          ? `${activeResourceRecord.latestRequestUrl} · ${activeResourceRecord.requestCategory} · ${activeResourceRecord.requestSource}${Array.isArray(activeResourceRecord.captureMethods) && activeResourceRecord.captureMethods.length > 0 ? ` · tap ${activeResourceRecord.captureMethods.join(", ")}` : ""}${activeResourceRecord.overrideRepoRelativePath ? ` · override ${activeResourceRecord.overrideRepoRelativePath}` : activeResourceRecord.localMirrorRepoRelativePath ? ` · local ${activeResourceRecord.localMirrorRepoRelativePath}` : ""}`
           : runtimeResourceMap?.entryCount
             ? "Runtime requests have been recorded this cycle, but the current picked source has not been matched to one of those records yet."
             : "Launch or reload Runtime Mode to capture requested URLs, local mirror paths, override redirects, and hit counts.")}</small>

@@ -52,4 +52,5 @@
   - Runtime Mode now launches from the local mirror URL, can trace one grounded static runtime candidate back to a local mirror file path, and can show the current launch/reload request map in the shell.
   - No unresolved upstream bootstrap/static dependency remains in the current bounded launch/start/spin cycle.
   - Direct local launch inspection now proves the bounded mirror can serve local `bundle.js` plus local preloader images such as `logo-lights.png`, `split.png`, and `a.png`.
-  - The embedded Electron Runtime Mode proof still records only bootstrap/telemetry in the current bounded slice, so the selected static override candidate remains mirror-manifest-backed rather than request-backed and the first hit-confirmed local override is still blocked.
+  - The embedded Electron Runtime Mode request tap now proves a real local `bundle.js` request inside the runtime webview partition.
+  - The embedded Electron Runtime Mode proof still does not surface a request-backed static image in the current bounded slice, so the selected static override candidate remains mirror-manifest-backed rather than request-backed and the first hit-confirmed local override is still blocked.

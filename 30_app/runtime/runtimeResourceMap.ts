@@ -8,6 +8,10 @@ export type RuntimeResourceRequestSource =
   | "project-local-override"
   | "upstream-request";
 
+export type RuntimeResourceCaptureMethod =
+  | "server-route"
+  | "partition-webrequest";
+
 export type RuntimeRequestCategory =
   | "html-bootstrap"
   | "static-asset"
@@ -19,6 +23,8 @@ export interface RuntimeResourceMapEntry {
   canonicalSourceUrl: string;
   latestRequestUrl: string;
   requestSource: RuntimeResourceRequestSource;
+  lastCaptureMethod: RuntimeResourceCaptureMethod | null;
+  captureMethods: RuntimeResourceCaptureMethod[];
   requestCategory: RuntimeRequestCategory;
   resourceType: string | null;
   runtimeRelativePath: string | null;
@@ -67,6 +73,7 @@ export interface RecordRuntimeResourceRequestInput {
   requestUrl: string;
   canonicalSourceUrl: string;
   requestSource: RuntimeResourceRequestSource;
+  captureMethod?: RuntimeResourceCaptureMethod | null;
   localMirrorAbsolutePath?: string | null;
   overrideAbsolutePath?: string | null;
   runtimeRelativePath?: string | null;
@@ -335,6 +342,11 @@ export function recordRuntimeResourceRequest(input: RecordRuntimeResourceRequest
     canonicalSourceUrl,
     latestRequestUrl: String(input.requestUrl),
     requestSource: input.requestSource,
+    lastCaptureMethod: input.captureMethod ?? existing?.lastCaptureMethod ?? null,
+    captureMethods: Array.from(new Set([
+      ...(existing?.captureMethods ?? []),
+      ...(input.captureMethod ? [input.captureMethod] : [])
+    ])),
     requestCategory,
     resourceType: input.resourceType ?? existing?.resourceType ?? null,
     runtimeRelativePath: input.runtimeRelativePath ?? existing?.runtimeRelativePath ?? inferRuntimeRelativePath(canonicalSourceUrl),
