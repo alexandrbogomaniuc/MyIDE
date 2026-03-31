@@ -4,15 +4,15 @@ Use this when testing the current local MyIDE build by hand.
 
 ## Before You Start
 1. This test edits reconstructed internal scene data under `40_projects/project_001/internal`; raw donor files under `10_donors/` stay read-only even when a donor image is imported.
-2. Run `npm run manual:prepare:project_001`.
-3. Run `npm run donor-assets:index:project_001`.
-4. Run `npm run runtime:harvest:project_001` if you want a safe local mirror refresh before opening the shell.
-5. Run `npm run runtime:harvest:smoke:project_001` only if you intentionally want a smoke-backed refresh from fresh Runtime Debug Host evidence.
-5. If you only need a quick context check, run `npm run manual:status`.
-6. Launch the shell with `npm run dev`.
-7. Test the LOCAL build on this machine, not the public GitHub snapshot.
-8. If you do not want the full prepare flow, `npm run manual:reset:project_001` still restores only the `project_001` baseline.
-9. GS VABS validation is a separate delivery lane; it does not replace the current shell manual QA flow.
+2. Preferred launchers:
+   - normal session: `./run/start-workbench.sh`
+   - clean test session: `./run/start-workbench-clean.sh`
+   - runtime-only debug session: `./run/open-runtime-debug-host.sh`
+   - safe runtime refresh only: `./run/refresh-runtime-assets.sh`
+3. If you only need a quick context check, run `npm run manual:status`.
+4. Test the LOCAL build on this machine, not the public GitHub snapshot.
+5. If you do not want the full prepare flow, `npm run manual:reset:project_001` still restores only the `project_001` baseline.
+6. GS VABS validation is a separate delivery lane; it does not replace the current shell manual QA flow.
 
 ## Core Checklist
 1. App launch

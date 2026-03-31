@@ -3,13 +3,20 @@
 Use this when you want to test the current MyIDE build exactly as it works today.
 
 ## 1. Launch The Current Build
-1. Run `npm run manual:prepare:project_001`.
-2. Optional but recommended for the donor composition side path: run `npm run donor-assets:index:project_001`.
-3. If you want a safe local mirror refresh before opening the shell, run `npm run runtime:harvest:project_001`.
-4. If you intentionally want a smoke-backed refresh from fresh Runtime Debug Host evidence, run `npm run runtime:harvest:smoke:project_001`.
-5. Run `npm run dev`.
-6. Wait for the Electron shell window to open.
-7. If you want the official runtime workflow for real work on `project_001`, run `npm run runtime:debug:project_001`.
+1. Normal daily start: run `./run/start-workbench.sh`.
+2. Clean demo/test start: run `./run/start-workbench-clean.sh`.
+3. Runtime-only debug start: run `./run/open-runtime-debug-host.sh`.
+4. Safe runtime refresh without opening the app: run `./run/refresh-runtime-assets.sh`.
+5. If you still need the raw commands, the scripts wrap these existing repo commands:
+   - `manual:prepare:project_001`
+   - `donor-assets:index:project_001`
+   - `runtime:harvest:project_001`
+   - `runtime:debug:project_001`
+   - `dev`
+
+Recommended rule:
+- If you are unsure, use `./run/start-workbench.sh`.
+- Use `./run/start-workbench-clean.sh` only when you intentionally want a clean `project_001` baseline.
 
 ## 2. Open The Validated Project
 1. In the shell, use **Project Browser**.

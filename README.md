@@ -139,6 +139,20 @@ Public publication rules are defined in [`00_control/PUBLIC_REPO_POLICY.md`](./0
 - `npm run manual:bug-bundle` creates a timestamped bug-report folder outside the repo under `/Users/alexb/Documents/Dev/MyIDE_manual_reports/`, prefilled with `BUG.md`, current `context.txt`, and an `attachments/` folder.
 - `npm run manual:reset:project_001` restores `project_001` to the current tracked local baseline and clears known local-only editor logs.
 
+## Quick Start Scripts
+If you just want to launch the app without memorizing raw `npm` commands, use the scripts in [run/README.md](/Users/alexb/Documents/Dev/MyIDE/run/README.md).
+
+- `./run/start-workbench.sh`
+  - Normal daily entry point. Refresh donor assets, refresh the safe runtime mirror view, then open MyIDE.
+- `./run/start-workbench-clean.sh`
+  - Clean demo/test entry point. Reset `project_001` to the tracked baseline, refresh assets/runtime data, then open MyIDE.
+- `./run/open-runtime-debug-host.sh`
+  - Open the official Runtime Debug Host directly for `project_001`.
+- `./run/refresh-runtime-assets.sh`
+  - Refresh the safe local runtime mirror/request view without opening the app.
+
+If you are unsure which one to use, start with `./run/start-workbench.sh`.
+
 ## GS VABS Module
 - [`00_control/VABS_MODULE_STRATEGY.md`](./00_control/VABS_MODULE_STRATEGY.md) explains how GS VABS fits into MyIDE as an additional module.
 - [`00_control/VABS_DELIVERY_CHECKLIST.md`](./00_control/VABS_DELIVERY_CHECKLIST.md) is the delivery checklist for per-project archived round history support.

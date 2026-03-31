@@ -12,14 +12,14 @@ The shell now shows a read-only VABS status panel for the selected project, but 
 
 ## Recommended Tester Flow
 1. Run `npm run manual:status` for a quick LOCAL vs PUBLIC vs HANDOFF check.
-2. Run `npm run manual:prepare:project_001` to reset, sync, and validate the `project_001` baseline before testing.
-3. Run `npm run runtime:harvest:project_001` if you want the strongest current local-runtime mirror coverage before opening the shell.
-4. Run `npm run donor-assets:index:project_001` before opening the shell if you want to test donor import in Scene Mode.
-5. Launch the shell with `npm run dev`.
-6. Open `project_001` in Project Browser.
-7. In Runtime Mode, use `Launch Runtime`, `Reload Runtime`, `Click To Start`, `Spin / Trigger`, and `Pick / Inspect` as the first donor workflow path.
-8. After a runtime pick, use the runtime bridge buttons to focus donor asset, donor evidence, or related compose context when those are grounded.
-9. If the runtime trace says the current source is override-eligible, use `Create Override`, let Runtime Mode reload, and confirm either:
+2. Use one of the launch scripts under [run/README.md](/Users/alexb/Documents/Dev/MyIDE/run/README.md):
+   - `./run/start-workbench.sh` for normal day-to-day use
+   - `./run/start-workbench-clean.sh` for a clean `project_001` baseline
+   - `./run/open-runtime-debug-host.sh` for runtime-only investigation
+3. Open `project_001` in Project Browser when the shell appears.
+4. In Runtime Mode, use `Launch Runtime`, `Reload Runtime`, `Click To Start`, `Spin / Trigger`, and `Pick / Inspect` as the first donor workflow path.
+5. After a runtime pick, use the runtime bridge buttons to focus donor asset, donor evidence, or related compose context when those are grounded.
+6. If the runtime trace says the current source is override-eligible, use `Create Override`, let Runtime Mode reload, and confirm either:
    - the active override card shows a runtime hit, or
    - the shell reports the current local-mirror override blocker plainly
 10. Use the `Inspection Bridge` card in the runtime inspector to confirm whether the stronger `main-world-execute-js` bridge attached or whether the shell fell back to `guest-preload`.

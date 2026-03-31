@@ -2,6 +2,14 @@
 
 Local-first helper for the bounded `project_001` Mystery Garden runtime mirror slice.
 
+## Preferred Launchers
+- `./run/start-workbench.sh`
+  - Open the main MyIDE workbench after safe donor/runtime refresh steps.
+- `./run/open-runtime-debug-host.sh`
+  - Open the official Runtime Debug Host directly.
+- `./run/refresh-runtime-assets.sh`
+  - Refresh the safe local runtime mirror/request view without opening the full app.
+
 ## Current scope
 - `project_001` only
 - HTML5 Mystery Garden runtime only

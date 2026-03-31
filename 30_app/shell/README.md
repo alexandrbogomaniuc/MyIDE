@@ -2,6 +2,16 @@
 
 Electron desktop shell for MyIDE.
 
+## Preferred Launchers
+- `./run/start-workbench.sh`
+  - Normal daily launcher for the main MyIDE shell.
+- `./run/start-workbench-clean.sh`
+  - Clean reset + launcher for `project_001` test sessions.
+- `./run/open-runtime-debug-host.sh`
+  - Direct launcher for the official Runtime Debug Host path.
+- `./run/refresh-runtime-assets.sh`
+  - Safe runtime mirror/request refresh without opening the full shell.
+
 ## Current scope
 - Load a local web UI.
 - Show a workspace/project browser driven from the discovered project bundle.
