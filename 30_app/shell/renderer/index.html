@@ -106,6 +106,11 @@
                 <input id="field-donor-reference" name="donorReference" type="text" placeholder="donor_003_example" required />
               </label>
               <label class="form-field">
+                <span>Donor Launch URL</span>
+                <input id="field-donor-launch-url" name="donorLaunchUrl" type="url" placeholder="https://demo.example.com/play/Game/FUN?server=demo" />
+                <small class="form-help">Optional but recommended. When present, MyIDE captures the donor launch HTML and first discovered URLs into <code>10_donors/&lt;donorId&gt;</code>.</small>
+              </label>
+              <label class="form-field">
                 <span>Target / Resulting Game</span>
                 <input id="field-target-display-name" name="targetDisplayName" type="text" placeholder="Example Resulting Game" required />
               </label>
@@ -115,7 +120,7 @@
               </label>
               <div class="form-actions">
                 <button type="submit">Create Project</button>
-                <p id="create-project-status" class="muted-copy">Creates a standard scaffold under <code>40_projects/&lt;slug&gt;</code> and refreshes the project browser.</p>
+                <p id="create-project-status" class="muted-copy">Creates a project scaffold under <code>40_projects/&lt;slug&gt;</code>, scaffolds the shared donor pack under <code>10_donors/&lt;donorId&gt;</code>, and refreshes the project browser.</p>
               </div>
             </form>
           </article>

@@ -36,6 +36,22 @@
       "type": "string",
       "enum": ["proven", "planned", "blocked", "reference-only"]
     },
+    "launchUrl": {
+      "type": "string",
+      "minLength": 1
+    },
+    "resolvedLaunchUrl": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sourceHost": {
+      "type": "string",
+      "minLength": 1
+    },
+    "intakeReportPath": {
+      "type": "string",
+      "minLength": 1
+    },
     "notes": {
       "type": "string"
     }

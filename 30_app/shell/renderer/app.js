@@ -179,6 +179,7 @@ const elements = {
   fieldSlug: document.getElementById("field-slug"),
   fieldGameFamily: document.getElementById("field-game-family"),
   fieldDonorReference: document.getElementById("field-donor-reference"),
+  fieldDonorLaunchUrl: document.getElementById("field-donor-launch-url"),
   fieldTargetDisplayName: document.getElementById("field-target-display-name"),
   fieldNotes: document.getElementById("field-notes")
 };
@@ -12022,6 +12023,7 @@ async function handleCreateProject(event) {
   const slug = slugifyValue(elements.fieldSlug?.value || displayName);
   const gameFamily = elements.fieldGameFamily?.value ?? "slot";
   const donorReference = elements.fieldDonorReference?.value?.trim() ?? "";
+  const donorLaunchUrl = elements.fieldDonorLaunchUrl?.value?.trim() ?? "";
   const targetDisplayName = elements.fieldTargetDisplayName?.value?.trim() ?? "";
   const notes = elements.fieldNotes?.value?.trim() ?? "";
 
@@ -12030,7 +12032,18 @@ async function handleCreateProject(event) {
     return;
   }
 
-  setCreateProjectStatus(`Creating ${displayName} under 40_projects/${slug} ...`);
+  if (donorLaunchUrl) {
+    try {
+      new URL(donorLaunchUrl);
+    } catch {
+      setCreateProjectStatus("Donor launch URL must be a valid absolute URL when provided.", true);
+      return;
+    }
+  }
+
+  setCreateProjectStatus(donorLaunchUrl
+    ? `Creating ${displayName}, scaffolding donor pack ${donorReference}, and capturing the first donor launch page ...`
+    : `Creating ${displayName} under 40_projects/${slug} and scaffolding donor pack ${donorReference} ...`);
 
   try {
     const created = await window.myideApi.createProject({
@@ -12038,6 +12051,7 @@ async function handleCreateProject(event) {
       slug,
       gameFamily,
       donorReference,
+      donorLaunchUrl,
       targetDisplayName,
       notes
     });
@@ -12051,7 +12065,15 @@ async function handleCreateProject(event) {
 
     await reloadWorkspace(false, created.projectId);
     pushLog(`Created project scaffold ${created.projectId} at ${created.projectRoot}.`);
-    setCreateProjectStatus(`Created ${created.displayName}. The project is now discoverable in the workspace browser.`);
+    const donorIntake = created.donorIntake;
+    const donorIntakeSummary = donorIntake?.status === "captured"
+      ? ` Donor intake captured ${donorIntake.discoveredUrlCount} first-pass URLs into ${donorIntake.donorRoot.replace(/^.*10_donors\//, "10_donors/")}.`
+      : donorIntake?.status === "blocked"
+        ? ` Donor intake was blocked: ${donorIntake.error ?? "unknown error"}.`
+        : donorLaunchUrl
+          ? " Donor intake was skipped unexpectedly."
+          : " Donor pack scaffolded with no launch URL yet.";
+    setCreateProjectStatus(`Created ${created.displayName}. The project is now discoverable in the workspace browser.${donorIntakeSummary}`);
     setPreviewStatus(`Created ${created.displayName}. Add internal scene files before editing starts.`);
   } catch (error) {
     setCreateProjectStatus(error instanceof Error ? error.message : "Project creation failed.", true);

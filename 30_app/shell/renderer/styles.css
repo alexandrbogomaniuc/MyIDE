@@ -291,6 +291,12 @@ button:disabled {
   letter-spacing: 0.08em;
 }
 
+.form-help {
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
 .form-field input,
 .form-field textarea,
 .form-field select {

@@ -1,6 +1,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { discoverAndWriteRegistry } from "./discoverProjects";
+import { bootstrapDonorIntake, sanitizeStoredUrl, type DonorIntakeResult } from "./donorIntake";
 
 type JsonValue = null | boolean | number | string | JsonObject | JsonValue[];
 type JsonObject = { [key: string]: JsonValue };
@@ -37,6 +38,7 @@ export interface ShellCreateProjectInput {
   slug: string;
   gameFamily: ProjectMetaLike["gameFamily"];
   donorReference: string;
+  donorLaunchUrl?: string;
   targetDisplayName: string;
   notes?: string;
 }
@@ -47,6 +49,7 @@ export interface ShellCreateProjectResult {
   displayName: string;
   projectRoot: string;
   projectMetaPath: string;
+  donorIntake?: DonorIntakeResult;
 }
 
 export interface ProjectScaffoldOptions {
@@ -95,6 +98,10 @@ export interface ProjectMetaLike {
     captureSessions: string[];
     evidenceRefs: string[];
     status: "proven" | "planned" | "blocked" | "reference-only";
+    launchUrl?: string;
+    resolvedLaunchUrl?: string;
+    sourceHost?: string;
+    intakeReportPath?: string;
     notes?: string;
   };
   targetGame: {
@@ -206,13 +213,13 @@ function humanizeProjectName(slug: string): string {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
-function buildStandardPaths(relativeProjectRoot: string): ProjectMetaLike["paths"] {
+function buildStandardPaths(relativeProjectRoot: string, donorId: string): ProjectMetaLike["paths"] {
   return {
     projectRoot: relativeProjectRoot,
     projectJson: `${relativeProjectRoot}/project.json`,
     metaPath: `${relativeProjectRoot}/project.meta.json`,
     registryPath: "40_projects/registry.json",
-    evidenceRoot: `${relativeProjectRoot}/donor`,
+    evidenceRoot: `10_donors/${donorId}/evidence`,
     donorRoot: `${relativeProjectRoot}/donor`,
     reportsRoot: `${relativeProjectRoot}/reports`,
     importsRoot: `${relativeProjectRoot}/imports`,
@@ -357,7 +364,7 @@ function normalizeDonor(value: unknown, relativeProjectRoot: string, projectName
   const donor = isJsonObject(value) ? value : {};
   const donorId = optionalString(donor.donorId) ?? `donor_planned_${path.basename(relativeProjectRoot)}`;
   const donorName = optionalString(donor.donorName) ?? "Planned donor reference";
-  const evidenceRoot = optionalString(donor.evidenceRoot) ?? `${relativeProjectRoot}/donor`;
+  const evidenceRoot = optionalString(donor.evidenceRoot) ?? `10_donors/${donorId}/evidence`;
 
   return {
     donorId,
@@ -366,6 +373,10 @@ function normalizeDonor(value: unknown, relativeProjectRoot: string, projectName
     captureSessions: toStringArray(donor.captureSessions, "donor.captureSessions"),
     evidenceRefs: toStringArray(donor.evidenceRefs, "donor.evidenceRefs"),
     status: (optionalString(donor.status) as ProjectMetaLike["donor"]["status"] | undefined) ?? "planned",
+    launchUrl: optionalString(donor.launchUrl),
+    resolvedLaunchUrl: optionalString(donor.resolvedLaunchUrl),
+    sourceHost: optionalString(donor.sourceHost),
+    intakeReportPath: optionalString(donor.intakeReportPath),
     notes: optionalString(donor.notes) ?? `${projectName} scaffold only. Replace with evidence-backed donor references before validation.`
   };
 }
@@ -394,6 +405,7 @@ function resolveProjectMeta(meta: JsonObject, projectRoot: string): ProjectMetaL
   const inferredSlug = optionalString(meta.slug) ?? slugify(optionalString(meta.displayName) ?? inferredProjectId);
   const inferredDisplayName = optionalString(meta.displayName) ?? humanizeProjectName(inferredSlug);
   const projectName = inferredDisplayName;
+  const donorRecord = normalizeDonor(meta.donor, relativeProjectRoot, projectName);
 
   return {
     schemaVersion: optionalString(meta.schemaVersion) ?? "0.1.0",
@@ -406,8 +418,8 @@ function resolveProjectMeta(meta: JsonObject, projectRoot: string): ProjectMetaL
     status: (optionalString(meta.status) as ProjectMetaLike["status"] | undefined) ?? "planned",
     verification: normalizeVerification(meta.verification),
     lifecycle: normalizeLifecycle(meta.lifecycle, projectName),
-    paths: buildStandardPaths(relativeProjectRoot),
-    donor: normalizeDonor(meta.donor, relativeProjectRoot, projectName),
+    paths: buildStandardPaths(relativeProjectRoot, donorRecord.donorId),
+    donor: donorRecord,
     targetGame: normalizeTargetGame(meta.targetGame, inferredSlug, projectName),
     timestamps: {
       createdAt: optionalString((isJsonObject(meta.timestamps) ? meta.timestamps : {}).createdAt) ?? new Date().toISOString(),
@@ -579,6 +591,7 @@ export function buildProjectMetaFromInput(input: ShellCreateProjectInput): Proje
   const displayName = requireTrimmedString(input.displayName, "displayName");
   const slug = slugify(requireTrimmedString(input.slug, "slug"));
   const donorReference = requireTrimmedString(input.donorReference, "donorReference");
+  const donorLaunchUrl = optionalString(input.donorLaunchUrl)?.trim();
   const targetDisplayName = requireTrimmedString(input.targetDisplayName, "targetDisplayName");
   const notesInput = optionalString(input.notes)?.trim();
   const projectRoot = `40_projects/${slug}`;
@@ -605,15 +618,26 @@ export function buildProjectMetaFromInput(input: ShellCreateProjectInput): Proje
       notes: "Scaffold created from the MyIDE shell. No replay or runtime validation exists yet."
     },
     lifecycle,
-    paths: buildStandardPaths(projectRoot),
+    paths: buildStandardPaths(projectRoot, donorId),
     donor: {
       donorId,
       donorName: donorReference,
-      evidenceRoot: `${projectRoot}/donor`,
+      evidenceRoot: `10_donors/${donorId}/evidence`,
       captureSessions: [],
       evidenceRefs: [],
       status: "planned",
-      notes: "Shell-created donor reference only. Replace with evidence-backed donor materials before validation."
+      launchUrl: donorLaunchUrl ? sanitizeStoredUrl(donorLaunchUrl) : undefined,
+      sourceHost: donorLaunchUrl ? (() => {
+        try {
+          return new URL(donorLaunchUrl).host;
+        } catch {
+          return undefined;
+        }
+      })() : undefined,
+      intakeReportPath: `10_donors/${donorId}/reports/DONOR_INTAKE_REPORT.md`,
+      notes: donorLaunchUrl
+        ? "Shell-created donor reference with a first launch URL queued for intake capture. Replace scaffold claims with evidence-backed donor materials before validation."
+        : "Shell-created donor reference only. Add a donor launch URL or evidence-backed donor materials before validation."
     },
     targetGame: {
       targetGameId,
@@ -637,7 +661,11 @@ export function buildProjectMetaFromInput(input: ShellCreateProjectInput): Proje
         "Project scaffold was created through the MyIDE workspace flow.",
         "Folder-based discovery should surface this project after rescan."
       ],
-      plannedWork: notesInput ? [notesInput] : ["Replace scaffold metadata with evidence-backed donor, import, and replay details."],
+      plannedWork: notesInput
+        ? [notesInput]
+        : [donorLaunchUrl
+          ? "Review the donor intake report and convert first-pass URL discovery into evidence-backed donor capture work."
+          : "Replace scaffold metadata with evidence-backed donor, import, and replay details."],
       assumptions: [
         "This project remains unvalidated until donor evidence and internal replay exist."
       ],
@@ -650,6 +678,29 @@ export function buildProjectMetaFromInput(input: ShellCreateProjectInput): Proje
 
 export async function createProjectFromInput(input: ShellCreateProjectInput, overwrite = false): Promise<ShellCreateProjectResult> {
   const meta = buildProjectMetaFromInput(input);
+  const donorIntake = await bootstrapDonorIntake({
+    donorId: meta.donor.donorId,
+    donorName: meta.donor.donorName,
+    donorLaunchUrl: input.donorLaunchUrl,
+    overwrite
+  });
+  meta.donor.evidenceRoot = path.relative(workspaceRoot, donorIntake.evidenceRoot).replace(/\\/g, "/");
+  meta.donor.intakeReportPath = path.relative(workspaceRoot, donorIntake.reportPath).replace(/\\/g, "/");
+  meta.donor.launchUrl = donorIntake.launchUrl;
+  meta.donor.resolvedLaunchUrl = donorIntake.resolvedLaunchUrl;
+  meta.donor.sourceHost = donorIntake.sourceHost;
+  meta.donor.status = donorIntake.status === "blocked"
+    ? "blocked"
+    : donorIntake.status === "captured"
+      ? "planned"
+      : meta.donor.status;
+  if (donorIntake.status === "captured") {
+    meta.notes.provenFacts.push("Initial donor launch HTML and discovered URL inventory were captured into the shared donor pack.");
+  }
+  if (donorIntake.status === "blocked" && donorIntake.error) {
+    meta.notes.unresolvedQuestions = [...(meta.notes.unresolvedQuestions ?? []), `Why did donor intake fail: ${donorIntake.error}`];
+  }
+  meta.paths.evidenceRoot = meta.donor.evidenceRoot;
   const resolvedProjectRoot = path.join(workspaceRoot, meta.paths.projectRoot);
 
   await createProjectScaffold({
@@ -664,7 +715,8 @@ export async function createProjectFromInput(input: ShellCreateProjectInput, ove
     slug: meta.slug,
     displayName: meta.displayName,
     projectRoot: meta.paths.projectRoot,
-    projectMetaPath: meta.paths.metaPath
+    projectMetaPath: meta.paths.metaPath,
+    donorIntake
   };
 }
 

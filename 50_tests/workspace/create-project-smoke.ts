@@ -55,6 +55,8 @@ async function main(): Promise<void> {
   const smokeProjectRoot = path.join(projectsRoot, smokeSlug);
   const smokeProjectMetaPath = path.join(smokeProjectRoot, "project.meta.json");
   const expectedProjectId = `project_${smokeSlug.replace(/-/g, "_")}`;
+  const donorReference = `donor_smoke_onboarding_${smokeSlug.replace(/-/g, "_")}`;
+  let smokeDonorRoot: string | null = null;
 
   await fs.mkdir(projectsRoot, { recursive: true });
 
@@ -63,12 +65,16 @@ async function main(): Promise<void> {
       displayName: "Smoke Onboarding Project",
       slug: smokeSlug,
       gameFamily: "slot",
-      donorReference: "donor_smoke_onboarding",
+      donorReference,
       targetDisplayName: "Smoke Onboarding Resulting Game",
       notes: "Temporary smoke project used to prove create -> discover -> registry -> shell visibility."
     });
 
     const meta = await readJsonObject(smokeProjectMetaPath);
+    const donor = isJsonObject(meta.donor) ? meta.donor : {};
+    smokeDonorRoot = typeof donor.donorId === "string"
+      ? path.join(workspaceRoot, "10_donors", donor.donorId)
+      : null;
     const projectMetaValid = validateProjectMeta(meta);
     assert(projectMetaValid, `smoke project meta failed schema validation: ${formatErrors(validateProjectMeta.errors)}`);
 
@@ -104,6 +110,9 @@ async function main(): Promise<void> {
   } finally {
     await fs.writeFile(registryPath, originalRegistryRaw, "utf8");
     await fs.rm(smokeProjectRoot, { recursive: true, force: true });
+    if (smokeDonorRoot) {
+      await fs.rm(smokeDonorRoot, { recursive: true, force: true });
+    }
   }
 }
 

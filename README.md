@@ -16,6 +16,7 @@ MyIDE is a universal local-first IDE for multiple game projects over time, with 
 - `npm run runtime:harvest:smoke:project_001` is the explicit maintenance variant that first runs the Runtime Debug Host smoke, then refreshes the mirror from that request-backed runtime evidence.
 - The current strongest local-runtime proof is narrower and better grounded: the local mirror now serves the observed launch path by default on this machine, the bounded slice leaves no unresolved upstream bootstrap/static dependency in the current launch/start/spin cycle, the embedded runtime request tap now proves a real local `bundle.js` hit inside Runtime Mode, and direct local launch inspection proves the same mirror can serve local static preloader images.
 - The shell now has one official runtime workbench path for `project_001`: the bounded dedicated Runtime Debug Host loads the same local mirror in a separate BrowserWindow, anchors the runtime asset/request workbench inside the shell, and is the path to use when runtime asset tracing or override proof matters.
+- The generic **New Project** flow is no longer donor-name-only: it can now accept a donor launch URL, scaffold the shared donor pack under `10_donors/<donorId>/`, capture the donor launch HTML in sanitized form, and write a first-pass discovered URL inventory for follow-up evidence work.
 - The current strongest previously verified embedded-runtime result is still explicit: `frameCount=0`, `accessibleFrameCount=0`, `canvasCount=0`, the only observed resource window is `top`, and the embedded path still does not expose a request-backed static image or display-object handle for override proof.
 - The decisive product conclusion is now clearer: embedded Runtime Mode remains weaker and secondary for this slice, while the dedicated Runtime Debug Host is the official day-to-day runtime workflow for asset tracing, source jumps, compose bridging, and override proof in the current validated slice.
 - There is still no captured full local donor runtime package for `project_001`, so Runtime Mode currently uses a partial local mirror rather than pretending a complete local donor bundle exists.
@@ -54,6 +55,7 @@ Public publication rules are defined in [`00_control/PUBLIC_REPO_POLICY.md`](./0
 - `npm run manual:bug-context`
 - `npm run manual:bug-bundle`
 - `npm run manual:reset:project_001`
+- `npm run donor:intake:url -- --donor-id donor_003_example --donor-name "Example Donor" --url "https://demo.example.com/play/Game/FUN?server=demo"`
 - `npm run runtime:mirror:project_001`
 - `npm run runtime:harvest:project_001`
 - `npm run runtime:harvest:smoke:project_001`
@@ -118,6 +120,7 @@ Public publication rules are defined in [`00_control/PUBLIC_REPO_POLICY.md`](./0
 - [`00_control/MANUAL_TEST_MATRIX.md`](./00_control/MANUAL_TEST_MATRIX.md) is the fast pass/fail matrix.
 - [`00_control/MANUAL_BUG_TEMPLATE.md`](./00_control/MANUAL_BUG_TEMPLATE.md) is the copy/paste bug report format.
 - The current shell is now runtime-first for `project_001`: Runtime Mode is the main donor workflow when the grounded donor runtime entry is available, and Compose Mode remains the bounded internal scene editor for `40_projects/project_001/internal`.
+- The shell **New Project** panel now supports an optional **Donor Launch URL**. When you provide one, MyIDE scaffolds `10_donors/<donorId>/` and captures the first donor launch page plus discovered URL list instead of only storing a donor label.
 - Runtime Mode now prefers the bounded local runtime mirror URL when it is available on this machine.
 - The exact full-package blocker is still recorded in [`00_control/RUNTIME_PACKAGE_NOTES.md`](./00_control/RUNTIME_PACKAGE_NOTES.md): there is still no captured standalone local donor runtime package for `project_001`.
 - Runtime Mode currently supports bounded launch, reload, click-to-start, space-triggered spin when the donor runtime listens for it, and a stronger pick/inspect flow that can jump straight into donor asset, donor evidence, and related compose context when grounded.

@@ -31,6 +31,24 @@ Recommended rule:
 2. Open `project_001` (`Mystery Garden Replay Slice`).
 3. If the list looks stale, click **Rescan Workspace**.
 
+## 2A. Start A New Project From A Donor URL
+1. In **New Project**, fill in:
+   - **Display Name**
+   - **Slug**
+   - **Donor Reference / ID**
+   - **Donor Launch URL** if you already have one
+   - **Target / Resulting Game**
+2. Click **Create Project**.
+3. MyIDE now does two things:
+   - scaffolds the project under `40_projects/<slug>/`
+   - scaffolds the shared donor pack under `10_donors/<donorId>/`
+4. If a launch URL was supplied, MyIDE also captures:
+   - `raw/bootstrap/launch.html`
+   - `raw/bootstrap/launch-request.json`
+   - `raw/discovered/discovered-urls.json`
+   - `reports/DONOR_INTAKE_REPORT.md`
+5. This is still only the first donor-intake slice. It does not yet download the full runtime package or expose full game logic as editable objects.
+
 ## 3. Runtime Mode Is The Primary Workflow
 1. `project_001` now opens into **Runtime** mode when the grounded donor runtime entry is available.
 2. Use the new **Workflow Hub** in the left column to switch the side context between **Runtime**, **Donor**, **Compose**, **VABS**, and **Project** without hunting through one long stack of panels.
