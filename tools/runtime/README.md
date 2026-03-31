@@ -23,6 +23,10 @@ Local-first helper for the bounded `project_001` Mystery Garden runtime mirror s
 - `npm run runtime:debug:project_001`
 - `npm run smoke:electron-runtime-debug`
 
+## Runtime Debug Rule
+- `npm run runtime:debug:project_001` is the interactive Runtime Debug Host launcher.
+- `npm run smoke:electron-runtime-debug` is the automated proof harness.
+
 ## Output
 - `40_projects/project_001/runtime/local-mirror/manifest.json`
 - `40_projects/project_001/runtime/local-mirror/files/`

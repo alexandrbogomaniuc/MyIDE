@@ -12,7 +12,8 @@ open-runtime-debug-host.sh
 Launch the dedicated Runtime Debug Host for project_001.
 
 Use this when you only want the stronger runtime-debug path and do not need the full shell workbench first.
-The Debug Host is the official runtime inspection path for project_001 right now.
+This opens the interactive Runtime Debug Host window.
+If you want the automated proof harness instead, use `npm run smoke:electron-runtime-debug`.
 EOF
   exit 0
 fi

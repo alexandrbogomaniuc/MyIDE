@@ -133,6 +133,7 @@ interface RuntimeDebugHostOptions {
   showWindow?: boolean;
   smokeMode?: boolean;
   closeWhenDone?: boolean;
+  proofMode?: boolean;
 }
 
 type RuntimeDebugHostResult = Record<string, unknown>;
@@ -535,6 +536,7 @@ async function runRuntimeDebugHost(options: RuntimeDebugHostOptions = {}): Promi
   const showWindow = options.showWindow ?? shouldShowRuntimeDebugWindow;
   const smokeMode = options.smokeMode ?? isRuntimeDebugSmokeMode;
   const closeWhenDone = options.closeWhenDone ?? !showWindow;
+  const proofMode = options.proofMode ?? smokeMode;
 
   if (smokeMode) {
     console.log("MYIDE_RUNTIME_DEBUG_MAIN_READY");
@@ -599,6 +601,52 @@ async function runRuntimeDebugHost(options: RuntimeDebugHostOptions = {}): Promi
 
     const initialStatus = await safeExecuteDebugScript<RuntimeDebugBridgeStatus>(debugWindow, buildRuntimeDebugStatusScript());
     const initialPick = await safeExecuteDebugScript<RuntimeDebugPickPayload>(debugWindow, buildRuntimeDebugCenterPickScript());
+    const initialResourceMap = buildRuntimeResourceMapStatus("project_001");
+    const initialCandidate = selectRuntimeDebugCandidate(initialResourceMap);
+
+    if (!proofMode) {
+      const payload = {
+        status: "open",
+        error: null,
+        pathDecision: "interactive-debug-host",
+        projectId: "project_001",
+        runtimeSourceLabel: runtimeLaunch.runtimeSourceLabel,
+        entryUrl: runtimeLaunch.entryUrl,
+        bridgeSource: initialStatus?.bridgeSource ?? null,
+        bridgeVersion: initialStatus?.bridgeVersion ?? null,
+        engineKind: initialStatus?.engineKind ?? null,
+        engineNote: initialStatus?.engineNote ?? null,
+        frameCount: initialStatus?.frameCount ?? 0,
+        accessibleFrameCount: initialStatus?.accessibleFrameCount ?? 0,
+        canvasCount: initialStatus?.canvasCount ?? 0,
+        pixiDetected: initialStatus?.pixiDetected ?? false,
+        pixiVersion: initialStatus?.pixiVersion ?? null,
+        candidateApps: initialStatus?.candidateApps ?? [],
+        assetUseEntryCount: initialStatus?.assetUseEntries?.length ?? 0,
+        assetUseTopUrl: initialPick?.topRuntimeAsset?.canonicalUrl
+          ?? initialStatus?.assetUseEntries?.[0]?.canonicalUrl
+          ?? null,
+        pickedTargetTag: initialPick?.targetTag ?? null,
+        pickedDisplayObjectName: initialPick?.topDisplayObject?.name ?? null,
+        pickedTextureResourceUrl: initialPick?.topDisplayObject?.texture?.resourceUrl ?? null,
+        resourceMapCount: initialResourceMap.entryCount,
+        staticImageEntryCount: initialResourceMap.entries.filter((entry) => entry.requestCategory === "static-asset").length,
+        candidateRuntimeSourceUrl: initialCandidate?.canonicalSourceUrl ?? null,
+        candidateRuntimeRelativePath: initialCandidate?.runtimeRelativePath ?? null,
+        candidateRequestSource: initialCandidate?.requestSource ?? null,
+        candidateHitCount: initialCandidate?.hitCount ?? 0,
+        candidateCaptureMethods: initialCandidate?.captureMethods ?? [],
+        localMirrorSourcePath: initialCandidate?.localMirrorRepoRelativePath ?? null,
+        overrideDonorAssetId: null,
+        overrideCreated: false,
+        overrideCleared: false,
+        overrideHitCountAfterReload: 0,
+        overrideStatusEntryCount: 0,
+        overrideBlocked: null
+      };
+      lastRuntimeDebugResult = payload;
+      return payload;
+    }
 
     setRuntimeRequestStage("start");
     await sendRuntimeDebugCenterClick(debugWindow);

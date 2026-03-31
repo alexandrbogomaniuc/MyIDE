@@ -42,7 +42,8 @@ Use this when testing the current local MyIDE build by hand.
   - `main-world-execute-js`
   - or `guest-preload`
 - If the app aborts before the runtime smoke even reaches the MyIDE main-process marker, record that exact launch blocker separately from runtime-trace blockers.
-- If you are testing the strongest current runtime-trace path directly, use **Open Debug Host** in Runtime Mode or run `npm run runtime:debug:project_001` / `npm run smoke:electron-runtime-debug`.
+- If you are testing the strongest current runtime-trace path directly, use **Open Debug Host** in Runtime Mode or run `npm run runtime:debug:project_001` for the interactive window.
+- Use `npm run smoke:electron-runtime-debug` only when you intentionally want the automated proof harness.
    - Use **Clear Override** once and confirm the project-local override is removed cleanly.
    - Use **Show Runtime Note** or **Show Init Response** once and confirm the supporting donor evidence is focused.
    - If **Pause**, **Resume**, or **Step One Tick** are disabled, the shell should explain the blocker plainly instead of pretending those controls work.

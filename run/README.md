@@ -17,9 +17,9 @@ Use these launchers instead of guessing which raw `npm` command to run.
   - Reset `project_001` to the tracked baseline, refresh assets/runtime data, then open the app.
   - Use this only when you want a clean test session.
 - `./run/Open-Runtime-Debug-Host.command`
-  - Finder-friendly double-click launcher for the dedicated Runtime Debug Host.
+  - Finder-friendly double-click launcher for the interactive Runtime Debug Host.
 - `./run/open-runtime-debug-host.sh`
-  - Open the dedicated Runtime Debug Host directly.
+  - Open the interactive Runtime Debug Host directly.
 - `./run/Refresh-Runtime-Assets.command`
   - Finder-friendly double-click launcher for a safe runtime refresh.
 - `./run/refresh-runtime-assets.sh`
@@ -30,3 +30,4 @@ Use these launchers instead of guessing which raw `npm` command to run.
 - Double-click clean demo/test session: `./run/Start-MyIDE-Workbench-Clean.command`
 - Double-click runtime-only investigation: `./run/Open-Runtime-Debug-Host.command`
 - Double-click runtime refresh only: `./run/Refresh-Runtime-Assets.command`
+- Automated proof only: `npm run smoke:electron-runtime-debug`

@@ -18,6 +18,9 @@ Use this when you want to test the current MyIDE build exactly as it works today
    - `runtime:harvest:project_001`
    - `runtime:debug:project_001`
    - `dev`
+7. Runtime debug rule:
+   - `./run/Open-Runtime-Debug-Host.command` and `npm run runtime:debug:project_001` are the interactive runtime window path.
+   - `npm run smoke:electron-runtime-debug` is the automated proof harness.
 
 Recommended rule:
 - If you are unsure, double-click `./run/Start-MyIDE-Workbench.command`.
