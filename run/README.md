@@ -18,8 +18,9 @@ Use these launchers instead of guessing which raw `npm` command to run.
   - Use this only when you want a clean test session.
 - `./run/Open-Runtime-Debug-Host.command`
   - Finder-friendly double-click launcher for the interactive Runtime Debug Host.
+  - Runs the safe runtime refresh first.
 - `./run/open-runtime-debug-host.sh`
-  - Open the interactive Runtime Debug Host directly.
+  - Refresh runtime state, then open the interactive Runtime Debug Host directly.
 - `./run/Refresh-Runtime-Assets.command`
   - Finder-friendly double-click launcher for a safe runtime refresh.
 - `./run/refresh-runtime-assets.sh`
