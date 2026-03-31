@@ -142,6 +142,11 @@ Public publication rules are defined in [`00_control/PUBLIC_REPO_POLICY.md`](./0
 ## Quick Start Scripts
 If you just want to launch the app without memorizing raw `npm` commands, use the scripts in [run/README.md](/Users/alexb/Documents/Dev/MyIDE/run/README.md).
 
+- Double-click from Finder:
+  - `./run/Start-MyIDE-Workbench.command`
+  - `./run/Start-MyIDE-Workbench-Clean.command`
+  - `./run/Open-Runtime-Debug-Host.command`
+  - `./run/Refresh-Runtime-Assets.command`
 - `./run/start-workbench.sh`
   - Normal daily entry point. Refresh donor assets, refresh the safe runtime mirror view, then open MyIDE.
 - `./run/start-workbench-clean.sh`
@@ -151,7 +156,7 @@ If you just want to launch the app without memorizing raw `npm` commands, use th
 - `./run/refresh-runtime-assets.sh`
   - Refresh the safe local runtime mirror/request view without opening the app.
 
-If you are unsure which one to use, start with `./run/start-workbench.sh`.
+If you are unsure which one to use, double-click `./run/Start-MyIDE-Workbench.command`.
 
 ## GS VABS Module
 - [`00_control/VABS_MODULE_STRATEGY.md`](./00_control/VABS_MODULE_STRATEGY.md) explains how GS VABS fits into MyIDE as an additional module.

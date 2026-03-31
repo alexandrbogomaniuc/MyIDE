@@ -3,11 +3,16 @@
 Use this when you want to test the current MyIDE build exactly as it works today.
 
 ## 1. Launch The Current Build
-1. Normal daily start: run `./run/start-workbench.sh`.
-2. Clean demo/test start: run `./run/start-workbench-clean.sh`.
-3. Runtime-only debug start: run `./run/open-runtime-debug-host.sh`.
-4. Safe runtime refresh without opening the app: run `./run/refresh-runtime-assets.sh`.
-5. If you still need the raw commands, the scripts wrap these existing repo commands:
+1. Finder double-click daily start: `./run/Start-MyIDE-Workbench.command`.
+2. Finder double-click clean demo/test start: `./run/Start-MyIDE-Workbench-Clean.command`.
+3. Finder double-click runtime-only debug start: `./run/Open-Runtime-Debug-Host.command`.
+4. Finder double-click safe runtime refresh: `./run/Refresh-Runtime-Assets.command`.
+5. Terminal equivalents:
+   - `./run/start-workbench.sh`
+   - `./run/start-workbench-clean.sh`
+   - `./run/open-runtime-debug-host.sh`
+   - `./run/refresh-runtime-assets.sh`
+6. If you still need the raw commands, the scripts wrap these existing repo commands:
    - `manual:prepare:project_001`
    - `donor-assets:index:project_001`
    - `runtime:harvest:project_001`
@@ -15,8 +20,8 @@ Use this when you want to test the current MyIDE build exactly as it works today
    - `dev`
 
 Recommended rule:
-- If you are unsure, use `./run/start-workbench.sh`.
-- Use `./run/start-workbench-clean.sh` only when you intentionally want a clean `project_001` baseline.
+- If you are unsure, double-click `./run/Start-MyIDE-Workbench.command`.
+- Use the clean launcher only when you intentionally want a clean `project_001` baseline.
 
 ## 2. Open The Validated Project
 1. In the shell, use **Project Browser**.
