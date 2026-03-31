@@ -132,60 +132,54 @@
             <button type="button" data-workbench-mode="scene" aria-selected="false">Compose</button>
           </div>
           <div id="runtime-toolbar" class="runtime-toolbar">
-            <div class="toolbar-group">
-              <span class="toolbar-group-label">Debug Host</span>
+            <div class="toolbar-group toolbar-group-primary">
+              <span class="toolbar-group-label">Primary</span>
               <button type="button" data-runtime-action="open-debug-host">Use Debug Host</button>
-            </div>
-            <div class="toolbar-group">
-              <span class="toolbar-group-label">Embedded Runtime</span>
               <button type="button" data-runtime-action="launch">Launch Runtime</button>
-              <button type="button" data-runtime-action="reload">Reload Runtime</button>
-              <button type="button" data-runtime-action="enter">Click To Start</button>
-              <button type="button" data-runtime-action="spin">Spin / Trigger</button>
-            </div>
-            <div class="toolbar-group">
-              <span class="toolbar-group-label">Trace</span>
               <button type="button" data-runtime-action="inspect-toggle">Pick / Inspect</button>
-              <button type="button" data-runtime-action="focus-note">Show Runtime Note</button>
-              <button type="button" data-runtime-action="focus-init">Show Init Response</button>
-            </div>
-            <div class="toolbar-group">
-              <span class="toolbar-group-label">Source</span>
-              <button type="button" data-runtime-action="focus-asset">Focus Asset</button>
-              <button type="button" data-runtime-action="focus-evidence">Focus Evidence</button>
-              <button type="button" data-runtime-action="focus-scene">Focus Compose Object</button>
-            </div>
-            <div class="toolbar-group">
-              <span class="toolbar-group-label">Override</span>
               <button type="button" data-runtime-action="create-override">Create Override</button>
-              <button type="button" data-runtime-action="clear-override">Clear Override</button>
             </div>
-            <div class="toolbar-group">
-              <span class="toolbar-group-label">Playback</span>
-              <button type="button" data-runtime-action="pause">Pause</button>
-              <button type="button" data-runtime-action="resume">Resume</button>
-              <button type="button" data-runtime-action="step">Step One Tick</button>
-            </div>
+            <details class="toolbar-menu" open>
+              <summary>Embedded Runtime</summary>
+              <div class="toolbar-menu-panel">
+                <button type="button" data-runtime-action="reload">Reload Runtime</button>
+                <button type="button" data-runtime-action="enter">Click To Start</button>
+                <button type="button" data-runtime-action="spin">Spin / Trigger</button>
+              </div>
+            </details>
+            <details class="toolbar-menu">
+              <summary>Trace &amp; Source</summary>
+              <div class="toolbar-menu-panel toolbar-menu-panel-wide">
+                <button type="button" data-runtime-action="focus-note">Show Runtime Note</button>
+                <button type="button" data-runtime-action="focus-init">Show Init Response</button>
+                <button type="button" data-runtime-action="focus-asset">Focus Asset</button>
+                <button type="button" data-runtime-action="focus-evidence">Focus Evidence</button>
+                <button type="button" data-runtime-action="focus-scene">Focus Compose Object</button>
+              </div>
+            </details>
+            <details class="toolbar-menu">
+              <summary>Override</summary>
+              <div class="toolbar-menu-panel">
+                <button type="button" data-runtime-action="clear-override">Clear Override</button>
+              </div>
+            </details>
+            <details class="toolbar-menu">
+              <summary>Playback</summary>
+              <div class="toolbar-menu-panel">
+                <button type="button" data-runtime-action="pause">Pause</button>
+                <button type="button" data-runtime-action="resume">Resume</button>
+                <button type="button" data-runtime-action="step">Step One Tick</button>
+              </div>
+            </details>
             <div class="toolbar-group toolbar-group-grow">
               <span id="runtime-control-note" class="toolbar-hint">Use Debug Host first for trustworthy runtime work. The embedded surface remains available for bounded local context, but it is still weaker for asset-level truth and override proof.</span>
             </div>
           </div>
           <div id="editor-toolbar" class="editor-toolbar">
-            <div class="toolbar-group">
-              <span class="toolbar-group-label">History</span>
+            <div class="toolbar-group toolbar-group-primary">
+              <span class="toolbar-group-label">Primary</span>
               <button id="action-undo" type="button">Undo</button>
               <button id="action-redo" type="button">Redo</button>
-            </div>
-            <div class="toolbar-group">
-              <span class="toolbar-group-label">View</span>
-              <button id="action-zoom-out" type="button">Zoom Out</button>
-              <button id="action-zoom-in" type="button">Zoom In</button>
-              <button id="action-fit-view" type="button">Fit View</button>
-              <button id="action-reset-view" type="button">Reset View</button>
-              <button id="action-toggle-snap" type="button">Snap 10px Off</button>
-            </div>
-            <div class="toolbar-group">
-              <span class="toolbar-group-label">Create</span>
               <label class="toolbar-select" for="field-placeholder-preset">
                 <span>Placeholder Preset</span>
                 <select id="field-placeholder-preset" name="placeholderPreset">
@@ -197,44 +191,54 @@
                 </select>
               </label>
               <button id="action-new-object" type="button">New Placeholder</button>
-            </div>
-            <div class="toolbar-group">
-              <span class="toolbar-group-label">Viewport Align</span>
-              <button type="button" data-align-action="left" title="Align the selected placeholder-backed object to the left edge of the viewport">Left</button>
-              <button type="button" data-align-action="center-h" title="Align the selected placeholder-backed object horizontally to the viewport center">Center H</button>
-              <button type="button" data-align-action="right" title="Align the selected placeholder-backed object to the right edge of the viewport">Right</button>
-              <button type="button" data-align-action="top" title="Align the selected placeholder-backed object to the top edge of the viewport">Top</button>
-              <button type="button" data-align-action="middle-v" title="Align the selected placeholder-backed object vertically to the viewport middle">Middle V</button>
-              <button type="button" data-align-action="bottom" title="Align the selected placeholder-backed object to the bottom edge of the viewport">Bottom</button>
-            </div>
-            <div class="toolbar-group">
-              <span class="toolbar-group-label">Compose</span>
-              <button type="button" data-compose-action="align-left" title="Align the selected composition objects to the left edge of the current selection">Align Left</button>
-              <button type="button" data-compose-action="align-top" title="Align the selected composition objects to the top edge of the current selection">Align Top</button>
-              <button type="button" data-compose-action="align-center-h" title="Align the selected composition objects to the current selection center horizontally">Align Center X</button>
-              <button type="button" data-compose-action="align-middle-v" title="Align the selected composition objects to the current selection middle vertically">Align Center Y</button>
-              <button type="button" data-compose-action="distribute-h" title="Distribute the selected composition objects horizontally between the outermost objects">Distribute H</button>
-              <button type="button" data-compose-action="distribute-v" title="Distribute the selected composition objects vertically between the outermost objects">Distribute V</button>
-            </div>
-            <div class="toolbar-group">
-              <span class="toolbar-group-label">Order</span>
-              <button type="button" data-order-action="send-backward" title="Move the selected object one step backward within its current layer">Send Backward</button>
-              <button type="button" data-order-action="bring-forward" title="Move the selected object one step forward within its current layer">Bring Forward</button>
-              <button type="button" data-order-action="send-to-back" title="Move the selected object to the back of its current layer">Send To Back</button>
-              <button type="button" data-order-action="bring-to-front" title="Move the selected object to the front of its current layer">Bring To Front</button>
-              <button id="action-select-previous" type="button" title="Select the previous object in the current layer">Select Previous</button>
-              <button id="action-select-next" type="button" title="Select the next object in the current layer">Select Next</button>
-            </div>
-            <div class="toolbar-group">
-              <span class="toolbar-group-label">Edit</span>
-              <button id="action-duplicate" type="button">Duplicate Object</button>
-              <button id="action-delete" type="button" class="is-danger">Delete Object</button>
-            </div>
-            <div class="toolbar-group">
-              <span class="toolbar-group-label">Save</span>
               <button id="action-save" type="button">Save Scene Changes</button>
               <button id="action-reload-editor" type="button">Reload From Disk</button>
             </div>
+            <details class="toolbar-menu" open>
+              <summary>View</summary>
+              <div class="toolbar-menu-panel">
+                <button id="action-zoom-out" type="button">Zoom Out</button>
+                <button id="action-zoom-in" type="button">Zoom In</button>
+                <button id="action-fit-view" type="button">Fit View</button>
+                <button id="action-reset-view" type="button">Reset View</button>
+                <button id="action-toggle-snap" type="button">Snap 10px Off</button>
+              </div>
+            </details>
+            <details class="toolbar-menu">
+              <summary>Layout</summary>
+              <div class="toolbar-menu-panel toolbar-menu-panel-wide">
+                <button type="button" data-align-action="left" title="Align the selected placeholder-backed object to the left edge of the viewport">Left</button>
+                <button type="button" data-align-action="center-h" title="Align the selected placeholder-backed object horizontally to the viewport center">Center H</button>
+                <button type="button" data-align-action="right" title="Align the selected placeholder-backed object to the right edge of the viewport">Right</button>
+                <button type="button" data-align-action="top" title="Align the selected placeholder-backed object to the top edge of the viewport">Top</button>
+                <button type="button" data-align-action="middle-v" title="Align the selected placeholder-backed object vertically to the viewport middle">Middle V</button>
+                <button type="button" data-align-action="bottom" title="Align the selected placeholder-backed object to the bottom edge of the viewport">Bottom</button>
+                <button type="button" data-compose-action="align-left" title="Align the selected composition objects to the left edge of the current selection">Align Left</button>
+                <button type="button" data-compose-action="align-top" title="Align the selected composition objects to the top edge of the current selection">Align Top</button>
+                <button type="button" data-compose-action="align-center-h" title="Align the selected composition objects to the current selection center horizontally">Align Center X</button>
+                <button type="button" data-compose-action="align-middle-v" title="Align the selected composition objects to the current selection middle vertically">Align Center Y</button>
+                <button type="button" data-compose-action="distribute-h" title="Distribute the selected composition objects horizontally between the outermost objects">Distribute H</button>
+                <button type="button" data-compose-action="distribute-v" title="Distribute the selected composition objects vertically between the outermost objects">Distribute V</button>
+              </div>
+            </details>
+            <details class="toolbar-menu">
+              <summary>Order</summary>
+              <div class="toolbar-menu-panel toolbar-menu-panel-wide">
+                <button type="button" data-order-action="send-backward" title="Move the selected object one step backward within its current layer">Send Backward</button>
+                <button type="button" data-order-action="bring-forward" title="Move the selected object one step forward within its current layer">Bring Forward</button>
+                <button type="button" data-order-action="send-to-back" title="Move the selected object to the back of its current layer">Send To Back</button>
+                <button type="button" data-order-action="bring-to-front" title="Move the selected object to the front of its current layer">Bring To Front</button>
+                <button id="action-select-previous" type="button" title="Select the previous object in the current layer">Select Previous</button>
+                <button id="action-select-next" type="button" title="Select the next object in the current layer">Select Next</button>
+              </div>
+            </details>
+            <details class="toolbar-menu">
+              <summary>Edit</summary>
+              <div class="toolbar-menu-panel">
+                <button id="action-duplicate" type="button">Duplicate Object</button>
+                <button id="action-delete" type="button" class="is-danger">Delete Object</button>
+              </div>
+            </details>
             <div class="toolbar-group toolbar-group-indicators">
               <span id="dirty-indicator" class="toolbar-indicator">Saved</span>
               <span id="viewport-indicator" class="toolbar-indicator" data-tone="info">View 100%</span>

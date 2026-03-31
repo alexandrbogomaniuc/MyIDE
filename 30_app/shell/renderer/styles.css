@@ -616,6 +616,11 @@ button:disabled {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+  align-items: flex-start;
+  padding: 12px;
+  border: 1px solid rgba(179, 209, 186, 0.14);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.025);
 }
 
 .onboarding-panel .detail-grid {
@@ -633,6 +638,10 @@ button:disabled {
   background: rgba(255, 255, 255, 0.03);
 }
 
+.toolbar-group-primary {
+  flex: 1 1 520px;
+}
+
 .toolbar-group-grow {
   flex: 1 1 240px;
   align-items: flex-start;
@@ -640,6 +649,74 @@ button:disabled {
 
 .toolbar-group-indicators {
   gap: 10px;
+  margin-left: auto;
+}
+
+.toolbar-menu {
+  position: relative;
+  display: inline-grid;
+  align-self: flex-start;
+}
+
+.toolbar-menu > summary {
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0.72rem 1rem;
+  border: 1px solid rgba(179, 209, 186, 0.18);
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(28, 40, 33, 0.94), rgba(18, 26, 22, 0.98));
+  color: var(--text);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.toolbar-menu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.toolbar-menu > summary::after {
+  content: "▾";
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.toolbar-menu[open] > summary {
+  border-color: rgba(230, 191, 100, 0.44);
+  background: linear-gradient(180deg, rgba(64, 49, 19, 0.96), rgba(35, 27, 11, 0.98));
+}
+
+.toolbar-menu[open] > summary::after {
+  color: var(--accent);
+}
+
+.toolbar-menu-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 24;
+  min-width: 220px;
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgba(179, 209, 186, 0.14);
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(12, 18, 20, 0.98), rgba(8, 12, 14, 0.98));
+  box-shadow: var(--shadow);
+}
+
+.toolbar-menu-panel-wide {
+  min-width: min(420px, calc(100vw - 120px));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.toolbar-menu-panel button {
+  width: 100%;
+  justify-self: stretch;
+  border-radius: 14px;
 }
 
 .toolbar-group-label {
@@ -1732,6 +1809,14 @@ button:disabled {
   gap: 10px;
 }
 
+.inspector-section {
+  margin-top: 2px;
+}
+
+.inspector-section-body {
+  gap: 14px;
+}
+
 .inspector-rows {
   display: grid;
   gap: 10px;
@@ -1816,5 +1901,18 @@ button:disabled {
 
   .workflow-panelbar {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .toolbar-menu {
+    width: 100%;
+  }
+
+  .toolbar-menu-panel,
+  .toolbar-menu-panel-wide {
+    position: static;
+    min-width: 0;
+    width: 100%;
+    margin-top: 8px;
+    grid-template-columns: 1fr;
   }
 }
