@@ -139,6 +139,7 @@ export interface DonorScanPaths {
   bundleAssetMapPath: string;
   atlasManifestsPath: string;
   nextCaptureTargetsPath: string;
+  captureRunPath: string;
   blockerSummaryPath: string;
   scanSummaryPath: string;
 }
@@ -274,6 +275,39 @@ export interface NextCaptureTargetsFile {
   targets: NextCaptureTargetRecord[];
 }
 
+export type CaptureRunStatus = "captured" | "partial" | "blocked" | "skipped";
+
+export interface CaptureRunTargetResult {
+  rank: number;
+  url: string;
+  relativePath: string;
+  kind: string;
+  priority: CaptureTargetPriority;
+  status: "downloaded" | "failed" | "skipped";
+  localPath: string | null;
+  contentType: string | null;
+  sizeBytes: number | null;
+  reason: string | null;
+}
+
+export interface CaptureRunFile {
+  schemaVersion: string;
+  donorId: string;
+  donorName: string;
+  generatedAt: string;
+  status: CaptureRunStatus;
+  requestedLimit: number;
+  targetCountBefore: number;
+  targetCountAfter: number;
+  attemptedCount: number;
+  downloadedCount: number;
+  failedCount: number;
+  skippedCount: number;
+  refreshedScanSummaryPath: string;
+  refreshedNextCaptureTargetsPath: string;
+  results: CaptureRunTargetResult[];
+}
+
 export interface UrlInventoryEntry {
   url: string;
   category: DonorUrlCategory;
@@ -303,6 +337,7 @@ export function buildDonorScanPaths(donorId: string): DonorScanPaths {
     bundleAssetMapPath: path.join(harvestRoot, "bundle-asset-map.json"),
     atlasManifestsPath: path.join(harvestRoot, "atlas-manifests.json"),
     nextCaptureTargetsPath: path.join(harvestRoot, "next-capture-targets.json"),
+    captureRunPath: path.join(harvestRoot, "next-capture-run.json"),
     blockerSummaryPath: path.join(harvestRoot, "blocker-summary.md"),
     scanSummaryPath: path.join(harvestRoot, "scan-summary.json")
   };

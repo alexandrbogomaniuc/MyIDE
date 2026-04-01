@@ -154,11 +154,17 @@ export interface DonorScanStatus {
   scanSummaryPath: string;
   blockerSummaryPath: string | null;
   nextCaptureTargetsPath: string | null;
+  captureRunPath: string | null;
   runtimeCandidateCount: number;
   atlasManifestCount: number;
   bundleAssetMapStatus: string;
   mirrorCandidateStatus: string;
   nextCaptureTargetCount: number;
+  captureRunStatus: string | null;
+  captureAttemptedCount: number;
+  captureDownloadedCount: number;
+  captureFailedCount: number;
+  captureGeneratedAt: string | null;
   nextOperatorAction: string | null;
   blockerHighlights: string[];
   blockerSummaryMarkdown: string | null;
@@ -809,10 +815,12 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
     ?? `10_donors/${donorId}/evidence/local_only/harvest/blocker-summary.md`;
   const nextCaptureTargetsPath = donor.nextCaptureTargetsPath
     ?? `10_donors/${donorId}/evidence/local_only/harvest/next-capture-targets.json`;
-  const [scanSummary, blockerSummaryMarkdown, nextCaptureTargetsFile] = await Promise.all([
+  const captureRunPath = `10_donors/${donorId}/evidence/local_only/harvest/next-capture-run.json`;
+  const [scanSummary, blockerSummaryMarkdown, nextCaptureTargetsFile, captureRunSummary] = await Promise.all([
     readOptionalJsonFile(path.join(workspaceRoot, scanSummaryPath)) as Promise<JsonObject | null>,
     readOptionalTextFile(path.join(workspaceRoot, blockerSummaryPath)),
-    readOptionalJsonFile(path.join(workspaceRoot, nextCaptureTargetsPath)) as Promise<JsonObject | null>
+    readOptionalJsonFile(path.join(workspaceRoot, nextCaptureTargetsPath)) as Promise<JsonObject | null>,
+    readOptionalJsonFile(path.join(workspaceRoot, captureRunPath)) as Promise<JsonObject | null>
   ]);
 
   if (!scanSummary) {
@@ -843,11 +851,17 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
     scanSummaryPath,
     blockerSummaryPath: blockerSummaryMarkdown ? blockerSummaryPath : null,
     nextCaptureTargetsPath: nextCaptureTargetsFile ? nextCaptureTargetsPath : null,
+    captureRunPath: captureRunSummary ? captureRunPath : null,
     runtimeCandidateCount: typeof scanSummary.runtimeCandidateCount === "number" ? scanSummary.runtimeCandidateCount : (donor.runtimeCandidateCount ?? 0),
     atlasManifestCount: typeof scanSummary.atlasManifestCount === "number" ? scanSummary.atlasManifestCount : (donor.atlasManifestCount ?? 0),
     bundleAssetMapStatus: typeof scanSummary.bundleAssetMapStatus === "string" ? scanSummary.bundleAssetMapStatus : (donor.bundleAssetMapStatus ?? "unknown"),
     mirrorCandidateStatus: typeof scanSummary.mirrorCandidateStatus === "string" ? scanSummary.mirrorCandidateStatus : (donor.mirrorCandidateStatus ?? "unknown"),
     nextCaptureTargetCount: typeof scanSummary.nextCaptureTargetCount === "number" ? scanSummary.nextCaptureTargetCount : (donor.nextCaptureTargetCount ?? nextCaptureTargets.length),
+    captureRunStatus: typeof captureRunSummary?.status === "string" ? captureRunSummary.status : null,
+    captureAttemptedCount: typeof captureRunSummary?.attemptedCount === "number" ? captureRunSummary.attemptedCount : 0,
+    captureDownloadedCount: typeof captureRunSummary?.downloadedCount === "number" ? captureRunSummary.downloadedCount : 0,
+    captureFailedCount: typeof captureRunSummary?.failedCount === "number" ? captureRunSummary.failedCount : 0,
+    captureGeneratedAt: typeof captureRunSummary?.generatedAt === "string" ? captureRunSummary.generatedAt : null,
     nextOperatorAction: typeof scanSummary.nextOperatorAction === "string" ? scanSummary.nextOperatorAction : (donor.nextOperatorAction ?? null),
     blockerHighlights,
     blockerSummaryMarkdown,

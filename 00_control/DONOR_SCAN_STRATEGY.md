@@ -59,7 +59,11 @@ Given a donor launch URL or an already-harvested donor package, the IDE should a
    - Identify what is already downloaded locally.
    - Identify the next missing runtime targets that could strengthen a local mirror.
 
-9. Blocker summary generation
+9. Guided capture execution
+   - Attempt the top ranked next-capture targets automatically.
+   - Record what downloaded, what failed, and what still remains after donor scan is refreshed.
+
+10. Blocker summary generation
    - Produce an operator-facing summary that says plainly:
      - what is already possible
      - what is blocked
@@ -82,6 +86,7 @@ Current outputs:
 - `bundle-asset-map.json`
 - `atlas-manifests.json`
 - `next-capture-targets.json`
+- `next-capture-run.json`
 - `blocker-summary.md`
 - `scan-summary.json`
 

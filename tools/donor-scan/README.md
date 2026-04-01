@@ -27,6 +27,8 @@ and answers early:
   - Re-scan an already-harvested donor package without requiring a fresh donor URL.
 - `npm run donor-scan:verify -- --donor-id donor_XXX`
   - Verify the machine-readable donor-scan outputs exist and are internally coherent enough for operator use.
+- `npm run donor-scan:capture-next -- --donor-id donor_XXX --limit 5`
+  - Attempt the top ranked missing donor/runtime files from `next-capture-targets.json`, refresh donor scan, and write a machine-readable capture run summary.
 
 ## Outputs
 
@@ -43,11 +45,14 @@ Key files:
 - `bundle-asset-map.json`
 - `atlas-manifests.json`
 - `next-capture-targets.json`
+- `next-capture-run.json`
 - `package-graph.json`
 - `blocker-summary.md`
 - `scan-summary.json`
 
 `next-capture-targets.json` is the first actionable operator output. It ranks the missing runtime files the IDE should try to capture next, using atlas missing-page refs, unresolved runtime candidates, and missing bundle references.
+
+`next-capture-run.json` records what the guided capture runner attempted, what downloaded successfully, what failed, and how many ranked targets still remain after donor scan was refreshed.
 
 ## What The Scan Can Break Early
 

@@ -155,6 +155,7 @@ contextBridge.exposeInMainWorld("myideApi", {
   setRuntimeRequestStage: (stage: string): Promise<unknown> => ipcRenderer.invoke("myide:set-runtime-request-stage", stage),
   clearRuntimeCache: (): Promise<unknown> => ipcRenderer.invoke("myide:clear-runtime-cache"),
   openRuntimeDebugHost: (): Promise<unknown> => ipcRenderer.invoke("myide:open-runtime-debug-host"),
+  runDonorScanCapture: (donorId: string, limit?: number): Promise<unknown> => ipcRenderer.invoke("myide:run-donor-scan-capture", donorId, limit),
   getRuntimeOverrideStatus: (projectId: string): Promise<unknown> => ipcRenderer.invoke("myide:get-runtime-override-status", projectId),
   createRuntimeOverride: (projectId: string, runtimeSourceUrl: string, donorAssetId: string): Promise<unknown> => ipcRenderer.invoke("myide:create-runtime-override", projectId, runtimeSourceUrl, donorAssetId),
   clearRuntimeOverride: (projectId: string, runtimeSourceUrl: string): Promise<unknown> => ipcRenderer.invoke("myide:clear-runtime-override", projectId, runtimeSourceUrl),

@@ -42,6 +42,7 @@ import {
   type RuntimeDebugBridgeStatus,
   type RuntimeDebugPickPayload
 } from "../runtime/runtimeDebugHost";
+import { captureNextTargets } from "../../tools/donor-scan/captureNextTargets";
 
 const isBridgeSmokeMode = process.env.MYIDE_BRIDGE_SMOKE === "1";
 const isRuntimeDebugSmokeMode = process.env.MYIDE_RUNTIME_DEBUG_SMOKE === "1";
@@ -2103,6 +2104,12 @@ ipcMain.handle("myide:open-runtime-debug-host", async () => {
     showWindow: true,
     smokeMode: false,
     closeWhenDone: false
+  });
+});
+ipcMain.handle("myide:run-donor-scan-capture", async (_event, donorId: string, limit?: number) => {
+  return captureNextTargets({
+    donorId,
+    limit: typeof limit === "number" ? limit : undefined
   });
 });
 ipcMain.handle("myide:get-runtime-override-status", async (_event, projectId: string) => {

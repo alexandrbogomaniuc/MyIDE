@@ -3139,6 +3139,33 @@ async function openRuntimeDebugHostWindow() {
   setPreviewStatus(`Opened Runtime Debug Host on ${runtimeSourceLabel}. Candidate ${candidatePath} recorded ${hitCount} override hit${hitCount === 1 ? "" : "s"} after reload.`);
 }
 
+async function runDonorScanCapture(limit = 5) {
+  const api = window.myideApi;
+  const selectedProject = getSelectedProject();
+  const donorId = typeof selectedProject?.donor?.donorId === "string" ? selectedProject.donor.donorId : "";
+  if (!api || typeof api.runDonorScanCapture !== "function" || !donorId) {
+    setPreviewStatus("Guided donor capture is not available in this renderer session.");
+    return;
+  }
+
+  setPreviewStatus(`Running guided donor capture for the top ${limit} ranked missing target${limit === 1 ? "" : "s"}...`);
+  const result = await api.runDonorScanCapture(donorId, limit);
+  await reloadWorkspace(false, state.selectedProjectId);
+
+  const status = typeof result?.status === "string" ? result.status : "blocked";
+  const attemptedCount = Number(result?.attemptedCount ?? 0);
+  const downloadedCount = Number(result?.downloadedCount ?? 0);
+  const failedCount = Number(result?.failedCount ?? 0);
+  const targetCountAfter = Number(result?.targetCountAfter ?? 0);
+  const nextOperatorAction = typeof result?.nextOperatorAction === "string" ? result.nextOperatorAction : "Review the refreshed donor scan summary.";
+
+  setPreviewStatus(
+    `Guided donor capture ${status}. Downloaded ${downloadedCount} of ${attemptedCount} attempted target${attemptedCount === 1 ? "" : "s"}`
+    + `${failedCount > 0 ? ` with ${failedCount} failure${failedCount === 1 ? "" : "s"}` : ""}. `
+    + `${targetCountAfter} ranked target${targetCountAfter === 1 ? "" : "s"} remain. ${nextOperatorAction}`
+  );
+}
+
 async function handleRuntimeAction(action) {
   if (action === "launch") {
     await handleRuntimeLaunch();
@@ -10126,6 +10153,12 @@ function getSelectedProjectEvidenceSummary() {
     donorNextCaptureTargetsPath: typeof donorScan?.nextCaptureTargetsPath === "string" ? donorScan.nextCaptureTargetsPath : (typeof selectedProject.donor?.nextCaptureTargetsPath === "string" ? selectedProject.donor.nextCaptureTargetsPath : null),
     donorNextCaptureTargetCount: typeof donorScan?.nextCaptureTargetCount === "number" ? donorScan.nextCaptureTargetCount : (typeof selectedProject.donor?.nextCaptureTargetCount === "number" ? selectedProject.donor.nextCaptureTargetCount : 0),
     donorNextCaptureTargets: Array.isArray(donorScan?.nextCaptureTargets) ? donorScan.nextCaptureTargets : [],
+    donorCaptureRunPath: typeof donorScan?.captureRunPath === "string" ? donorScan.captureRunPath : null,
+    donorCaptureRunStatus: typeof donorScan?.captureRunStatus === "string" ? donorScan.captureRunStatus : null,
+    donorCaptureAttemptedCount: typeof donorScan?.captureAttemptedCount === "number" ? donorScan.captureAttemptedCount : 0,
+    donorCaptureDownloadedCount: typeof donorScan?.captureDownloadedCount === "number" ? donorScan.captureDownloadedCount : 0,
+    donorCaptureFailedCount: typeof donorScan?.captureFailedCount === "number" ? donorScan.captureFailedCount : 0,
+    donorCaptureGeneratedAt: typeof donorScan?.captureGeneratedAt === "string" ? donorScan.captureGeneratedAt : null,
     donorNextOperatorAction: typeof donorScan?.nextOperatorAction === "string" ? donorScan.nextOperatorAction : (typeof selectedProject.donor?.nextOperatorAction === "string" ? selectedProject.donor.nextOperatorAction : null),
     donorBlockerHighlights: Array.isArray(donorScan?.blockerHighlights) ? donorScan.blockerHighlights : [],
     donorNotes: typeof selectedProject.donor?.notes === "string" ? selectedProject.donor.notes : null,
@@ -11576,6 +11609,19 @@ function handleNavigationClick(event) {
     event.preventDefault();
     void handleRuntimeAction(runtimeActionButton.dataset.runtimeAction);
     return true;
+  }
+
+  const donorScanActionButton = target.closest("[data-donor-scan-action]");
+  if (donorScanActionButton instanceof HTMLElement && donorScanActionButton.dataset.donorScanAction) {
+    if (donorScanActionButton instanceof HTMLButtonElement && donorScanActionButton.disabled) {
+      return true;
+    }
+    event.preventDefault();
+    if (donorScanActionButton.dataset.donorScanAction === "capture-next") {
+      const limit = Number.parseInt(donorScanActionButton.dataset.donorScanCaptureLimit ?? "5", 10);
+      void runDonorScanCapture(Number.isFinite(limit) ? limit : 5);
+      return true;
+    }
   }
 
   const focusSceneObjectButton = target.closest("[data-focus-scene-object-id]");
@@ -14562,6 +14608,9 @@ function renderEvidenceBrowser() {
     `Bundle Asset Map Status: ${summary.donorBundleAssetMapStatus || "unknown"}`,
     `Mirror Candidate Status: ${summary.donorMirrorCandidateStatus || "unknown"}`,
     `Next Capture Targets: ${summary.donorNextCaptureTargetCount}`,
+    `Guided Capture Status: ${summary.donorCaptureRunStatus || "idle"}`,
+    `Guided Capture Downloaded: ${summary.donorCaptureDownloadedCount}`,
+    `Guided Capture Failed: ${summary.donorCaptureFailedCount}`,
     `Next Operator Action: ${summary.donorNextOperatorAction || "not recorded"}`,
     `Evidence Root: ${summary.evidenceRoot}`,
     `Donor Asset Count: ${donorAssetCount}`,
@@ -14694,6 +14743,12 @@ function renderEvidenceBrowser() {
             <span>${summary.donorMirrorCandidateStatus ? escapeHtml(summary.donorMirrorCandidateStatus) : "unknown"} mirror status</span>
             <span>${summary.donorNextCaptureTargetCount} next capture targets</span>
           </div>
+          <div class="chip-row">
+            <span>${summary.donorCaptureRunStatus ? escapeHtml(summary.donorCaptureRunStatus) : "idle"} guided capture</span>
+            <span>${summary.donorCaptureAttemptedCount} attempted</span>
+            <span>${summary.donorCaptureDownloadedCount} downloaded</span>
+            <span>${summary.donorCaptureFailedCount} failed</span>
+          </div>
           ${summary.donorBlockerHighlights.length > 0 ? `
             <div class="detail-list">
               ${summary.donorBlockerHighlights.slice(0, 3).map((entry) => `<small>${escapeHtml(entry)}</small>`).join("")}
@@ -14707,9 +14762,17 @@ function renderEvidenceBrowser() {
             </div>
           ` : ""}
           <div class="evidence-actions">
+            <button
+              type="button"
+              class="copy-button"
+              data-donor-scan-action="capture-next"
+              data-donor-scan-capture-limit="5"
+              ${summary.donorNextCaptureTargetCount <= 0 ? "disabled" : ""}
+            >Run Guided Capture</button>
             ${summary.donorScanSummaryPath ? renderCopyButton(summary.donorScanSummaryPath, "donor scan summary path", "Copy Scan Summary Path") : ""}
             ${summary.donorBlockerSummaryPath ? renderCopyButton(summary.donorBlockerSummaryPath, "donor blocker summary path", "Copy Blocker Summary Path") : ""}
             ${summary.donorNextCaptureTargetsPath ? renderCopyButton(summary.donorNextCaptureTargetsPath, "donor next capture targets path", "Copy Capture Targets Path") : ""}
+            ${summary.donorCaptureRunPath ? renderCopyButton(summary.donorCaptureRunPath, "donor guided capture summary path", "Copy Capture Run Path") : ""}
             ${summary.donorNextCaptureTargets.length > 0 ? renderCopyButton(summary.donorNextCaptureTargets.map((target) => `${target.priority}\t${target.kind}\t${target.relativePath || target.url}\t${target.reason || "No reason recorded."}`).join("\n"), "donor next capture targets", "Copy Top Targets") : ""}
           </div>
         </div>
@@ -15117,6 +15180,17 @@ function renderProjectSummary() {
         ` : ""}
         <div class="chip-row">
           <span>${typeof donorScan?.nextCaptureTargetCount === "number" ? donorScan.nextCaptureTargetCount : 0} next capture targets</span>
+          <span>${typeof donorScan?.captureRunStatus === "string" ? escapeHtml(donorScan.captureRunStatus) : "idle"} guided capture</span>
+          <span>${typeof donorScan?.captureDownloadedCount === "number" ? donorScan.captureDownloadedCount : 0} downloaded last run</span>
+        </div>
+        <div class="evidence-actions">
+          <button
+            type="button"
+            class="copy-button"
+            data-donor-scan-action="capture-next"
+            data-donor-scan-capture-limit="5"
+            ${typeof donorScan?.nextCaptureTargetCount === "number" && donorScan.nextCaptureTargetCount > 0 ? "" : "disabled"}
+          >Run Guided Capture</button>
         </div>
       </div>
     </div>
