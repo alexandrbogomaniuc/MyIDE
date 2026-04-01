@@ -68,6 +68,21 @@ export interface DonorAssetItem extends IndexedDonorAsset {
   absolutePath: string;
   previewUrl: string | null;
   previewLabel: string;
+  assetGroupKey: string;
+  assetGroupLabel: string;
+  assetGroupKind: "indexed-donor-images" | "package-family";
+  assetGroupDescription: string | null;
+  assetDepth: number | null;
+  discoveredFromUrl: string | null;
+}
+
+export interface DonorAssetGroupSummary {
+  key: string;
+  label: string;
+  kind: "indexed-donor-images" | "package-family";
+  description: string | null;
+  count: number;
+  sampleAssetId: string;
 }
 
 export interface DonorAssetCatalog {
@@ -82,6 +97,7 @@ export interface DonorAssetCatalog {
   availableFileTypes: IndexedDonorAsset["fileType"][];
   countsByFileType: Record<string, number>;
   countsBySourceCategory: Record<string, number>;
+  assetGroups: DonorAssetGroupSummary[];
   blocker: string | null;
   assets: DonorAssetItem[];
 }
@@ -448,6 +464,68 @@ function buildPackageGraphTitle(localPath: string, sourceUrl: string | null): st
   return normalizedStem || filename;
 }
 
+function toTitleWords(raw: string): string {
+  return raw
+    .split(/[\s/_:-]+/)
+    .filter(Boolean)
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(" ");
+}
+
+function buildPackageGraphAssetGroupKey(
+  sourceUrl: string,
+  category: NonNullable<HarvestedPackageGraphNode["category"]>
+): string {
+  try {
+    const parsed = new URL(sourceUrl);
+    const segments = parsed.pathname.split("/").filter(Boolean);
+    const suffix = segments.slice(0, Math.min(2, segments.length)).join("/") || "(root)";
+    return `${category}:${suffix}`;
+  } catch {
+    return `${category}:(invalid-url)`;
+  }
+}
+
+function buildPackageGraphAssetGroupLabel(groupKey: string): string {
+  const separatorIndex = groupKey.indexOf(":");
+  if (separatorIndex < 0) {
+    return toTitleWords(groupKey);
+  }
+
+  const category = groupKey.slice(0, separatorIndex);
+  const rawSuffix = groupKey.slice(separatorIndex + 1);
+  const suffix = rawSuffix === "(root)"
+    ? "Root"
+    : rawSuffix
+        .split("/")
+        .map((segment) => toTitleWords(segment))
+        .join(" / ");
+  return `${toTitleWords(category)} Bundle · ${suffix}`;
+}
+
+function buildPackageGraphAssetGroupDescription(node: HarvestedPackageGraphNode): string | null {
+  if (typeof node.discoveredFromUrl === "string" && node.discoveredFromUrl.length > 0) {
+    try {
+      const parsed = new URL(node.discoveredFromUrl);
+      const pathLabel = parsed.pathname.split("/").filter(Boolean).slice(-2).join(" / ") || parsed.host;
+      return `Discovered from ${pathLabel}.`;
+    } catch {
+      return `Discovered from ${node.discoveredFromUrl}.`;
+    }
+  }
+
+  if (typeof node.url === "string" && node.url.length > 0) {
+    try {
+      const parsed = new URL(node.url);
+      return `Harvested from ${parsed.host}.`;
+    } catch {
+      return "Harvested from the donor package graph.";
+    }
+  }
+
+  return "Harvested from the donor package graph.";
+}
+
 async function loadPackageGraphAssets(
   selectedProject: WorkspaceProjectSummary | null,
   selectedProjectId: string
@@ -485,6 +563,10 @@ async function loadPackageGraphAssets(
     const filename = path.basename(node.localPath);
     const discoveredFrom = typeof node.discoveredFromUrl === "string" ? node.discoveredFromUrl : null;
     const sourceUrl = typeof node.url === "string" ? node.url : null;
+    const sourceCategory = typeof node.category === "string" ? node.category : "other";
+    const assetGroupKey = sourceUrl
+      ? buildPackageGraphAssetGroupKey(sourceUrl, sourceCategory)
+      : `package-family:${filename}`;
     assets.push({
       assetId: toPackageGraphAssetId(selectedProjectId, node.localPath, sourceUrl),
       evidenceId: `package-graph:${filename}`,
@@ -496,6 +578,12 @@ async function loadPackageGraphAssets(
       fileType,
       sourceCategory: "harvested runtime/package image",
       sourceUrl,
+      assetGroupKey,
+      assetGroupLabel: buildPackageGraphAssetGroupLabel(assetGroupKey),
+      assetGroupKind: "package-family",
+      assetGroupDescription: buildPackageGraphAssetGroupDescription(node),
+      assetDepth: typeof node.depth === "number" ? node.depth : null,
+      discoveredFromUrl: discoveredFrom,
       notes: discoveredFrom
         ? `Harvested via donor package graph from ${discoveredFrom}.`
         : "Harvested via donor package graph.",
@@ -535,7 +623,13 @@ async function loadDonorAssetCatalog(selectedProject: WorkspaceProjectSummary | 
       previewUrl: asset.localExists ? pathToFileURL(absolutePath).href : null,
       previewLabel: asset.localExists
         ? "drag to import"
-        : "local file missing"
+        : "local file missing",
+      assetGroupKey: "indexed-donor-images",
+      assetGroupLabel: "Indexed donor images",
+      assetGroupKind: "indexed-donor-images" as const,
+      assetGroupDescription: "Hand-indexed local donor images already grounded for this project.",
+      assetDepth: null,
+      discoveredFromUrl: null
     };
   }) : [];
   const packageGraphAssets = await loadPackageGraphAssets(selectedProject, selectedProjectId);
@@ -555,6 +649,28 @@ async function loadDonorAssetCatalog(selectedProject: WorkspaceProjectSummary | 
     counts[asset.sourceCategory] = (counts[asset.sourceCategory] ?? 0) + 1;
     return counts;
   }, {});
+  const assetGroupMap = new Map<string, DonorAssetGroupSummary>();
+  for (const asset of assets) {
+    const current = assetGroupMap.get(asset.assetGroupKey);
+    if (current) {
+      current.count += 1;
+      continue;
+    }
+    assetGroupMap.set(asset.assetGroupKey, {
+      key: asset.assetGroupKey,
+      label: asset.assetGroupLabel,
+      kind: asset.assetGroupKind,
+      description: asset.assetGroupDescription,
+      count: 1,
+      sampleAssetId: asset.assetId
+    });
+  }
+  const assetGroups = [...assetGroupMap.values()].sort((left, right) => {
+    if (left.kind !== right.kind) {
+      return left.kind === "indexed-donor-images" ? -1 : 1;
+    }
+    return left.label.localeCompare(right.label);
+  });
   const fileTypeOrder = ["png", "webp", "jpg", "jpeg", "svg"];
   const availableFileTypes = Object.keys(countsByFileType).sort((left, right) => {
     const leftIndex = fileTypeOrder.indexOf(left);
@@ -583,6 +699,7 @@ async function loadDonorAssetCatalog(selectedProject: WorkspaceProjectSummary | 
     availableFileTypes,
     countsByFileType,
     countsBySourceCategory,
+    assetGroups,
     blocker: assets.length > 0
       ? null
       : selectedProjectId === "project_001"

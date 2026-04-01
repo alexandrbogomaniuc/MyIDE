@@ -174,6 +174,16 @@ async function main(): Promise<void> {
         && createdProjectSlice.donorAssetCatalog.assets.some((asset) => asset.sourceCategory === "harvested runtime/package image"),
       "created project slice should include harvested runtime/package image sources in the donor asset catalog"
     );
+    assert(
+      Array.isArray(createdProjectSlice.donorAssetCatalog?.assetGroups)
+        && createdProjectSlice.donorAssetCatalog.assetGroups.some((group) => group.kind === "package-family" && group.count >= 1),
+      "created project slice should group harvested donor/runtime image assets into package-family bundles"
+    );
+    assert(
+      Array.isArray(createdProjectSlice.donorAssetCatalog?.assets)
+        && createdProjectSlice.donorAssetCatalog.assets.some((asset) => asset.assetGroupKind === "package-family" && typeof asset.assetGroupKey === "string" && asset.assetGroupKey.length > 0),
+      "created project slice should tag harvested donor/runtime image assets with package-family metadata"
+    );
 
     assert(
       discoveredProjects.some((project) => project.projectId === "project_001"),

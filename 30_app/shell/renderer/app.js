@@ -39,6 +39,7 @@ const state = {
   donorAssetUi: {
     searchQuery: "",
     fileTypeFilter: "all",
+    assetGroupFilter: "all",
     highlightedAssetId: null,
     dragPayload: null,
     importTargetLayerId: "auto",
@@ -7875,6 +7876,13 @@ function bindActions() {
       return;
     }
 
+    const importGroupButton = target.closest("[data-import-donor-asset-group-key]");
+    if (importGroupButton instanceof HTMLElement && importGroupButton.dataset.importDonorAssetGroupKey) {
+      event.preventDefault();
+      handleImportDonorAssetGroup(importGroupButton.dataset.importDonorAssetGroupKey);
+      return;
+    }
+
     const donorAssetCard = target.closest("[data-donor-asset-id]");
     if (donorAssetCard instanceof HTMLElement && donorAssetCard.dataset.donorAssetId) {
       state.donorAssetUi.highlightedAssetId = donorAssetCard.dataset.donorAssetId;
@@ -7961,13 +7969,25 @@ function bindActions() {
   });
   elements.evidenceBrowser?.addEventListener("change", (event) => {
     const target = event.target;
-    if (!(target instanceof HTMLSelectElement) || target.dataset.donorImportTargetLayer !== "1") {
+    if (!(target instanceof HTMLSelectElement)) {
       return;
     }
 
-    state.donorAssetUi.importTargetLayerId = target.value || "auto";
-    renderAll();
-    setPreviewStatus(`Donor imports now target ${getDonorImportTargetLayerLabel()}.`);
+    if (target.dataset.donorImportTargetLayer === "1") {
+      state.donorAssetUi.importTargetLayerId = target.value || "auto";
+      renderAll();
+      setPreviewStatus(`Donor imports now target ${getDonorImportTargetLayerLabel()}.`);
+      return;
+    }
+
+    if (target.dataset.donorAssetGroupFilter === "1") {
+      state.donorAssetUi.assetGroupFilter = target.value || "all";
+      renderAll();
+      const selectedGroup = getDonorAssetGroupSummary(target.value || "all");
+      setPreviewStatus(selectedGroup
+        ? `Showing donor asset bundle ${selectedGroup.label}.`
+        : "Showing all donor asset bundles in the donor palette.");
+    }
   });
   elements.evidenceBrowser?.addEventListener("dragstart", (event) => {
     const target = event.target;
@@ -8944,6 +8964,7 @@ function getVisibleDonorAssetItems() {
   const items = getDonorAssetCatalogItems();
   const searchQuery = String(state.donorAssetUi?.searchQuery ?? "").trim().toLowerCase();
   const fileTypeFilter = String(state.donorAssetUi?.fileTypeFilter ?? "all").trim().toLowerCase();
+  const assetGroupFilter = String(state.donorAssetUi?.assetGroupFilter ?? "all").trim();
 
   return items.filter((item) => {
     const matchesSearch = !searchQuery || [
@@ -8952,11 +8973,16 @@ function getVisibleDonorAssetItems() {
       item.evidenceId,
       item.captureSessionId,
       item.fileType,
-      item.sourceCategory
+      item.sourceCategory,
+      item.assetGroupLabel,
+      item.assetGroupDescription,
+      item.discoveredFromUrl
     ].some((value) => String(value ?? "").toLowerCase().includes(searchQuery));
     const matchesFileType = fileTypeFilter === "all"
       || String(item.fileType ?? "").toLowerCase() === fileTypeFilter;
-    return matchesSearch && matchesFileType;
+    const matchesAssetGroup = assetGroupFilter === "all"
+      || String(item.assetGroupKey ?? "") === assetGroupFilter;
+    return matchesSearch && matchesFileType && matchesAssetGroup;
   });
 }
 
@@ -8972,16 +8998,41 @@ function getDonorAssetFileTypeCount(fileType) {
   return Number(catalog?.countsByFileType?.[fileType] ?? 0);
 }
 
-function groupVisibleDonorAssetsByFileType(items) {
+function getDonorAssetGroupOptions() {
+  const catalog = getDonorAssetCatalog();
+  return Array.isArray(catalog?.assetGroups)
+    ? catalog.assetGroups
+    : [];
+}
+
+function getDonorAssetGroupSummary(groupKey) {
+  if (typeof groupKey !== "string" || groupKey.length === 0 || groupKey === "all") {
+    return null;
+  }
+
+  return getDonorAssetGroupOptions().find((entry) => entry?.key === groupKey) ?? null;
+}
+
+function getDonorAssetItemsForGroup(groupKey) {
+  if (typeof groupKey !== "string" || groupKey.length === 0) {
+    return [];
+  }
+
+  return getDonorAssetCatalogItems()
+    .filter((item) => item?.assetGroupKey === groupKey)
+    .sort((left, right) => String(left.title ?? left.filename).localeCompare(String(right.title ?? right.filename)));
+}
+
+function groupVisibleDonorAssets(items) {
   const groups = new Map();
   for (const item of items) {
-    const key = String(item.fileType ?? "other").toLowerCase();
+    const key = String(item.assetGroupKey ?? "ungrouped");
     const current = groups.get(key) ?? [];
     current.push(item);
     groups.set(key, current);
   }
 
-  const preferredOrder = getDonorAssetFileTypeOptions();
+  const preferredOrder = getDonorAssetGroupOptions().map((entry) => entry.key);
   const sortedKeys = Array.from(groups.keys()).sort((left, right) => {
     const leftIndex = preferredOrder.indexOf(left);
     const rightIndex = preferredOrder.indexOf(right);
@@ -8998,9 +9049,12 @@ function groupVisibleDonorAssetsByFileType(items) {
   });
 
   return sortedKeys.map((key) => ({
-    fileType: key,
+    key,
+    label: groups.get(key)?.[0]?.assetGroupLabel ?? key,
+    kind: groups.get(key)?.[0]?.assetGroupKind ?? "package-family",
+    description: groups.get(key)?.[0]?.assetGroupDescription ?? null,
     count: groups.get(key)?.length ?? 0,
-    items: groups.get(key) ?? []
+    items: (groups.get(key) ?? []).slice().sort((left, right) => String(left.title ?? left.filename).localeCompare(String(right.title ?? right.filename)))
   }));
 }
 
@@ -10187,6 +10241,7 @@ function renderDonorAssetFilterBar(donorAssetCatalog, visibleCount) {
   }
 
   const selectedFilter = String(state.donorAssetUi?.fileTypeFilter ?? "all").trim().toLowerCase();
+  const selectedAssetGroupFilter = String(state.donorAssetUi?.assetGroupFilter ?? "all").trim();
   const filterOptions = [
     {
       key: "all",
@@ -10199,6 +10254,18 @@ function renderDonorAssetFilterBar(donorAssetCatalog, visibleCount) {
       count: donorAssetCatalog.countsByFileType?.[fileType] ?? 0
     }))
   ];
+  const groupOptions = [
+    {
+      key: "all",
+      label: "All bundles",
+      count: donorAssetCatalog.assetCount
+    },
+    ...((Array.isArray(donorAssetCatalog.assetGroups) ? donorAssetCatalog.assetGroups : []).map((entry) => ({
+      key: entry.key,
+      label: entry.label,
+      count: entry.count
+    })))
+  ];
   const sourceSummary = Object.entries(donorAssetCatalog.countsBySourceCategory ?? {})
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([label, count]) => `<span>${escapeHtml(label)}: ${count}</span>`)
@@ -10206,18 +10273,30 @@ function renderDonorAssetFilterBar(donorAssetCatalog, visibleCount) {
 
   return `
     <div class="donor-asset-filter-toolbar">
-      <div class="donor-asset-filter-buttons" role="toolbar" aria-label="Donor asset type filter">
-        ${filterOptions.map((option) => `
-          <button
-            type="button"
-            class="donor-asset-filter-button ${selectedFilter === option.key ? "is-active" : ""}"
-            data-donor-asset-type-filter="${escapeAttribute(option.key)}"
-            aria-pressed="${selectedFilter === option.key ? "true" : "false"}"
-          >
-            <span>${escapeHtml(option.label)}</span>
-            <strong>${option.count}</strong>
-          </button>
-        `).join("")}
+      <div class="donor-asset-filter-row">
+        <div class="donor-asset-filter-buttons" role="toolbar" aria-label="Donor asset type filter">
+          ${filterOptions.map((option) => `
+            <button
+              type="button"
+              class="donor-asset-filter-button ${selectedFilter === option.key ? "is-active" : ""}"
+              data-donor-asset-type-filter="${escapeAttribute(option.key)}"
+              aria-pressed="${selectedFilter === option.key ? "true" : "false"}"
+            >
+              <span>${escapeHtml(option.label)}</span>
+              <strong>${option.count}</strong>
+            </button>
+          `).join("")}
+        </div>
+        ${groupOptions.length > 1 ? `
+          <label class="toolbar-select donor-asset-group-select" for="field-donor-asset-group-filter">
+            <span>Asset Bundle</span>
+            <select id="field-donor-asset-group-filter" data-donor-asset-group-filter="1">
+              ${groupOptions.map((option) => `
+                <option value="${escapeAttribute(option.key)}" ${selectedAssetGroupFilter === option.key ? "selected" : ""}>${escapeHtml(`${option.label} (${option.count})`)}</option>
+              `).join("")}
+            </select>
+          </label>
+        ` : ""}
       </div>
       <div class="chip-row donor-asset-summary-chips">
         <span>${visibleCount} visible</span>
@@ -10265,12 +10344,12 @@ function renderDonorImportTargetControl() {
 }
 
 function renderDonorAssetCards(items, evidenceObjectIndex = new Map()) {
-  const groupedItems = groupVisibleDonorAssetsByFileType(items);
+  const groupedItems = groupVisibleDonorAssets(items);
   if (!Array.isArray(items) || items.length === 0) {
     const searchQuery = String(state.donorAssetUi?.searchQuery ?? "").trim();
     return searchQuery
       ? `<p class="muted-copy">No donor asset matches <code>${escapeHtml(searchQuery)}</code>.</p>`
-      : `<p class="muted-copy">No usable donor or harvested runtime/package image assets are available for this project on this machine yet.</p>`;
+      : `<p class="muted-copy">No usable donor or harvested runtime/package image bundles are available for this project on this machine yet.</p>`;
   }
 
   const replaceableSelectedObject = getReplaceableSelectedObject();
@@ -10280,8 +10359,16 @@ function renderDonorAssetCards(items, evidenceObjectIndex = new Map()) {
       ${groupedItems.map((group) => `
         <section class="donor-asset-group">
           <div class="donor-asset-group-head">
-            <strong>${escapeHtml(group.fileType.toUpperCase())} Assets</strong>
-            <span>${group.count} item${group.count === 1 ? "" : "s"}</span>
+            <div class="donor-asset-group-meta">
+              <strong>${escapeHtml(group.label)}</strong>
+              <span>${group.count} item${group.count === 1 ? "" : "s"}${group.kind === "package-family" ? " in this harvested runtime/package bundle" : ""}</span>
+              ${group.description ? `<small>${escapeHtml(group.description)}</small>` : ""}
+            </div>
+            <div class="evidence-actions">
+              ${group.kind === "package-family"
+                ? `<button type="button" class="copy-button" data-import-donor-asset-group-key="${escapeAttribute(group.key)}">Import Bundle To Compose</button>`
+                : ""}
+            </div>
           </div>
           <div class="donor-asset-grid">
             ${group.items.map((item) => {
@@ -10306,6 +10393,7 @@ function renderDonorAssetCards(items, evidenceObjectIndex = new Map()) {
                   <span class="asset-format-badge">${escapeHtml(item.fileType.toUpperCase())}</span>
                   <span>${escapeHtml(item.sourceCategory)}</span>
                   <span>${escapeHtml(item.captureSessionId)}</span>
+                  ${item.assetDepth !== null ? `<span>depth ${escapeHtml(String(item.assetDepth))}</span>` : ""}
                   <span>${item.width && item.height ? `${item.width}×${item.height}` : "size unknown"}</span>
                 </div>
                 ${item.previewUrl ? `
@@ -10320,6 +10408,7 @@ function renderDonorAssetCards(items, evidenceObjectIndex = new Map()) {
                 <div class="evidence-item-body">
                   <p class="muted-copy">${escapeHtml(item.filename)} · ${escapeHtml(item.previewLabel)}</p>
                   ${item.notes ? `<p class="muted-copy">${escapeHtml(item.notes)}</p>` : ""}
+                  ${item.discoveredFromUrl ? `<p class="muted-copy">Parent runtime/package source: <code>${escapeHtml(item.discoveredFromUrl)}</code></p>` : ""}
                   <p class="muted-copy"><code>${escapeHtml(item.repoRelativePath)}</code></p>
                 </div>
                 <div class="evidence-linked-objects">
@@ -11956,6 +12045,7 @@ async function reloadWorkspace(isInitialLoad, requestedProjectId = null) {
   state.donorAssetUi = {
     searchQuery: "",
     fileTypeFilter: "all",
+    assetGroupFilter: "all",
     highlightedAssetId: null,
     dragPayload: null,
     importTargetLayerId: "auto",
@@ -13813,6 +13903,85 @@ function handleImportDonorAsset(assetId, scenePoint = null) {
   ensureSelectedObject();
   renderAll();
   setPreviewStatus(`Imported ${createdDisplayName} from donor evidence ${donorAsset.evidenceId} onto ${createdLayerName}. Save to persist the donor-backed object.`);
+  return true;
+}
+
+function buildDonorAssetGroupImportPosition(index, viewport, assetCount) {
+  const viewportWidth = Number.isFinite(viewport?.width) ? viewport.width : 1280;
+  const viewportHeight = Number.isFinite(viewport?.height) ? viewport.height : 720;
+  const columns = Math.max(1, Math.min(4, Math.ceil(Math.sqrt(Math.max(1, assetCount)))));
+  const horizontalPadding = 72;
+  const verticalPadding = 96;
+  const horizontalGap = 220;
+  const verticalGap = 180;
+  const row = Math.floor(index / columns);
+  const column = index % columns;
+  const baseX = horizontalPadding + column * horizontalGap;
+  const baseY = verticalPadding + row * verticalGap;
+
+  return {
+    x: Math.min(Math.max(0, baseX), Math.max(0, viewportWidth - 180)),
+    y: Math.min(Math.max(0, baseY), Math.max(0, viewportHeight - 120))
+  };
+}
+
+function handleImportDonorAssetGroup(groupKey) {
+  if (!state.editorData) {
+    setPreviewStatus("No editable scene data is available for donor bundle import.");
+    return false;
+  }
+
+  const groupSummary = getDonorAssetGroupSummary(groupKey);
+  const donorAssets = getDonorAssetItemsForGroup(groupKey).filter((asset) => Boolean(asset?.previewUrl));
+  if (donorAssets.length === 0) {
+    setPreviewStatus("That donor bundle does not have any usable local image assets on this machine.");
+    return false;
+  }
+
+  if (getAssignableLayers().length === 0) {
+    setPreviewStatus("Every layer is locked, so donor bundle import is currently blocked.");
+    return false;
+  }
+
+  const createdObjectIds = [];
+  const viewport = getSceneViewport();
+  const targetLayerId = getDonorImportTargetLayerId();
+  let createdLayerName = getDonorImportTargetLayerLabel();
+  const didChange = applyEditorMutation(`Imported donor bundle ${groupSummary?.label ?? groupKey}.`, (editorData) => {
+    const tools = getEditorStateTools();
+    donorAssets.forEach((asset, index) => {
+      const nextObject = typeof tools.createDonorAssetObject === "function"
+        ? tools.createDonorAssetObject(editorData, {
+          asset,
+          viewport,
+          position: buildDonorAssetGroupImportPosition(index, viewport, donorAssets.length),
+          selectedLayerId: targetLayerId
+        })
+        : null;
+
+      if (!nextObject) {
+        return;
+      }
+
+      const layer = editorData.layers.find((entry) => entry.id === nextObject.layerId);
+      if (layer?.displayName) {
+        createdLayerName = layer.displayName;
+      }
+      createdObjectIds.push(nextObject.id);
+      editorData.objects.push(nextObject);
+    });
+  });
+
+  if (!didChange || createdObjectIds.length === 0) {
+    setPreviewStatus(`Could not import donor bundle ${groupSummary?.label ?? groupKey}.`);
+    return false;
+  }
+
+  setSelectedObject(createdObjectIds[0]);
+  state.donorAssetUi.highlightedAssetId = donorAssets[0]?.assetId ?? null;
+  ensureSelectedObject();
+  renderAll();
+  setPreviewStatus(`Imported ${createdObjectIds.length} donor-backed objects from ${groupSummary?.label ?? groupKey} onto ${createdLayerName}. Save to persist this bundle import.`);
   return true;
 }
 

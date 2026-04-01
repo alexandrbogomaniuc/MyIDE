@@ -1199,6 +1199,14 @@ button:disabled {
   gap: 12px;
 }
 
+.donor-asset-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
 .donor-import-target-card {
   border-color: rgba(230, 191, 100, 0.28);
   background: rgba(230, 191, 100, 0.06);
@@ -1213,8 +1221,16 @@ button:disabled {
   justify-self: start;
 }
 
+.donor-asset-group-select {
+  justify-self: start;
+}
+
 .donor-import-layer-select select {
   min-width: 220px;
+}
+
+.donor-asset-group-select select {
+  min-width: 280px;
 }
 
 .donor-import-target-chips {
@@ -1262,11 +1278,21 @@ button:disabled {
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  align-items: baseline;
+  align-items: flex-start;
 }
 
 .donor-asset-group-head span {
   color: var(--muted);
+}
+
+.donor-asset-group-meta {
+  display: grid;
+  gap: 4px;
+}
+
+.donor-asset-group-meta small {
+  color: var(--muted);
+  line-height: 1.4;
 }
 
 .asset-format-badge,
