@@ -10752,6 +10752,119 @@ function deleteSceneSection(sectionId) {
   setPreviewStatus(`Deleted scene section ${sectionEntry.label}. ${sectionEntry.count} grouped editable object${sectionEntry.count === 1 ? "" : "s"} were removed from Compose Mode.`);
 }
 
+function centerSceneSectionInViewport(sectionId) {
+  const sectionEntry = getSceneSectionEntryById(sectionId);
+  if (!sectionEntry) {
+    setPreviewStatus("Could not find that scene section in the current internal scene.");
+    return;
+  }
+
+  const blockedMembers = sectionEntry.memberObjects.filter((entry) => !isObjectEditable(entry));
+  if (blockedMembers.length > 0) {
+    setPreviewStatus(`Scene section ${sectionEntry.label} cannot be centered while ${blockedMembers.length} member object${blockedMembers.length === 1 ? "" : "s"} are locked.`);
+    return;
+  }
+
+  const bounds = getObjectGroupBounds(sectionEntry.memberObjects);
+  if (!bounds) {
+    setPreviewStatus(`Scene section ${sectionEntry.label} does not have any editable bounds to center.`);
+    return;
+  }
+
+  const viewport = getSceneViewport();
+  const desiredDeltaX = Math.round((viewport.width - bounds.width) / 2 - bounds.x);
+  const desiredDeltaY = Math.round((viewport.height - bounds.height) / 2 - bounds.y);
+  const deltaX = Math.max(-bounds.x, Math.min(desiredDeltaX, viewport.width - (bounds.x + bounds.width)));
+  const deltaY = Math.max(-bounds.y, Math.min(desiredDeltaY, viewport.height - (bounds.y + bounds.height)));
+
+  if (deltaX === 0 && deltaY === 0) {
+    setPreviewStatus(`Scene section ${sectionEntry.label} is already centered in the current viewport bounds.`);
+    return;
+  }
+
+  const transformObjectIds = uniqueStrings([sectionEntry.id, ...sectionEntry.memberObjectIds]);
+  const didChange = applyEditorMutation(`Centered scene section ${sectionEntry.label}.`, (editorData) => {
+    if (!Array.isArray(editorData.objects)) {
+      return;
+    }
+
+    editorData.objects.forEach((entry) => {
+      if (!transformObjectIds.includes(entry.id)) {
+        return;
+      }
+      entry.x = Math.round((Number.isFinite(entry.x) ? entry.x : 0) + deltaX);
+      entry.y = Math.round((Number.isFinite(entry.y) ? entry.y : 0) + deltaY);
+    });
+  });
+
+  if (!didChange) {
+    setPreviewStatus(`Could not center scene section ${sectionEntry.label}.`);
+    return;
+  }
+
+  focusSceneObjectGroupInWorkflow(sectionEntry.memberObjectIds, {
+    label: "scene section",
+    statusMessage: `Centered scene section ${sectionEntry.label} in the editable viewport. ${sectionEntry.count} grouped object${sectionEntry.count === 1 ? "" : "s"} remain selected in Compose Mode.`
+  });
+}
+
+function restoreSceneSectionSuggestedLayer(sectionId) {
+  const sectionEntry = getSceneSectionEntryById(sectionId);
+  if (!sectionEntry) {
+    setPreviewStatus("Could not find that scene section in the current internal scene.");
+    return;
+  }
+
+  const suggestedLayerId = sectionEntry.gamePartSummary?.sceneKitSummary?.layerId
+    ?? sectionEntry.provenance?.primaryGroupSummary?.layerId
+    ?? null;
+  if (!suggestedLayerId) {
+    setPreviewStatus(`Scene section ${sectionEntry.label} does not have a suggested layer recorded yet.`);
+    return;
+  }
+
+  const targetLayer = getAssignableLayers().find((entry) => entry.id === suggestedLayerId);
+  if (!targetLayer) {
+    setPreviewStatus(`Scene section ${sectionEntry.label} cannot move to ${suggestedLayerId} because that layer is not editable right now.`);
+    return;
+  }
+
+  const transformObjectIds = uniqueStrings([sectionEntry.id, ...sectionEntry.memberObjectIds]);
+  const transformObjects = transformObjectIds.map((objectId) => getEditableObjectById(objectId)).filter(Boolean);
+  const blockedObjects = transformObjects.filter((entry) => !isObjectEditable(entry));
+  if (blockedObjects.length > 0) {
+    setPreviewStatus(`Scene section ${sectionEntry.label} cannot move layers while ${blockedObjects.length} grouped object${blockedObjects.length === 1 ? "" : "s"} are locked.`);
+    return;
+  }
+
+  if (transformObjects.length > 0 && transformObjects.every((entry) => entry.layerId === targetLayer.id)) {
+    setPreviewStatus(`Scene section ${sectionEntry.label} is already on ${targetLayer.displayName}.`);
+    return;
+  }
+
+  const didChange = applyEditorMutation(`Moved scene section ${sectionEntry.label} to ${targetLayer.displayName}.`, (editorData) => {
+    if (!Array.isArray(editorData.objects)) {
+      return;
+    }
+
+    editorData.objects.forEach((entry) => {
+      if (transformObjectIds.includes(entry.id)) {
+        entry.layerId = targetLayer.id;
+      }
+    });
+  });
+
+  if (!didChange) {
+    setPreviewStatus(`Could not move scene section ${sectionEntry.label} to ${targetLayer.displayName}.`);
+    return;
+  }
+
+  focusSceneObjectGroupInWorkflow(sectionEntry.memberObjectIds, {
+    label: "scene section",
+    statusMessage: `Moved scene section ${sectionEntry.label} to ${targetLayer.displayName}. ${sectionEntry.count} grouped object${sectionEntry.count === 1 ? "" : "s"} remain selected in Compose Mode.`
+  });
+}
+
 function selectObjectFromEvidence(objectId) {
   focusSceneObjectInWorkflow(objectId, {
     statusMessage: `Selected ${getEditableObjectById(objectId)?.displayName ?? objectId} from donor evidence linkage.`
@@ -10921,6 +11034,20 @@ function handleNavigationClick(event) {
   if (deleteSceneSectionButton instanceof HTMLElement && deleteSceneSectionButton.dataset.deleteSceneSectionId) {
     event.preventDefault();
     deleteSceneSection(deleteSceneSectionButton.dataset.deleteSceneSectionId);
+    return true;
+  }
+
+  const centerSceneSectionButton = target.closest("[data-center-scene-section-id]");
+  if (centerSceneSectionButton instanceof HTMLElement && centerSceneSectionButton.dataset.centerSceneSectionId) {
+    event.preventDefault();
+    centerSceneSectionInViewport(centerSceneSectionButton.dataset.centerSceneSectionId);
+    return true;
+  }
+
+  const restoreSceneSectionLayerButton = target.closest("[data-restore-scene-section-layer-id]");
+  if (restoreSceneSectionLayerButton instanceof HTMLElement && restoreSceneSectionLayerButton.dataset.restoreSceneSectionLayerId) {
+    event.preventDefault();
+    restoreSceneSectionSuggestedLayer(restoreSceneSectionLayerButton.dataset.restoreSceneSectionLayerId);
     return true;
   }
 
@@ -13958,6 +14085,8 @@ function renderSceneExplorer() {
                 ${runtimeContext?.evidenceItem
                   ? `<button type="button" class="copy-button" data-focus-donor-evidence-id="${escapeAttribute(runtimeContext.evidenceItem.evidenceId)}">Focus Evidence</button>`
                   : ""}
+                <button type="button" class="copy-button" data-center-scene-section-id="${escapeAttribute(entry.id)}">Center Section</button>
+                ${gamePartSummary?.sceneKitSummary?.layerId ? `<button type="button" class="copy-button" data-restore-scene-section-layer-id="${escapeAttribute(entry.id)}">Restore Suggested Layer</button>` : ""}
                 <button type="button" class="copy-button" data-duplicate-scene-section-id="${escapeAttribute(entry.id)}">Duplicate Section</button>
                 <button type="button" class="copy-button" data-delete-scene-section-id="${escapeAttribute(entry.id)}">Delete Section</button>
                 <button type="button" class="copy-button" data-frame-scene-section-id="${escapeAttribute(entry.id)}">Frame Section</button>
@@ -15928,10 +16057,12 @@ function renderInspector() {
             ${sceneKitContext.sectionId ? `<button type="button" class="copy-button" data-focus-scene-section-id="${escapeAttribute(sceneKitContext.sectionId)}">Select Scene Section</button>` : ""}
             ${sceneKitContext.sectionId ? `<button type="button" class="copy-button" data-focus-scene-section-assets-id="${escapeAttribute(sceneKitContext.sectionId)}">Show Section Assets</button>` : ""}
             ${sceneKitContext.sectionId ? `<button type="button" class="copy-button" data-frame-scene-section-id="${escapeAttribute(sceneKitContext.sectionId)}">Frame Section</button>` : ""}
+            ${sceneKitContext.sectionId ? `<button type="button" class="copy-button" data-center-scene-section-id="${escapeAttribute(sceneKitContext.sectionId)}">Center Section</button>` : ""}
             ${sceneKitContext.sectionId && (sceneSectionRuntimeContext?.preferredWorkbenchEntry || sceneSectionRuntimeContext?.preferredReference) ? `<button type="button" class="copy-button" data-open-scene-section-runtime-id="${escapeAttribute(sceneKitContext.sectionId)}">Open Runtime Group</button>` : ""}
             ${sceneKitContext.sectionId && sceneSectionProvenance?.evidenceIds?.length ? `<button type="button" class="copy-button" data-focus-scene-section-evidence-id="${escapeAttribute(sceneKitContext.sectionId)}">Show Section Evidence</button>` : ""}
             ${sceneKitContext.sectionId && sceneSectionOverrideCandidate?.eligible ? `<button type="button" class="copy-button" data-create-scene-section-override-id="${escapeAttribute(sceneKitContext.sectionId)}">Create Override</button>` : ""}
             ${sceneKitContext.sectionId && sceneSectionOverrideCandidate?.activeOverride ? `<button type="button" class="copy-button" data-clear-scene-section-override-id="${escapeAttribute(sceneKitContext.sectionId)}">Clear Override</button>` : ""}
+            ${sceneKitContext.sectionId && sceneSectionGamePartSummary?.sceneKitSummary?.layerId ? `<button type="button" class="copy-button" data-restore-scene-section-layer-id="${escapeAttribute(sceneKitContext.sectionId)}">Restore Suggested Layer</button>` : ""}
             ${sceneKitContext.sectionId ? `<button type="button" class="copy-button" data-duplicate-scene-section-id="${escapeAttribute(sceneKitContext.sectionId)}">Duplicate Section</button>` : ""}
             ${sceneKitContext.sectionId ? `<button type="button" class="copy-button" data-delete-scene-section-id="${escapeAttribute(sceneKitContext.sectionId)}">Delete Section</button>` : ""}
             <button type="button" class="copy-button" data-focus-scene-object-ids="${escapeAttribute(JSON.stringify(sceneKitContext.memberObjects.map((entry) => entry.id)))}">Select This Scene Kit</button>
@@ -16548,8 +16679,10 @@ function renderRuntimeInspector() {
             <button type="button" class="copy-button" data-focus-scene-section-id="${escapeAttribute(selectedSceneKitContext.sectionId)}">Select Section</button>
             <button type="button" class="copy-button" data-focus-scene-section-assets-id="${escapeAttribute(selectedSceneKitContext.sectionId)}">Show Section Assets</button>
             <button type="button" class="copy-button" data-frame-scene-section-id="${escapeAttribute(selectedSceneKitContext.sectionId)}">Frame Section</button>
+            <button type="button" class="copy-button" data-center-scene-section-id="${escapeAttribute(selectedSceneKitContext.sectionId)}">Center Section</button>
             ${selectedSceneSectionProvenance?.evidenceIds?.length ? `<button type="button" class="copy-button" data-focus-scene-section-evidence-id="${escapeAttribute(selectedSceneKitContext.sectionId)}">Show Section Evidence</button>` : ""}
             ${selectedSceneSectionRuntimeContext?.preferredWorkbenchEntry || selectedSceneSectionRuntimeContext?.preferredReference ? `<button type="button" class="copy-button" data-open-scene-section-runtime-id="${escapeAttribute(selectedSceneKitContext.sectionId)}">Open Runtime Group</button>` : ""}
+            ${selectedSceneSectionGamePartSummary?.sceneKitSummary?.layerId ? `<button type="button" class="copy-button" data-restore-scene-section-layer-id="${escapeAttribute(selectedSceneKitContext.sectionId)}">Restore Suggested Layer</button>` : ""}
             <button type="button" class="copy-button" data-duplicate-scene-section-id="${escapeAttribute(selectedSceneKitContext.sectionId)}">Duplicate Section</button>
             <button type="button" class="copy-button" data-delete-scene-section-id="${escapeAttribute(selectedSceneKitContext.sectionId)}">Delete Section</button>
             ${selectedSceneSectionGamePartSummary?.summaryText ? renderCopyButton(selectedSceneSectionGamePartSummary.summaryText, `game-part summary for ${selectedSceneKitContext.sectionLabel}`, "Copy Game-Part Summary") : ""}

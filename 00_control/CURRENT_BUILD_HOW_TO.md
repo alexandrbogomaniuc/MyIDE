@@ -59,7 +59,8 @@ Recommended rule:
 10. Scene sections now also expose section-level working controls. Use **Frame Section** to center one imported game-part section in Compose and **Show Section Evidence** to jump the whole grouped section back into donor evidence instead of chasing one asset at a time.
 11. Scene sections now also expose a stronger game-part summary and **Show Section Assets**, so a grouped section can jump back to its donor asset kit and carry a clearer readiness label such as donor-backed, evidence-backed, runtime-linked, or override-ready.
 12. Scene sections now also expose **Duplicate Section** and **Delete Section**, so one imported grouped game-part kit can be copied or removed as a bounded section-level edit instead of forcing one object at a time.
-13. This is still only a bounded donor-package slice. It does not yet recurse through the full runtime package or expose full game logic as editable objects.
+13. Scene sections now also expose **Center Section** and **Restore Suggested Layer**, so one imported grouped game-part kit can be repositioned in the viewport or moved back to its inferred scene-kit layer without breaking the grouped section structure.
+14. This is still only a bounded donor-package slice. It does not yet recurse through the full runtime package or expose full game logic as editable objects.
 
 ## 3. Runtime Mode Is The Primary Workflow
 1. `project_001` now opens into **Runtime** mode when the grounded donor runtime entry is available.
@@ -119,6 +120,8 @@ Current editable workflow:
 - use the new **Scene Sections** row in the scene explorer if you want to select one imported donor section as a whole working set before moving/resizing/alignment work
 - use **Open Runtime Context** from a selected donor-backed runtime screenshot object if you want to move straight back to Runtime Mode
 - use **Duplicate Section** or **Delete Section** from the Scene Sections banner, selected-object inspector, or Runtime workbench when you want to treat one imported grouped game-part kit as one bounded editing unit
+- use **Center Section** when you want to move one grouped game-part kit back into the middle of the editable viewport without dragging each child object separately
+- use **Restore Suggested Layer** when you want one grouped section to jump back to its inferred scene-kit target layer instead of reassigning every child object one by one
 - align placeholder-backed objects to the viewport
 - reassign objects between unlocked layers
 - reorder objects within the current layer
