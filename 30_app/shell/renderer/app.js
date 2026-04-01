@@ -8870,6 +8870,14 @@ function getSceneObjectsForDonorAssetGroupKey(groupKey) {
   });
 }
 
+function isDonorSceneKitContainer(object) {
+  return Boolean(
+    object
+    && object.type === "container"
+    && object.placeholderRef === "placeholder.container.donor-scene-kit"
+  );
+}
+
 function getRuntimeReferenceScreens() {
   return runtimeReferenceScreenDefs.map((entry) => ({
     ...entry,
@@ -9057,6 +9065,38 @@ function getDonorAssetItemsForGroup(groupKey) {
   return getDonorAssetCatalogItems()
     .filter((item) => item?.assetGroupKey === groupKey)
     .sort((left, right) => String(left.title ?? left.filename).localeCompare(String(right.title ?? right.filename)));
+}
+
+function getSceneKitContextForObject(object) {
+  if (!object) {
+    return null;
+  }
+
+  const donorAsset = getDonorAssetForObject(object);
+  const groupKey = typeof donorAsset?.assetGroupKey === "string" ? donorAsset.assetGroupKey : "";
+  if (!groupKey) {
+    return null;
+  }
+
+  const groupSummary = getDonorAssetGroupSceneKitSummary(groupKey);
+  if (!groupSummary) {
+    return null;
+  }
+
+  const containerObject = typeof object.parentId === "string" && object.parentId.length > 0
+    ? getEditableObjectById(object.parentId)
+    : null;
+  const memberObjects = (containerObject
+    ? state.editorData?.objects?.filter((entry) => entry?.parentId === containerObject.id)
+    : getSceneObjectsForDonorAssetGroupKey(groupKey)) ?? [];
+
+  return {
+    groupKey,
+    groupSummary,
+    donorAsset,
+    containerObject,
+    memberObjects
+  };
 }
 
 function groupVisibleDonorAssets(items) {
@@ -9972,6 +10012,28 @@ function focusDonorAssetCard(assetId, {
   setPreviewStatus(statusMessage ?? `Focused donor asset ${donorAsset?.title ?? assetId} in the donor asset palette.`);
 }
 
+function focusDonorAssetGroup(groupKey, {
+  statusMessage = null
+} = {}) {
+  const groupSummary = getDonorAssetGroupSceneKitSummary(groupKey);
+  if (!groupSummary) {
+    setPreviewStatus("Could not find that donor scene kit in the donor asset palette.");
+    return;
+  }
+
+  const sampleAsset = getDonorAssetItemsForGroup(groupKey)[0] ?? null;
+  setWorkbenchMode("scene", { silent: true });
+  state.workflowUi.activePanel = "donor";
+  state.donorAssetUi.assetGroupFilter = groupKey;
+  state.donorAssetUi.highlightedAssetId = sampleAsset?.assetId ?? null;
+  renderAll();
+  if (sampleAsset?.assetId) {
+    scrollDonorAssetCardIntoView(sampleAsset.assetId);
+  }
+
+  setPreviewStatus(statusMessage ?? `Focused donor scene kit ${groupSummary.label} in the donor asset palette.`);
+}
+
 function focusSelectedObjectEvidence(refs, label = "selected object evidence") {
   const normalizedRefs = uniqueStrings(Array.isArray(refs) ? refs : []);
   if (normalizedRefs.length === 0) {
@@ -10128,6 +10190,20 @@ function handleNavigationClick(event) {
     return true;
   }
 
+  const focusSceneObjectIdsButton = target.closest("[data-focus-scene-object-ids]");
+  if (focusSceneObjectIdsButton instanceof HTMLElement && focusSceneObjectIdsButton.dataset.focusSceneObjectIds) {
+    event.preventDefault();
+    let objectIds = [];
+    try {
+      const parsed = JSON.parse(focusSceneObjectIdsButton.dataset.focusSceneObjectIds);
+      objectIds = Array.isArray(parsed) ? parsed.filter((entry) => typeof entry === "string" && entry.length > 0) : [];
+    } catch {
+      objectIds = [];
+    }
+    focusSceneObjectGroupInWorkflow(objectIds);
+    return true;
+  }
+
   const focusSceneObjectGroupButton = target.closest("[data-focus-scene-object-group-key]");
   if (focusSceneObjectGroupButton instanceof HTMLElement && focusSceneObjectGroupButton.dataset.focusSceneObjectGroupKey) {
     event.preventDefault();
@@ -10147,6 +10223,13 @@ function handleNavigationClick(event) {
   if (focusDonorAssetButton instanceof HTMLElement && focusDonorAssetButton.dataset.focusDonorAssetId) {
     event.preventDefault();
     focusDonorAssetCard(focusDonorAssetButton.dataset.focusDonorAssetId);
+    return true;
+  }
+
+  const focusDonorAssetGroupButton = target.closest("[data-focus-donor-asset-group-key]");
+  if (focusDonorAssetGroupButton instanceof HTMLElement && focusDonorAssetGroupButton.dataset.focusDonorAssetGroupKey) {
+    event.preventDefault();
+    focusDonorAssetGroup(focusDonorAssetGroupButton.dataset.focusDonorAssetGroupKey);
     return true;
   }
 
@@ -13117,10 +13200,11 @@ function renderSceneExplorer() {
     </div>
   ` : "";
   const layerMarkup = displayedLayers.map((layer) => {
-    const objects = getLayerObjectsInOrder(layer.id, editorData);
+    const objects = getLayerObjectsInOrder(layer.id, editorData).filter((object) => !isDonorSceneKitContainer(object));
     const objectMarkup = objects.length > 0
       ? objects.map((object, index) => {
         const donorAsset = getDonorAssetForObject(object);
+        const sceneKitContext = getSceneKitContextForObject(object);
         const isSelected = isObjectSelected(object.id);
         const isPrimarySelected = object.id === state.selectedObjectId;
         return `
@@ -13129,6 +13213,7 @@ function renderSceneExplorer() {
           ${donorAsset ? `
             <div class="chip-row object-row-badges">
               <span class="object-row-badge is-donor">Donor-backed</span>
+              ${sceneKitContext ? `<span class="object-row-badge">${escapeHtml(sceneKitContext.groupSummary.label)}</span>` : ""}
               ${donorAsset.fileType ? `<span class="asset-format-badge">${escapeHtml(String(donorAsset.fileType).toUpperCase())}</span>` : ""}
               ${donorAsset.evidenceId ? `<span><code>${escapeHtml(donorAsset.evidenceId)}</code></span>` : ""}
             </div>
@@ -14927,6 +15012,7 @@ function renderInspector() {
     ? window.myideApi.buildPropertyPanelViewModel(inspectorInput)
     : inspectorInput;
   const donorAsset = getDonorAssetForObject(selectedObject);
+  const sceneKitContext = getSceneKitContextForObject(selectedObject);
   const runtimeReferenceMatch = donorAsset
     ? getRuntimeReferenceScreens().find((entry) => entry.evidenceId === donorAsset.evidenceId) ?? null
     : null;
@@ -14954,6 +15040,7 @@ function renderInspector() {
         ` : ""}
         <div class="chip-row donor-asset-chip-row">
           <span class="object-row-badge is-donor">Donor-backed object</span>
+          ${sceneKitContext ? `<span class="object-row-badge">${escapeHtml(sceneKitContext.groupSummary.label)}</span>` : ""}
           ${donorAsset.fileType ? `<span class="asset-format-badge">${escapeHtml(String(donorAsset.fileType).toUpperCase())}</span>` : ""}
           ${donorAsset.captureSessionId ? `<span>${escapeHtml(donorAsset.captureSessionId)}</span>` : ""}
           ${donorAsset.evidenceId ? `<span><code>${escapeHtml(donorAsset.evidenceId)}</code></span>` : ""}
@@ -14978,6 +15065,47 @@ function renderInspector() {
           <div class="detail-card">
             <span>Placement Layer</span>
             <strong>${escapeHtml(layer?.displayName ?? selectedObject.layerId)}</strong>
+          </div>
+        </div>
+      </div>
+    `
+    : "";
+  const sceneKitSummaryMarkup = sceneKitContext
+    ? `
+      <div class="donor-linkage-summary">
+        <div class="donor-linkage-summary-head">
+          <div>
+            <strong>Imported Scene Kit</strong>
+            <small>This donor-backed object belongs to a grouped scene kit imported from the harvested donor package, not just a one-off image card.</small>
+          </div>
+          <div class="evidence-actions">
+            <button type="button" class="copy-button" data-focus-donor-asset-group-key="${escapeAttribute(sceneKitContext.groupKey)}">Show Scene Kit In Palette</button>
+            <button type="button" class="copy-button" data-focus-scene-object-ids="${escapeAttribute(JSON.stringify(sceneKitContext.memberObjects.map((entry) => entry.id)))}">Select This Scene Kit</button>
+            ${renderCopyButton(sceneKitContext.memberObjects.map((entry) => entry.id).join("\n"), `scene kit object ids for ${sceneKitContext.groupSummary.label}`, "Copy Kit IDs")}
+          </div>
+        </div>
+        <div class="chip-row donor-asset-chip-row">
+          <span class="object-row-badge">${escapeHtml(sceneKitContext.groupSummary.importLabel)}</span>
+          <span>${escapeHtml(sceneKitContext.groupSummary.layerLabel)}</span>
+          <span>${escapeHtml(sceneKitContext.groupSummary.layoutStyle)} layout</span>
+          <span>${sceneKitContext.memberObjects.length} object${sceneKitContext.memberObjects.length === 1 ? "" : "s"}</span>
+        </div>
+        <div class="detail-grid donor-linkage-grid">
+          <div class="detail-card">
+            <span>Scene Kit Label</span>
+            <strong>${escapeHtml(sceneKitContext.groupSummary.label)}</strong>
+          </div>
+          <div class="detail-card">
+            <span>Target Layer</span>
+            <strong>${escapeHtml(sceneKitContext.groupSummary.layerLabel)}</strong>
+          </div>
+          <div class="detail-card">
+            <span>Layout</span>
+            <strong>${escapeHtml(sceneKitContext.groupSummary.layoutStyle)}</strong>
+          </div>
+          <div class="detail-card">
+            <span>Members</span>
+            <strong>${sceneKitContext.memberObjects.length}</strong>
           </div>
         </div>
       </div>
@@ -15021,6 +15149,7 @@ function renderInspector() {
       <span>${viewportAlignable ? "viewport alignable" : "alignment locked"}</span>
     </div>
     ${donorSummaryMarkup}
+    ${sceneKitSummaryMarkup}
     ${evidenceSummaryMarkup}
     ${evidenceDrilldownMarkup}
     ${groupsMarkup}

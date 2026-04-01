@@ -109,6 +109,7 @@ Current editable workflow:
 - resize donor-backed imported image objects with the small bottom-right canvas handle on the selected donor-backed image
 - align or distribute the current multi-selection from the canvas toolbar
 - use **Show Asset In Palette** or **Show Evidence** from the donor summary on a selected donor-backed object if you want to jump back to donor source context quickly
+- use **Show Scene Kit In Palette** or **Select This Scene Kit** from the donor-backed inspector summary if you want to jump back to the imported donor kit or reselect that whole grouped kit in one step
 - use **Open Runtime Context** from a selected donor-backed runtime screenshot object if you want to move straight back to Runtime Mode
 - align placeholder-backed objects to the viewport
 - reassign objects between unlocked layers
