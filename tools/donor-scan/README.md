@@ -54,11 +54,11 @@ Key files:
 
 `request-backed-static-hints.json` is an optional supporting donor-scan artifact. When live runtime harvest evidence exists, donor scan normalizes exact request-backed static alternates there first and then reuses them in ranked capture targets.
 
-`next-capture-targets.json` is the first actionable operator output. It ranks the missing runtime files the IDE should try to capture next, using atlas missing-page refs, unresolved runtime candidates, and missing bundle references. It now also carries grounded `alternateCaptureHints` so the scan can expose placeholder rewrites, bundle-backed rooted path variants, request-backed static alternates, and image-family rooted path substitutions before any capture run starts.
+`next-capture-targets.json` is the first actionable operator output. It ranks the missing runtime files the IDE should try to capture next, using atlas missing-page refs, unresolved runtime candidates, and missing bundle references. It now also carries grounded `alternateCaptureHints` so the scan can expose placeholder rewrites, bundle-backed rooted path variants, request-backed static alternates, and image-family rooted path substitutions before any capture run starts. Atlas-page targets also keep atlas page order, so unsuffixed base pages are tried before later suffix pages when the metadata already proves that order.
 
 `next-capture-run.json` records what the guided capture runner attempted, which exact URLs were tried, which URL actually downloaded when a fallback worked, what failed, and how many ranked targets still remain after donor scan was refreshed.
 
-After a guided capture run, donor scan now feeds the latest failed attempts back into `next-capture-targets.json` too. That lets the IDE show which ranked targets are still blocked even after every grounded alternate URL in the latest run was already tried.
+After a guided capture run, donor scan now feeds the latest failed attempts back into `next-capture-targets.json` too. That lets the IDE show which ranked targets are still blocked even after every grounded alternate URL in the latest run was already tried, and it now demotes those recently blocked dead ends below the next untried grounded targets.
 
 ## What The Scan Can Break Early
 

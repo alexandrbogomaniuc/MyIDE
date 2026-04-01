@@ -334,7 +334,8 @@ export function buildNextCaptureTargets(options: BuildNextCaptureTargetsOptions)
     confidence: ReferenceConfidence,
     reason: string,
     blocker: string,
-    sourceLabel: string
+    sourceLabel: string,
+    scoreBonus = 0
   ) => {
     const existing = targetMap.get(url);
     const target = existing ?? {
@@ -355,14 +356,14 @@ export function buildNextCaptureTargets(options: BuildNextCaptureTargetsOptions)
     target.kind = target.kind === "atlas-page" ? target.kind : kind;
     target.category = target.category === "image" ? target.category : category;
     target.confidence = promoteConfidence(target.confidence, confidence);
-    target.score = Math.max(target.score, kindPriorityWeight(kind) + confidenceWeight(confidence) + categoryWeight(category));
+    target.score = Math.max(target.score, kindPriorityWeight(kind) + confidenceWeight(confidence) + categoryWeight(category) + scoreBonus);
     target.sourceLabels.add(sourceLabel);
     target.blockers.add(blocker);
     target.reasons.add(reason);
   };
 
   for (const manifest of options.atlasManifestFile.manifests) {
-    for (const missingPageUrl of manifest.missingPageUrls) {
+    for (const [pageIndex, missingPageUrl] of manifest.missingPageUrls.entries()) {
       upsertTarget(
         missingPageUrl,
         "atlas-page",
@@ -370,7 +371,8 @@ export function buildNextCaptureTargets(options: BuildNextCaptureTargetsOptions)
         "confirmed",
         `Referenced by ${manifest.kind} metadata ${manifest.localPath}.`,
         "Atlas metadata exists, but the referenced page image is still missing.",
-        `atlas:${manifest.localPath}`
+        `atlas:${manifest.localPath}`,
+        Math.max(0, 10 - pageIndex)
       );
     }
   }
@@ -426,6 +428,9 @@ export function buildNextCaptureTargets(options: BuildNextCaptureTargetsOptions)
   const targets = targetEntries
     .map(([url, target], index) => toTargetRecord(url, target, index + 1, options.bundleAssetMap, directoryAliasSupport, options.requestBackedStaticHints, captureRunResults))
     .sort((left, right) => {
+      if (left.recentCaptureStatus !== right.recentCaptureStatus) {
+        return left.recentCaptureStatus === "untried" ? -1 : 1;
+      }
       if (left.score !== right.score) {
         return right.score - left.score;
       }

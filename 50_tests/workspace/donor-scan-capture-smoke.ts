@@ -43,6 +43,7 @@ function startFixtureServer(): Promise<{ server: http.Server; port: number }> {
         response.end([
           "ui.png",
           "ui_missing.png",
+          "ui_later.png",
           "size: 128,128",
           "format: RGBA8888",
           "filter: Linear,Linear",
@@ -94,7 +95,16 @@ async function main(): Promise<void> {
       nextCaptureTargetCount?: number;
       atlasMissingPageCount?: number;
     };
-    assert.ok((beforeSummary.atlasMissingPageCount ?? 0) >= 2, "fixture should begin with multiple missing atlas pages");
+    assert.ok((beforeSummary.atlasMissingPageCount ?? 0) >= 3, "fixture should begin with multiple missing atlas pages");
+
+    const beforeTargets = JSON.parse(await fs.readFile(path.join(donorRoot, "evidence", "local_only", "harvest", "next-capture-targets.json"), "utf8")) as {
+      targets?: Array<{ relativePath?: string; rank?: number }>;
+    };
+    assert.ok(
+      Array.isArray(beforeTargets.targets)
+        && beforeTargets.targets.some((target) => target.relativePath?.includes("ui.png") && target.rank === 1),
+      "ranked targets should preserve atlas page order so the base atlas page is attempted before suffixed variants"
+    );
 
     const capture = await captureNextTargets({
       donorId,
@@ -126,21 +136,29 @@ async function main(): Promise<void> {
     const atlasManifest = JSON.parse(await fs.readFile(atlasManifestPath, "utf8")) as {
       missingPageCount?: number;
     };
-    assert.equal(atlasManifest.missingPageCount, 1, "atlas page capture should leave only the truly missing atlas page unresolved in the refreshed scan");
+    assert.equal(atlasManifest.missingPageCount, 2, "atlas page capture should leave one retried blocker and one untried atlas page unresolved in the refreshed scan");
 
     const refreshedTargets = JSON.parse(await fs.readFile(path.join(donorRoot, "evidence", "local_only", "harvest", "next-capture-targets.json"), "utf8")) as {
-      targets?: Array<{ relativePath?: string; recentCaptureStatus?: string; recentCaptureAttemptCount?: number; recentCaptureFailureReason?: string | null }>;
+      targets?: Array<{ relativePath?: string; recentCaptureStatus?: string; recentCaptureAttemptCount?: number; recentCaptureFailureReason?: string | null; rank?: number }>;
     };
+    const refreshedTargetList = Array.isArray(refreshedTargets.targets) ? refreshedTargets.targets : [];
+    const blockedTarget = refreshedTargetList.find((target) => target.relativePath?.includes("ui_missing.png"));
+    const promotedUntriedTarget = refreshedTargetList.find((target) => target.relativePath?.includes("ui_later.png"));
     assert.ok(
-      Array.isArray(refreshedTargets.targets)
-        && refreshedTargets.targets.some((target) =>
-          target.relativePath?.includes("ui_missing.png")
-          && target.recentCaptureStatus === "blocked"
-          && (target.recentCaptureAttemptCount ?? 0) >= 1
-          && typeof target.recentCaptureFailureReason === "string"
-          && target.recentCaptureFailureReason.includes("404")
-        ),
+      blockedTarget
+        && blockedTarget.recentCaptureStatus === "blocked"
+        && (blockedTarget.recentCaptureAttemptCount ?? 0) >= 1
+        && typeof blockedTarget.recentCaptureFailureReason === "string"
+        && blockedTarget.recentCaptureFailureReason.includes("404"),
       "refreshed next capture targets should mark the remaining atlas page as recently blocked after guided capture"
+    );
+    assert.ok(
+      promotedUntriedTarget
+        && promotedUntriedTarget.recentCaptureStatus === "untried"
+        && typeof promotedUntriedTarget.rank === "number"
+        && typeof blockedTarget?.rank === "number"
+        && promotedUntriedTarget.rank < blockedTarget.rank,
+      "refreshed next capture targets should promote the next untried grounded target above the recently blocked dead end"
     );
 
     const refreshedSummary = JSON.parse(await fs.readFile(beforeSummaryPath, "utf8")) as {

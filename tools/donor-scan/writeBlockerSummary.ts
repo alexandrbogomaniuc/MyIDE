@@ -45,6 +45,7 @@ export async function writeBlockerSummary(options: WriteBlockerSummaryOptions): 
   }
 
   const recentlyBlockedTargets = options.nextCaptureTargets.targets.filter((target) => target.recentCaptureStatus === "blocked");
+  const untriedTargets = options.nextCaptureTargets.targets.filter((target) => target.recentCaptureStatus !== "blocked");
   if (recentlyBlockedTargets.length > 0) {
     blockerHighlights.push(`${recentlyBlockedTargets.length} ranked capture targets were already retried in the latest guided capture run and still failed on every grounded URL attempt.`);
   }
@@ -52,6 +53,8 @@ export async function writeBlockerSummary(options: WriteBlockerSummaryOptions): 
   let nextOperatorAction = "Review the donor scan summary and decide whether deeper runtime capture is still needed.";
   if (!options.runtimeCandidates.partialLocalRuntimePackage) {
     nextOperatorAction = "Capture a grounded launch HTML plus runtime bundles so the donor scan has a real local runtime entry surface.";
+  } else if (recentlyBlockedTargets.length > 0 && untriedTargets.length > 0) {
+    nextOperatorAction = "Run guided capture against the refreshed top-ranked targets first; donor scan already demoted the latest grounded dead ends and promoted the next untried URLs.";
   } else if (recentlyBlockedTargets.length >= Math.min(5, Math.max(1, options.nextCaptureTargets.targets.length))) {
     nextOperatorAction = "The latest guided capture already exhausted the current grounded URLs for the top ranked targets, so the next step is deeper source discovery rather than repeating the same capture run.";
   } else if (options.runtimeCandidates.unresolvedDependencyCount > 0) {
