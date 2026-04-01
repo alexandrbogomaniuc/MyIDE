@@ -58,7 +58,8 @@ Recommended rule:
 9. Scene sections now also expose reconstruction-kit provenance. In the Scene Sections banner, selected-object inspector, and Runtime workbench you can now read donor asset counts, evidence-ref counts, source categories, capture sessions, and copy a grouped provenance summary for the current imported game-part section.
 10. Scene sections now also expose section-level working controls. Use **Frame Section** to center one imported game-part section in Compose and **Show Section Evidence** to jump the whole grouped section back into donor evidence instead of chasing one asset at a time.
 11. Scene sections now also expose a stronger game-part summary and **Show Section Assets**, so a grouped section can jump back to its donor asset kit and carry a clearer readiness label such as donor-backed, evidence-backed, runtime-linked, or override-ready.
-12. This is still only a bounded donor-package slice. It does not yet recurse through the full runtime package or expose full game logic as editable objects.
+12. Scene sections now also expose **Duplicate Section** and **Delete Section**, so one imported grouped game-part kit can be copied or removed as a bounded section-level edit instead of forcing one object at a time.
+13. This is still only a bounded donor-package slice. It does not yet recurse through the full runtime package or expose full game logic as editable objects.
 
 ## 3. Runtime Mode Is The Primary Workflow
 1. `project_001` now opens into **Runtime** mode when the grounded donor runtime entry is available.
@@ -117,6 +118,7 @@ Current editable workflow:
 - use **Show Scene Kit In Palette** or **Select This Scene Kit** from the donor-backed inspector summary if you want to jump back to the imported donor kit or reselect that whole grouped kit in one step
 - use the new **Scene Sections** row in the scene explorer if you want to select one imported donor section as a whole working set before moving/resizing/alignment work
 - use **Open Runtime Context** from a selected donor-backed runtime screenshot object if you want to move straight back to Runtime Mode
+- use **Duplicate Section** or **Delete Section** from the Scene Sections banner, selected-object inspector, or Runtime workbench when you want to treat one imported grouped game-part kit as one bounded editing unit
 - align placeholder-backed objects to the viewport
 - reassign objects between unlocked layers
 - reorder objects within the current layer

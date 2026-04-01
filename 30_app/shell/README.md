@@ -25,6 +25,7 @@ Electron desktop shell for MyIDE.
 - Those same scene sections now expose grouped reconstruction provenance in both Compose and Runtime, so the inspector can show donor asset counts, evidence refs, source categories, capture sessions, and copyable grouped provenance summaries for the selected imported game-part section.
 - Those same scene sections now expose section-level working controls too, including **Frame Section** to center the grouped part in Compose and **Show Section Evidence** to jump the whole imported section back into donor evidence.
 - Those same scene sections now also expose a grouped game-part summary and **Show Section Assets**, so a section can jump back to its donor asset kit while carrying a clearer grouped readiness label in Compose and Runtime.
+- Those same scene sections now also support **Duplicate Section** and **Delete Section**, so one imported grouped game-part kit can be copied or removed without dropping back to one-object-at-a-time cleanup.
 - Support a simple workspace rescan so newly added project folders can appear after discovery refreshes the derived registry.
 - Show the selected project's donor, target/resulting game, lifecycle stage summary, phase, verification status, folder path, and notes.
 - Split the main workbench into a runtime-first `Runtime` mode and a bounded secondary `Compose` mode for `project_001`.

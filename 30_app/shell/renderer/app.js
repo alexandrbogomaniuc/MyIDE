@@ -10650,6 +10650,108 @@ async function clearSceneSectionRuntimeOverride(sectionId) {
   });
 }
 
+function duplicateSceneSection(sectionId) {
+  const sectionEntry = getSceneSectionEntryById(sectionId);
+  if (!sectionEntry) {
+    setPreviewStatus("Could not find that scene section in the current internal scene.");
+    return;
+  }
+
+  const sourceContainer = getEditableObjectById(sectionEntry.id);
+  if (!sourceContainer || !isDonorSceneKitContainer(sourceContainer)) {
+    setPreviewStatus(`Scene section ${sectionEntry.label} no longer has a valid grouped container to duplicate.`);
+    return;
+  }
+
+  const blockedMembers = sectionEntry.memberObjects.filter((entry) => !isObjectEditable(entry));
+  if (blockedMembers.length > 0) {
+    setPreviewStatus(`Scene section ${sectionEntry.label} cannot be duplicated while ${blockedMembers.length} member object${blockedMembers.length === 1 ? "" : "s"} are locked.`);
+    return;
+  }
+
+  let duplicateContainerId = null;
+  const duplicateMemberIds = [];
+  const didChange = applyEditorMutation(`Duplicated scene section ${sectionEntry.label}.`, (editorData) => {
+    if (!Array.isArray(editorData.objects)) {
+      return;
+    }
+
+    const liveSourceContainer = editorData.objects.find((entry) => entry.id === sectionEntry.id);
+    if (!liveSourceContainer || !isDonorSceneKitContainer(liveSourceContainer)) {
+      return;
+    }
+
+    const liveMembers = editorData.objects.filter((entry) => entry?.parentId === liveSourceContainer.id);
+    if (liveMembers.length === 0) {
+      return;
+    }
+
+    const containerDuplicate = cloneEditableObjectForDuplicate(liveSourceContainer, editorData.objects);
+    containerDuplicate.displayName = liveSourceContainer.displayName ? `${liveSourceContainer.displayName} Copy` : containerDuplicate.id;
+    duplicateContainerId = containerDuplicate.id;
+    editorData.objects.push(containerDuplicate);
+
+    liveMembers.forEach((member) => {
+      const memberDuplicate = cloneEditableObjectForDuplicate(member, editorData.objects);
+      memberDuplicate.parentId = duplicateContainerId;
+      duplicateMemberIds.push(memberDuplicate.id);
+      editorData.objects.push(memberDuplicate);
+    });
+  });
+
+  if (!didChange || duplicateMemberIds.length === 0) {
+    setPreviewStatus(`Could not duplicate scene section ${sectionEntry.label}.`);
+    return;
+  }
+
+  focusSceneObjectGroupInWorkflow(duplicateMemberIds, {
+    label: "scene section",
+    statusMessage: `Duplicated scene section ${sectionEntry.label}. ${duplicateMemberIds.length} editable object${duplicateMemberIds.length === 1 ? "" : "s"} in the copied game-part kit are now selected in Compose Mode.`
+  });
+}
+
+function deleteSceneSection(sectionId) {
+  const sectionEntry = getSceneSectionEntryById(sectionId);
+  if (!sectionEntry) {
+    setPreviewStatus("Could not find that scene section in the current internal scene.");
+    return;
+  }
+
+  const blockedMembers = sectionEntry.memberObjects.filter((entry) => !isObjectEditable(entry));
+  if (blockedMembers.length > 0) {
+    setPreviewStatus(`Scene section ${sectionEntry.label} cannot be deleted while ${blockedMembers.length} member object${blockedMembers.length === 1 ? "" : "s"} are locked.`);
+    return;
+  }
+
+  const removedObjectIds = [sectionEntry.id, ...sectionEntry.memberObjectIds];
+  const preferredLayerIds = sectionEntry.memberObjects.map((entry) => entry.layerId);
+  let nextSelectionId = null;
+  const didChange = applyEditorMutation(`Deleted scene section ${sectionEntry.label}.`, (editorData) => {
+    if (!Array.isArray(editorData.objects)) {
+      return;
+    }
+
+    nextSelectionId = selectNeighborAfterDeleteGroup(editorData, removedObjectIds, preferredLayerIds);
+    editorData.objects = editorData.objects.filter((entry) => !removedObjectIds.includes(entry.id));
+  });
+
+  if (!didChange) {
+    setPreviewStatus(`Could not delete scene section ${sectionEntry.label}.`);
+    return;
+  }
+
+  setWorkbenchMode("scene", { silent: true });
+  state.workflowUi.activePanel = "compose";
+  if (nextSelectionId) {
+    setSelectedObject(nextSelectionId);
+    ensureSelectedObject();
+  } else {
+    clearSelectedObjects();
+  }
+  renderAll();
+  setPreviewStatus(`Deleted scene section ${sectionEntry.label}. ${sectionEntry.count} grouped editable object${sectionEntry.count === 1 ? "" : "s"} were removed from Compose Mode.`);
+}
+
 function selectObjectFromEvidence(objectId) {
   focusSceneObjectInWorkflow(objectId, {
     statusMessage: `Selected ${getEditableObjectById(objectId)?.displayName ?? objectId} from donor evidence linkage.`
@@ -10805,6 +10907,20 @@ function handleNavigationClick(event) {
   if (clearSceneSectionOverrideButton instanceof HTMLElement && clearSceneSectionOverrideButton.dataset.clearSceneSectionOverrideId) {
     event.preventDefault();
     void clearSceneSectionRuntimeOverride(clearSceneSectionOverrideButton.dataset.clearSceneSectionOverrideId);
+    return true;
+  }
+
+  const duplicateSceneSectionButton = target.closest("[data-duplicate-scene-section-id]");
+  if (duplicateSceneSectionButton instanceof HTMLElement && duplicateSceneSectionButton.dataset.duplicateSceneSectionId) {
+    event.preventDefault();
+    duplicateSceneSection(duplicateSceneSectionButton.dataset.duplicateSceneSectionId);
+    return true;
+  }
+
+  const deleteSceneSectionButton = target.closest("[data-delete-scene-section-id]");
+  if (deleteSceneSectionButton instanceof HTMLElement && deleteSceneSectionButton.dataset.deleteSceneSectionId) {
+    event.preventDefault();
+    deleteSceneSection(deleteSceneSectionButton.dataset.deleteSceneSectionId);
     return true;
   }
 
@@ -13842,6 +13958,8 @@ function renderSceneExplorer() {
                 ${runtimeContext?.evidenceItem
                   ? `<button type="button" class="copy-button" data-focus-donor-evidence-id="${escapeAttribute(runtimeContext.evidenceItem.evidenceId)}">Focus Evidence</button>`
                   : ""}
+                <button type="button" class="copy-button" data-duplicate-scene-section-id="${escapeAttribute(entry.id)}">Duplicate Section</button>
+                <button type="button" class="copy-button" data-delete-scene-section-id="${escapeAttribute(entry.id)}">Delete Section</button>
                 <button type="button" class="copy-button" data-frame-scene-section-id="${escapeAttribute(entry.id)}">Frame Section</button>
                 ${provenance?.evidenceIds?.length
                   ? `<button type="button" class="copy-button" data-focus-scene-section-evidence-id="${escapeAttribute(entry.id)}">Show Section Evidence</button>`
@@ -14309,6 +14427,51 @@ function selectNeighborAfterDelete(editorData, removedObjectId, removedLayerId) 
   const previousSameLayer = [...sameLayerRemaining].reverse().find((entry) => isObjectEditable(entry) && originalObjects.findIndex((candidate) => candidate.id === entry.id) < removedIndex);
   if (previousSameLayer) {
     return previousSameLayer.id;
+  }
+
+  const firstEditable = remainingObjects.find((entry) => isObjectEditable(entry));
+  return firstEditable?.id ?? remainingObjects[0].id;
+}
+
+function selectNeighborAfterDeleteGroup(editorData, removedObjectIds, preferredLayerIds = []) {
+  if (!editorData || !Array.isArray(editorData.objects)) {
+    return null;
+  }
+
+  const removedIds = new Set(uniqueStrings(Array.isArray(removedObjectIds) ? removedObjectIds : []));
+  if (removedIds.size === 0) {
+    return null;
+  }
+
+  const originalObjects = editorData.objects;
+  const remainingObjects = originalObjects.filter((entry) => !removedIds.has(entry.id));
+  if (remainingObjects.length === 0) {
+    return null;
+  }
+
+  const removedIndices = originalObjects
+    .map((entry, index) => (removedIds.has(entry.id) ? index : -1))
+    .filter((index) => index >= 0);
+  const minRemovedIndex = removedIndices.length > 0 ? Math.min(...removedIndices) : 0;
+  const maxRemovedIndex = removedIndices.length > 0 ? Math.max(...removedIndices) : 0;
+
+  for (const layerId of uniqueStrings(Array.isArray(preferredLayerIds) ? preferredLayerIds : [])) {
+    const sameLayerRemaining = remainingObjects.filter((entry) => entry.layerId === layerId);
+    const nextSameLayer = sameLayerRemaining.find((entry) => (
+      isObjectEditable(entry)
+      && originalObjects.findIndex((candidate) => candidate.id === entry.id) > maxRemovedIndex
+    ));
+    if (nextSameLayer) {
+      return nextSameLayer.id;
+    }
+
+    const previousSameLayer = [...sameLayerRemaining].reverse().find((entry) => (
+      isObjectEditable(entry)
+      && originalObjects.findIndex((candidate) => candidate.id === entry.id) < minRemovedIndex
+    ));
+    if (previousSameLayer) {
+      return previousSameLayer.id;
+    }
   }
 
   const firstEditable = remainingObjects.find((entry) => isObjectEditable(entry));
@@ -15769,6 +15932,8 @@ function renderInspector() {
             ${sceneKitContext.sectionId && sceneSectionProvenance?.evidenceIds?.length ? `<button type="button" class="copy-button" data-focus-scene-section-evidence-id="${escapeAttribute(sceneKitContext.sectionId)}">Show Section Evidence</button>` : ""}
             ${sceneKitContext.sectionId && sceneSectionOverrideCandidate?.eligible ? `<button type="button" class="copy-button" data-create-scene-section-override-id="${escapeAttribute(sceneKitContext.sectionId)}">Create Override</button>` : ""}
             ${sceneKitContext.sectionId && sceneSectionOverrideCandidate?.activeOverride ? `<button type="button" class="copy-button" data-clear-scene-section-override-id="${escapeAttribute(sceneKitContext.sectionId)}">Clear Override</button>` : ""}
+            ${sceneKitContext.sectionId ? `<button type="button" class="copy-button" data-duplicate-scene-section-id="${escapeAttribute(sceneKitContext.sectionId)}">Duplicate Section</button>` : ""}
+            ${sceneKitContext.sectionId ? `<button type="button" class="copy-button" data-delete-scene-section-id="${escapeAttribute(sceneKitContext.sectionId)}">Delete Section</button>` : ""}
             <button type="button" class="copy-button" data-focus-scene-object-ids="${escapeAttribute(JSON.stringify(sceneKitContext.memberObjects.map((entry) => entry.id)))}">Select This Scene Kit</button>
             ${renderCopyButton(sceneKitContext.memberObjects.map((entry) => entry.id).join("\n"), `scene kit object ids for ${sceneKitContext.groupSummary.label}`, "Copy Kit IDs")}
             ${sceneSectionProvenance?.donorAssetIds?.length ? renderCopyButton(sceneSectionProvenance.donorAssetIds.join("\n"), `donor asset ids for ${sceneKitContext.sectionLabel}`, "Copy Asset IDs") : ""}
@@ -16385,6 +16550,8 @@ function renderRuntimeInspector() {
             <button type="button" class="copy-button" data-frame-scene-section-id="${escapeAttribute(selectedSceneKitContext.sectionId)}">Frame Section</button>
             ${selectedSceneSectionProvenance?.evidenceIds?.length ? `<button type="button" class="copy-button" data-focus-scene-section-evidence-id="${escapeAttribute(selectedSceneKitContext.sectionId)}">Show Section Evidence</button>` : ""}
             ${selectedSceneSectionRuntimeContext?.preferredWorkbenchEntry || selectedSceneSectionRuntimeContext?.preferredReference ? `<button type="button" class="copy-button" data-open-scene-section-runtime-id="${escapeAttribute(selectedSceneKitContext.sectionId)}">Open Runtime Group</button>` : ""}
+            <button type="button" class="copy-button" data-duplicate-scene-section-id="${escapeAttribute(selectedSceneKitContext.sectionId)}">Duplicate Section</button>
+            <button type="button" class="copy-button" data-delete-scene-section-id="${escapeAttribute(selectedSceneKitContext.sectionId)}">Delete Section</button>
             ${selectedSceneSectionGamePartSummary?.summaryText ? renderCopyButton(selectedSceneSectionGamePartSummary.summaryText, `game-part summary for ${selectedSceneKitContext.sectionLabel}`, "Copy Game-Part Summary") : ""}
           </div>
         </div>
