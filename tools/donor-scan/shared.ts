@@ -284,6 +284,8 @@ export interface CaptureRunTargetResult {
   kind: string;
   priority: CaptureTargetPriority;
   status: "downloaded" | "failed" | "skipped";
+  attemptedUrls: string[];
+  downloadedFromUrl: string | null;
   localPath: string | null;
   contentType: string | null;
   sizeBytes: number | null;
@@ -410,9 +412,28 @@ export function normalizeCandidateUrl(candidate: string, baseUrl: string): strin
   }
 
   try {
-    return new URL(trimmed, baseUrl).toString();
+    const normalizedCandidate = trimmed.startsWith("_resourcesPath_")
+      ? trimmed.slice("_resourcesPath_".length)
+      : trimmed;
+    return rewriteKnownPlaceholderSegments(new URL(normalizedCandidate, baseUrl).toString());
   } catch {
     return null;
+  }
+}
+
+export function rewriteKnownPlaceholderSegments(urlString: string): string {
+  try {
+    const parsed = new URL(urlString);
+    const nextSegments = parsed.pathname
+      .split("/")
+      .map((segment) => segment.startsWith("_resourcesPath_") ? segment.slice("_resourcesPath_".length) : segment);
+    const nextPathname = nextSegments.join("/").replace(/\/{2,}/g, "/");
+    if (nextPathname !== parsed.pathname) {
+      parsed.pathname = nextPathname;
+    }
+    return parsed.toString();
+  } catch {
+    return urlString.replace(/\/_resourcesPath_/g, "/").replace(/^_resourcesPath_/, "");
   }
 }
 

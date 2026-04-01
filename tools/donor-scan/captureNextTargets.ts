@@ -3,6 +3,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { runDonorScan } from "./runDonorScan";
 import {
+  type BundleAssetMapFile,
   type CaptureRunFile,
   type CaptureRunStatus,
   type DiscoveredDonorUrl,
@@ -13,9 +14,10 @@ import {
   type NextCaptureTargetRecord,
   type NextCaptureTargetsFile,
   buildDonorScanPaths,
-  readJsonFile,
   readOptionalJsonFile,
+  rewriteKnownPlaceholderSegments,
   toRepoRelativePath,
+  uniqueStrings,
   writeJsonFile,
   workspaceRoot
 } from "./shared";
@@ -159,6 +161,56 @@ function clampCaptureLimit(value: number | undefined): number {
   return Math.min(50, Math.max(1, Math.floor(value ?? 10)));
 }
 
+function readUrlHost(urlString: string): string | null {
+  try {
+    return new URL(urlString).host;
+  } catch {
+    return null;
+  }
+}
+
+function readUrlBasename(urlString: string): string | null {
+  try {
+    const pathname = new URL(urlString).pathname;
+    const basename = path.posix.basename(pathname);
+    return basename.length > 0 ? basename : null;
+  } catch {
+    return null;
+  }
+}
+
+function buildCaptureAttemptUrls(
+  target: NextCaptureTargetRecord,
+  bundleAssetMap: BundleAssetMapFile | null
+): string[] {
+  const urls: string[] = [target.url];
+  const rewrittenPrimaryUrl = rewriteKnownPlaceholderSegments(target.url);
+  if (rewrittenPrimaryUrl !== target.url) {
+    urls.push(rewrittenPrimaryUrl);
+  }
+
+  if (target.kind === "atlas-page" && bundleAssetMap) {
+    const targetHost = readUrlHost(target.url);
+    const targetBasename = readUrlBasename(target.url)?.toLowerCase();
+    if (targetHost && targetBasename) {
+      for (const reference of bundleAssetMap.references) {
+        if (reference.category !== "image" || !reference.resolvedUrl) {
+          continue;
+        }
+        if (readUrlHost(reference.resolvedUrl) !== targetHost) {
+          continue;
+        }
+        if (readUrlBasename(reference.resolvedUrl)?.toLowerCase() !== targetBasename) {
+          continue;
+        }
+        urls.push(reference.resolvedUrl);
+      }
+    }
+  }
+
+  return uniqueStrings(urls);
+}
+
 function readLaunchContext(scanSummary: Record<string, unknown> | null, packageManifest: DonorPackageManifestFile | null): {
   donorName: string;
   launchUrl: string | undefined;
@@ -210,6 +262,8 @@ export async function captureNextTargets(options: CaptureNextTargetsOptions): Pr
     throw new Error(`Missing donor scan artifacts for ${donorId}. Run donor scan first.`);
   }
 
+  const bundleAssetMap = await readOptionalJsonFile<BundleAssetMapFile>(paths.bundleAssetMapPath);
+
   const { donorName, launchUrl, resolvedLaunchUrl, sourceHost } = readLaunchContext(scanSummary, packageManifest);
   const queuedTargets = Array.isArray(nextCaptureTargets.targets) ? nextCaptureTargets.targets.slice(0, limit) : [];
   const discoveredUrlMap = new Map<string, DiscoveredDonorUrl>();
@@ -248,111 +302,102 @@ export async function captureNextTargets(options: CaptureNextTargetsOptions): Pr
       discoveredUrlMap.set(discoveredUrl.url, discoveredUrl);
     }
 
-    try {
-      const response = await fetch(target.url, {
-        redirect: "follow",
-        headers: {
-          "user-agent": "MyIDE Donor Scan Capture/0.1"
-        },
-        signal: AbortSignal.timeout(20000)
-      });
+    const attemptUrls = buildCaptureAttemptUrls(target, bundleAssetMap);
+    let lastFailureReason: string | null = null;
+    let downloadedResult: CaptureRunFile["results"][number] | null = null;
 
-      if (!response.ok) {
-        const failedEntry: HarvestedDonorAssetEntry = {
+    for (const attemptUrl of attemptUrls) {
+      try {
+        const response = await fetch(attemptUrl, {
+          redirect: "follow",
+          headers: {
+            "user-agent": "MyIDE Donor Scan Capture/0.1"
+          },
+          signal: AbortSignal.timeout(20000)
+        });
+
+        if (!response.ok) {
+          lastFailureReason = `HTTP ${response.status}`;
+          continue;
+        }
+
+        const resolvedUrl = sanitizeStoredUrl(response.url || attemptUrl);
+        const buffer = Buffer.from(await response.arrayBuffer());
+        const filePath = buildHarvestFilePath(path.join(paths.harvestRoot, "files"), resolvedUrl);
+        await fs.mkdir(path.dirname(filePath), { recursive: true });
+        await fs.writeFile(filePath, buffer);
+        const contentType = response.headers.get("content-type");
+        const downloadedEntry: HarvestedDonorAssetEntry = {
           sourceUrl: target.url,
-          resolvedUrl: sanitizeStoredUrl(response.url || target.url),
+          resolvedUrl,
           category,
           discoverySource: discoveredUrl.source,
           depth: discoveredUrl.depth,
-          status: "failed",
-          reason: `HTTP ${response.status}`
+          status: "downloaded",
+          localPath: toRepoRelativePath(filePath),
+          contentType: contentType ?? undefined,
+          sizeBytes: buffer.length,
+          sha256: createHash("sha256").update(buffer).digest("hex")
         };
         const existingIndex = entryIndexByUrl.get(target.url);
         if (typeof existingIndex === "number") {
-          entries[existingIndex] = failedEntry;
+          entries[existingIndex] = downloadedEntry;
         } else {
-          entryIndexByUrl.set(target.url, entries.push(failedEntry) - 1);
+          entryIndexByUrl.set(target.url, entries.push(downloadedEntry) - 1);
         }
-        results.push({
+        downloadedResult = {
           rank: target.rank,
           url: target.url,
           relativePath: target.relativePath,
           kind: target.kind,
           priority: target.priority,
-          status: "failed",
-          localPath: null,
-          contentType: null,
-          sizeBytes: null,
-          reason: `HTTP ${response.status}`
-        });
-        continue;
+          status: "downloaded",
+          attemptedUrls: attemptUrls,
+          downloadedFromUrl: resolvedUrl,
+          localPath: downloadedEntry.localPath ?? null,
+          contentType,
+          sizeBytes: buffer.length,
+          reason: target.reason
+        };
+        break;
+      } catch (error) {
+        lastFailureReason = error instanceof Error ? error.message : String(error);
       }
-
-      const resolvedUrl = sanitizeStoredUrl(response.url || target.url);
-      const buffer = Buffer.from(await response.arrayBuffer());
-      const filePath = buildHarvestFilePath(path.join(paths.harvestRoot, "files"), resolvedUrl);
-      await fs.mkdir(path.dirname(filePath), { recursive: true });
-      await fs.writeFile(filePath, buffer);
-      const contentType = response.headers.get("content-type");
-      const downloadedEntry: HarvestedDonorAssetEntry = {
-        sourceUrl: target.url,
-        resolvedUrl,
-        category,
-        discoverySource: discoveredUrl.source,
-        depth: discoveredUrl.depth,
-        status: "downloaded",
-        localPath: toRepoRelativePath(filePath),
-        contentType: contentType ?? undefined,
-        sizeBytes: buffer.length,
-        sha256: createHash("sha256").update(buffer).digest("hex")
-      };
-      const existingIndex = entryIndexByUrl.get(target.url);
-      if (typeof existingIndex === "number") {
-        entries[existingIndex] = downloadedEntry;
-      } else {
-        entryIndexByUrl.set(target.url, entries.push(downloadedEntry) - 1);
-      }
-      results.push({
-        rank: target.rank,
-        url: target.url,
-        relativePath: target.relativePath,
-        kind: target.kind,
-        priority: target.priority,
-        status: "downloaded",
-        localPath: downloadedEntry.localPath ?? null,
-        contentType,
-        sizeBytes: buffer.length,
-        reason: target.reason
-      });
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error);
-      const failedEntry: HarvestedDonorAssetEntry = {
-        sourceUrl: target.url,
-        category,
-        discoverySource: discoveredUrl.source,
-        depth: discoveredUrl.depth,
-        status: "failed",
-        reason
-      };
-      const existingIndex = entryIndexByUrl.get(target.url);
-      if (typeof existingIndex === "number") {
-        entries[existingIndex] = failedEntry;
-      } else {
-        entryIndexByUrl.set(target.url, entries.push(failedEntry) - 1);
-      }
-      results.push({
-        rank: target.rank,
-        url: target.url,
-        relativePath: target.relativePath,
-        kind: target.kind,
-        priority: target.priority,
-        status: "failed",
-        localPath: null,
-        contentType: null,
-        sizeBytes: null,
-        reason
-      });
     }
+
+    if (downloadedResult) {
+      results.push(downloadedResult);
+      continue;
+    }
+
+    const failedEntry: HarvestedDonorAssetEntry = {
+      sourceUrl: target.url,
+      category,
+      discoverySource: discoveredUrl.source,
+      depth: discoveredUrl.depth,
+      status: "failed",
+      reason: lastFailureReason ?? "No capture attempts were performed."
+    };
+    const existingIndex = entryIndexByUrl.get(target.url);
+    if (typeof existingIndex === "number") {
+      entries[existingIndex] = failedEntry;
+    } else {
+      entryIndexByUrl.set(target.url, entries.push(failedEntry) - 1);
+    }
+    results.push({
+      rank: target.rank,
+      url: target.url,
+      relativePath: target.relativePath,
+      kind: target.kind,
+      priority: target.priority,
+      status: "failed",
+      attemptedUrls: attemptUrls,
+      downloadedFromUrl: null,
+      localPath: null,
+      contentType: null,
+      sizeBytes: null,
+      reason: lastFailureReason
+    });
   }
 
   const discoveredUrls = sortDiscoveredUrls([...discoveredUrlMap.values()]);

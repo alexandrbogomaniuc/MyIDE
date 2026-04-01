@@ -30,7 +30,12 @@ function startFixtureServer(): Promise<{ server: http.Server; port: number }> {
       }
       if (request.url === "/bundle.js") {
         response.writeHead(200, { "content-type": "application/javascript; charset=utf-8" });
-        response.end("window.atlasUrl = '/atlases/ui.atlas';");
+        response.end("window.preloadLogo = '_resourcesPath_preloader-assets/logo.png'; window.atlasUrl = '/atlases/ui.atlas';");
+        return;
+      }
+      if (request.url === "/preloader-assets/logo.png") {
+        response.writeHead(200, { "content-type": "image/png" });
+        response.end(Buffer.from("89504e470d0a1a0a", "hex"));
         return;
       }
       if (request.url === "/atlases/ui.atlas") {
@@ -103,13 +108,21 @@ async function main(): Promise<void> {
       downloadedCount?: number;
       targetCountBefore?: number;
       targetCountAfter?: number;
-      results?: Array<{ relativePath?: string; status?: string }>;
+      results?: Array<{ relativePath?: string; status?: string; attemptedUrls?: string[]; downloadedFromUrl?: string | null }>;
     };
     assert.ok(["captured", "partial"].includes(captureRun.status ?? ""), "capture summary should record a successful or partial run");
-    assert.ok((captureRun.downloadedCount ?? 0) >= 1, "capture summary should record at least one downloaded target");
+    assert.ok((captureRun.downloadedCount ?? 0) >= 2, "capture summary should record the atlas page and placeholder asset download");
     assert.ok(
       Array.isArray(captureRun.results) && captureRun.results.some((entry) => entry.relativePath?.includes("ui.png") && entry.status === "downloaded"),
       "capture summary should record the downloaded atlas page image"
+    );
+    assert.ok(
+      Array.isArray(captureRun.results) && captureRun.results.some((entry) =>
+        entry.downloadedFromUrl?.includes("/preloader-assets/logo.png")
+        && Array.isArray(entry.attemptedUrls)
+        && entry.attemptedUrls.some((attemptUrl) => attemptUrl.includes("/preloader-assets/logo.png"))
+      ),
+      "capture summary should record the normalized preloader asset capture"
     );
     assert.ok((captureRun.targetCountAfter ?? 0) < (captureRun.targetCountBefore ?? 999999), "capture run should reduce the pending target count");
 

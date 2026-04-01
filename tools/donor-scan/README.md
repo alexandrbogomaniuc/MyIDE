@@ -28,7 +28,7 @@ and answers early:
 - `npm run donor-scan:verify -- --donor-id donor_XXX`
   - Verify the machine-readable donor-scan outputs exist and are internally coherent enough for operator use.
 - `npm run donor-scan:capture-next -- --donor-id donor_XXX --limit 5`
-  - Attempt the top ranked missing donor/runtime files from `next-capture-targets.json`, refresh donor scan, and write a machine-readable capture run summary.
+  - Attempt the top ranked missing donor/runtime files from `next-capture-targets.json`, rewrite grounded placeholder-style URLs when possible, try grounded bundle-backed sibling image URLs for atlas-page targets, refresh donor scan, and write a machine-readable capture run summary.
 
 ## Outputs
 
@@ -52,7 +52,7 @@ Key files:
 
 `next-capture-targets.json` is the first actionable operator output. It ranks the missing runtime files the IDE should try to capture next, using atlas missing-page refs, unresolved runtime candidates, and missing bundle references.
 
-`next-capture-run.json` records what the guided capture runner attempted, what downloaded successfully, what failed, and how many ranked targets still remain after donor scan was refreshed.
+`next-capture-run.json` records what the guided capture runner attempted, which exact URLs were tried, which URL actually downloaded when a fallback worked, what failed, and how many ranked targets still remain after donor scan was refreshed.
 
 ## What The Scan Can Break Early
 
