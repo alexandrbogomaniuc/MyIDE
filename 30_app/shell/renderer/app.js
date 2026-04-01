@@ -9101,11 +9101,93 @@ function getSceneKitContextForObject(object) {
   };
 }
 
+function getSceneSectionRuntimeContext(sectionEntry, options = {}) {
+  if (!sectionEntry || !Array.isArray(sectionEntry.memberObjects) || sectionEntry.memberObjects.length === 0) {
+    return null;
+  }
+
+  const donorAssets = [];
+  const seenAssetIds = new Set();
+  for (const memberObject of sectionEntry.memberObjects) {
+    const donorAsset = getDonorAssetForObject(memberObject);
+    if (!donorAsset?.assetId || seenAssetIds.has(donorAsset.assetId)) {
+      continue;
+    }
+    seenAssetIds.add(donorAsset.assetId);
+    donorAssets.push(donorAsset);
+  }
+
+  if (donorAssets.length === 0) {
+    return null;
+  }
+
+  const assetIds = new Set(donorAssets.map((entry) => entry.assetId));
+  const evidenceIds = new Set(
+    donorAssets
+      .map((entry) => entry.evidenceId)
+      .filter((entry) => typeof entry === "string" && entry.length > 0)
+  );
+  const runtimeWorkbenchEntries = Array.isArray(options.runtimeWorkbenchEntries)
+    ? options.runtimeWorkbenchEntries
+    : getRuntimeWorkbenchEntries();
+  const runtimeReferenceScreens = Array.isArray(options.runtimeReferenceScreens)
+    ? options.runtimeReferenceScreens
+    : getRuntimeReferenceScreens();
+  const linkedWorkbenchEntries = runtimeWorkbenchEntries.filter((entry) => (
+    (entry?.donorAsset?.assetId && assetIds.has(entry.donorAsset.assetId))
+    || (entry?.evidenceItem?.evidenceId && evidenceIds.has(entry.evidenceItem.evidenceId))
+  ));
+  const preferredWorkbenchEntry = linkedWorkbenchEntries[0] ?? null;
+  const linkedReferenceScreens = runtimeReferenceScreens.filter((entry) => evidenceIds.has(entry.evidenceId));
+  const preferredReference = linkedReferenceScreens.find((entry) => entry.key === getRuntimePhaseReferenceKey())
+    ?? linkedReferenceScreens[0]
+    ?? null;
+  const primaryDonorAsset = preferredWorkbenchEntry?.donorAsset
+    ?? preferredReference?.donorAsset
+    ?? donorAssets[0]
+    ?? null;
+  const primaryEvidenceItem = preferredWorkbenchEntry?.evidenceItem
+    ?? preferredReference?.evidenceItem
+    ?? (primaryDonorAsset?.evidenceId ? getEvidenceItemById(primaryDonorAsset.evidenceId) : null);
+  const matchingMemberObjects = primaryDonorAsset
+    ? sectionEntry.memberObjects.filter((entry) => getDonorAssetForObject(entry)?.assetId === primaryDonorAsset.assetId)
+    : [];
+  const primarySceneObject = matchingMemberObjects[0] ?? sectionEntry.memberObjects[0] ?? null;
+  const statusLabel = preferredWorkbenchEntry
+    ? preferredWorkbenchEntry.requestBacked
+      ? "request-backed runtime source"
+      : "runtime workbench source"
+    : preferredReference
+      ? "supporting runtime evidence"
+      : "no grounded runtime link";
+  const note = preferredWorkbenchEntry
+    ? `This scene section contains donor-backed members that map to ${preferredWorkbenchEntry.relativePath ?? preferredWorkbenchEntry.sourceUrl} through the runtime workbench.`
+    : preferredReference
+      ? `${preferredReference.label} is the strongest grounded runtime evidence currently supporting this scene section.`
+      : "No runtime workbench entry or supporting runtime screenshot currently maps back to this scene section.";
+
+  return {
+    donorAssets,
+    evidenceIds: Array.from(evidenceIds),
+    linkedWorkbenchEntries,
+    preferredWorkbenchEntry,
+    linkedReferenceScreens,
+    preferredReference,
+    donorAsset: primaryDonorAsset,
+    evidenceItem: primaryEvidenceItem,
+    sceneObject: primarySceneObject,
+    statusLabel,
+    note
+  };
+}
+
 function getSceneSectionEntries(editorData = state.editorData) {
   if (!editorData || !Array.isArray(editorData.objects)) {
     return [];
   }
 
+  const runtimeWorkbenchEntries = getRuntimeWorkbenchEntries();
+  const runtimeReferenceScreens = getRuntimeReferenceScreens();
   return editorData.objects
     .filter((object) => isDonorSceneKitContainer(object))
     .map((containerObject) => {
@@ -9113,7 +9195,7 @@ function getSceneSectionEntries(editorData = state.editorData) {
       const layerLabels = uniqueStrings(
         members.map((entry) => getLayerById(entry.layerId)?.displayName ?? entry.layerId)
       );
-      return {
+      const baseEntry = {
         id: containerObject.id,
         label: containerObject.displayName,
         memberObjects: members,
@@ -9121,9 +9203,24 @@ function getSceneSectionEntries(editorData = state.editorData) {
         count: members.length,
         layerLabels
       };
+      return {
+        ...baseEntry,
+        runtimeContext: getSceneSectionRuntimeContext(baseEntry, {
+          runtimeWorkbenchEntries,
+          runtimeReferenceScreens
+        })
+      };
     })
     .filter((entry) => entry.count > 0)
     .sort((left, right) => left.label.localeCompare(right.label));
+}
+
+function getSceneSectionEntryById(sectionId, editorData = state.editorData) {
+  if (typeof sectionId !== "string" || sectionId.length === 0) {
+    return null;
+  }
+
+  return getSceneSectionEntries(editorData).find((entry) => entry.id === sectionId) ?? null;
 }
 
 function groupVisibleDonorAssets(items) {
@@ -10134,6 +10231,32 @@ function focusSceneObjectGroupInWorkflow(objectIds, {
   );
 }
 
+function openSceneSectionRuntimeContext(sectionId) {
+  const sectionEntry = getSceneSectionEntryById(sectionId);
+  if (!sectionEntry) {
+    setPreviewStatus("Could not find that scene section in the current internal scene.");
+    return;
+  }
+
+  const runtimeContext = sectionEntry.runtimeContext;
+  if (!runtimeContext?.preferredWorkbenchEntry && !runtimeContext?.preferredReference) {
+    setPreviewStatus(`Scene section ${sectionEntry.label} does not have a grounded runtime link yet.`);
+    return;
+  }
+
+  if (runtimeContext.preferredWorkbenchEntry?.sourceUrl) {
+    setRuntimeWorkbenchSource(runtimeContext.preferredWorkbenchEntry.sourceUrl, { render: false });
+  }
+  setWorkbenchMode("runtime", { silent: true });
+  state.workflowUi.activePanel = "runtime";
+  renderAll();
+  setPreviewStatus(
+    runtimeContext.preferredWorkbenchEntry
+      ? `Runtime Mode is active. Scene section ${sectionEntry.label} is linked to ${runtimeContext.preferredWorkbenchEntry.relativePath ?? runtimeContext.preferredWorkbenchEntry.sourceUrl}.`
+      : `Runtime Mode is active. Scene section ${sectionEntry.label} is supported by ${runtimeContext.preferredReference?.label ?? "runtime evidence"}.`
+  );
+}
+
 function selectObjectFromEvidence(objectId) {
   focusSceneObjectInWorkflow(objectId, {
     statusMessage: `Selected ${getEditableObjectById(objectId)?.displayName ?? objectId} from donor evidence linkage.`
@@ -10234,13 +10357,20 @@ function handleNavigationClick(event) {
   const focusSceneSectionButton = target.closest("[data-focus-scene-section-id]");
   if (focusSceneSectionButton instanceof HTMLElement && focusSceneSectionButton.dataset.focusSceneSectionId) {
     event.preventDefault();
-    const sectionEntry = getSceneSectionEntries().find((entry) => entry.id === focusSceneSectionButton.dataset.focusSceneSectionId);
+    const sectionEntry = getSceneSectionEntryById(focusSceneSectionButton.dataset.focusSceneSectionId);
     focusSceneObjectGroupInWorkflow(sectionEntry?.memberObjectIds ?? [], {
       label: "scene section",
       statusMessage: sectionEntry
-        ? `Selected ${sectionEntry.count} editable object${sectionEntry.count === 1 ? "" : "s"} in scene section ${sectionEntry.label}.`
+        ? `Selected ${sectionEntry.count} editable object${sectionEntry.count === 1 ? "" : "s"} in scene section ${sectionEntry.label}.${sectionEntry.runtimeContext?.preferredWorkbenchEntry ? ` Runtime-linked source: ${sectionEntry.runtimeContext.preferredWorkbenchEntry.relativePath ?? sectionEntry.runtimeContext.preferredWorkbenchEntry.sourceUrl}.` : sectionEntry.runtimeContext?.preferredReference ? ` Supporting runtime evidence: ${sectionEntry.runtimeContext.preferredReference.label}.` : ""}`
         : null
     });
+    return true;
+  }
+
+  const openSceneSectionRuntimeButton = target.closest("[data-open-scene-section-runtime-id]");
+  if (openSceneSectionRuntimeButton instanceof HTMLElement && openSceneSectionRuntimeButton.dataset.openSceneSectionRuntimeId) {
+    event.preventDefault();
+    openSceneSectionRuntimeContext(openSceneSectionRuntimeButton.dataset.openSceneSectionRuntimeId);
     return true;
   }
 
@@ -13232,13 +13362,39 @@ function renderSceneExplorer() {
   const sceneSectionBanner = sceneSectionEntries.length > 0 ? `
     <div class="tree-row isolate-banner">
       <strong>Scene Sections</strong>
-      <span>Imported donor scene kits now appear as named editable sections. Select one section to work on the whole captured group at once.</span>
-      <div class="chip-row">
-        ${sceneSectionEntries.map((entry) => `
-          <button type="button" class="copy-button" data-focus-scene-section-id="${escapeAttribute(entry.id)}">
-            ${escapeHtml(entry.label)} · ${entry.count}
-          </button>
-        `).join("")}
+      <span>Imported donor scene kits now appear as named editable sections, and each section now carries its strongest grounded runtime link when one exists.</span>
+      <div class="detail-grid donor-linkage-grid">
+        ${sceneSectionEntries.map((entry) => {
+          const runtimeContext = entry.runtimeContext;
+          const runtimeSummary = runtimeContext?.preferredWorkbenchEntry
+            ? `Runtime-linked through ${runtimeContext.preferredWorkbenchEntry.relativePath ?? runtimeContext.preferredWorkbenchEntry.sourceUrl}.`
+            : runtimeContext?.preferredReference
+              ? `Supported by ${runtimeContext.preferredReference.label}.`
+              : "No grounded runtime link recorded for this scene section yet.";
+          return `
+            <div class="detail-card">
+              <span>${escapeHtml(entry.label)}</span>
+              <strong>${entry.count} object${entry.count === 1 ? "" : "s"}</strong>
+              <small>${escapeHtml(runtimeSummary)}</small>
+              <div class="chip-row donor-asset-summary-chips">
+                ${entry.layerLabels.map((label) => `<span>${escapeHtml(label)}</span>`).join("")}
+                ${runtimeContext?.statusLabel ? `<span>${escapeHtml(runtimeContext.statusLabel)}</span>` : ""}
+              </div>
+              <div class="evidence-actions">
+                <button type="button" class="copy-button" data-focus-scene-section-id="${escapeAttribute(entry.id)}">Select Section</button>
+                ${runtimeContext?.preferredWorkbenchEntry || runtimeContext?.preferredReference
+                  ? `<button type="button" class="copy-button" data-open-scene-section-runtime-id="${escapeAttribute(entry.id)}">Open Runtime Group</button>`
+                  : ""}
+                ${runtimeContext?.donorAsset
+                  ? `<button type="button" class="copy-button" data-focus-donor-asset-id="${escapeAttribute(runtimeContext.donorAsset.assetId)}">Focus Asset</button>`
+                  : ""}
+                ${runtimeContext?.evidenceItem
+                  ? `<button type="button" class="copy-button" data-focus-donor-evidence-id="${escapeAttribute(runtimeContext.evidenceItem.evidenceId)}">Focus Evidence</button>`
+                  : ""}
+              </div>
+            </div>
+          `;
+        }).join("")}
       </div>
     </div>
   ` : "";
@@ -13311,6 +13467,7 @@ function renderSceneExplorer() {
         <span>${sortedLayers.length} layers</span>
         <span>${editorData.objects.length} objects</span>
         <span>${sceneSectionEntries.length} scene section${sceneSectionEntries.length === 1 ? "" : "s"}</span>
+        <span>${sceneSectionEntries.filter((entry) => entry.runtimeContext?.preferredWorkbenchEntry || entry.runtimeContext?.preferredReference).length} runtime-linked section${sceneSectionEntries.filter((entry) => entry.runtimeContext?.preferredWorkbenchEntry || entry.runtimeContext?.preferredReference).length === 1 ? "" : "s"}</span>
         <span>${state.dirty ? "unsaved changes" : "saved"}</span>
         <span>${isolatedLayer ? `solo ${isolatedLayer.displayName}` : "no solo layer"}</span>
       </div>
@@ -15069,6 +15226,10 @@ function renderInspector() {
     : inspectorInput;
   const donorAsset = getDonorAssetForObject(selectedObject);
   const sceneKitContext = getSceneKitContextForObject(selectedObject);
+  const sceneSectionEntry = sceneKitContext?.sectionId
+    ? getSceneSectionEntryById(sceneKitContext.sectionId)
+    : null;
+  const sceneSectionRuntimeContext = sceneSectionEntry?.runtimeContext ?? null;
   const runtimeReferenceMatch = donorAsset
     ? getRuntimeReferenceScreens().find((entry) => entry.evidenceId === donorAsset.evidenceId) ?? null
     : null;
@@ -15137,6 +15298,7 @@ function renderInspector() {
           <div class="evidence-actions">
             <button type="button" class="copy-button" data-focus-donor-asset-group-key="${escapeAttribute(sceneKitContext.groupKey)}">Show Scene Kit In Palette</button>
             ${sceneKitContext.sectionId ? `<button type="button" class="copy-button" data-focus-scene-section-id="${escapeAttribute(sceneKitContext.sectionId)}">Select Scene Section</button>` : ""}
+            ${sceneKitContext.sectionId && (sceneSectionRuntimeContext?.preferredWorkbenchEntry || sceneSectionRuntimeContext?.preferredReference) ? `<button type="button" class="copy-button" data-open-scene-section-runtime-id="${escapeAttribute(sceneKitContext.sectionId)}">Open Runtime Group</button>` : ""}
             <button type="button" class="copy-button" data-focus-scene-object-ids="${escapeAttribute(JSON.stringify(sceneKitContext.memberObjects.map((entry) => entry.id)))}">Select This Scene Kit</button>
             ${renderCopyButton(sceneKitContext.memberObjects.map((entry) => entry.id).join("\n"), `scene kit object ids for ${sceneKitContext.groupSummary.label}`, "Copy Kit IDs")}
           </div>
@@ -15147,6 +15309,7 @@ function renderInspector() {
           <span>${escapeHtml(sceneKitContext.groupSummary.layerLabel)}</span>
           <span>${escapeHtml(sceneKitContext.groupSummary.layoutStyle)} layout</span>
           <span>${sceneKitContext.memberObjects.length} object${sceneKitContext.memberObjects.length === 1 ? "" : "s"}</span>
+          ${sceneSectionRuntimeContext?.statusLabel ? `<span>${escapeHtml(sceneSectionRuntimeContext.statusLabel)}</span>` : ""}
         </div>
         <div class="detail-grid donor-linkage-grid">
           <div class="detail-card">
@@ -15168,6 +15331,20 @@ function renderInspector() {
           <div class="detail-card">
             <span>Members</span>
             <strong>${sceneKitContext.memberObjects.length}</strong>
+          </div>
+          <div class="detail-card ${sceneSectionRuntimeContext?.preferredWorkbenchEntry ? "is-positive" : sceneSectionRuntimeContext?.preferredReference ? "" : "is-alert"}">
+            <span>Runtime-linked Group</span>
+            <strong>${escapeHtml(sceneSectionRuntimeContext?.preferredWorkbenchEntry?.relativePath ?? sceneSectionRuntimeContext?.preferredReference?.label ?? "No grounded runtime link yet")}</strong>
+            <small>${escapeHtml(sceneSectionRuntimeContext?.note ?? "This imported scene section does not yet map back to a grounded runtime workbench entry or supporting runtime phase reference.")}</small>
+          </div>
+          <div class="detail-card">
+            <span>Runtime Bridge</span>
+            <strong>${escapeHtml(sceneSectionRuntimeContext?.donorAsset?.assetId ?? sceneSectionRuntimeContext?.evidenceItem?.evidenceId ?? "No bridge asset/evidence yet")}</strong>
+            <small>${escapeHtml(sceneSectionRuntimeContext?.preferredWorkbenchEntry
+              ? `${sceneSectionRuntimeContext.preferredWorkbenchEntry.statusLabel} · ${sceneSectionRuntimeContext.preferredWorkbenchEntry.requestSummary}`
+              : sceneSectionRuntimeContext?.preferredReference
+                ? sceneSectionRuntimeContext.preferredReference.note
+                : "No runtime-facing donor bridge has been recorded for this imported section yet.")}</small>
           </div>
         </div>
       </div>
@@ -15581,6 +15758,10 @@ function renderRuntimeInspector() {
   const lastPick = state.runtimeUi.lastPick;
   const diagnostics = state.runtimeUi.diagnostics;
   const workflowBridge = getRuntimeWorkflowBridge();
+  const selectedSceneKitContext = getSceneKitContextForObject(getSelectedObject());
+  const selectedSceneSectionRuntimeContext = selectedSceneKitContext?.sectionId
+    ? getSceneSectionEntryById(selectedSceneKitContext.sectionId)?.runtimeContext ?? null
+    : null;
   const runtimeOverrideCandidate = getRuntimeOverrideCandidate();
   const runtimeOverrideStatus = getRuntimeOverrideStatus();
   const runtimeMirrorStatus = getRuntimeMirrorStatus();
@@ -15659,6 +15840,15 @@ function renderRuntimeInspector() {
           <small>${escapeHtml(embeddedRequestBackedImages.length > 0
             ? "Embedded runtime has request-backed image evidence in this session."
             : "Embedded runtime still has no request-backed static image in this session; treat Debug Host as the trustworthy override-proof path.")}</small>
+        </div>
+        <div class="detail-card ${selectedSceneSectionRuntimeContext?.preferredWorkbenchEntry || selectedSceneSectionRuntimeContext?.preferredReference ? "is-positive" : ""}">
+          <span>Selected Scene Section</span>
+          <strong>${escapeHtml(selectedSceneKitContext?.sectionLabel ?? "No imported scene section selected in Compose")}</strong>
+          <small>${escapeHtml(selectedSceneSectionRuntimeContext?.preferredWorkbenchEntry
+            ? `Runtime-linked through ${selectedSceneSectionRuntimeContext.preferredWorkbenchEntry.relativePath ?? selectedSceneSectionRuntimeContext.preferredWorkbenchEntry.sourceUrl}.`
+            : selectedSceneSectionRuntimeContext?.preferredReference
+              ? `Supported by ${selectedSceneSectionRuntimeContext.preferredReference.label}.`
+              : "Switch back to Compose and select one imported scene section member to keep the runtime workbench anchored to that grouped game part.")}</small>
         </div>
       </div>
     `

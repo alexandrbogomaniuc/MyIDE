@@ -42,6 +42,7 @@ MyIDE is a universal local-first IDE for multiple game projects over time, with 
 - Harvested package-graph images now carry package-family grouping into the donor asset palette, so captured runtime/package image bundles can be imported into Compose as grouped donor-backed scene kits instead of only one flat image card at a time.
 - Imported donor scene kits now stay visible as grouped Compose working sets: selected donor-backed objects can show which scene kit they belong to, jump back to the scene kit in the donor palette, and reselect the current kit members in one action.
 - Compose now surfaces imported donor scene kits as named scene sections in the scene explorer, so grouped donor-backed parts can be selected and edited as one higher-level working set instead of disappearing into a flat object list.
+- Those named scene sections now carry their strongest grounded runtime link too, so you can move from one imported section into the Runtime workbench through **Open Runtime Group** instead of losing runtime context at the editor boundary.
 - Those harvested package-graph image nodes can now appear in the shell donor asset palette as importable editable-image candidates, so new donor-URL projects are no longer limited to the older hand-indexed donor image set.
 
 ## Public Repo Exclusions
