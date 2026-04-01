@@ -29,11 +29,13 @@ function classifyAction(profile: CaptureFamilySourceProfileRecord): {
   reason: string;
 } {
   const localSourceAssetCount = readLocalSourceAssetCount(profile);
-  if (localSourceAssetCount > 0) {
+  if (localSourceAssetCount > 0 || (profile.localPageCount > 0 && profile.localPageCount >= profile.atlasPageRefCount)) {
     return {
       actionClass: "use-local-sources",
       priority: "high",
-      reason: "Family already has grounded local source assets captured."
+      reason: localSourceAssetCount > 0
+        ? "Family already has grounded local source assets captured."
+        : "Family already has grounded local atlas pages captured."
     };
   }
   if (profile.localPageCount > 0 && profile.localPageCount < profile.atlasPageRefCount) {

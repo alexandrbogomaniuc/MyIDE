@@ -194,6 +194,8 @@ export interface DonorScanStatus {
   familyActionRunFamily: string | null;
   familyActionPreparedEvidenceCount: number;
   familyActionWorksetPath: string | null;
+  familyActionReconstructionBundlePath: string | null;
+  familyActionReconstructionLocalSourceCount: number;
   nextOperatorAction: string | null;
   blockerHighlights: string[];
   blockerSummaryMarkdown: string | null;
@@ -1064,6 +1066,8 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
     familyActionRunFamily: typeof familyActionRunSummary?.familyName === "string" ? familyActionRunSummary.familyName : null,
     familyActionPreparedEvidenceCount: typeof familyActionRunSummary?.preparedEvidenceCount === "number" ? familyActionRunSummary.preparedEvidenceCount : 0,
     familyActionWorksetPath: typeof familyActionRunSummary?.worksetPath === "string" ? familyActionRunSummary.worksetPath : null,
+    familyActionReconstructionBundlePath: typeof familyActionRunSummary?.reconstructionBundlePath === "string" ? familyActionRunSummary.reconstructionBundlePath : null,
+    familyActionReconstructionLocalSourceCount: typeof familyActionRunSummary?.reconstructionLocalSourceCount === "number" ? familyActionRunSummary.reconstructionLocalSourceCount : 0,
     nextOperatorAction: typeof scanSummary.nextOperatorAction === "string" ? scanSummary.nextOperatorAction : (donor.nextOperatorAction ?? null),
     blockerHighlights,
     blockerSummaryMarkdown,

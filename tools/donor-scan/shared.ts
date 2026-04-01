@@ -149,6 +149,7 @@ export interface DonorScanPaths {
   captureFamilyActionsPath: string;
   familyActionRunPath: string;
   familyActionWorksetsRoot: string;
+  familyReconstructionBundlesRoot: string;
   captureRunPath: string;
   blockerSummaryPath: string;
   scanSummaryPath: string;
@@ -515,7 +516,7 @@ export interface CaptureFamilyActionsFile {
 export type CaptureRunStatus = "captured" | "partial" | "blocked" | "skipped";
 export type CaptureRunMode = "ranked-targets" | "family-sources";
 export type FamilyActionRunStatus = CaptureRunStatus | "prepared";
-export type FamilyActionRunMode = CaptureRunMode | "prepare-workset";
+export type FamilyActionRunMode = CaptureRunMode | "prepare-workset" | "prepare-reconstruction-bundle";
 
 export interface CaptureRunTargetResult {
   rank: number;
@@ -588,6 +589,62 @@ export interface FamilyActionWorksetFile {
   familyActionsPath: string;
 }
 
+export type FamilyReconstructionReadiness =
+  | "ready-with-local-sources"
+  | "needs-more-source-discovery";
+
+export type FamilyReconstructionLocalSourceKind =
+  | "atlas-page"
+  | "bundle-reference"
+  | "bundle-image-variant"
+  | "harvest-local";
+
+export type FamilyReconstructionSourceRelation =
+  | "same-family"
+  | "related-family";
+
+export interface FamilyReconstructionLocalSourceRecord {
+  localPath: string;
+  sourceUrl: string | null;
+  resolvedUrl: string | null;
+  sourceKind: FamilyReconstructionLocalSourceKind;
+  relation: FamilyReconstructionSourceRelation;
+  familyName: string;
+  referenceText: string | null;
+}
+
+export interface FamilyReconstructionBundleFile {
+  schemaVersion: string;
+  donorId: string;
+  donorName: string;
+  generatedAt: string;
+  familyName: string;
+  actionClass: CaptureFamilyActionClass;
+  sourceState: CaptureFamilySourceProfileRecord["sourceState"] | "unknown";
+  readiness: FamilyReconstructionReadiness;
+  reason: string;
+  nextStep: string;
+  targetCount: number;
+  blockedTargetCount: number;
+  atlasPageRefCount: number;
+  localPageCount: number;
+  localSourceAssetCount: number;
+  sameFamilyBundleReferenceCount: number;
+  sameFamilyVariantAssetCount: number;
+  exactLocalSourceCount: number;
+  relatedLocalSourceCount: number;
+  localSources: FamilyReconstructionLocalSourceRecord[];
+  sameFamilyBundleReferences: string[];
+  sameFamilyVariantLogicalPaths: string[];
+  relatedBundleHints: string[];
+  relatedVariantHints: string[];
+  openTargetUrls: string[];
+  blockedTargetUrls: string[];
+  worksetPath: string | null;
+  sourceProfilePath: string;
+  familyActionsPath: string;
+}
+
 export interface FamilyActionRunFile {
   schemaVersion: string;
   donorId: string;
@@ -599,8 +656,10 @@ export interface FamilyActionRunFile {
   requestedMode: FamilyActionRunMode;
   status: FamilyActionRunStatus;
   worksetPath: string | null;
+  reconstructionBundlePath: string | null;
   captureRunPath: string | null;
   preparedEvidenceCount: number;
+  reconstructionLocalSourceCount: number;
   localSourceAssetCount: number;
   targetCount: number;
   blockedTargetCount: number;
@@ -668,6 +727,7 @@ export function buildDonorScanPaths(donorId: string): DonorScanPaths {
     captureFamilyActionsPath: path.join(harvestRoot, "capture-family-actions.json"),
     familyActionRunPath: path.join(harvestRoot, "family-action-run.json"),
     familyActionWorksetsRoot: path.join(harvestRoot, "family-action-worksets"),
+    familyReconstructionBundlesRoot: path.join(harvestRoot, "family-reconstruction-bundles"),
     captureRunPath: path.join(harvestRoot, "next-capture-run.json"),
     blockerSummaryPath: path.join(harvestRoot, "blocker-summary.md"),
     scanSummaryPath: path.join(harvestRoot, "scan-summary.json")

@@ -35,7 +35,7 @@ and answers early:
 - `npm run donor-scan:capture-family-sources -- --donor-id donor_XXX --family big_win --limit 10`
   - Build a grounded family-source queue from `capture-family-source-profiles.json`, bundle image variants, bundle references, atlas missing pages, and still-open family targets, then capture those family-specific source-material candidates directly.
 - `npm run donor-scan:run-family-action -- --donor-id donor_XXX --family big_win --limit 10`
-  - Execute the current family action from `capture-family-actions.json`. Capture-oriented families reuse the existing donor-scan capture runner; evidence/reconstruction families prepare a grounded workset under `family-action-worksets/` instead of retrying URLs blindly.
+  - Execute the current family action from `capture-family-actions.json`. Capture-oriented families reuse the existing donor-scan capture runner; evidence/reconstruction families prepare grounded worksets, and `use-local-sources` families now also emit reconstruction-ready family bundles instead of stopping at an advisory note.
 
 ## Outputs
 
@@ -60,6 +60,7 @@ Key files:
 - `capture-family-actions.json`
 - `family-action-run.json`
 - `family-action-worksets/<family>.json`
+- `family-reconstruction-bundles/<family>.json` for `use-local-sources` families
 - `next-capture-run.json`
 - `package-graph.json`
 - `blocker-summary.md`
@@ -97,7 +98,7 @@ When a ranked image target has exhausted only raw/direct grounded URLs and donor
 - `capture-family-sources` and `capture-missing-pages` reuse the capture runner automatically
 - `use-local-sources`, `review-bundle-evidence`, and `source-discovery-required` write a prepared family workset instead of pretending the next step is another URL retry
 
-`family-action-run.json` records the last executed family action, and `family-action-worksets/<family>.json` records the grounded evidence bundle for prepared families. Use those worksets when a family already has enough local source material or bundle evidence to move into deeper source discovery or reconstruction.
+`family-action-run.json` records the last executed family action, and `family-action-worksets/<family>.json` records the grounded evidence bundle for prepared families. When the family action class is `use-local-sources`, donor scan now also writes `family-reconstruction-bundles/<family>.json`, which normalizes the exact grounded local source files, atlas pages, bundle references, open targets, and next operator step for deeper reconstruction work. Use those reconstruction bundles when a family already has enough local source material to leave the URL-hunt lane.
 
 `donor-scan:capture-family-sources` is the next step after that dossier. It does not invent new URLs. Instead, it turns the grounded family evidence back into a family-specific source-material queue, prioritizes optimized variant-backed and bundle-backed family assets before raw atlas-page retries, and refreshes donor scan after the run.
 

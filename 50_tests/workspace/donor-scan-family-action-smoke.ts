@@ -118,10 +118,12 @@ async function main(): Promise<void> {
     });
     assert.equal(preparedAction.familyName, "ui", "prepared family action should preserve the family");
     assert.equal(preparedAction.actionClass, "use-local-sources", "second family action should switch to use-local-sources once local assets exist");
-    assert.equal(preparedAction.requestedMode, "prepare-workset", "prepared family action should write a workset instead of capturing");
+    assert.equal(preparedAction.requestedMode, "prepare-reconstruction-bundle", "use-local-sources family action should write a reconstruction-ready bundle");
     assert.equal(preparedAction.status, "prepared", "prepared family action should report prepared status");
     assert.ok(preparedAction.preparedEvidenceCount >= 1, "prepared family action should collect grounded evidence items");
     assert.ok(preparedAction.worksetPath, "prepared family action should point at the generated workset");
+    assert.ok(preparedAction.reconstructionBundlePath, "prepared family action should point at the generated reconstruction bundle");
+    assert.ok(preparedAction.reconstructionLocalSourceCount >= 1, "prepared family action should record grounded local source counts");
 
     const familyActionRunPath = path.join(donorRoot, "evidence", "local_only", "harvest", "family-action-run.json");
     const familyActionRun = JSON.parse(await fs.readFile(familyActionRunPath, "utf8")) as {
@@ -129,13 +131,17 @@ async function main(): Promise<void> {
       requestedMode?: string;
       familyName?: string;
       worksetPath?: string | null;
+      reconstructionBundlePath?: string | null;
       preparedEvidenceCount?: number;
+      reconstructionLocalSourceCount?: number;
     };
     assert.equal(familyActionRun.status, "prepared", "family action run should record the latest prepared workset");
-    assert.equal(familyActionRun.requestedMode, "prepare-workset", "family action run should record prepare-workset mode");
+    assert.equal(familyActionRun.requestedMode, "prepare-reconstruction-bundle", "family action run should record reconstruction-bundle mode");
     assert.equal(familyActionRun.familyName, "ui", "family action run should record the family");
     assert.ok(typeof familyActionRun.worksetPath === "string" && familyActionRun.worksetPath.length > 0, "family action run should point at the prepared workset");
+    assert.ok(typeof familyActionRun.reconstructionBundlePath === "string" && familyActionRun.reconstructionBundlePath.length > 0, "family action run should point at the reconstruction bundle");
     assert.ok((familyActionRun.preparedEvidenceCount ?? 0) >= 1, "family action run should record prepared evidence counts");
+    assert.ok((familyActionRun.reconstructionLocalSourceCount ?? 0) >= 1, "family action run should record grounded local source counts");
 
     const worksetPath = path.join(workspaceRoot, familyActionRun.worksetPath ?? "");
     const workset = JSON.parse(await fs.readFile(worksetPath, "utf8")) as {
@@ -149,9 +155,24 @@ async function main(): Promise<void> {
     assert.ok(Array.isArray(workset.localSourceAssetPreview) && workset.localSourceAssetPreview.length >= 1, "family workset should include local source previews");
     assert.ok((workset.preparedEvidenceCount ?? 0) >= 1, "family workset should include prepared evidence counts");
 
+    const reconstructionBundlePath = path.join(workspaceRoot, familyActionRun.reconstructionBundlePath ?? "");
+    const reconstructionBundle = JSON.parse(await fs.readFile(reconstructionBundlePath, "utf8")) as {
+      familyName?: string;
+      readiness?: string;
+      localSources?: unknown[];
+      exactLocalSourceCount?: number;
+      worksetPath?: string | null;
+    };
+    assert.equal(reconstructionBundle.familyName, "ui", "reconstruction bundle should record the family");
+    assert.equal(reconstructionBundle.readiness, "ready-with-local-sources", "reconstruction bundle should mark local-source readiness");
+    assert.ok(Array.isArray(reconstructionBundle.localSources) && reconstructionBundle.localSources.length >= 1, "reconstruction bundle should include grounded local sources");
+    assert.ok((reconstructionBundle.exactLocalSourceCount ?? 0) >= 1, "reconstruction bundle should count exact local sources");
+    assert.equal(reconstructionBundle.worksetPath, familyActionRun.worksetPath ?? null, "reconstruction bundle should link back to the prepared workset");
+
     console.log("PASS donor-scan:family-action");
     console.log(`Donor: ${donorId}`);
     console.log(`Prepared workset: ${familyActionRun.worksetPath}`);
+    console.log(`Reconstruction bundle: ${familyActionRun.reconstructionBundlePath}`);
   } finally {
     await new Promise<void>((resolve, reject) => {
       server.close((error) => {

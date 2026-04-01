@@ -1,6 +1,8 @@
 import path from "node:path";
+import { buildFamilyReconstructionBundle } from "./buildFamilyReconstructionBundle";
 import { captureNextTargets } from "./captureNextTargets";
 import {
+  type BundleAssetMapFile,
   type CaptureFamilyActionClass,
   type CaptureFamilyActionsFile,
   type CaptureFamilyActionRecord,
@@ -10,6 +12,7 @@ import {
   type FamilyActionRunMode,
   type FamilyActionRunStatus,
   type FamilyActionWorksetFile,
+  type HarvestManifestFile,
   buildDonorScanPaths,
   readOptionalJsonFile,
   toRepoRelativePath,
@@ -32,8 +35,10 @@ export interface RunFamilyActionResult {
   status: FamilyActionRunStatus;
   familyActionRunPath: string;
   worksetPath: string | null;
+  reconstructionBundlePath: string | null;
   captureRunPath: string | null;
   preparedEvidenceCount: number;
+  reconstructionLocalSourceCount: number;
   localSourceAssetCount: number;
   targetCount: number;
   blockedTargetCount: number;
@@ -187,8 +192,10 @@ export async function runFamilyAction(options: RunFamilyActionOptions): Promise<
       requestedMode,
       status: capture.status,
       worksetPath: null,
+      reconstructionBundlePath: null,
       captureRunPath: toRepoRelativePath(capture.captureRunPath),
       preparedEvidenceCount: 0,
+      reconstructionLocalSourceCount: 0,
       localSourceAssetCount: familyAction.localSourceAssetCount,
       targetCount: familyAction.targetCount,
       blockedTargetCount: familyAction.blockedTargetCount,
@@ -210,8 +217,10 @@ export async function runFamilyAction(options: RunFamilyActionOptions): Promise<
       status: capture.status,
       familyActionRunPath: paths.familyActionRunPath,
       worksetPath: null,
+      reconstructionBundlePath: null,
       captureRunPath: capture.captureRunPath,
       preparedEvidenceCount: 0,
+      reconstructionLocalSourceCount: 0,
       localSourceAssetCount: familyAction.localSourceAssetCount,
       targetCount: familyAction.targetCount,
       blockedTargetCount: familyAction.blockedTargetCount,
@@ -233,6 +242,50 @@ export async function runFamilyAction(options: RunFamilyActionOptions): Promise<
   );
   const worksetPath = path.join(paths.familyActionWorksetsRoot, `${sanitizeFamilySegment(familyAction.familyName)}.json`);
   await writeJsonFile(worksetPath, workset);
+  const harvestManifest = await readOptionalJsonFile<HarvestManifestFile>(paths.assetManifestPath) ?? { entries: [] };
+  const bundleAssetMap = await readOptionalJsonFile<BundleAssetMapFile>(paths.bundleAssetMapPath) ?? {
+    schemaVersion: "0.1.0",
+    donorId,
+    donorName: captureFamilyActions.donorName,
+    generatedAt: new Date().toISOString(),
+    status: "skipped",
+    bundleCount: 0,
+    referenceCount: 0,
+    imageVariantStatus: "skipped",
+    imageVariantEntryCount: 0,
+    imageVariantSuffixCount: 0,
+    imageVariantUrlBuilderStatus: "skipped",
+    imageVariantUrlCount: 0,
+    imageVariantFieldCounts: {},
+    translationPayloadStatus: "skipped",
+    translationPayloadCount: 0,
+    translationLocaleHintCount: 0,
+    countsByConfidence: { confirmed: 0, likely: 0, provisional: 0 },
+    countsByCategory: {},
+    bundles: [],
+    imageVariants: [],
+    translationPayloads: [],
+    references: []
+  };
+  const reconstructionBundle = familyAction.actionClass === "use-local-sources"
+    ? buildFamilyReconstructionBundle({
+        donorId,
+        donorName: captureFamilyActions.donorName,
+        familyAction,
+        familyProfile,
+        harvestManifest,
+        bundleAssetMap,
+        worksetPath: toRepoRelativePath(worksetPath),
+        familyActionsPath: toRepoRelativePath(paths.captureFamilyActionsPath),
+        sourceProfilePath: toRepoRelativePath(paths.captureFamilySourceProfilesPath)
+      })
+    : null;
+  const reconstructionBundlePath = reconstructionBundle
+    ? path.join(paths.familyReconstructionBundlesRoot, `${sanitizeFamilySegment(familyAction.familyName)}.json`)
+    : null;
+  if (reconstructionBundle && reconstructionBundlePath) {
+    await writeJsonFile(reconstructionBundlePath, reconstructionBundle);
+  }
 
   const nextOperatorAction = `${familyAction.familyName}: ${familyAction.nextStep}`;
   const familyActionRun: FamilyActionRunFile = {
@@ -243,11 +296,13 @@ export async function runFamilyAction(options: RunFamilyActionOptions): Promise<
     familyName: familyAction.familyName,
     actionClass: familyAction.actionClass,
     requestedLimit: limit,
-    requestedMode: "prepare-workset",
+    requestedMode: reconstructionBundle ? "prepare-reconstruction-bundle" : "prepare-workset",
     status: "prepared",
     worksetPath: toRepoRelativePath(worksetPath),
+    reconstructionBundlePath: reconstructionBundlePath ? toRepoRelativePath(reconstructionBundlePath) : null,
     captureRunPath: null,
     preparedEvidenceCount: workset.preparedEvidenceCount,
+    reconstructionLocalSourceCount: reconstructionBundle?.exactLocalSourceCount ?? 0,
     localSourceAssetCount: familyAction.localSourceAssetCount,
     targetCount: familyAction.targetCount,
     blockedTargetCount: familyAction.blockedTargetCount,
@@ -266,12 +321,14 @@ export async function runFamilyAction(options: RunFamilyActionOptions): Promise<
     donorName: captureFamilyActions.donorName,
     familyName: familyAction.familyName,
     actionClass: familyAction.actionClass,
-    requestedMode: "prepare-workset",
+    requestedMode: reconstructionBundle ? "prepare-reconstruction-bundle" : "prepare-workset",
     status: "prepared",
     familyActionRunPath: paths.familyActionRunPath,
     worksetPath,
+    reconstructionBundlePath,
     captureRunPath: null,
     preparedEvidenceCount: workset.preparedEvidenceCount,
+    reconstructionLocalSourceCount: reconstructionBundle?.exactLocalSourceCount ?? 0,
     localSourceAssetCount: familyAction.localSourceAssetCount,
     targetCount: familyAction.targetCount,
     blockedTargetCount: familyAction.blockedTargetCount,
@@ -328,6 +385,10 @@ async function main(): Promise<void> {
   if (result.worksetPath) {
     console.log(`Prepared workset: ${toRepoRelativePath(result.worksetPath)}`);
     console.log(`Prepared evidence count: ${result.preparedEvidenceCount}`);
+  }
+  if (result.reconstructionBundlePath) {
+    console.log(`Reconstruction bundle: ${toRepoRelativePath(result.reconstructionBundlePath)}`);
+    console.log(`Reconstruction local sources: ${result.reconstructionLocalSourceCount}`);
   }
   if (result.captureRunPath) {
     console.log(`Capture summary: ${toRepoRelativePath(result.captureRunPath)}`);

@@ -3203,11 +3203,22 @@ async function runDonorScanFamilyAction(family, limit = 10) {
     const status = typeof result?.status === "string" ? result.status : "blocked";
     const requestedMode = typeof result?.requestedMode === "string" ? result.requestedMode : "prepare-workset";
     const preparedEvidenceCount = Number(result?.preparedEvidenceCount ?? 0);
+    const reconstructionLocalSourceCount = Number(result?.reconstructionLocalSourceCount ?? 0);
     const downloadedCount = Number(result?.downloadedCount ?? 0);
     const failedCount = Number(result?.failedCount ?? 0);
     const attemptedCount = Number(result?.attemptedCount ?? 0);
     const worksetPath = typeof result?.worksetPath === "string" ? result.worksetPath : null;
+    const reconstructionBundlePath = typeof result?.reconstructionBundlePath === "string" ? result.reconstructionBundlePath : null;
     const nextOperatorAction = typeof result?.nextOperatorAction === "string" ? result.nextOperatorAction : "Review the donor scan family action queue.";
+
+    if (requestedMode === "prepare-reconstruction-bundle") {
+      setPreviewStatus(
+        `Family ${familyLabel}: prepared reconstruction bundle with ${reconstructionLocalSourceCount} grounded local source${reconstructionLocalSourceCount === 1 ? "" : "s"}`
+        + `${reconstructionBundlePath ? ` at ${reconstructionBundlePath}` : ""}`
+        + `${worksetPath ? ` using ${worksetPath}` : ""}. ${nextOperatorAction}`
+      );
+      return;
+    }
 
     if (requestedMode === "prepare-workset") {
       setPreviewStatus(
@@ -15312,7 +15323,7 @@ function renderProjectSummary() {
         </div>
         ${donorScan?.familyActionRunStatus ? `
           <div class="detail-list">
-            <small><strong>Latest family action</strong> · ${escapeHtml(donorScan.familyActionRunStatus)} · ${escapeHtml(donorScan.familyActionRunMode || "unknown")}${donorScan.familyActionRunWorksetPath ? ` · <code>${escapeHtml(donorScan.familyActionRunWorksetPath)}</code>` : ""}${donorScan.familyActionPreparedEvidenceCount > 0 ? ` · ${escapeHtml(String(donorScan.familyActionPreparedEvidenceCount))} prepared evidence item${donorScan.familyActionPreparedEvidenceCount === 1 ? "" : "s"}` : ""}</small>
+            <small><strong>Latest family action</strong> · ${escapeHtml(donorScan.familyActionRunStatus)} · ${escapeHtml(donorScan.familyActionRunMode || "unknown")}${donorScan.familyActionWorksetPath ? ` · workset <code>${escapeHtml(donorScan.familyActionWorksetPath)}</code>` : ""}${donorScan.familyActionReconstructionBundlePath ? ` · bundle <code>${escapeHtml(donorScan.familyActionReconstructionBundlePath)}</code>` : ""}${donorScan.familyActionPreparedEvidenceCount > 0 ? ` · ${escapeHtml(String(donorScan.familyActionPreparedEvidenceCount))} prepared evidence item${donorScan.familyActionPreparedEvidenceCount === 1 ? "" : "s"}` : ""}${donorScan.familyActionReconstructionLocalSourceCount > 0 ? ` · ${escapeHtml(String(donorScan.familyActionReconstructionLocalSourceCount))} grounded local source${donorScan.familyActionReconstructionLocalSourceCount === 1 ? "" : "s"}` : ""}</small>
           </div>
         ` : ""}
         ${Array.isArray(donorScan?.topCaptureFamilies) && donorScan.topCaptureFamilies.length > 0 ? `
@@ -15380,7 +15391,7 @@ function renderProjectSummary() {
           <div class="detail-list">
             <small><strong>Family action queue</strong></small>
             ${donorScan.topFamilyActions.map((family) => `
-              <small><strong>${escapeHtml(family.familyName)}</strong> · ${escapeHtml(family.actionClass)} · ${escapeHtml(family.priority)} priority · ${escapeHtml(family.reason)}</small>
+              <small><strong>${escapeHtml(family.familyName)}</strong> · ${escapeHtml(family.actionClass)} · ${escapeHtml(family.priority)} priority${family.localSourceAssetCount > 0 ? ` · ${escapeHtml(String(family.localSourceAssetCount))} local source${family.localSourceAssetCount === 1 ? "" : "s"}` : ""} · ${escapeHtml(family.reason)}</small>
               ${family.sampleEvidence ? `<small>evidence · <code>${escapeHtml(family.sampleEvidence)}</code></small>` : ""}
               <small>${escapeHtml(family.nextStep)}</small>
               <div class="evidence-actions">
@@ -15395,7 +15406,9 @@ function renderProjectSummary() {
                     ? `Capture ${family.familyName} sources`
                     : family.actionClass === "capture-missing-pages"
                       ? `Capture ${family.familyName} pages`
-                      : `Prepare ${family.familyName} workset`
+                      : family.actionClass === "use-local-sources"
+                        ? `Prepare ${family.familyName} bundle`
+                        : `Prepare ${family.familyName} workset`
                 )}</button>
               </div>
             `).join("")}
