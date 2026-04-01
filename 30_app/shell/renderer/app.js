@@ -14757,7 +14757,7 @@ function renderEvidenceBrowser() {
           ${summary.donorNextCaptureTargets.length > 0 ? `
             <div class="detail-list">
               ${summary.donorNextCaptureTargets.slice(0, 3).map((target) => `
-                <small><strong>${escapeHtml(target.priority)}</strong> · <code>${escapeHtml(target.relativePath || target.url)}</code> · ${escapeHtml(target.reason || "No reason recorded.")}</small>
+                <small><strong>${escapeHtml(target.priority)}</strong> · <code>${escapeHtml(target.relativePath || target.url)}</code> · ${escapeHtml(target.reason || "No reason recorded.")}${target.alternateHintCount > 0 ? ` · ${escapeHtml(String(target.alternateHintCount))} grounded alternate${target.alternateHintCount === 1 ? "" : "s"}` : ""}</small>
               `).join("")}
             </div>
           ` : ""}
@@ -14773,7 +14773,7 @@ function renderEvidenceBrowser() {
             ${summary.donorBlockerSummaryPath ? renderCopyButton(summary.donorBlockerSummaryPath, "donor blocker summary path", "Copy Blocker Summary Path") : ""}
             ${summary.donorNextCaptureTargetsPath ? renderCopyButton(summary.donorNextCaptureTargetsPath, "donor next capture targets path", "Copy Capture Targets Path") : ""}
             ${summary.donorCaptureRunPath ? renderCopyButton(summary.donorCaptureRunPath, "donor guided capture summary path", "Copy Capture Run Path") : ""}
-            ${summary.donorNextCaptureTargets.length > 0 ? renderCopyButton(summary.donorNextCaptureTargets.map((target) => `${target.priority}\t${target.kind}\t${target.relativePath || target.url}\t${target.reason || "No reason recorded."}`).join("\n"), "donor next capture targets", "Copy Top Targets") : ""}
+            ${summary.donorNextCaptureTargets.length > 0 ? renderCopyButton(summary.donorNextCaptureTargets.map((target) => `${target.priority}\t${target.kind}\t${target.relativePath || target.url}\t${target.reason || "No reason recorded."}\t${target.alternateHintCount} alternate(s)\t${target.alternateHintPreview.join(" | ")}`).join("\n"), "donor next capture targets", "Copy Top Targets") : ""}
           </div>
         </div>
       </div>
@@ -15175,7 +15175,7 @@ function renderProjectSummary() {
           : "Run donor scan to surface runtime candidates, atlas metadata, bundle asset-map status, and the next operator action."}</small>
         ${Array.isArray(donorScan?.nextCaptureTargets) && donorScan.nextCaptureTargets.length > 0 ? `
           <div class="detail-list">
-            ${donorScan.nextCaptureTargets.slice(0, 2).map((target) => `<small><strong>${escapeHtml(target.priority)}</strong> · <code>${escapeHtml(target.relativePath || target.url)}</code></small>`).join("")}
+            ${donorScan.nextCaptureTargets.slice(0, 2).map((target) => `<small><strong>${escapeHtml(target.priority)}</strong> · <code>${escapeHtml(target.relativePath || target.url)}</code>${target.alternateHintCount > 0 ? ` · ${escapeHtml(String(target.alternateHintCount))} grounded alternate${target.alternateHintCount === 1 ? "" : "s"}` : ""}</small>`).join("")}
           </div>
         ` : ""}
         <div class="chip-row">

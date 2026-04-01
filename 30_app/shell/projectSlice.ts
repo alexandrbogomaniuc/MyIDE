@@ -174,6 +174,8 @@ export interface DonorScanStatus {
     priority: string;
     kind: string;
     reason: string;
+    alternateHintCount: number;
+    alternateHintPreview: string[];
   }>;
 }
 
@@ -838,7 +840,15 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
           relativePath: typeof target.relativePath === "string" ? target.relativePath : "",
           priority: typeof target.priority === "string" ? target.priority : "unknown",
           kind: typeof target.kind === "string" ? target.kind : "unknown",
-          reason: typeof target.reason === "string" ? target.reason : "No reason recorded."
+          reason: typeof target.reason === "string" ? target.reason : "No reason recorded.",
+          alternateHintCount: Array.isArray(target.alternateCaptureHints) ? target.alternateCaptureHints.length : 0,
+          alternateHintPreview: Array.isArray(target.alternateCaptureHints)
+            ? target.alternateCaptureHints
+                .filter((value): value is JsonObject => Boolean(value) && typeof value === "object" && !Array.isArray(value))
+                .map((value) => typeof value.url === "string" ? value.url : "")
+                .filter((value) => value.length > 0)
+                .slice(0, 2)
+            : []
         }))
         .filter((target) => target.url.length > 0)
         .slice(0, 5)

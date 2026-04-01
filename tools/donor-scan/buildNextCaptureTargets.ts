@@ -1,4 +1,5 @@
 import type {
+  AlternateCaptureHintRecord,
   AtlasManifestFile,
   BundleAssetMapFile,
   CaptureTargetPriority,
@@ -7,6 +8,7 @@ import type {
   ReferenceConfidence,
   RuntimeCandidatesFile
 } from "./shared";
+import { buildAlternateCaptureHints } from "./shared";
 
 interface BuildNextCaptureTargetsOptions {
   donorId: string;
@@ -117,11 +119,18 @@ function promoteConfidence(
 function toTargetRecord(
   url: string,
   mutable: MutableTarget,
-  rank: number
+  rank: number,
+  bundleAssetMap: BundleAssetMapFile
 ): NextCaptureTargetRecord {
   const sourceCount = mutable.sourceLabels.size;
   const score = mutable.score + Math.min(20, sourceCount * 5);
   const priority = inferPriority(score, mutable.kind);
+  const alternateCaptureHints = buildAlternateCaptureHints({
+    url,
+    kind: mutable.kind,
+    category: mutable.category,
+    bundleAssetMap
+  });
   return {
     rank,
     url,
@@ -135,7 +144,8 @@ function toTargetRecord(
     sourceCount,
     sourceLabels: [...mutable.sourceLabels].sort((left, right) => left.localeCompare(right)),
     reason: [...mutable.reasons].join(" + "),
-    blockers: [...mutable.blockers].sort((left, right) => left.localeCompare(right))
+    blockers: [...mutable.blockers].sort((left, right) => left.localeCompare(right)),
+    alternateCaptureHints
   };
 }
 
@@ -236,7 +246,7 @@ export function buildNextCaptureTargets(options: BuildNextCaptureTargetsOptions)
   }
 
   const targets = [...targetMap.entries()]
-    .map(([url, target], index) => toTargetRecord(url, target, index + 1))
+    .map(([url, target], index) => toTargetRecord(url, target, index + 1, options.bundleAssetMap))
     .sort((left, right) => {
       if (left.score !== right.score) {
         return right.score - left.score;

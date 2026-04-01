@@ -291,10 +291,11 @@ async function main(): Promise<void> {
 
     const nextCaptureTargets = JSON.parse(await fs.readFile(path.join(donorRoot, "evidence", "local_only", "harvest", "next-capture-targets.json"), "utf8")) as {
       targetCount?: number;
-      targets?: Array<{ relativePath?: string; priority?: string }>;
+      targets?: Array<{ relativePath?: string; priority?: string; alternateCaptureHints?: Array<{ url?: string }> }>;
     };
     assert.ok((nextCaptureTargets.targetCount ?? 0) >= 1, "donor scan should write next capture targets");
     assert.ok(Array.isArray(nextCaptureTargets.targets) && nextCaptureTargets.targets.some((target) => typeof target.relativePath === "string" && target.relativePath.length > 0), "next capture targets should keep a relative path");
+    assert.ok(Array.isArray(nextCaptureTargets.targets) && nextCaptureTargets.targets.some((target) => Array.isArray(target.alternateCaptureHints)), "next capture targets should persist grounded alternate capture hint arrays");
 
     const blockerSummary = await fs.readFile(path.join(donorRoot, "evidence", "local_only", "harvest", "blocker-summary.md"), "utf8");
     assert.match(blockerSummary, /Next operator step/, "blocker summary should explain the next operator step");

@@ -173,6 +173,13 @@ export interface BundleAssetMapFile {
   references: BundleAssetMapReference[];
 }
 
+export interface AlternateCaptureHintRecord {
+  url: string;
+  source: string;
+  confidence: ReferenceConfidence;
+  note: string;
+}
+
 export interface AtlasManifestRecord {
   sourceUrl: string;
   localPath: string;
@@ -263,6 +270,7 @@ export interface NextCaptureTargetRecord {
   sourceLabels: string[];
   reason: string;
   blockers: string[];
+  alternateCaptureHints: AlternateCaptureHintRecord[];
 }
 
 export interface NextCaptureTargetsFile {
@@ -308,6 +316,24 @@ export interface CaptureRunFile {
   refreshedScanSummaryPath: string;
   refreshedNextCaptureTargetsPath: string;
   results: CaptureRunTargetResult[];
+}
+
+function readUrlHost(urlString: string): string | null {
+  try {
+    return new URL(urlString).host;
+  } catch {
+    return null;
+  }
+}
+
+function readUrlBasename(urlString: string): string | null {
+  try {
+    const pathname = new URL(urlString).pathname;
+    const basename = path.posix.basename(pathname);
+    return basename.length > 0 ? basename : null;
+  } catch {
+    return null;
+  }
 }
 
 export interface UrlInventoryEntry {
@@ -435,6 +461,60 @@ export function rewriteKnownPlaceholderSegments(urlString: string): string {
   } catch {
     return urlString.replace(/\/_resourcesPath_/g, "/").replace(/^_resourcesPath_/, "");
   }
+}
+
+export function buildAlternateCaptureHints(options: {
+  url: string;
+  kind: NextCaptureTargetRecord["kind"];
+  category: string;
+  bundleAssetMap: BundleAssetMapFile | null;
+}): AlternateCaptureHintRecord[] {
+  const hints: AlternateCaptureHintRecord[] = [];
+  const targetHost = readUrlHost(options.url);
+  const targetBasename = readUrlBasename(options.url)?.toLowerCase();
+  const rewrittenPrimaryUrl = rewriteKnownPlaceholderSegments(options.url);
+  if (rewrittenPrimaryUrl !== options.url) {
+    hints.push({
+      url: rewrittenPrimaryUrl,
+      source: "placeholder-rewrite",
+      confidence: "likely",
+      note: "Known placeholder-style path segments were normalized."
+    });
+  }
+
+  if (options.bundleAssetMap && targetHost && targetBasename) {
+    for (const reference of options.bundleAssetMap.references) {
+      if (!reference.resolvedUrl || reference.resolvedUrl === options.url) {
+        continue;
+      }
+      if (readUrlHost(reference.resolvedUrl) !== targetHost) {
+        continue;
+      }
+      if (readUrlBasename(reference.resolvedUrl)?.toLowerCase() !== targetBasename) {
+        continue;
+      }
+      if (options.category === "image" && reference.category !== "image") {
+        continue;
+      }
+      if (options.category !== "image" && reference.category !== options.category) {
+        continue;
+      }
+      hints.push({
+        url: reference.resolvedUrl,
+        source: `bundle-reference:${reference.bundleLocalPath}`,
+        confidence: reference.confidence,
+        note: "Bundle asset-map uses the same basename under an alternate rooted path."
+      });
+    }
+  }
+
+  const dedupedHints = new Map<string, AlternateCaptureHintRecord>();
+  for (const hint of hints) {
+    if (!dedupedHints.has(hint.url)) {
+      dedupedHints.set(hint.url, hint);
+    }
+  }
+  return [...dedupedHints.values()];
 }
 
 export function collectReferenceCandidates(rawText: string): string[] {

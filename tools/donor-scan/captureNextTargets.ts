@@ -3,6 +3,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { runDonorScan } from "./runDonorScan";
 import {
+  buildAlternateCaptureHints,
   type BundleAssetMapFile,
   type CaptureRunFile,
   type CaptureRunStatus,
@@ -15,7 +16,6 @@ import {
   type NextCaptureTargetsFile,
   buildDonorScanPaths,
   readOptionalJsonFile,
-  rewriteKnownPlaceholderSegments,
   toRepoRelativePath,
   uniqueStrings,
   writeJsonFile,
@@ -161,50 +161,22 @@ function clampCaptureLimit(value: number | undefined): number {
   return Math.min(50, Math.max(1, Math.floor(value ?? 10)));
 }
 
-function readUrlHost(urlString: string): string | null {
-  try {
-    return new URL(urlString).host;
-  } catch {
-    return null;
-  }
-}
-
-function readUrlBasename(urlString: string): string | null {
-  try {
-    const pathname = new URL(urlString).pathname;
-    const basename = path.posix.basename(pathname);
-    return basename.length > 0 ? basename : null;
-  } catch {
-    return null;
-  }
-}
-
 function buildCaptureAttemptUrls(
   target: NextCaptureTargetRecord,
   bundleAssetMap: BundleAssetMapFile | null
 ): string[] {
   const urls: string[] = [target.url];
-  const rewrittenPrimaryUrl = rewriteKnownPlaceholderSegments(target.url);
-  if (rewrittenPrimaryUrl !== target.url) {
-    urls.push(rewrittenPrimaryUrl);
-  }
-
-  if (target.kind === "atlas-page" && bundleAssetMap) {
-    const targetHost = readUrlHost(target.url);
-    const targetBasename = readUrlBasename(target.url)?.toLowerCase();
-    if (targetHost && targetBasename) {
-      for (const reference of bundleAssetMap.references) {
-        if (reference.category !== "image" || !reference.resolvedUrl) {
-          continue;
-        }
-        if (readUrlHost(reference.resolvedUrl) !== targetHost) {
-          continue;
-        }
-        if (readUrlBasename(reference.resolvedUrl)?.toLowerCase() !== targetBasename) {
-          continue;
-        }
-        urls.push(reference.resolvedUrl);
-      }
+  const targetHints = Array.isArray((target as { alternateCaptureHints?: unknown }).alternateCaptureHints)
+    ? (target as { alternateCaptureHints?: Array<{ url?: unknown }> }).alternateCaptureHints ?? []
+    : buildAlternateCaptureHints({
+      url: target.url,
+      kind: target.kind,
+      category: target.category,
+      bundleAssetMap
+    });
+  for (const hint of targetHints) {
+    if (typeof hint?.url === "string" && hint.url.length > 0) {
+      urls.push(hint.url);
     }
   }
 
