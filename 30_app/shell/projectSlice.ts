@@ -168,6 +168,7 @@ export interface DonorScanStatus {
   mirrorCandidateStatus: string;
   requestBackedStaticHintCount: number;
   recentlyBlockedCaptureTargetCount: number;
+  rawPayloadBlockedCaptureTargetCount: number;
   nextCaptureTargetCount: number;
   captureRunStatus: string | null;
   captureAttemptedCount: number;
@@ -890,6 +891,7 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
     mirrorCandidateStatus: typeof scanSummary.mirrorCandidateStatus === "string" ? scanSummary.mirrorCandidateStatus : (donor.mirrorCandidateStatus ?? "unknown"),
     requestBackedStaticHintCount: typeof scanSummary.requestBackedStaticHintCount === "number" ? scanSummary.requestBackedStaticHintCount : 0,
     recentlyBlockedCaptureTargetCount: typeof scanSummary.recentlyBlockedCaptureTargetCount === "number" ? scanSummary.recentlyBlockedCaptureTargetCount : nextCaptureTargets.filter((target) => target.recentCaptureStatus === "blocked").length,
+    rawPayloadBlockedCaptureTargetCount: typeof scanSummary.rawPayloadBlockedCaptureTargetCount === "number" ? scanSummary.rawPayloadBlockedCaptureTargetCount : 0,
     nextCaptureTargetCount: typeof scanSummary.nextCaptureTargetCount === "number" ? scanSummary.nextCaptureTargetCount : (donor.nextCaptureTargetCount ?? nextCaptureTargets.length),
     captureRunStatus: typeof captureRunSummary?.status === "string" ? captureRunSummary.status : null,
     captureAttemptedCount: typeof captureRunSummary?.attemptedCount === "number" ? captureRunSummary.attemptedCount : 0,

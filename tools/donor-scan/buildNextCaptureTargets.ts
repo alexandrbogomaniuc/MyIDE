@@ -3,6 +3,7 @@ import type {
   AtlasManifestFile,
   BundleAssetMapFile,
   CaptureRunFile,
+  CaptureTargetBlockerClass,
   CaptureTargetPriority,
   NextCaptureTargetRecord,
   NextCaptureTargetsFile,
@@ -10,7 +11,7 @@ import type {
   RequestBackedStaticHintFile,
   RuntimeCandidatesFile
 } from "./shared";
-import { buildAlternateCaptureHints } from "./shared";
+import { buildAlternateCaptureHints, isPreferredAlternateCaptureSource } from "./shared";
 
 interface BuildNextCaptureTargetsOptions {
   donorId: string;
@@ -226,6 +227,13 @@ function toTargetRecord(
   const exhaustedCurrentGroundedUrls = captureEvidence
     ? [...currentAttemptUrls].every((attemptUrl) => captureEvidence.attemptedUrls.has(attemptUrl))
     : false;
+  const captureStrategy = readCaptureTargetStrategy(alternateCaptureHints);
+  const blockerClass = readCaptureTargetBlockerClass({
+    kind: mutable.kind,
+    category: mutable.category,
+    captureStrategy,
+    recentCaptureStatus: captureEvidence && exhaustedCurrentGroundedUrls ? "blocked" : "untried"
+  });
   return {
     rank,
     url,
@@ -241,10 +249,45 @@ function toTargetRecord(
     reason: [...mutable.reasons].join(" + "),
     blockers: [...mutable.blockers].sort((left, right) => left.localeCompare(right)),
     alternateCaptureHints,
+    captureStrategy,
     recentCaptureStatus: captureEvidence && exhaustedCurrentGroundedUrls ? "blocked" : "untried",
     recentCaptureAttemptCount: captureEvidence?.attemptedUrlCount ?? 0,
-    recentCaptureFailureReason: captureEvidence?.failureReason ?? null
+    recentCaptureFailureReason: captureEvidence?.failureReason ?? null,
+    blockerClass
   };
+}
+
+function readCaptureTargetStrategy(
+  alternateCaptureHints: AlternateCaptureHintRecord[]
+): NextCaptureTargetRecord["captureStrategy"] {
+  if (alternateCaptureHints.some((hint) => isPreferredAlternateCaptureSource(hint.source))) {
+    return "preferred-alternates";
+  }
+  if (alternateCaptureHints.length > 0) {
+    return "raw-root-only";
+  }
+  return "direct-only";
+}
+
+function readCaptureTargetBlockerClass(options: {
+  kind: NextCaptureTargetRecord["kind"];
+  category: string;
+  captureStrategy: NextCaptureTargetRecord["captureStrategy"];
+  recentCaptureStatus: NextCaptureTargetRecord["recentCaptureStatus"];
+}): CaptureTargetBlockerClass | null {
+  if (options.recentCaptureStatus !== "blocked") {
+    return null;
+  }
+  if (options.category !== "image") {
+    return null;
+  }
+  if (options.captureStrategy === "preferred-alternates") {
+    return null;
+  }
+  if (options.kind === "atlas-page" || options.captureStrategy === "direct-only") {
+    return "raw-payload-blocked";
+  }
+  return null;
 }
 
 function buildCaptureRunResultMap(captureRun: CaptureRunFile | null): Map<string, { attemptedUrlCount: number; failureReason: string | null; attemptedUrls: Set<string> }> {

@@ -70,6 +70,8 @@ Donor scan now does the same kind of upgrade for translation roots when the dono
 
 After a guided capture run, donor scan now feeds the latest failed attempts back into `next-capture-targets.json` too. That lets the IDE show which ranked targets are still blocked even after every grounded alternate URL in the latest run was already tried, and it now demotes those recently blocked dead ends below the next untried grounded targets. If a later donor-scan pass discovers new grounded alternate URLs for the same target, the target automatically reopens as actionable instead of staying falsely blocked on stale capture evidence.
 
+When a ranked image target has exhausted only raw/direct grounded URLs and donor scan still has no stronger request-backed or bundle-image-variant path for it, the refreshed target now becomes `raw-payload-blocked`. That blocker class is meant to stop vague retry loops: it means the next move is deeper source discovery for that family, not another identical capture pass.
+
 That reopened-target behavior is already proven on the live Mystery Garden donor: once donor scan started surfacing optimized variant URLs from bundle-backed sibling image families, guided capture successfully downloaded atlas-adjacent payloads such as `h1`, `h2`, `stick`, and `wild` from those newly grounded URLs.
 
 The next generic proof step is now grounded too: when those same ranked atlas targets also carry stronger optimized alternates than their raw atlas-page URL, the guided capture runner now tries those stronger grounded URLs first. On the live Mystery Garden donor that pulled seven more atlas-adjacent payloads (`h3`, `key`, `m1`, `m2`, `m3`, `m4`, and `scatter`) and reduced `atlasMissingPageCount` from `27` to `20`.

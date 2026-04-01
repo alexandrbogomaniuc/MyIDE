@@ -16,6 +16,7 @@ import {
   type NextCaptureTargetsFile,
   buildDonorScanPaths,
   readOptionalJsonFile,
+  isPreferredAlternateCaptureSource,
   toRepoRelativePath,
   uniqueStrings,
   writeJsonFile,
@@ -188,10 +189,7 @@ export function buildCaptureAttemptUrls(
 }
 
 function isPreferredCaptureAlternate(source: unknown): boolean {
-  if (typeof source !== "string") {
-    return false;
-  }
-  return source.startsWith("request-log:") || source.startsWith("bundle-image-variant:");
+  return isPreferredAlternateCaptureSource(source);
 }
 
 function readLaunchContext(scanSummary: Record<string, unknown> | null, packageManifest: DonorPackageManifestFile | null): {

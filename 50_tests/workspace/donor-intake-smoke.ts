@@ -389,6 +389,7 @@ async function main(): Promise<void> {
       translationPayloadCount?: number;
       mirrorCandidateStatus?: string;
       nextCaptureTargetCount?: number;
+      rawPayloadBlockedCaptureTargetCount?: number;
       nextOperatorAction?: string;
     };
     assert.equal(scanSummary.scanState, "scanned", "donor scan summary should mark the scan as scanned");
@@ -404,6 +405,7 @@ async function main(): Promise<void> {
     assert.ok((scanSummary.translationPayloadCount ?? 0) >= 1, "donor scan summary should surface translation payload counts");
     assert.equal(typeof scanSummary.mirrorCandidateStatus, "string", "donor scan summary should surface mirror candidate status");
     assert.ok((scanSummary.nextCaptureTargetCount ?? 0) >= 1, "donor scan summary should expose next capture target counts");
+    assert.equal(typeof scanSummary.rawPayloadBlockedCaptureTargetCount, "number", "donor scan summary should surface raw-payload-blocked target counts");
     assert.equal(typeof scanSummary.nextOperatorAction, "string", "donor scan summary should recommend the next operator action");
 
     const nextCaptureTargets = JSON.parse(await fs.readFile(path.join(donorRoot, "evidence", "local_only", "harvest", "next-capture-targets.json"), "utf8")) as {

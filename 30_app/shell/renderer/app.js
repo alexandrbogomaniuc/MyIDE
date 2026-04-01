@@ -10159,6 +10159,7 @@ function getSelectedProjectEvidenceSummary() {
     donorMirrorCandidateStatus: typeof donorScan?.mirrorCandidateStatus === "string" ? donorScan.mirrorCandidateStatus : (typeof selectedProject.donor?.mirrorCandidateStatus === "string" ? selectedProject.donor.mirrorCandidateStatus : null),
     donorRequestBackedStaticHintCount: typeof donorScan?.requestBackedStaticHintCount === "number" ? donorScan.requestBackedStaticHintCount : 0,
     donorRecentlyBlockedCaptureTargetCount: typeof donorScan?.recentlyBlockedCaptureTargetCount === "number" ? donorScan.recentlyBlockedCaptureTargetCount : 0,
+    donorRawPayloadBlockedCaptureTargetCount: typeof donorScan?.rawPayloadBlockedCaptureTargetCount === "number" ? donorScan.rawPayloadBlockedCaptureTargetCount : 0,
     donorNextCaptureTargetsPath: typeof donorScan?.nextCaptureTargetsPath === "string" ? donorScan.nextCaptureTargetsPath : (typeof selectedProject.donor?.nextCaptureTargetsPath === "string" ? selectedProject.donor.nextCaptureTargetsPath : null),
     donorNextCaptureTargetCount: typeof donorScan?.nextCaptureTargetCount === "number" ? donorScan.nextCaptureTargetCount : (typeof selectedProject.donor?.nextCaptureTargetCount === "number" ? selectedProject.donor.nextCaptureTargetCount : 0),
     donorNextCaptureTargets: Array.isArray(donorScan?.nextCaptureTargets) ? donorScan.nextCaptureTargets : [],
@@ -15204,6 +15205,7 @@ function renderProjectSummary() {
           <span>translation payload rule: ${typeof donorScan?.translationPayloadStatus === "string" ? escapeHtml(donorScan.translationPayloadStatus) : "unknown"}</span>
           <span>${typeof donorScan?.requestBackedStaticHintCount === "number" ? donorScan.requestBackedStaticHintCount : 0} request-backed alternates</span>
           <span>${typeof donorScan?.recentlyBlockedCaptureTargetCount === "number" ? donorScan.recentlyBlockedCaptureTargetCount : 0} recently blocked</span>
+          <span>${typeof donorScan?.rawPayloadBlockedCaptureTargetCount === "number" ? donorScan.rawPayloadBlockedCaptureTargetCount : 0} raw-payload blocked</span>
           <span>${typeof donorScan?.nextCaptureTargetCount === "number" ? donorScan.nextCaptureTargetCount : 0} next capture targets</span>
           <span>${typeof donorScan?.captureRunStatus === "string" ? escapeHtml(donorScan.captureRunStatus) : "idle"} guided capture</span>
           <span>${typeof donorScan?.captureDownloadedCount === "number" ? donorScan.captureDownloadedCount : 0} downloaded last run</span>

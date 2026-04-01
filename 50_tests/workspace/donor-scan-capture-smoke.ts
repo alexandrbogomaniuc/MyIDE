@@ -140,7 +140,7 @@ async function main(): Promise<void> {
     assert.equal(atlasManifest.missingPageCount, 2, "atlas page capture should leave one retried blocker and one untried atlas page unresolved in the refreshed scan");
 
     const refreshedTargets = JSON.parse(await fs.readFile(path.join(donorRoot, "evidence", "local_only", "harvest", "next-capture-targets.json"), "utf8")) as {
-      targets?: Array<{ relativePath?: string; recentCaptureStatus?: string; recentCaptureAttemptCount?: number; recentCaptureFailureReason?: string | null; rank?: number }>;
+      targets?: Array<{ relativePath?: string; recentCaptureStatus?: string; recentCaptureAttemptCount?: number; recentCaptureFailureReason?: string | null; rank?: number; blockerClass?: string | null }>;
     };
     const refreshedTargetList = Array.isArray(refreshedTargets.targets) ? refreshedTargets.targets : [];
     const blockedTarget = refreshedTargetList.find((target) => target.relativePath?.includes("ui_missing.png"));
@@ -150,8 +150,9 @@ async function main(): Promise<void> {
         && blockedTarget.recentCaptureStatus === "blocked"
         && (blockedTarget.recentCaptureAttemptCount ?? 0) >= 1
         && typeof blockedTarget.recentCaptureFailureReason === "string"
-        && blockedTarget.recentCaptureFailureReason.includes("404"),
-      "refreshed next capture targets should mark the remaining atlas page as recently blocked after guided capture"
+        && blockedTarget.recentCaptureFailureReason.includes("404")
+        && blockedTarget.blockerClass === "raw-payload-blocked",
+      "refreshed next capture targets should mark the remaining atlas page as recently blocked and raw-payload-blocked after guided capture"
     );
     assert.ok(
       promotedUntriedTarget
@@ -164,8 +165,10 @@ async function main(): Promise<void> {
 
     const refreshedSummary = JSON.parse(await fs.readFile(beforeSummaryPath, "utf8")) as {
       recentlyBlockedCaptureTargetCount?: number;
+      rawPayloadBlockedCaptureTargetCount?: number;
     };
     assert.ok((refreshedSummary.recentlyBlockedCaptureTargetCount ?? 0) >= 1, "scan summary should surface recently blocked capture targets after a partial run");
+    assert.ok((refreshedSummary.rawPayloadBlockedCaptureTargetCount ?? 0) >= 1, "scan summary should surface raw-payload-blocked capture targets after a raw-root-only dead end");
 
     const expandedTargetQueue = buildNextCaptureTargets({
       donorId: "donor_expanded_queue_smoke",

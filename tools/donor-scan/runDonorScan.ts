@@ -416,6 +416,7 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
       translationPayloadCount: 0,
       mirrorCandidateStatus: "blocked",
       nextCaptureTargetCount: 0,
+      rawPayloadBlockedCaptureTargetCount: 0,
       fullLocalRuntimePackage: false,
       partialLocalRuntimePackage: false,
       entryPointCount: 0,
@@ -448,6 +449,7 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
       translationPayloadCount: 0,
       mirrorCandidateStatus: "blocked",
       nextCaptureTargetCount: 0,
+      rawPayloadBlockedCaptureTargetCount: 0,
       nextOperatorAction: "Run donor URL intake or provide a harvested donor package before scanning.",
       blockerHighlights: ["No harvested donor asset manifest exists yet."]
     };
@@ -562,6 +564,7 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
     requestBackedStaticHintCount: requestBackedStaticHints.hintCount,
     requestBackedObservedStaticCount: requestBackedStaticHints.observedStaticRequestCount,
     recentlyBlockedCaptureTargetCount: nextCaptureTargets.targets.filter((target) => target.recentCaptureStatus === "blocked").length,
+    rawPayloadBlockedCaptureTargetCount: nextCaptureTargets.targets.filter((target) => target.blockerClass === "raw-payload-blocked").length,
     bundleAssetMapStatus: bundleAssetMap.status,
     bundleReferenceCount: bundleAssetMap.referenceCount,
     bundleImageVariantStatus: bundleAssetMap.imageVariantStatus,
@@ -612,6 +615,7 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
     translationPayloadStatus: bundleAssetMap.translationPayloadStatus,
     translationPayloadCount: bundleAssetMap.translationPayloadCount,
     mirrorCandidateStatus: runtimeCandidates.mirrorCandidateStatus,
+    rawPayloadBlockedCaptureTargetCount: nextCaptureTargets.targets.filter((target) => target.blockerClass === "raw-payload-blocked").length,
     nextCaptureTargetCount: nextCaptureTargets.targetCount,
     nextOperatorAction: blockerSummary.nextOperatorAction,
     blockerHighlights: blockerSummary.blockerHighlights

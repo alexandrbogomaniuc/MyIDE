@@ -51,14 +51,23 @@ export async function writeBlockerSummary(options: WriteBlockerSummaryOptions): 
   }
 
   const recentlyBlockedTargets = options.nextCaptureTargets.targets.filter((target) => target.recentCaptureStatus === "blocked");
+  const rawPayloadBlockedTargets = options.nextCaptureTargets.targets.filter((target) => target.blockerClass === "raw-payload-blocked");
   const untriedTargets = options.nextCaptureTargets.targets.filter((target) => target.recentCaptureStatus !== "blocked");
   if (recentlyBlockedTargets.length > 0) {
     blockerHighlights.push(`${recentlyBlockedTargets.length} ranked capture targets were already retried in the latest guided capture run and still failed on every grounded URL attempt.`);
+  }
+  if (rawPayloadBlockedTargets.length > 0) {
+    blockerHighlights.push(`${rawPayloadBlockedTargets.length} ranked image targets are now classified as raw-payload-blocked: donor scan exhausted only raw/direct grounded URLs for them and still has no stronger alternate capture path.`);
   }
 
   let nextOperatorAction = "Review the donor scan summary and decide whether deeper runtime capture is still needed.";
   if (!options.runtimeCandidates.partialLocalRuntimePackage) {
     nextOperatorAction = "Capture a grounded launch HTML plus runtime bundles so the donor scan has a real local runtime entry surface.";
+  } else if (
+    rawPayloadBlockedTargets.length >= Math.min(5, Math.max(1, options.nextCaptureTargets.targets.length))
+    && untriedTargets.slice(0, 5).every((target) => target.captureStrategy !== "preferred-alternates")
+  ) {
+    nextOperatorAction = "The current top-ranked targets now only have raw rooted/direct URLs, and donor scan has already proven no stronger grounded alternates for this blocker class. Switch to deeper source discovery or review the raw-payload-blocked targets before repeating guided capture blindly.";
   } else if (recentlyBlockedTargets.length > 0 && untriedTargets.length > 0) {
     nextOperatorAction = "Run guided capture against the refreshed top-ranked targets first; donor scan already demoted the latest grounded dead ends and promoted the next untried URLs.";
   } else if (recentlyBlockedTargets.length >= Math.min(5, Math.max(1, options.nextCaptureTargets.targets.length))) {

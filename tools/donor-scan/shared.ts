@@ -18,6 +18,8 @@ export type BundleAssetMapStatus = "mapped" | "blocked" | "skipped";
 export type MirrorCandidateStatus = "strong-partial" | "weak-partial" | "blocked";
 export type ReferenceConfidence = "confirmed" | "likely" | "provisional";
 export type CaptureTargetPriority = "immediate" | "high" | "medium";
+export type CaptureTargetStrategy = "preferred-alternates" | "raw-root-only" | "direct-only";
+export type CaptureTargetBlockerClass = "raw-payload-blocked";
 
 export interface DiscoveredDonorUrl {
   url: string;
@@ -331,6 +333,7 @@ export interface DonorScanResult {
   translationPayloadStatus: BundleAssetMapStatus;
   translationPayloadCount: number;
   mirrorCandidateStatus: MirrorCandidateStatus;
+  rawPayloadBlockedCaptureTargetCount: number;
   nextCaptureTargetCount: number;
   nextOperatorAction: string;
   blockerHighlights: string[];
@@ -351,9 +354,11 @@ export interface NextCaptureTargetRecord {
   reason: string;
   blockers: string[];
   alternateCaptureHints: AlternateCaptureHintRecord[];
+  captureStrategy: CaptureTargetStrategy;
   recentCaptureStatus: "untried" | "blocked";
   recentCaptureAttemptCount: number;
   recentCaptureFailureReason: string | null;
+  blockerClass: CaptureTargetBlockerClass | null;
 }
 
 export interface NextCaptureTargetsFile {
@@ -660,6 +665,13 @@ export function buildAlternateCaptureHints(options: {
     }
   }
   return [...dedupedHints.values()].sort((left, right) => compareAlternateCaptureHints(left, right));
+}
+
+export function isPreferredAlternateCaptureSource(source: unknown): boolean {
+  if (typeof source !== "string") {
+    return false;
+  }
+  return source.startsWith("request-log:") || source.startsWith("bundle-image-variant:");
 }
 
 function compareAlternateCaptureHints(
