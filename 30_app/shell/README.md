@@ -28,6 +28,7 @@ Electron desktop shell for MyIDE.
 - Those same scene sections now also support **Duplicate Section** and **Delete Section**, so one imported grouped game-part kit can be copied or removed without dropping back to one-object-at-a-time cleanup.
 - Those same scene sections now also support **Center Section** and **Restore Suggested Layer**, so one imported grouped game-part kit can be repositioned or moved back to its inferred scene-kit layer while keeping the grouped section intact.
 - Those same scene sections now also support **Reset Section Layout**, so one imported grouped game-part kit can be repacked into its inferred scene-kit layout around the current section anchor instead of manually re-spacing each child object.
+- Those same scene sections now also support grouped **Hide/Show Section** and **Lock/Unlock Section**, so one imported grouped game-part kit can be hidden, revealed, frozen, or reopened for editing without managing every child object separately.
 - Support a simple workspace rescan so newly added project folders can appear after discovery refreshes the derived registry.
 - Show the selected project's donor, target/resulting game, lifecycle stage summary, phase, verification status, folder path, and notes.
 - Split the main workbench into a runtime-first `Runtime` mode and a bounded secondary `Compose` mode for `project_001`.

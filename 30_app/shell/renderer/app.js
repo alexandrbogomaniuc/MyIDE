@@ -9386,6 +9386,47 @@ function getSceneSectionGamePartSummary(sectionEntry) {
   };
 }
 
+function getSceneSectionStateSummary(sectionEntry, editorData = state.editorData) {
+  if (!sectionEntry || !editorData || !Array.isArray(editorData.objects)) {
+    return null;
+  }
+
+  const sectionObjectIds = uniqueStrings([sectionEntry.id, ...sectionEntry.memberObjectIds]);
+  const sectionObjects = sectionObjectIds
+    .map((objectId) => editorData.objects.find((entry) => entry.id === objectId))
+    .filter(Boolean);
+  const memberObjects = Array.isArray(sectionEntry.memberObjects) && sectionEntry.memberObjects.length > 0
+    ? sectionEntry.memberObjects
+    : sectionObjects.filter((entry) => entry.id !== sectionEntry.id);
+  const hiddenMemberCount = memberObjects.filter((entry) => entry.visible === false).length;
+  const lockedObjectCount = sectionObjects.filter((entry) => entry.locked).length;
+  const lockedLayerObjectCount = sectionObjects.filter((entry) => getLayerById(entry.layerId)?.locked).length;
+  const allHidden = memberObjects.length > 0 && hiddenMemberCount === memberObjects.length;
+  const partiallyHidden = hiddenMemberCount > 0 && !allHidden;
+  const allLocked = sectionObjects.length > 0 && lockedObjectCount === sectionObjects.length;
+  const partiallyLocked = lockedObjectCount > 0 && !allLocked;
+
+  return {
+    allHidden,
+    partiallyHidden,
+    hiddenMemberCount,
+    visibilityStatusLabel: allHidden ? "hidden" : partiallyHidden ? `${hiddenMemberCount} hidden` : "visible",
+    visibilityButtonLabel: allHidden ? "Show Section" : "Hide Section",
+    allLocked,
+    partiallyLocked,
+    lockedObjectCount,
+    lockedLayerObjectCount,
+    lockStatusLabel: lockedLayerObjectCount > 0
+      ? "layer-locked"
+      : allLocked
+        ? "locked"
+        : partiallyLocked
+          ? `${lockedObjectCount} locked`
+          : "editable",
+    lockButtonLabel: allLocked ? "Unlock Section" : "Lock Section"
+  };
+}
+
 function getSceneSectionEntries(editorData = state.editorData) {
   if (!editorData || !Array.isArray(editorData.objects)) {
     return [];
@@ -9412,6 +9453,7 @@ function getSceneSectionEntries(editorData = state.editorData) {
         ...baseEntry,
         provenance: getSceneSectionProvenanceSummary(baseEntry),
         gamePartSummary: getSceneSectionGamePartSummary(baseEntry),
+        stateSummary: getSceneSectionStateSummary(baseEntry, editorData),
         runtimeContext: getSceneSectionRuntimeContext(baseEntry, {
           runtimeWorkbenchEntries,
           runtimeReferenceScreens
@@ -10882,6 +10924,98 @@ function resetSceneSectionLayout(sectionId) {
   });
 }
 
+function toggleSceneSectionVisibility(sectionId) {
+  const sectionEntry = getSceneSectionEntryById(sectionId);
+  if (!sectionEntry) {
+    setPreviewStatus("Could not find that scene section in the current internal scene.");
+    return;
+  }
+
+  const sectionState = sectionEntry.stateSummary ?? getSceneSectionStateSummary(sectionEntry);
+  const transformObjectIds = uniqueStrings([sectionEntry.id, ...sectionEntry.memberObjectIds]);
+  const transformObjects = transformObjectIds.map((objectId) => getEditableObjectById(objectId)).filter(Boolean);
+  const blockedObjects = transformObjects.filter((entry) => getLayerById(entry.layerId)?.locked);
+  if (blockedObjects.length > 0) {
+    setPreviewStatus(`Scene section ${sectionEntry.label} cannot change visibility while ${blockedObjects.length} grouped object${blockedObjects.length === 1 ? "" : "s"} are on locked layers.`);
+    return;
+  }
+
+  const nextVisible = Boolean(sectionState?.allHidden);
+  const actionLabel = nextVisible ? "Showed" : "Hid";
+  const didChange = applyEditorMutation(`${actionLabel} scene section ${sectionEntry.label}.`, (editorData) => {
+    if (!Array.isArray(editorData.objects)) {
+      return;
+    }
+
+    editorData.objects.forEach((entry) => {
+      if (transformObjectIds.includes(entry.id)) {
+        entry.visible = nextVisible;
+      }
+    });
+  });
+
+  if (!didChange) {
+    setPreviewStatus(`Could not update visibility for scene section ${sectionEntry.label}.`);
+    return;
+  }
+
+  setWorkbenchMode("scene", { silent: true });
+  state.workflowUi.activePanel = "compose";
+  if (nextVisible) {
+    focusSceneObjectGroupInWorkflow(sectionEntry.memberObjectIds, {
+      label: "scene section",
+      statusMessage: `Showed scene section ${sectionEntry.label}. ${sectionEntry.count} grouped object${sectionEntry.count === 1 ? "" : "s"} remain selected in Compose Mode.`
+    });
+    return;
+  }
+
+  clearSelectedObjects();
+  renderAll();
+  setPreviewStatus(`Hid scene section ${sectionEntry.label}. Use Scene Sections to show the grouped game-part kit again.`);
+}
+
+function toggleSceneSectionLock(sectionId) {
+  const sectionEntry = getSceneSectionEntryById(sectionId);
+  if (!sectionEntry) {
+    setPreviewStatus("Could not find that scene section in the current internal scene.");
+    return;
+  }
+
+  const sectionState = sectionEntry.stateSummary ?? getSceneSectionStateSummary(sectionEntry);
+  const transformObjectIds = uniqueStrings([sectionEntry.id, ...sectionEntry.memberObjectIds]);
+  const transformObjects = transformObjectIds.map((objectId) => getEditableObjectById(objectId)).filter(Boolean);
+  const blockedObjects = transformObjects.filter((entry) => getLayerById(entry.layerId)?.locked);
+  if (blockedObjects.length > 0) {
+    setPreviewStatus(`Scene section ${sectionEntry.label} cannot change object locks while ${blockedObjects.length} grouped object${blockedObjects.length === 1 ? "" : "s"} are on locked layers.`);
+    return;
+  }
+
+  const nextLocked = !Boolean(sectionState?.allLocked);
+  const actionLabel = nextLocked ? "Locked" : "Unlocked";
+  const didChange = applyEditorMutation(`${actionLabel} scene section ${sectionEntry.label}.`, (editorData) => {
+    if (!Array.isArray(editorData.objects)) {
+      return;
+    }
+
+    editorData.objects.forEach((entry) => {
+      if (transformObjectIds.includes(entry.id)) {
+        entry.locked = nextLocked;
+      }
+    });
+  });
+
+  if (!didChange) {
+    setPreviewStatus(`Could not update lock state for scene section ${sectionEntry.label}.`);
+    return;
+  }
+
+  setWorkbenchMode("scene", { silent: true });
+  state.workflowUi.activePanel = "compose";
+  setSelectedObjectIds(sectionEntry.memberObjectIds, sectionEntry.memberObjectIds[0] ?? null);
+  renderAll();
+  setPreviewStatus(`${actionLabel} scene section ${sectionEntry.label}. ${sectionEntry.count} grouped object${sectionEntry.count === 1 ? "" : "s"} remain selected in Compose Mode.`);
+}
+
 function restoreSceneSectionSuggestedLayer(sectionId) {
   const sectionEntry = getSceneSectionEntryById(sectionId);
   if (!sectionEntry) {
@@ -11122,6 +11256,20 @@ function handleNavigationClick(event) {
   if (resetSceneSectionLayoutButton instanceof HTMLElement && resetSceneSectionLayoutButton.dataset.resetSceneSectionLayoutId) {
     event.preventDefault();
     resetSceneSectionLayout(resetSceneSectionLayoutButton.dataset.resetSceneSectionLayoutId);
+    return true;
+  }
+
+  const toggleSceneSectionVisibilityButton = target.closest("[data-toggle-scene-section-visibility-id]");
+  if (toggleSceneSectionVisibilityButton instanceof HTMLElement && toggleSceneSectionVisibilityButton.dataset.toggleSceneSectionVisibilityId) {
+    event.preventDefault();
+    toggleSceneSectionVisibility(toggleSceneSectionVisibilityButton.dataset.toggleSceneSectionVisibilityId);
+    return true;
+  }
+
+  const toggleSceneSectionLockButton = target.closest("[data-toggle-scene-section-lock-id]");
+  if (toggleSceneSectionLockButton instanceof HTMLElement && toggleSceneSectionLockButton.dataset.toggleSceneSectionLockId) {
+    event.preventDefault();
+    toggleSceneSectionLock(toggleSceneSectionLockButton.dataset.toggleSceneSectionLockId);
     return true;
   }
 
@@ -14127,6 +14275,7 @@ function renderSceneExplorer() {
           const overrideCandidate = runtimeContext?.overrideCandidate ?? null;
           const provenance = entry.provenance;
           const gamePartSummary = entry.gamePartSummary;
+          const sectionState = entry.stateSummary ?? getSceneSectionStateSummary(entry, editorData);
           const runtimeSummary = runtimeContext?.preferredWorkbenchEntry
             ? `Runtime-linked through ${runtimeContext.preferredWorkbenchEntry.relativePath ?? runtimeContext.preferredWorkbenchEntry.sourceUrl}.`
             : runtimeContext?.preferredReference
@@ -14143,6 +14292,8 @@ function renderSceneExplorer() {
                 ${overrideCandidate?.eligible ? `<span>override-ready</span>` : overrideCandidate?.activeOverride ? `<span>override-active</span>` : ""}
                 ${provenance?.primaryGroupSummary ? `<span>${escapeHtml(provenance.primaryGroupSummary.importLabel)}</span>` : ""}
                 ${gamePartSummary?.roleLabel ? `<span>${escapeHtml(gamePartSummary.roleLabel)}</span>` : ""}
+                ${sectionState?.visibilityStatusLabel ? `<span>${escapeHtml(sectionState.visibilityStatusLabel)}</span>` : ""}
+                ${sectionState?.lockStatusLabel ? `<span>${escapeHtml(sectionState.lockStatusLabel)}</span>` : ""}
               </div>
               ${provenance ? `
                 <small>${escapeHtml(`${provenance.donorAssets.length} donor asset${provenance.donorAssets.length === 1 ? "" : "s"} · ${provenance.evidenceIds.length} evidence ref${provenance.evidenceIds.length === 1 ? "" : "s"} · ${provenance.sourceCategories.join(", ") || "source unknown"}`)}</small>
@@ -14166,6 +14317,8 @@ function renderSceneExplorer() {
                 ${runtimeContext?.evidenceItem
                   ? `<button type="button" class="copy-button" data-focus-donor-evidence-id="${escapeAttribute(runtimeContext.evidenceItem.evidenceId)}">Focus Evidence</button>`
                   : ""}
+                <button type="button" class="copy-button" data-toggle-scene-section-visibility-id="${escapeAttribute(entry.id)}">${escapeHtml(sectionState?.visibilityButtonLabel ?? "Hide Section")}</button>
+                <button type="button" class="copy-button" data-toggle-scene-section-lock-id="${escapeAttribute(entry.id)}">${escapeHtml(sectionState?.lockButtonLabel ?? "Lock Section")}</button>
                 <button type="button" class="copy-button" data-center-scene-section-id="${escapeAttribute(entry.id)}">Center Section</button>
                 ${gamePartSummary?.sceneKitSummary?.layoutStyle ? `<button type="button" class="copy-button" data-reset-scene-section-layout-id="${escapeAttribute(entry.id)}">Reset Section Layout</button>` : ""}
                 ${gamePartSummary?.sceneKitSummary?.layerId ? `<button type="button" class="copy-button" data-restore-scene-section-layer-id="${escapeAttribute(entry.id)}">Restore Suggested Layer</button>` : ""}
@@ -15629,7 +15782,7 @@ function renderMultiSelectionInspector(selectedProject, selectedObjects) {
   return `
     <div class="tree-row multi-selection-summary">
       <strong>Multi-selection (${selectedObjects.length})</strong>
-      <span>${selectedProject.displayName} · ${selectedObjects.length} editable objects are selected for composition actions.</span>
+      <span>${selectedProject.displayName} · ${selectedObjects.length} scene object${selectedObjects.length === 1 ? "" : "s"} are selected for grouped composition actions.</span>
       <div class="chip-row">
         <span>primary ${escapeHtml(primaryObject?.displayName ?? "none")}</span>
         <span>${donorBackedObjects.length} donor-backed</span>
@@ -16068,6 +16221,7 @@ function renderInspector() {
   const sceneSectionRuntimeContext = sceneSectionEntry?.runtimeContext ?? null;
   const sceneSectionProvenance = sceneSectionEntry?.provenance ?? null;
   const sceneSectionGamePartSummary = sceneSectionEntry?.gamePartSummary ?? null;
+  const sceneSectionState = sceneSectionEntry?.stateSummary ?? null;
   const sceneSectionOverrideCandidate = sceneSectionRuntimeContext?.overrideCandidate ?? null;
   const runtimeReferenceMatch = donorAsset
     ? getRuntimeReferenceScreens().find((entry) => entry.evidenceId === donorAsset.evidenceId) ?? null
@@ -16140,6 +16294,8 @@ function renderInspector() {
             ${sceneKitContext.sectionId ? `<button type="button" class="copy-button" data-focus-scene-section-assets-id="${escapeAttribute(sceneKitContext.sectionId)}">Show Section Assets</button>` : ""}
             ${sceneKitContext.sectionId ? `<button type="button" class="copy-button" data-frame-scene-section-id="${escapeAttribute(sceneKitContext.sectionId)}">Frame Section</button>` : ""}
             ${sceneKitContext.sectionId ? `<button type="button" class="copy-button" data-center-scene-section-id="${escapeAttribute(sceneKitContext.sectionId)}">Center Section</button>` : ""}
+            ${sceneKitContext.sectionId ? `<button type="button" class="copy-button" data-toggle-scene-section-visibility-id="${escapeAttribute(sceneKitContext.sectionId)}">${escapeHtml(sceneSectionState?.visibilityButtonLabel ?? "Hide Section")}</button>` : ""}
+            ${sceneKitContext.sectionId ? `<button type="button" class="copy-button" data-toggle-scene-section-lock-id="${escapeAttribute(sceneKitContext.sectionId)}">${escapeHtml(sceneSectionState?.lockButtonLabel ?? "Lock Section")}</button>` : ""}
             ${sceneKitContext.sectionId && sceneSectionGamePartSummary?.sceneKitSummary?.layoutStyle ? `<button type="button" class="copy-button" data-reset-scene-section-layout-id="${escapeAttribute(sceneKitContext.sectionId)}">Reset Section Layout</button>` : ""}
             ${sceneKitContext.sectionId && (sceneSectionRuntimeContext?.preferredWorkbenchEntry || sceneSectionRuntimeContext?.preferredReference) ? `<button type="button" class="copy-button" data-open-scene-section-runtime-id="${escapeAttribute(sceneKitContext.sectionId)}">Open Runtime Group</button>` : ""}
             ${sceneKitContext.sectionId && sceneSectionProvenance?.evidenceIds?.length ? `<button type="button" class="copy-button" data-focus-scene-section-evidence-id="${escapeAttribute(sceneKitContext.sectionId)}">Show Section Evidence</button>` : ""}
@@ -16162,6 +16318,8 @@ function renderInspector() {
           <span>${escapeHtml(sceneKitContext.groupSummary.layerLabel)}</span>
           <span>${escapeHtml(sceneKitContext.groupSummary.layoutStyle)} layout</span>
           <span>${sceneKitContext.memberObjects.length} object${sceneKitContext.memberObjects.length === 1 ? "" : "s"}</span>
+          ${sceneSectionState?.visibilityStatusLabel ? `<span>${escapeHtml(sceneSectionState.visibilityStatusLabel)}</span>` : ""}
+          ${sceneSectionState?.lockStatusLabel ? `<span>${escapeHtml(sceneSectionState.lockStatusLabel)}</span>` : ""}
           ${sceneSectionRuntimeContext?.statusLabel ? `<span>${escapeHtml(sceneSectionRuntimeContext.statusLabel)}</span>` : ""}
           ${sceneSectionOverrideCandidate?.eligible ? `<span>override-ready</span>` : sceneSectionOverrideCandidate?.activeOverride ? `<span>override-active</span>` : ""}
           ${sceneSectionProvenance?.sourceCategories?.map((entry) => `<span>${escapeHtml(entry)}</span>`).join("") ?? ""}
@@ -16641,6 +16799,7 @@ function renderRuntimeInspector() {
   const selectedSceneSectionRuntimeContext = selectedSceneSectionEntry?.runtimeContext ?? null;
   const selectedSceneSectionProvenance = selectedSceneSectionEntry?.provenance ?? null;
   const selectedSceneSectionGamePartSummary = selectedSceneSectionEntry?.gamePartSummary ?? null;
+  const selectedSceneSectionState = selectedSceneSectionEntry?.stateSummary ?? null;
   const selectedSceneSectionOverrideCandidate = selectedSceneSectionRuntimeContext?.overrideCandidate ?? null;
   const runtimeOverrideCandidate = getRuntimeOverrideCandidate();
   const runtimeOverrideStatus = getRuntimeOverrideStatus();
@@ -16751,6 +16910,15 @@ function renderRuntimeInspector() {
             ? `${selectedSceneSectionGamePartSummary.readinessLabel}${selectedSceneSectionGamePartSummary.sceneKitSummary?.label ? ` · ${selectedSceneSectionGamePartSummary.sceneKitSummary.label}` : ""}`
             : "The runtime workbench can only summarize one grouped game-part kit when the current Compose selection belongs to an imported scene section.")}</small>
         </div>
+        <div class="detail-card ${selectedSceneSectionState ? "is-positive" : "is-alert"}">
+          <span>Section Edit State</span>
+          <strong>${escapeHtml(selectedSceneSectionState
+            ? `${selectedSceneSectionState.visibilityStatusLabel} · ${selectedSceneSectionState.lockStatusLabel}`
+            : "Select one imported scene section member in Compose")}</strong>
+          <small>${escapeHtml(selectedSceneSectionState
+            ? `${selectedSceneSectionState.visibilityButtonLabel} and ${selectedSceneSectionState.lockButtonLabel} now work at grouped section level.`
+            : "Section-level visibility and lock state appear here when the current Compose selection belongs to an imported scene section.")}</small>
+        </div>
       </div>
       ${selectedSceneKitContext?.sectionId ? `
         <div class="tree-row">
@@ -16763,6 +16931,8 @@ function renderRuntimeInspector() {
             <button type="button" class="copy-button" data-focus-scene-section-assets-id="${escapeAttribute(selectedSceneKitContext.sectionId)}">Show Section Assets</button>
             <button type="button" class="copy-button" data-frame-scene-section-id="${escapeAttribute(selectedSceneKitContext.sectionId)}">Frame Section</button>
             <button type="button" class="copy-button" data-center-scene-section-id="${escapeAttribute(selectedSceneKitContext.sectionId)}">Center Section</button>
+            <button type="button" class="copy-button" data-toggle-scene-section-visibility-id="${escapeAttribute(selectedSceneKitContext.sectionId)}">${escapeHtml(selectedSceneSectionState?.visibilityButtonLabel ?? "Hide Section")}</button>
+            <button type="button" class="copy-button" data-toggle-scene-section-lock-id="${escapeAttribute(selectedSceneKitContext.sectionId)}">${escapeHtml(selectedSceneSectionState?.lockButtonLabel ?? "Lock Section")}</button>
             ${selectedSceneSectionGamePartSummary?.sceneKitSummary?.layoutStyle ? `<button type="button" class="copy-button" data-reset-scene-section-layout-id="${escapeAttribute(selectedSceneKitContext.sectionId)}">Reset Section Layout</button>` : ""}
             ${selectedSceneSectionProvenance?.evidenceIds?.length ? `<button type="button" class="copy-button" data-focus-scene-section-evidence-id="${escapeAttribute(selectedSceneKitContext.sectionId)}">Show Section Evidence</button>` : ""}
             ${selectedSceneSectionRuntimeContext?.preferredWorkbenchEntry || selectedSceneSectionRuntimeContext?.preferredReference ? `<button type="button" class="copy-button" data-open-scene-section-runtime-id="${escapeAttribute(selectedSceneKitContext.sectionId)}">Open Runtime Group</button>` : ""}
