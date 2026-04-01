@@ -2999,6 +2999,50 @@ async function createRuntimeOverrideFromCurrentBridge() {
   }
 }
 
+async function createRuntimeOverrideForSource(sourceUrl, options = {}) {
+  const canonicalSourceUrl = typeof sourceUrl === "string" && sourceUrl.length > 0
+    ? (getRuntimeCanonicalSourceUrl(sourceUrl) ?? sourceUrl)
+    : null;
+  if (!canonicalSourceUrl) {
+    setPreviewStatus("No grounded runtime source is available for this grouped runtime override.");
+    return;
+  }
+
+  setRuntimeWorkbenchSource(canonicalSourceUrl, { render: false });
+  const candidate = getRuntimeOverrideCandidate({
+    sourceUrl: canonicalSourceUrl,
+    donorAsset: options.donorAsset
+  });
+  if (!candidate.eligible || !candidate.runtimeSourceUrl || !candidate.donorAsset) {
+    renderAll();
+    setPreviewStatus(candidate.note);
+    return;
+  }
+
+  const api = window.myideApi;
+  if (!api || typeof api.createRuntimeOverride !== "function") {
+    renderAll();
+    setPreviewStatus("Runtime override creation is not available in this renderer session.");
+    return;
+  }
+
+  const status = await api.createRuntimeOverride(
+    state.selectedProjectId,
+    candidate.runtimeSourceUrl,
+    candidate.donorAsset.assetId
+  );
+  state.runtimeUi.overrideStatus = status ?? null;
+  if (state.bundle) {
+    state.bundle.runtimeOverrides = status ?? null;
+  }
+  renderAll();
+  setPreviewStatus(options.statusMessage
+    ?? `Created a project-local runtime override for ${candidate.runtimeRelativePath ?? candidate.runtimeSourceUrl} from donor asset ${candidate.donorAsset.assetId}. Reloading the embedded runtime now; use Debug Host again when you want the strongest override-hit confirmation.`);
+  if (state.runtimeUi.launched) {
+    await handleRuntimeReload();
+  }
+}
+
 async function clearRuntimeOverrideForCurrentCandidate() {
   const candidate = getRuntimeOverrideCandidate();
   if (!candidate.runtimeSourceUrl) {
@@ -3019,6 +3063,46 @@ async function clearRuntimeOverrideForCurrentCandidate() {
   }
   renderAll();
   setPreviewStatus(`Cleared the project-local runtime override for ${candidate.runtimeRelativePath ?? candidate.runtimeSourceUrl}. Reloading the embedded runtime now; re-open Debug Host if you want to confirm the clean runtime path again.`);
+  if (state.runtimeUi.launched) {
+    await handleRuntimeReload();
+  }
+}
+
+async function clearRuntimeOverrideForSource(sourceUrl, options = {}) {
+  const canonicalSourceUrl = typeof sourceUrl === "string" && sourceUrl.length > 0
+    ? (getRuntimeCanonicalSourceUrl(sourceUrl) ?? sourceUrl)
+    : null;
+  if (!canonicalSourceUrl) {
+    setPreviewStatus("No grounded runtime override target is available for this grouped runtime source.");
+    return;
+  }
+
+  setRuntimeWorkbenchSource(canonicalSourceUrl, { render: false });
+  const candidate = getRuntimeOverrideCandidate({
+    sourceUrl: canonicalSourceUrl,
+    donorAsset: options.donorAsset
+  });
+  if (!candidate.runtimeSourceUrl) {
+    renderAll();
+    setPreviewStatus("No grounded runtime override target is selected for this grouped runtime source.");
+    return;
+  }
+
+  const api = window.myideApi;
+  if (!api || typeof api.clearRuntimeOverride !== "function") {
+    renderAll();
+    setPreviewStatus("Runtime override removal is not available in this renderer session.");
+    return;
+  }
+
+  const status = await api.clearRuntimeOverride(state.selectedProjectId, candidate.runtimeSourceUrl);
+  state.runtimeUi.overrideStatus = status ?? null;
+  if (state.bundle) {
+    state.bundle.runtimeOverrides = status ?? null;
+  }
+  renderAll();
+  setPreviewStatus(options.statusMessage
+    ?? `Cleared the project-local runtime override for ${candidate.runtimeRelativePath ?? candidate.runtimeSourceUrl}. Reloading the embedded runtime now; re-open Debug Host if you want to confirm the clean runtime path again.`);
   if (state.runtimeUi.launched) {
     await handleRuntimeReload();
   }
@@ -9153,6 +9237,12 @@ function getSceneSectionRuntimeContext(sectionEntry, options = {}) {
     ? sectionEntry.memberObjects.filter((entry) => getDonorAssetForObject(entry)?.assetId === primaryDonorAsset.assetId)
     : [];
   const primarySceneObject = matchingMemberObjects[0] ?? sectionEntry.memberObjects[0] ?? null;
+  const overrideCandidate = preferredWorkbenchEntry?.sourceUrl
+    ? getRuntimeOverrideCandidate({
+        sourceUrl: preferredWorkbenchEntry.sourceUrl,
+        donorAsset: primaryDonorAsset
+      })
+    : null;
   const statusLabel = preferredWorkbenchEntry
     ? preferredWorkbenchEntry.requestBacked
       ? "request-backed runtime source"
@@ -9176,6 +9266,7 @@ function getSceneSectionRuntimeContext(sectionEntry, options = {}) {
     donorAsset: primaryDonorAsset,
     evidenceItem: primaryEvidenceItem,
     sceneObject: primarySceneObject,
+    overrideCandidate,
     statusLabel,
     note
   };
@@ -9336,18 +9427,21 @@ function getRuntimeWorkflowBridge() {
   };
 }
 
-function getRuntimeOverrideCandidate() {
-  const workflowBridge = getRuntimeWorkflowBridge();
-  const selectedWorkbenchSourceUrl = getRuntimeWorkbenchSourceUrl();
-  const donorAsset = selectedWorkbenchSourceUrl
-    ? matchDonorAssetFromRuntimeSource(
+function getRuntimeOverrideCandidate(options = {}) {
+  const selectedWorkbenchSourceUrl = options.sourceUrl
+    ? (getRuntimeCanonicalSourceUrl(options.sourceUrl) ?? options.sourceUrl)
+    : getRuntimeWorkbenchSourceUrl();
+  const workflowBridge = selectedWorkbenchSourceUrl ? null : getRuntimeWorkflowBridge();
+  const donorAsset = options.donorAsset
+    ?? (selectedWorkbenchSourceUrl
+    ? (matchDonorAssetFromRuntimeSource(
         selectedWorkbenchSourceUrl,
         getRuntimeResourceRelativePath(selectedWorkbenchSourceUrl),
         state.runtimeUi.debugHost?.candidateRuntimeSourceUrl === selectedWorkbenchSourceUrl
           ? state.runtimeUi.debugHost?.overrideDonorAssetId
           : null
-      ) ?? workflowBridge.donorAsset
-    : workflowBridge.donorAsset;
+      ) ?? workflowBridge?.donorAsset ?? null)
+    : workflowBridge?.donorAsset ?? null);
   const preferredFileType = donorAsset?.fileType ?? null;
   const pickedRuntimeAsset = (() => {
     if (selectedWorkbenchSourceUrl) {
@@ -10257,6 +10351,46 @@ function openSceneSectionRuntimeContext(sectionId) {
   );
 }
 
+async function createSceneSectionRuntimeOverride(sectionId) {
+  const sectionEntry = getSceneSectionEntryById(sectionId);
+  if (!sectionEntry) {
+    setPreviewStatus("Could not find that scene section in the current internal scene.");
+    return;
+  }
+
+  const runtimeContext = sectionEntry.runtimeContext;
+  if (!runtimeContext?.preferredWorkbenchEntry?.sourceUrl) {
+    setPreviewStatus(`Scene section ${sectionEntry.label} does not have a grounded runtime source for override creation yet.`);
+    return;
+  }
+
+  await createRuntimeOverrideForSource(runtimeContext.preferredWorkbenchEntry.sourceUrl, {
+    donorAsset: runtimeContext.overrideCandidate?.donorAsset ?? runtimeContext.donorAsset ?? null,
+    statusMessage: runtimeContext.overrideCandidate?.eligible
+      ? `Created a project-local runtime override for scene section ${sectionEntry.label} through ${runtimeContext.preferredWorkbenchEntry.relativePath ?? runtimeContext.preferredWorkbenchEntry.sourceUrl}.`
+      : runtimeContext.overrideCandidate?.note ?? `Scene section ${sectionEntry.label} does not yet have an eligible runtime override candidate.`
+  });
+}
+
+async function clearSceneSectionRuntimeOverride(sectionId) {
+  const sectionEntry = getSceneSectionEntryById(sectionId);
+  if (!sectionEntry) {
+    setPreviewStatus("Could not find that scene section in the current internal scene.");
+    return;
+  }
+
+  const runtimeContext = sectionEntry.runtimeContext;
+  if (!runtimeContext?.preferredWorkbenchEntry?.sourceUrl) {
+    setPreviewStatus(`Scene section ${sectionEntry.label} does not have a grounded runtime source for override cleanup yet.`);
+    return;
+  }
+
+  await clearRuntimeOverrideForSource(runtimeContext.preferredWorkbenchEntry.sourceUrl, {
+    donorAsset: runtimeContext.overrideCandidate?.donorAsset ?? runtimeContext.donorAsset ?? null,
+    statusMessage: `Cleared the project-local runtime override for scene section ${sectionEntry.label}.`
+  });
+}
+
 function selectObjectFromEvidence(objectId) {
   focusSceneObjectInWorkflow(objectId, {
     statusMessage: `Selected ${getEditableObjectById(objectId)?.displayName ?? objectId} from donor evidence linkage.`
@@ -10306,7 +10440,7 @@ function handleNavigationClick(event) {
     }
     if (action === "create-override") {
       renderAll();
-      void createRuntimeOverrideForCurrentCandidate();
+      void createRuntimeOverrideFromCurrentBridge();
       return true;
     }
     if (action === "clear-override") {
@@ -10371,6 +10505,20 @@ function handleNavigationClick(event) {
   if (openSceneSectionRuntimeButton instanceof HTMLElement && openSceneSectionRuntimeButton.dataset.openSceneSectionRuntimeId) {
     event.preventDefault();
     openSceneSectionRuntimeContext(openSceneSectionRuntimeButton.dataset.openSceneSectionRuntimeId);
+    return true;
+  }
+
+  const createSceneSectionOverrideButton = target.closest("[data-create-scene-section-override-id]");
+  if (createSceneSectionOverrideButton instanceof HTMLElement && createSceneSectionOverrideButton.dataset.createSceneSectionOverrideId) {
+    event.preventDefault();
+    void createSceneSectionRuntimeOverride(createSceneSectionOverrideButton.dataset.createSceneSectionOverrideId);
+    return true;
+  }
+
+  const clearSceneSectionOverrideButton = target.closest("[data-clear-scene-section-override-id]");
+  if (clearSceneSectionOverrideButton instanceof HTMLElement && clearSceneSectionOverrideButton.dataset.clearSceneSectionOverrideId) {
+    event.preventDefault();
+    void clearSceneSectionRuntimeOverride(clearSceneSectionOverrideButton.dataset.clearSceneSectionOverrideId);
     return true;
   }
 
@@ -13366,6 +13514,7 @@ function renderSceneExplorer() {
       <div class="detail-grid donor-linkage-grid">
         ${sceneSectionEntries.map((entry) => {
           const runtimeContext = entry.runtimeContext;
+          const overrideCandidate = runtimeContext?.overrideCandidate ?? null;
           const runtimeSummary = runtimeContext?.preferredWorkbenchEntry
             ? `Runtime-linked through ${runtimeContext.preferredWorkbenchEntry.relativePath ?? runtimeContext.preferredWorkbenchEntry.sourceUrl}.`
             : runtimeContext?.preferredReference
@@ -13379,11 +13528,18 @@ function renderSceneExplorer() {
               <div class="chip-row donor-asset-summary-chips">
                 ${entry.layerLabels.map((label) => `<span>${escapeHtml(label)}</span>`).join("")}
                 ${runtimeContext?.statusLabel ? `<span>${escapeHtml(runtimeContext.statusLabel)}</span>` : ""}
+                ${overrideCandidate?.eligible ? `<span>override-ready</span>` : overrideCandidate?.activeOverride ? `<span>override-active</span>` : ""}
               </div>
               <div class="evidence-actions">
                 <button type="button" class="copy-button" data-focus-scene-section-id="${escapeAttribute(entry.id)}">Select Section</button>
                 ${runtimeContext?.preferredWorkbenchEntry || runtimeContext?.preferredReference
                   ? `<button type="button" class="copy-button" data-open-scene-section-runtime-id="${escapeAttribute(entry.id)}">Open Runtime Group</button>`
+                  : ""}
+                ${overrideCandidate?.eligible
+                  ? `<button type="button" class="copy-button" data-create-scene-section-override-id="${escapeAttribute(entry.id)}">Create Override</button>`
+                  : ""}
+                ${overrideCandidate?.activeOverride
+                  ? `<button type="button" class="copy-button" data-clear-scene-section-override-id="${escapeAttribute(entry.id)}">Clear Override</button>`
                   : ""}
                 ${runtimeContext?.donorAsset
                   ? `<button type="button" class="copy-button" data-focus-donor-asset-id="${escapeAttribute(runtimeContext.donorAsset.assetId)}">Focus Asset</button>`
@@ -15230,6 +15386,7 @@ function renderInspector() {
     ? getSceneSectionEntryById(sceneKitContext.sectionId)
     : null;
   const sceneSectionRuntimeContext = sceneSectionEntry?.runtimeContext ?? null;
+  const sceneSectionOverrideCandidate = sceneSectionRuntimeContext?.overrideCandidate ?? null;
   const runtimeReferenceMatch = donorAsset
     ? getRuntimeReferenceScreens().find((entry) => entry.evidenceId === donorAsset.evidenceId) ?? null
     : null;
@@ -15299,6 +15456,8 @@ function renderInspector() {
             <button type="button" class="copy-button" data-focus-donor-asset-group-key="${escapeAttribute(sceneKitContext.groupKey)}">Show Scene Kit In Palette</button>
             ${sceneKitContext.sectionId ? `<button type="button" class="copy-button" data-focus-scene-section-id="${escapeAttribute(sceneKitContext.sectionId)}">Select Scene Section</button>` : ""}
             ${sceneKitContext.sectionId && (sceneSectionRuntimeContext?.preferredWorkbenchEntry || sceneSectionRuntimeContext?.preferredReference) ? `<button type="button" class="copy-button" data-open-scene-section-runtime-id="${escapeAttribute(sceneKitContext.sectionId)}">Open Runtime Group</button>` : ""}
+            ${sceneKitContext.sectionId && sceneSectionOverrideCandidate?.eligible ? `<button type="button" class="copy-button" data-create-scene-section-override-id="${escapeAttribute(sceneKitContext.sectionId)}">Create Override</button>` : ""}
+            ${sceneKitContext.sectionId && sceneSectionOverrideCandidate?.activeOverride ? `<button type="button" class="copy-button" data-clear-scene-section-override-id="${escapeAttribute(sceneKitContext.sectionId)}">Clear Override</button>` : ""}
             <button type="button" class="copy-button" data-focus-scene-object-ids="${escapeAttribute(JSON.stringify(sceneKitContext.memberObjects.map((entry) => entry.id)))}">Select This Scene Kit</button>
             ${renderCopyButton(sceneKitContext.memberObjects.map((entry) => entry.id).join("\n"), `scene kit object ids for ${sceneKitContext.groupSummary.label}`, "Copy Kit IDs")}
           </div>
@@ -15310,6 +15469,7 @@ function renderInspector() {
           <span>${escapeHtml(sceneKitContext.groupSummary.layoutStyle)} layout</span>
           <span>${sceneKitContext.memberObjects.length} object${sceneKitContext.memberObjects.length === 1 ? "" : "s"}</span>
           ${sceneSectionRuntimeContext?.statusLabel ? `<span>${escapeHtml(sceneSectionRuntimeContext.statusLabel)}</span>` : ""}
+          ${sceneSectionOverrideCandidate?.eligible ? `<span>override-ready</span>` : sceneSectionOverrideCandidate?.activeOverride ? `<span>override-active</span>` : ""}
         </div>
         <div class="detail-grid donor-linkage-grid">
           <div class="detail-card">
@@ -15345,6 +15505,11 @@ function renderInspector() {
               : sceneSectionRuntimeContext?.preferredReference
                 ? sceneSectionRuntimeContext.preferredReference.note
                 : "No runtime-facing donor bridge has been recorded for this imported section yet.")}</small>
+          </div>
+          <div class="detail-card ${sceneSectionOverrideCandidate?.eligible || sceneSectionOverrideCandidate?.activeOverride ? "is-positive" : "is-alert"}">
+            <span>Section Override</span>
+            <strong>${escapeHtml(sceneSectionOverrideCandidate?.activeOverride?.overrideRepoRelativePath ?? (sceneSectionOverrideCandidate?.eligible ? "Eligible grouped override" : "Override not grounded for this section"))}</strong>
+            <small>${escapeHtml(sceneSectionOverrideCandidate?.note ?? "No grouped runtime override candidate is available for this imported section yet.")}</small>
           </div>
         </div>
       </div>
@@ -15762,6 +15927,7 @@ function renderRuntimeInspector() {
   const selectedSceneSectionRuntimeContext = selectedSceneKitContext?.sectionId
     ? getSceneSectionEntryById(selectedSceneKitContext.sectionId)?.runtimeContext ?? null
     : null;
+  const selectedSceneSectionOverrideCandidate = selectedSceneSectionRuntimeContext?.overrideCandidate ?? null;
   const runtimeOverrideCandidate = getRuntimeOverrideCandidate();
   const runtimeOverrideStatus = getRuntimeOverrideStatus();
   const runtimeMirrorStatus = getRuntimeMirrorStatus();
@@ -15849,6 +16015,11 @@ function renderRuntimeInspector() {
             : selectedSceneSectionRuntimeContext?.preferredReference
               ? `Supported by ${selectedSceneSectionRuntimeContext.preferredReference.label}.`
               : "Switch back to Compose and select one imported scene section member to keep the runtime workbench anchored to that grouped game part.")}</small>
+        </div>
+        <div class="detail-card ${selectedSceneSectionOverrideCandidate?.eligible || selectedSceneSectionOverrideCandidate?.activeOverride ? "is-positive" : ""}">
+          <span>Section Override Candidate</span>
+          <strong>${escapeHtml(selectedSceneSectionOverrideCandidate?.activeOverride?.overrideRepoRelativePath ?? (selectedSceneSectionOverrideCandidate?.eligible ? "Grouped override ready" : "No grouped override ready"))}</strong>
+          <small>${escapeHtml(selectedSceneSectionOverrideCandidate?.note ?? "Select an imported scene section member in Compose to see whether that grouped game part has a grounded override candidate.")}</small>
         </div>
       </div>
     `

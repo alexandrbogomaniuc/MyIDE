@@ -21,6 +21,7 @@ Electron desktop shell for MyIDE.
 - Once a harvested scene kit is imported, selected donor-backed objects can now expose that kit membership in the inspector and jump back to the donor scene kit or reselect the current imported kit members in one Compose-facing action.
 - Compose now also exposes those imported donor scene kits as named scene sections in the scene explorer so a tester can reselect a whole imported section without hunting through a flat object list.
 - Those named scene sections now expose the strongest grounded runtime link for that grouped donor-backed part, including **Open Runtime Group** actions that switch the Runtime workbench to the best matching runtime source when one exists.
+- Those runtime-linked scene sections now also expose grouped override state, so the scene explorer and selected-object inspector can show whether a whole imported section has an eligible grouped override candidate or an already-active override.
 - Support a simple workspace rescan so newly added project folders can appear after discovery refreshes the derived registry.
 - Show the selected project's donor, target/resulting game, lifecycle stage summary, phase, verification status, folder path, and notes.
 - Split the main workbench into a runtime-first `Runtime` mode and a bounded secondary `Compose` mode for `project_001`.

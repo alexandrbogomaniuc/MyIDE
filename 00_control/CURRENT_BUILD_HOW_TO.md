@@ -54,6 +54,7 @@ Recommended rule:
 5. The donor panel now surfaces the harvest manifest, donor-package manifest, and donor-package graph summary so you can see how many referenced URLs, bounded asset families, graph nodes, graph edges, and unresolved entries were captured.
 6. Downloaded package-graph images now join the donor asset palette automatically, grouped by harvested runtime/package scene kit, so you can drag one image at a time or use **Import Scene Kit To Compose** for a whole captured family of editable donor-backed objects instead of keeping them stuck in read-only capture files.
 7. Imported scene sections now show their strongest grounded runtime link too. Use **Open Runtime Group** from the Scene Sections banner or the selected-object inspector when you want one grouped Compose section to jump back into the Runtime workbench.
+8. When a scene section has a grounded runtime-backed static candidate, the same grouped section now shows **Create Override** / **Clear Override** actions so you can keep the override flow attached to that higher-level imported game part instead of hunting in the flat runtime asset list first.
 6. This is still only a bounded donor-package slice. It does not yet recurse through the full runtime package or expose full game logic as editable objects.
 
 ## 3. Runtime Mode Is The Primary Workflow
