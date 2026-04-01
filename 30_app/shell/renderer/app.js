@@ -9345,6 +9345,47 @@ function getSceneSectionProvenanceSummary(sectionEntry) {
   };
 }
 
+function getSceneSectionGamePartSummary(sectionEntry) {
+  if (!sectionEntry) {
+    return null;
+  }
+
+  const provenance = sectionEntry.provenance ?? getSceneSectionProvenanceSummary(sectionEntry);
+  const runtimeContext = sectionEntry.runtimeContext ?? getSceneSectionRuntimeContext(sectionEntry);
+  const sceneKitSummary = provenance?.primaryGroupSummary ?? null;
+  const roleLabel = sceneKitSummary?.sceneKitKind
+    ? `${labelizeStatus(sceneKitSummary.sceneKitKind)} game-part kit`
+    : "Mixed game-part kit";
+  const readinessLabels = [
+    provenance?.donorAssets?.length ? "donor-backed" : null,
+    provenance?.evidenceIds?.length ? "evidence-backed" : null,
+    runtimeContext?.preferredWorkbenchEntry ? "runtime-linked" : runtimeContext?.preferredReference ? "runtime-supported" : null,
+    runtimeContext?.overrideCandidate?.activeOverride ? "override-active" : runtimeContext?.overrideCandidate?.eligible ? "override-ready" : null
+  ].filter(Boolean);
+  const readinessLabel = readinessLabels.length > 0 ? readinessLabels.join(" · ") : "grouped visuals only";
+  const summaryText = [
+    `Game-part section: ${sectionEntry.label}`,
+    `Role: ${roleLabel}`,
+    `Readiness: ${readinessLabel}`,
+    `Editable objects: ${sectionEntry.count}`,
+    `Donor assets: ${provenance?.donorAssets?.length ?? 0}`,
+    `Evidence refs: ${provenance?.evidenceIds?.length ?? 0}`,
+    runtimeContext?.preferredWorkbenchEntry
+      ? `Runtime link: ${runtimeContext.preferredWorkbenchEntry.relativePath ?? runtimeContext.preferredWorkbenchEntry.sourceUrl}`
+      : runtimeContext?.preferredReference
+        ? `Runtime support: ${runtimeContext.preferredReference.label}`
+        : "Runtime link: none"
+  ].join("\n");
+
+  return {
+    sceneKitSummary,
+    roleLabel,
+    readinessLabel,
+    readinessLabels,
+    summaryText
+  };
+}
+
 function getSceneSectionEntries(editorData = state.editorData) {
   if (!editorData || !Array.isArray(editorData.objects)) {
     return [];
@@ -9370,6 +9411,7 @@ function getSceneSectionEntries(editorData = state.editorData) {
       return {
         ...baseEntry,
         provenance: getSceneSectionProvenanceSummary(baseEntry),
+        gamePartSummary: getSceneSectionGamePartSummary(baseEntry),
         runtimeContext: getSceneSectionRuntimeContext(baseEntry, {
           runtimeWorkbenchEntries,
           runtimeReferenceScreens
@@ -10516,6 +10558,32 @@ function focusSceneSectionEvidence(sectionId) {
   });
 }
 
+function focusSceneSectionAssets(sectionId) {
+  const sectionEntry = getSceneSectionEntryById(sectionId);
+  if (!sectionEntry) {
+    setPreviewStatus("Could not find that scene section in the current internal scene.");
+    return;
+  }
+
+  const provenance = sectionEntry.provenance ?? null;
+  if (provenance?.primaryGroupKey) {
+    focusDonorAssetGroup(provenance.primaryGroupKey, {
+      statusMessage: `Showing donor assets for scene section ${sectionEntry.label} in the donor asset palette.`
+    });
+    return;
+  }
+
+  const firstAssetId = provenance?.donorAssetIds?.[0] ?? null;
+  if (firstAssetId) {
+    focusDonorAssetCard(firstAssetId, {
+      statusMessage: `Showing donor assets for scene section ${sectionEntry.label} in the donor asset palette.`
+    });
+    return;
+  }
+
+  setPreviewStatus(`Scene section ${sectionEntry.label} does not have any grounded donor assets yet.`);
+}
+
 function openSceneSectionRuntimeContext(sectionId) {
   const sectionEntry = getSceneSectionEntryById(sectionId);
   if (!sectionEntry) {
@@ -10689,6 +10757,13 @@ function handleNavigationClick(event) {
         ? `Selected ${sectionEntry.count} editable object${sectionEntry.count === 1 ? "" : "s"} in scene section ${sectionEntry.label}.${sectionEntry.runtimeContext?.preferredWorkbenchEntry ? ` Runtime-linked source: ${sectionEntry.runtimeContext.preferredWorkbenchEntry.relativePath ?? sectionEntry.runtimeContext.preferredWorkbenchEntry.sourceUrl}.` : sectionEntry.runtimeContext?.preferredReference ? ` Supporting runtime evidence: ${sectionEntry.runtimeContext.preferredReference.label}.` : ""}`
         : null
     });
+    return true;
+  }
+
+  const focusSceneSectionAssetsButton = target.closest("[data-focus-scene-section-assets-id]");
+  if (focusSceneSectionAssetsButton instanceof HTMLElement && focusSceneSectionAssetsButton.dataset.focusSceneSectionAssetsId) {
+    event.preventDefault();
+    focusSceneSectionAssets(focusSceneSectionAssetsButton.dataset.focusSceneSectionAssetsId);
     return true;
   }
 
@@ -13720,13 +13795,14 @@ function renderSceneExplorer() {
   const sceneSectionEntries = getSceneSectionEntries(editorData);
   const sceneSectionBanner = sceneSectionEntries.length > 0 ? `
     <div class="tree-row isolate-banner">
-      <strong>Scene Sections</strong>
-      <span>Imported donor scene kits now appear as named editable sections, and each section now carries its strongest grounded runtime link when one exists.</span>
+      <strong>Scene Sections · Game-Part Kits</strong>
+      <span>Imported donor scene kits now appear as named editable sections, and each section now carries grouped donor provenance, whole-section controls, and the strongest grounded runtime link when one exists.</span>
       <div class="detail-grid donor-linkage-grid">
         ${sceneSectionEntries.map((entry) => {
           const runtimeContext = entry.runtimeContext;
           const overrideCandidate = runtimeContext?.overrideCandidate ?? null;
           const provenance = entry.provenance;
+          const gamePartSummary = entry.gamePartSummary;
           const runtimeSummary = runtimeContext?.preferredWorkbenchEntry
             ? `Runtime-linked through ${runtimeContext.preferredWorkbenchEntry.relativePath ?? runtimeContext.preferredWorkbenchEntry.sourceUrl}.`
             : runtimeContext?.preferredReference
@@ -13742,12 +13818,15 @@ function renderSceneExplorer() {
                 ${runtimeContext?.statusLabel ? `<span>${escapeHtml(runtimeContext.statusLabel)}</span>` : ""}
                 ${overrideCandidate?.eligible ? `<span>override-ready</span>` : overrideCandidate?.activeOverride ? `<span>override-active</span>` : ""}
                 ${provenance?.primaryGroupSummary ? `<span>${escapeHtml(provenance.primaryGroupSummary.importLabel)}</span>` : ""}
+                ${gamePartSummary?.roleLabel ? `<span>${escapeHtml(gamePartSummary.roleLabel)}</span>` : ""}
               </div>
               ${provenance ? `
                 <small>${escapeHtml(`${provenance.donorAssets.length} donor asset${provenance.donorAssets.length === 1 ? "" : "s"} · ${provenance.evidenceIds.length} evidence ref${provenance.evidenceIds.length === 1 ? "" : "s"} · ${provenance.sourceCategories.join(", ") || "source unknown"}`)}</small>
               ` : ""}
+              ${gamePartSummary ? `<small>${escapeHtml(gamePartSummary.readinessLabel)}</small>` : ""}
               <div class="evidence-actions">
                 <button type="button" class="copy-button" data-focus-scene-section-id="${escapeAttribute(entry.id)}">Select Section</button>
+                <button type="button" class="copy-button" data-focus-scene-section-assets-id="${escapeAttribute(entry.id)}">Show Section Assets</button>
                 ${runtimeContext?.preferredWorkbenchEntry || runtimeContext?.preferredReference
                   ? `<button type="button" class="copy-button" data-open-scene-section-runtime-id="${escapeAttribute(entry.id)}">Open Runtime Group</button>`
                   : ""}
@@ -13770,6 +13849,7 @@ function renderSceneExplorer() {
                 ${provenance?.primaryGroupKey
                   ? `<button type="button" class="copy-button" data-focus-donor-asset-group-key="${escapeAttribute(provenance.primaryGroupKey)}">Show Scene Kit</button>`
                   : ""}
+                ${gamePartSummary?.summaryText ? renderCopyButton(gamePartSummary.summaryText, `game-part summary for ${entry.label}`, "Copy Game-Part Summary") : ""}
                 ${provenance?.donorAssetIds?.length ? renderCopyButton(provenance.donorAssetIds.join("\n"), `donor asset ids for ${entry.label}`, "Copy Asset IDs") : ""}
                 ${provenance?.evidenceIds?.length ? renderCopyButton(provenance.evidenceIds.join("\n"), `evidence refs for ${entry.label}`, "Copy Evidence Refs") : ""}
                 ${provenance?.summaryText ? renderCopyButton(provenance.summaryText, `reconstruction kit summary for ${entry.label}`, "Copy Kit Summary") : ""}
@@ -15613,6 +15693,7 @@ function renderInspector() {
     : null;
   const sceneSectionRuntimeContext = sceneSectionEntry?.runtimeContext ?? null;
   const sceneSectionProvenance = sceneSectionEntry?.provenance ?? null;
+  const sceneSectionGamePartSummary = sceneSectionEntry?.gamePartSummary ?? null;
   const sceneSectionOverrideCandidate = sceneSectionRuntimeContext?.overrideCandidate ?? null;
   const runtimeReferenceMatch = donorAsset
     ? getRuntimeReferenceScreens().find((entry) => entry.evidenceId === donorAsset.evidenceId) ?? null
@@ -15682,6 +15763,7 @@ function renderInspector() {
           <div class="evidence-actions">
             <button type="button" class="copy-button" data-focus-donor-asset-group-key="${escapeAttribute(sceneKitContext.groupKey)}">Show Scene Kit In Palette</button>
             ${sceneKitContext.sectionId ? `<button type="button" class="copy-button" data-focus-scene-section-id="${escapeAttribute(sceneKitContext.sectionId)}">Select Scene Section</button>` : ""}
+            ${sceneKitContext.sectionId ? `<button type="button" class="copy-button" data-focus-scene-section-assets-id="${escapeAttribute(sceneKitContext.sectionId)}">Show Section Assets</button>` : ""}
             ${sceneKitContext.sectionId ? `<button type="button" class="copy-button" data-frame-scene-section-id="${escapeAttribute(sceneKitContext.sectionId)}">Frame Section</button>` : ""}
             ${sceneKitContext.sectionId && (sceneSectionRuntimeContext?.preferredWorkbenchEntry || sceneSectionRuntimeContext?.preferredReference) ? `<button type="button" class="copy-button" data-open-scene-section-runtime-id="${escapeAttribute(sceneKitContext.sectionId)}">Open Runtime Group</button>` : ""}
             ${sceneKitContext.sectionId && sceneSectionProvenance?.evidenceIds?.length ? `<button type="button" class="copy-button" data-focus-scene-section-evidence-id="${escapeAttribute(sceneKitContext.sectionId)}">Show Section Evidence</button>` : ""}
@@ -15692,6 +15774,7 @@ function renderInspector() {
             ${sceneSectionProvenance?.donorAssetIds?.length ? renderCopyButton(sceneSectionProvenance.donorAssetIds.join("\n"), `donor asset ids for ${sceneKitContext.sectionLabel}`, "Copy Asset IDs") : ""}
             ${sceneSectionProvenance?.evidenceIds?.length ? renderCopyButton(sceneSectionProvenance.evidenceIds.join("\n"), `evidence refs for ${sceneKitContext.sectionLabel}`, "Copy Evidence Refs") : ""}
             ${sceneSectionProvenance?.summaryText ? renderCopyButton(sceneSectionProvenance.summaryText, `reconstruction kit summary for ${sceneKitContext.sectionLabel}`, "Copy Kit Summary") : ""}
+            ${sceneSectionGamePartSummary?.summaryText ? renderCopyButton(sceneSectionGamePartSummary.summaryText, `game-part summary for ${sceneKitContext.sectionLabel}`, "Copy Game-Part Summary") : ""}
           </div>
         </div>
         <div class="chip-row donor-asset-chip-row">
@@ -15733,6 +15816,13 @@ function renderInspector() {
             <small>${escapeHtml(sceneSectionProvenance
               ? `${sceneSectionProvenance.sourceCategories.join(", ") || "source unknown"} · ${sceneSectionProvenance.captureSessions.join(", ") || "session unknown"}${sceneSectionProvenance.primaryGroupSummary ? ` · ${sceneSectionProvenance.primaryGroupSummary.label}` : ""}`
               : "This imported section has not yet resolved back to grouped donor asset provenance.")}</small>
+          </div>
+          <div class="detail-card ${sceneSectionGamePartSummary ? "is-positive" : "is-alert"}">
+            <span>Game-Part Summary</span>
+            <strong>${escapeHtml(sceneSectionGamePartSummary?.roleLabel ?? "No grouped game-part summary yet")}</strong>
+            <small>${escapeHtml(sceneSectionGamePartSummary
+              ? `${sceneSectionGamePartSummary.readinessLabel}${sceneSectionGamePartSummary.sceneKitSummary?.label ? ` · ${sceneSectionGamePartSummary.sceneKitSummary.label}` : ""}`
+              : "This imported section has not yet resolved into a grouped game-part summary.")}</small>
           </div>
           <div class="detail-card ${sceneSectionRuntimeContext?.preferredWorkbenchEntry ? "is-positive" : sceneSectionRuntimeContext?.preferredReference ? "" : "is-alert"}">
             <span>Runtime-linked Group</span>
@@ -16171,6 +16261,7 @@ function renderRuntimeInspector() {
     : null;
   const selectedSceneSectionRuntimeContext = selectedSceneSectionEntry?.runtimeContext ?? null;
   const selectedSceneSectionProvenance = selectedSceneSectionEntry?.provenance ?? null;
+  const selectedSceneSectionGamePartSummary = selectedSceneSectionEntry?.gamePartSummary ?? null;
   const selectedSceneSectionOverrideCandidate = selectedSceneSectionRuntimeContext?.overrideCandidate ?? null;
   const runtimeOverrideCandidate = getRuntimeOverrideCandidate();
   const runtimeOverrideStatus = getRuntimeOverrideStatus();
@@ -16274,6 +16365,13 @@ function renderRuntimeInspector() {
             ? `${selectedSceneSectionProvenance.sourceCategories.join(", ") || "source unknown"} · ${selectedSceneSectionProvenance.captureSessions.join(", ") || "session unknown"}${selectedSceneSectionProvenance.primaryGroupSummary ? ` · ${selectedSceneSectionProvenance.primaryGroupSummary.importLabel}` : ""}`
             : "The runtime workbench can only summarize grouped donor provenance when the current Compose selection belongs to one imported scene section.")}</small>
         </div>
+        <div class="detail-card ${selectedSceneSectionGamePartSummary ? "is-positive" : "is-alert"}">
+          <span>Selected Game-Part Kit</span>
+          <strong>${escapeHtml(selectedSceneSectionGamePartSummary?.roleLabel ?? "Select one imported scene section member in Compose")}</strong>
+          <small>${escapeHtml(selectedSceneSectionGamePartSummary
+            ? `${selectedSceneSectionGamePartSummary.readinessLabel}${selectedSceneSectionGamePartSummary.sceneKitSummary?.label ? ` · ${selectedSceneSectionGamePartSummary.sceneKitSummary.label}` : ""}`
+            : "The runtime workbench can only summarize one grouped game-part kit when the current Compose selection belongs to an imported scene section.")}</small>
+        </div>
       </div>
       ${selectedSceneKitContext?.sectionId ? `
         <div class="tree-row">
@@ -16283,9 +16381,11 @@ function renderRuntimeInspector() {
             : "Select one imported scene section member in Compose to unlock grouped game-part controls.")}</span>
           <div class="evidence-actions">
             <button type="button" class="copy-button" data-focus-scene-section-id="${escapeAttribute(selectedSceneKitContext.sectionId)}">Select Section</button>
+            <button type="button" class="copy-button" data-focus-scene-section-assets-id="${escapeAttribute(selectedSceneKitContext.sectionId)}">Show Section Assets</button>
             <button type="button" class="copy-button" data-frame-scene-section-id="${escapeAttribute(selectedSceneKitContext.sectionId)}">Frame Section</button>
             ${selectedSceneSectionProvenance?.evidenceIds?.length ? `<button type="button" class="copy-button" data-focus-scene-section-evidence-id="${escapeAttribute(selectedSceneKitContext.sectionId)}">Show Section Evidence</button>` : ""}
             ${selectedSceneSectionRuntimeContext?.preferredWorkbenchEntry || selectedSceneSectionRuntimeContext?.preferredReference ? `<button type="button" class="copy-button" data-open-scene-section-runtime-id="${escapeAttribute(selectedSceneKitContext.sectionId)}">Open Runtime Group</button>` : ""}
+            ${selectedSceneSectionGamePartSummary?.summaryText ? renderCopyButton(selectedSceneSectionGamePartSummary.summaryText, `game-part summary for ${selectedSceneKitContext.sectionLabel}`, "Copy Game-Part Summary") : ""}
           </div>
         </div>
       ` : ""}
