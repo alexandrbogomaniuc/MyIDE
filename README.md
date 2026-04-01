@@ -49,6 +49,7 @@ MyIDE is a universal local-first IDE for multiple game projects over time, with 
 - Those same scene sections now also expose a stronger game-part summary and a direct **Show Section Assets** action, so one grouped section can jump back to its donor asset kit and carry a clearer grouped readiness label such as donor-backed, evidence-backed, runtime-linked, or override-ready.
 - Those same scene sections now also support **Duplicate Section** and **Delete Section**, so one imported game-part kit can be copied or removed as a grouped working unit instead of forcing one-object-at-a-time cleanup.
 - Those same scene sections now also support **Center Section** and **Restore Suggested Layer**, so one grouped game-part kit can be repositioned or moved back to its inferred scene-kit layer without breaking the preserved section structure.
+- Those same scene sections now also support **Reset Section Layout**, so one grouped game-part kit can be repacked into its inferred scene-kit layout around the current section anchor instead of dragging each child object back into place by hand.
 - Those harvested package-graph image nodes can now appear in the shell donor asset palette as importable editable-image candidates, so new donor-URL projects are no longer limited to the older hand-indexed donor image set.
 
 ## Public Repo Exclusions
