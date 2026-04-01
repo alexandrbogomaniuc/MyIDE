@@ -278,6 +278,7 @@ async function main(): Promise<void> {
       atlasManifestCount?: number;
       bundleAssetMapStatus?: string;
       mirrorCandidateStatus?: string;
+      nextCaptureTargetCount?: number;
       nextOperatorAction?: string;
     };
     assert.equal(scanSummary.scanState, "scanned", "donor scan summary should mark the scan as scanned");
@@ -285,10 +286,19 @@ async function main(): Promise<void> {
     assert.ok((scanSummary.atlasManifestCount ?? 0) >= 3, "donor scan summary should expose atlas metadata counts");
     assert.equal(scanSummary.bundleAssetMapStatus, "mapped", "donor scan summary should surface bundle map status");
     assert.equal(typeof scanSummary.mirrorCandidateStatus, "string", "donor scan summary should surface mirror candidate status");
+    assert.ok((scanSummary.nextCaptureTargetCount ?? 0) >= 1, "donor scan summary should expose next capture target counts");
     assert.equal(typeof scanSummary.nextOperatorAction, "string", "donor scan summary should recommend the next operator action");
+
+    const nextCaptureTargets = JSON.parse(await fs.readFile(path.join(donorRoot, "evidence", "local_only", "harvest", "next-capture-targets.json"), "utf8")) as {
+      targetCount?: number;
+      targets?: Array<{ relativePath?: string; priority?: string }>;
+    };
+    assert.ok((nextCaptureTargets.targetCount ?? 0) >= 1, "donor scan should write next capture targets");
+    assert.ok(Array.isArray(nextCaptureTargets.targets) && nextCaptureTargets.targets.some((target) => typeof target.relativePath === "string" && target.relativePath.length > 0), "next capture targets should keep a relative path");
 
     const blockerSummary = await fs.readFile(path.join(donorRoot, "evidence", "local_only", "harvest", "blocker-summary.md"), "utf8");
     assert.match(blockerSummary, /Next operator step/, "blocker summary should explain the next operator step");
+    assert.match(blockerSummary, /Highest-priority next capture targets/, "blocker summary should surface the top next capture targets");
 
     const report = await fs.readFile(path.join(donorRoot, "reports", "DONOR_INTAKE_REPORT.md"), "utf8");
     assert.match(report, /Discovered URL count:/, "intake report should summarize discovered URL counts");
@@ -296,6 +306,7 @@ async function main(): Promise<void> {
     assert.match(report, /Package manifest path:/, "intake report should summarize donor package manifest output");
     assert.match(report, /Package graph path:/, "intake report should summarize donor package graph output");
     assert.match(report, /Scan summary path:/, "intake report should summarize donor scan output");
+    assert.match(report, /Next capture targets path:/, "intake report should summarize donor next capture targets output");
 
     console.log("PASS smoke:donor-intake");
     console.log(`Created donor intake pack: ${path.relative(workspaceRoot, donorRoot)}`);

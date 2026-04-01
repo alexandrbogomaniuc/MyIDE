@@ -37,6 +37,7 @@ async function main(): Promise<void> {
     paths.runtimeCandidatesPath,
     paths.bundleAssetMapPath,
     paths.atlasManifestsPath,
+    paths.nextCaptureTargetsPath,
     paths.blockerSummaryPath,
     paths.scanSummaryPath
   ];
@@ -52,6 +53,7 @@ async function main(): Promise<void> {
     atlasManifestCount?: number;
     bundleAssetMapStatus?: string;
     mirrorCandidateStatus?: string;
+    nextCaptureTargetCount?: number;
     nextOperatorAction?: string;
   }>(paths.scanSummaryPath);
   assert.equal(scanSummary.donorId, donorId, "scan summary donor id should match requested donor id");
@@ -60,6 +62,7 @@ async function main(): Promise<void> {
   assert.ok(typeof scanSummary.atlasManifestCount === "number", "scan summary should record atlas manifest count");
   assert.ok(typeof scanSummary.bundleAssetMapStatus === "string", "scan summary should record bundle asset-map status");
   assert.ok(typeof scanSummary.mirrorCandidateStatus === "string", "scan summary should record mirror candidate status");
+  assert.ok(typeof scanSummary.nextCaptureTargetCount === "number", "scan summary should record next capture target count");
   assert.ok(typeof scanSummary.nextOperatorAction === "string" && scanSummary.nextOperatorAction.length > 0, "scan summary should record the next operator action");
 
   const blockerSummary = await readOptionalTextFile(paths.blockerSummaryPath);
@@ -70,6 +73,7 @@ async function main(): Promise<void> {
   console.log(`Scan state: ${scanSummary.scanState}`);
   console.log(`Runtime candidates: ${scanSummary.runtimeCandidateCount}`);
   console.log(`Atlas manifests: ${scanSummary.atlasManifestCount}`);
+  console.log(`Next capture targets: ${scanSummary.nextCaptureTargetCount}`);
   console.log(`Next operator action: ${scanSummary.nextOperatorAction}`);
 }
 

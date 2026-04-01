@@ -10123,6 +10123,9 @@ function getSelectedProjectEvidenceSummary() {
     donorAtlasManifestCount: typeof donorScan?.atlasManifestCount === "number" ? donorScan.atlasManifestCount : (typeof selectedProject.donor?.atlasManifestCount === "number" ? selectedProject.donor.atlasManifestCount : 0),
     donorBundleAssetMapStatus: typeof donorScan?.bundleAssetMapStatus === "string" ? donorScan.bundleAssetMapStatus : (typeof selectedProject.donor?.bundleAssetMapStatus === "string" ? selectedProject.donor.bundleAssetMapStatus : null),
     donorMirrorCandidateStatus: typeof donorScan?.mirrorCandidateStatus === "string" ? donorScan.mirrorCandidateStatus : (typeof selectedProject.donor?.mirrorCandidateStatus === "string" ? selectedProject.donor.mirrorCandidateStatus : null),
+    donorNextCaptureTargetsPath: typeof donorScan?.nextCaptureTargetsPath === "string" ? donorScan.nextCaptureTargetsPath : (typeof selectedProject.donor?.nextCaptureTargetsPath === "string" ? selectedProject.donor.nextCaptureTargetsPath : null),
+    donorNextCaptureTargetCount: typeof donorScan?.nextCaptureTargetCount === "number" ? donorScan.nextCaptureTargetCount : (typeof selectedProject.donor?.nextCaptureTargetCount === "number" ? selectedProject.donor.nextCaptureTargetCount : 0),
+    donorNextCaptureTargets: Array.isArray(donorScan?.nextCaptureTargets) ? donorScan.nextCaptureTargets : [],
     donorNextOperatorAction: typeof donorScan?.nextOperatorAction === "string" ? donorScan.nextOperatorAction : (typeof selectedProject.donor?.nextOperatorAction === "string" ? selectedProject.donor.nextOperatorAction : null),
     donorBlockerHighlights: Array.isArray(donorScan?.blockerHighlights) ? donorScan.blockerHighlights : [],
     donorNotes: typeof selectedProject.donor?.notes === "string" ? selectedProject.donor.notes : null,
@@ -14558,6 +14561,7 @@ function renderEvidenceBrowser() {
     `Atlas Metadata Count: ${summary.donorAtlasManifestCount}`,
     `Bundle Asset Map Status: ${summary.donorBundleAssetMapStatus || "unknown"}`,
     `Mirror Candidate Status: ${summary.donorMirrorCandidateStatus || "unknown"}`,
+    `Next Capture Targets: ${summary.donorNextCaptureTargetCount}`,
     `Next Operator Action: ${summary.donorNextOperatorAction || "not recorded"}`,
     `Evidence Root: ${summary.evidenceRoot}`,
     `Donor Asset Count: ${donorAssetCount}`,
@@ -14585,6 +14589,7 @@ function renderEvidenceBrowser() {
         <span>${summary.donorAtlasManifestCount} atlas metadata</span>
         <span>${summary.donorBundleAssetMapStatus || "unknown"} bundle map</span>
         <span>${summary.donorMirrorCandidateStatus || "unknown"} mirror status</span>
+        <span>${summary.donorNextCaptureTargetCount} next capture targets</span>
         <span>${summary.donorFailedAssetCount} harvest failures</span>
         <span>${summary.captureSessions.length} capture sessions</span>
         <span>${summary.donorEvidenceRefs.length} donor evidence refs</span>
@@ -14687,15 +14692,25 @@ function renderEvidenceBrowser() {
             <span>${summary.donorAtlasManifestCount} atlas metadata</span>
             <span>${summary.donorBundleAssetMapStatus ? escapeHtml(summary.donorBundleAssetMapStatus) : "unknown"} bundle map</span>
             <span>${summary.donorMirrorCandidateStatus ? escapeHtml(summary.donorMirrorCandidateStatus) : "unknown"} mirror status</span>
+            <span>${summary.donorNextCaptureTargetCount} next capture targets</span>
           </div>
           ${summary.donorBlockerHighlights.length > 0 ? `
             <div class="detail-list">
               ${summary.donorBlockerHighlights.slice(0, 3).map((entry) => `<small>${escapeHtml(entry)}</small>`).join("")}
             </div>
           ` : ""}
+          ${summary.donorNextCaptureTargets.length > 0 ? `
+            <div class="detail-list">
+              ${summary.donorNextCaptureTargets.slice(0, 3).map((target) => `
+                <small><strong>${escapeHtml(target.priority)}</strong> · <code>${escapeHtml(target.relativePath || target.url)}</code> · ${escapeHtml(target.reason || "No reason recorded.")}</small>
+              `).join("")}
+            </div>
+          ` : ""}
           <div class="evidence-actions">
             ${summary.donorScanSummaryPath ? renderCopyButton(summary.donorScanSummaryPath, "donor scan summary path", "Copy Scan Summary Path") : ""}
             ${summary.donorBlockerSummaryPath ? renderCopyButton(summary.donorBlockerSummaryPath, "donor blocker summary path", "Copy Blocker Summary Path") : ""}
+            ${summary.donorNextCaptureTargetsPath ? renderCopyButton(summary.donorNextCaptureTargetsPath, "donor next capture targets path", "Copy Capture Targets Path") : ""}
+            ${summary.donorNextCaptureTargets.length > 0 ? renderCopyButton(summary.donorNextCaptureTargets.map((target) => `${target.priority}\t${target.kind}\t${target.relativePath || target.url}\t${target.reason || "No reason recorded."}`).join("\n"), "donor next capture targets", "Copy Top Targets") : ""}
           </div>
         </div>
       </div>
@@ -15095,6 +15110,14 @@ function renderProjectSummary() {
         <small>${donorScan?.nextOperatorAction
           ? escapeHtml(donorScan.nextOperatorAction)
           : "Run donor scan to surface runtime candidates, atlas metadata, bundle asset-map status, and the next operator action."}</small>
+        ${Array.isArray(donorScan?.nextCaptureTargets) && donorScan.nextCaptureTargets.length > 0 ? `
+          <div class="detail-list">
+            ${donorScan.nextCaptureTargets.slice(0, 2).map((target) => `<small><strong>${escapeHtml(target.priority)}</strong> · <code>${escapeHtml(target.relativePath || target.url)}</code></small>`).join("")}
+          </div>
+        ` : ""}
+        <div class="chip-row">
+          <span>${typeof donorScan?.nextCaptureTargetCount === "number" ? donorScan.nextCaptureTargetCount : 0} next capture targets</span>
+        </div>
       </div>
     </div>
     <div class="tree-row scope-summary">

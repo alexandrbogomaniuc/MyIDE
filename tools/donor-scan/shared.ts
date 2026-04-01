@@ -17,6 +17,7 @@ export type DonorScanState = "scanned" | "blocked" | "skipped";
 export type BundleAssetMapStatus = "mapped" | "blocked" | "skipped";
 export type MirrorCandidateStatus = "strong-partial" | "weak-partial" | "blocked";
 export type ReferenceConfidence = "confirmed" | "likely" | "provisional";
+export type CaptureTargetPriority = "immediate" | "high" | "medium";
 
 export interface DiscoveredDonorUrl {
   url: string;
@@ -137,6 +138,7 @@ export interface DonorScanPaths {
   runtimeCandidatesPath: string;
   bundleAssetMapPath: string;
   atlasManifestsPath: string;
+  nextCaptureTargetsPath: string;
   blockerSummaryPath: string;
   scanSummaryPath: string;
 }
@@ -236,12 +238,40 @@ export interface DonorScanResult {
   atlasManifestsPath: string;
   blockerSummaryPath: string;
   scanSummaryPath: string;
+  nextCaptureTargetsPath: string;
   runtimeCandidateCount: number;
   atlasManifestCount: number;
   bundleAssetMapStatus: BundleAssetMapStatus;
   mirrorCandidateStatus: MirrorCandidateStatus;
+  nextCaptureTargetCount: number;
   nextOperatorAction: string;
   blockerHighlights: string[];
+}
+
+export interface NextCaptureTargetRecord {
+  rank: number;
+  url: string;
+  host: string;
+  relativePath: string;
+  kind: "atlas-page" | "runtime-metadata" | "runtime-script" | "bundle-asset" | "translation-payload";
+  category: string;
+  priority: CaptureTargetPriority;
+  confidence: ReferenceConfidence;
+  score: number;
+  sourceCount: number;
+  sourceLabels: string[];
+  reason: string;
+  blockers: string[];
+}
+
+export interface NextCaptureTargetsFile {
+  schemaVersion: string;
+  donorId: string;
+  donorName: string;
+  generatedAt: string;
+  targetCount: number;
+  countsByPriority: Record<CaptureTargetPriority, number>;
+  targets: NextCaptureTargetRecord[];
 }
 
 export interface UrlInventoryEntry {
@@ -272,6 +302,7 @@ export function buildDonorScanPaths(donorId: string): DonorScanPaths {
     runtimeCandidatesPath: path.join(harvestRoot, "runtime-candidates.json"),
     bundleAssetMapPath: path.join(harvestRoot, "bundle-asset-map.json"),
     atlasManifestsPath: path.join(harvestRoot, "atlas-manifests.json"),
+    nextCaptureTargetsPath: path.join(harvestRoot, "next-capture-targets.json"),
     blockerSummaryPath: path.join(harvestRoot, "blocker-summary.md"),
     scanSummaryPath: path.join(harvestRoot, "scan-summary.json")
   };

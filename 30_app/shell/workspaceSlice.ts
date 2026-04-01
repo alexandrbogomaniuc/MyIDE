@@ -54,10 +54,12 @@ export interface WorkspaceProjectSummary {
     scanStatus?: string;
     scanSummaryPath?: string;
     blockerSummaryPath?: string;
+    nextCaptureTargetsPath?: string;
     runtimeCandidateCount?: number;
     atlasManifestCount?: number;
     bundleAssetMapStatus?: string;
     mirrorCandidateStatus?: string;
+    nextCaptureTargetCount?: number;
     nextOperatorAction?: string;
     notes: string;
   };
@@ -379,10 +381,12 @@ function normalizeProjectMeta(entry: JsonObject, index: number): WorkspaceProjec
       scanStatus: asOptionalString(donor.scanStatus),
       scanSummaryPath: asOptionalString(donor.scanSummaryPath),
       blockerSummaryPath: asOptionalString(donor.blockerSummaryPath),
+      nextCaptureTargetsPath: asOptionalString(donor.nextCaptureTargetsPath),
       runtimeCandidateCount: asOptionalNumber(donor.runtimeCandidateCount),
       atlasManifestCount: asOptionalNumber(donor.atlasManifestCount),
       bundleAssetMapStatus: asOptionalString(donor.bundleAssetMapStatus),
       mirrorCandidateStatus: asOptionalString(donor.mirrorCandidateStatus),
+      nextCaptureTargetCount: asOptionalNumber(donor.nextCaptureTargetCount),
       nextOperatorAction: asOptionalString(donor.nextOperatorAction),
       notes: asString(donor.notes, "")
     },

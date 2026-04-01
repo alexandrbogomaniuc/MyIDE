@@ -112,6 +112,10 @@
       "type": "string",
       "minLength": 1
     },
+    "nextCaptureTargetsPath": {
+      "type": "string",
+      "minLength": 1
+    },
     "runtimeCandidateCount": {
       "type": "integer",
       "minimum": 0
@@ -127,6 +131,10 @@
     "mirrorCandidateStatus": {
       "type": "string",
       "enum": ["strong-partial", "weak-partial", "blocked"]
+    },
+    "nextCaptureTargetCount": {
+      "type": "integer",
+      "minimum": 0
     },
     "nextOperatorAction": {
       "type": "string",

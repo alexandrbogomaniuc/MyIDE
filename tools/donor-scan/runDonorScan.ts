@@ -1,6 +1,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { buildAssetClassificationSummary } from "./classifyAssets";
+import { buildNextCaptureTargets } from "./buildNextCaptureTargets";
 import { discoverAtlasMetadata } from "./discoverAtlasMetadata";
 import { discoverRuntimeCandidates } from "./discoverRuntimeCandidates";
 import { extractBundleAssetMap } from "./extractBundleAssetMap";
@@ -339,12 +340,14 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
       bundleAssetMapPath: toRepoRelativePath(paths.bundleAssetMapPath),
       atlasManifestsPath: toRepoRelativePath(paths.atlasManifestsPath),
       blockerSummaryPath: toRepoRelativePath(paths.blockerSummaryPath),
+      nextCaptureTargetsPath: toRepoRelativePath(paths.nextCaptureTargetsPath),
       nextOperatorAction: "Run donor URL intake or provide a harvested donor package before scanning.",
       blockerHighlights: ["No harvested donor asset manifest exists yet."],
       runtimeCandidateCount: 0,
       atlasManifestCount: 0,
       bundleAssetMapStatus: "skipped",
       mirrorCandidateStatus: "blocked",
+      nextCaptureTargetCount: 0,
       fullLocalRuntimePackage: false,
       partialLocalRuntimePackage: false,
       entryPointCount: 0,
@@ -364,10 +367,12 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
       atlasManifestsPath: paths.atlasManifestsPath,
       blockerSummaryPath: paths.blockerSummaryPath,
       scanSummaryPath: paths.scanSummaryPath,
+      nextCaptureTargetsPath: paths.nextCaptureTargetsPath,
       runtimeCandidateCount: 0,
       atlasManifestCount: 0,
       bundleAssetMapStatus: "skipped",
       mirrorCandidateStatus: "blocked",
+      nextCaptureTargetCount: 0,
       nextOperatorAction: "Run donor URL intake or provide a harvested donor package before scanning.",
       blockerHighlights: ["No harvested donor asset manifest exists yet."]
     };
@@ -388,6 +393,13 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
     donorId: options.donorId,
     donorName: options.donorName,
     assetSummary,
+    bundleAssetMap,
+    atlasManifestFile
+  });
+  const nextCaptureTargets = buildNextCaptureTargets({
+    donorId: options.donorId,
+    donorName: options.donorName,
+    runtimeCandidates,
     bundleAssetMap,
     atlasManifestFile
   });
@@ -419,6 +431,7 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
   await writeJsonFile(paths.bundleAssetMapPath, bundleAssetMap);
   await writeJsonFile(paths.atlasManifestsPath, atlasManifestFile);
   await writeJsonFile(paths.runtimeCandidatesPath, runtimeCandidates);
+  await writeJsonFile(paths.nextCaptureTargetsPath, nextCaptureTargets);
 
   const blockerSummary = await writeBlockerSummary({
     donorId: options.donorId,
@@ -427,6 +440,7 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
     runtimeCandidates,
     bundleAssetMap,
     atlasManifestFile,
+    nextCaptureTargets,
     paths
   });
 
@@ -449,6 +463,7 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
     bundleAssetMapPath: toRepoRelativePath(paths.bundleAssetMapPath),
     atlasManifestsPath: toRepoRelativePath(paths.atlasManifestsPath),
     blockerSummaryPath: toRepoRelativePath(paths.blockerSummaryPath),
+    nextCaptureTargetsPath: toRepoRelativePath(paths.nextCaptureTargetsPath),
     countsByCategory: assetSummary.countsByCategory,
     downloadedCountsByCategory: assetSummary.downloadedCountsByCategory,
     entryPointCount: assetSummary.entryPoints.length,
@@ -461,6 +476,13 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
     bundleReferenceCount: bundleAssetMap.referenceCount,
     mirrorCandidateStatus: runtimeCandidates.mirrorCandidateStatus,
     mirrorCandidateCount: runtimeCandidates.mirrorCandidateCount,
+    nextCaptureTargetCount: nextCaptureTargets.targetCount,
+    nextCaptureTargetPreview: nextCaptureTargets.targets.slice(0, 3).map((target) => ({
+      url: target.url,
+      priority: target.priority,
+      kind: target.kind,
+      reason: target.reason
+    })),
     fullLocalRuntimePackage: runtimeCandidates.fullLocalRuntimePackage,
     partialLocalRuntimePackage: runtimeCandidates.partialLocalRuntimePackage,
     unresolvedRuntimeDependencyCount: runtimeCandidates.unresolvedDependencyCount,
@@ -480,10 +502,12 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
     atlasManifestsPath: paths.atlasManifestsPath,
     blockerSummaryPath: paths.blockerSummaryPath,
     scanSummaryPath: paths.scanSummaryPath,
+    nextCaptureTargetsPath: paths.nextCaptureTargetsPath,
     runtimeCandidateCount: runtimeCandidates.runtimeCandidateCount,
     atlasManifestCount: atlasManifestFile.manifests.length,
     bundleAssetMapStatus: bundleAssetMap.status,
     mirrorCandidateStatus: runtimeCandidates.mirrorCandidateStatus,
+    nextCaptureTargetCount: nextCaptureTargets.targetCount,
     nextOperatorAction: blockerSummary.nextOperatorAction,
     blockerHighlights: blockerSummary.blockerHighlights
   };

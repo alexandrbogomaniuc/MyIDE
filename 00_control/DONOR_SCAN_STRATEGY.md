@@ -81,6 +81,7 @@ Current outputs:
 - `runtime-candidates.json`
 - `bundle-asset-map.json`
 - `atlas-manifests.json`
+- `next-capture-targets.json`
 - `blocker-summary.md`
 - `scan-summary.json`
 

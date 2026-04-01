@@ -55,10 +55,11 @@ Recommended rule:
    - `evidence/local_only/harvest/runtime-candidates.json`
    - `evidence/local_only/harvest/bundle-asset-map.json`
    - `evidence/local_only/harvest/atlas-manifests.json`
+   - `evidence/local_only/harvest/next-capture-targets.json`
    - `evidence/local_only/harvest/blocker-summary.md`
    - `evidence/local_only/harvest/scan-summary.json`
    - downloaded bounded recursive static assets under `evidence/local_only/harvest/files/`
-5. The donor panel now surfaces the donor scan summary too, so you can see scan state, runtime candidate count, atlas metadata count, bundle-map status, mirror status, blocker summary, and the next operator action without opening raw JSON first.
+5. The donor panel now surfaces the donor scan summary too, so you can see scan state, runtime candidate count, atlas metadata count, bundle-map status, mirror status, top next capture targets, blocker summary, and the next operator action without opening raw JSON first.
 6. Downloaded package-graph images now join the donor asset palette automatically, grouped by harvested runtime/package scene kit, so you can drag one image at a time or use **Import Scene Kit To Compose** for a whole captured family of editable donor-backed objects instead of keeping them stuck in read-only capture files.
 7. Imported scene sections now show their strongest grounded runtime link too. Use **Open Runtime Group** from the Scene Sections banner or the selected-object inspector when you want one grouped Compose section to jump back into the Runtime workbench.
 8. When a scene section has a grounded runtime-backed static candidate, the same grouped section now shows **Create Override** / **Clear Override** actions so you can keep the override flow attached to that higher-level imported game part instead of hunting in the flat runtime asset list first.

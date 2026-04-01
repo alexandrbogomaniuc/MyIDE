@@ -49,10 +49,12 @@ export interface DonorIntakeResult {
   scanStatus?: DonorScanState;
   scanSummaryPath?: string;
   blockerSummaryPath?: string;
+  nextCaptureTargetsPath?: string;
   runtimeCandidateCount?: number;
   atlasManifestCount?: number;
   bundleAssetMapStatus?: BundleAssetMapStatus;
   mirrorCandidateStatus?: MirrorCandidateStatus;
+  nextCaptureTargetCount?: number;
   nextOperatorAction?: string;
   error?: string;
 }
@@ -648,7 +650,7 @@ function collectReferenceCandidates(rawText: string): string[] {
     candidates.add(cssMatch[2]);
   }
 
-  const quotedPathPattern = /["'`]((?:\/|\.{1,2}\/)[^"'`<>\s\\]+|(?:[a-z0-9._-]+\/)+[a-z0-9._-]+\.(?:js|css|json|png|jpe?g|gif|svg|webp|ogg|mp3|wav|m4a|mp4|webm|mov|woff2?|ttf|otf)(?:\?[^"'`<>\s\\]+)?|\/api\/[^"'`<>\s\\]+)["'`]/gi;
+  const quotedPathPattern = /["'`]((?:\/|\.{1,2}\/)[^"'`<>\s\\]+|(?:[a-z0-9._-]+\/)+[a-z0-9._-]+\.(?:js|css|json|atlas|plist|png|jpe?g|gif|svg|webp|ogg|mp3|wav|m4a|mp4|webm|mov|woff2?|ttf|otf|skel|xml|fnt)(?:\?[^"'`<>\s\\]+)?|\/api\/[^"'`<>\s\\]+)["'`]/gi;
   let quotedMatch: RegExpExecArray | null;
   while ((quotedMatch = quotedPathPattern.exec(rawText)) !== null) {
     candidates.add(quotedMatch[1]);
@@ -893,10 +895,12 @@ function buildIntakeReport(result: DonorIntakeResult, donorName: string): string
     lines.push(`- Scan status: \`${result.scanStatus}\``);
     lines.push(`- Scan summary path: \`${result.scanSummaryPath ? path.relative(workspaceRoot, result.scanSummaryPath) : "not captured"}\``);
     lines.push(`- Blocker summary path: \`${result.blockerSummaryPath ? path.relative(workspaceRoot, result.blockerSummaryPath) : "not captured"}\``);
+    lines.push(`- Next capture targets path: \`${result.nextCaptureTargetsPath ? path.relative(workspaceRoot, result.nextCaptureTargetsPath) : "not captured"}\``);
     lines.push(`- Runtime candidate count: ${result.runtimeCandidateCount ?? 0}`);
     lines.push(`- Atlas metadata count: ${result.atlasManifestCount ?? 0}`);
     lines.push(`- Bundle asset-map status: \`${result.bundleAssetMapStatus ?? "unknown"}\``);
     lines.push(`- Mirror candidate status: \`${result.mirrorCandidateStatus ?? "unknown"}\``);
+    lines.push(`- Next capture target count: ${result.nextCaptureTargetCount ?? 0}`);
     lines.push(`- Next operator action: ${result.nextOperatorAction ?? "not recorded"}`);
   }
 
@@ -965,10 +969,12 @@ export async function bootstrapDonorIntake(options: BootstrapDonorIntakeOptions)
     scanStatus: donorLaunchUrl && harvestAssets ? "blocked" : "skipped",
     scanSummaryPath: donorLaunchUrl && harvestAssets ? path.join(paths.localOnlyHarvestRoot, "scan-summary.json") : undefined,
     blockerSummaryPath: donorLaunchUrl && harvestAssets ? path.join(paths.localOnlyHarvestRoot, "blocker-summary.md") : undefined,
+    nextCaptureTargetsPath: donorLaunchUrl && harvestAssets ? path.join(paths.localOnlyHarvestRoot, "next-capture-targets.json") : undefined,
     runtimeCandidateCount: 0,
     atlasManifestCount: 0,
     bundleAssetMapStatus: donorLaunchUrl && harvestAssets ? "blocked" : "skipped",
     mirrorCandidateStatus: donorLaunchUrl && harvestAssets ? "blocked" : "blocked",
+    nextCaptureTargetCount: 0,
     attemptedAssetCount: 0,
     harvestedAssetCount: 0,
     skippedAssetCount: 0,
@@ -1045,10 +1051,12 @@ export async function bootstrapDonorIntake(options: BootstrapDonorIntakeOptions)
       result.scanStatus = scanResult.status;
       result.scanSummaryPath = scanResult.scanSummaryPath;
       result.blockerSummaryPath = scanResult.blockerSummaryPath;
+      result.nextCaptureTargetsPath = scanResult.nextCaptureTargetsPath;
       result.runtimeCandidateCount = scanResult.runtimeCandidateCount;
       result.atlasManifestCount = scanResult.atlasManifestCount;
       result.bundleAssetMapStatus = scanResult.bundleAssetMapStatus;
       result.mirrorCandidateStatus = scanResult.mirrorCandidateStatus;
+      result.nextCaptureTargetCount = scanResult.nextCaptureTargetCount;
       result.nextOperatorAction = scanResult.nextOperatorAction;
       result.attemptedAssetCount = harvestResult.attemptedAssetCount;
       result.harvestedAssetCount = harvestResult.harvestedAssetCount;

@@ -118,10 +118,12 @@ export interface ProjectMetaLike {
     scanStatus?: "unknown" | "scanned" | "blocked" | "skipped";
     scanSummaryPath?: string;
     blockerSummaryPath?: string;
+    nextCaptureTargetsPath?: string;
     runtimeCandidateCount?: number;
     atlasManifestCount?: number;
     bundleAssetMapStatus?: "mapped" | "blocked" | "skipped";
     mirrorCandidateStatus?: "strong-partial" | "weak-partial" | "blocked";
+    nextCaptureTargetCount?: number;
     nextOperatorAction?: string;
     notes?: string;
   };
@@ -413,10 +415,12 @@ function normalizeDonor(value: unknown, relativeProjectRoot: string, projectName
     scanStatus: (optionalString(donor.scanStatus) as ProjectMetaLike["donor"]["scanStatus"] | undefined) ?? "unknown",
     scanSummaryPath: optionalString(donor.scanSummaryPath),
     blockerSummaryPath: optionalString(donor.blockerSummaryPath),
+    nextCaptureTargetsPath: optionalString(donor.nextCaptureTargetsPath),
     runtimeCandidateCount: typeof donor.runtimeCandidateCount === "number" ? donor.runtimeCandidateCount : undefined,
     atlasManifestCount: typeof donor.atlasManifestCount === "number" ? donor.atlasManifestCount : undefined,
     bundleAssetMapStatus: (optionalString(donor.bundleAssetMapStatus) as ProjectMetaLike["donor"]["bundleAssetMapStatus"] | undefined) ?? undefined,
     mirrorCandidateStatus: (optionalString(donor.mirrorCandidateStatus) as ProjectMetaLike["donor"]["mirrorCandidateStatus"] | undefined) ?? undefined,
+    nextCaptureTargetCount: typeof donor.nextCaptureTargetCount === "number" ? donor.nextCaptureTargetCount : undefined,
     nextOperatorAction: optionalString(donor.nextOperatorAction),
     notes: optionalString(donor.notes) ?? `${projectName} scaffold only. Replace with evidence-backed donor references before validation.`
   };
@@ -685,6 +689,7 @@ export function buildProjectMetaFromInput(input: ShellCreateProjectInput): Proje
       scanStatus: donorLaunchUrl ? (harvestDonorAssets ? "unknown" : "skipped") : "unknown",
       scanSummaryPath: donorLaunchUrl && harvestDonorAssets ? `10_donors/${donorId}/evidence/local_only/harvest/scan-summary.json` : undefined,
       blockerSummaryPath: donorLaunchUrl && harvestDonorAssets ? `10_donors/${donorId}/evidence/local_only/harvest/blocker-summary.md` : undefined,
+      nextCaptureTargetsPath: donorLaunchUrl && harvestDonorAssets ? `10_donors/${donorId}/evidence/local_only/harvest/next-capture-targets.json` : undefined,
       notes: donorLaunchUrl
         ? (harvestDonorAssets
           ? "Shell-created donor reference with launch capture plus bounded recursive donor harvest and donor scan queued. Replace scaffold claims with evidence-backed donor materials before validation."
@@ -759,10 +764,12 @@ export async function createProjectFromInput(input: ShellCreateProjectInput, ove
   meta.donor.scanStatus = donorIntake.scanStatus ?? "unknown";
   meta.donor.scanSummaryPath = donorIntake.scanSummaryPath ? path.relative(workspaceRoot, donorIntake.scanSummaryPath).replace(/\\/g, "/") : undefined;
   meta.donor.blockerSummaryPath = donorIntake.blockerSummaryPath ? path.relative(workspaceRoot, donorIntake.blockerSummaryPath).replace(/\\/g, "/") : undefined;
+  meta.donor.nextCaptureTargetsPath = donorIntake.nextCaptureTargetsPath ? path.relative(workspaceRoot, donorIntake.nextCaptureTargetsPath).replace(/\\/g, "/") : undefined;
   meta.donor.runtimeCandidateCount = donorIntake.runtimeCandidateCount;
   meta.donor.atlasManifestCount = donorIntake.atlasManifestCount;
   meta.donor.bundleAssetMapStatus = donorIntake.bundleAssetMapStatus;
   meta.donor.mirrorCandidateStatus = donorIntake.mirrorCandidateStatus;
+  meta.donor.nextCaptureTargetCount = donorIntake.nextCaptureTargetCount;
   meta.donor.nextOperatorAction = donorIntake.nextOperatorAction;
   meta.donor.status = donorIntake.status === "blocked"
     ? "blocked"

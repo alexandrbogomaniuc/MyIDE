@@ -1,5 +1,5 @@
 import type { AssetClassificationSummary } from "./classifyAssets";
-import type { AtlasManifestFile, BundleAssetMapFile, DonorScanPaths, RuntimeCandidatesFile } from "./shared";
+import type { AtlasManifestFile, BundleAssetMapFile, DonorScanPaths, NextCaptureTargetsFile, RuntimeCandidatesFile } from "./shared";
 import { toRepoRelativePath, writeTextFile } from "./shared";
 
 interface WriteBlockerSummaryOptions {
@@ -9,6 +9,7 @@ interface WriteBlockerSummaryOptions {
   runtimeCandidates: RuntimeCandidatesFile;
   bundleAssetMap: BundleAssetMapFile;
   atlasManifestFile: AtlasManifestFile;
+  nextCaptureTargets: NextCaptureTargetsFile;
   paths: DonorScanPaths;
 }
 
@@ -62,6 +63,7 @@ export async function writeBlockerSummary(options: WriteBlockerSummaryOptions): 
     `- Atlas metadata count: ${options.atlasManifestFile.manifests.length}`,
     `- Bundle asset-map status: \`${options.bundleAssetMap.status}\``,
     `- Mirror candidate status: \`${options.runtimeCandidates.mirrorCandidateStatus}\``,
+    `- Next capture targets: ${options.nextCaptureTargets.targetCount}`,
     "",
     "## Early blocker answer",
     "",
@@ -70,6 +72,16 @@ export async function writeBlockerSummary(options: WriteBlockerSummaryOptions): 
     "## Next operator step",
     "",
     `- ${nextOperatorAction}`,
+    ...(options.nextCaptureTargets.targets.length > 0
+      ? [
+          "",
+          "## Highest-priority next capture targets",
+          "",
+          ...options.nextCaptureTargets.targets.slice(0, 5).map((target) =>
+            `- [${target.priority}] \`${target.relativePath}\` via \`${target.kind}\` — ${target.reason}`
+          )
+        ]
+      : []),
     "",
     "## Backing artifacts",
     "",
@@ -78,6 +90,7 @@ export async function writeBlockerSummary(options: WriteBlockerSummaryOptions): 
     `- Runtime candidates: \`${toRepoRelativePath(options.paths.runtimeCandidatesPath)}\``,
     `- Bundle asset map: \`${toRepoRelativePath(options.paths.bundleAssetMapPath)}\``,
     `- Atlas manifests: \`${toRepoRelativePath(options.paths.atlasManifestsPath)}\``,
+    `- Next capture targets: \`${toRepoRelativePath(options.paths.nextCaptureTargetsPath)}\``,
     `- Existing asset manifest: \`${toRepoRelativePath(options.paths.assetManifestPath)}\``,
     `- Existing package graph: \`${toRepoRelativePath(options.paths.packageGraphPath)}\``
   ];

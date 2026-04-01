@@ -94,6 +94,9 @@ Use this when testing the current local MyIDE build by hand.
    - Use one linkage helper to focus that evidence in the Donor Evidence panel or to filter the donor evidence view down to the selected object.
    - Copying one grounded evidence ref or linkage id should work when a copy button is shown.
    - If linkage is not grounded, the shell should say so plainly instead of inventing provenance.
+12. Donor scan guidance
+   - In the donor summary, confirm the shell now shows a donor scan state plus top next capture targets.
+   - Use **Copy Capture Targets Path** or **Copy Top Targets** once and confirm the shell exposes the current next capture target set without opening raw harvest files by hand.
 
 ## Expected Result
 - The app stays open.

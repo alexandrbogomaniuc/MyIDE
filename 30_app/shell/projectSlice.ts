@@ -153,13 +153,22 @@ export interface DonorScanStatus {
   scanState: string;
   scanSummaryPath: string;
   blockerSummaryPath: string | null;
+  nextCaptureTargetsPath: string | null;
   runtimeCandidateCount: number;
   atlasManifestCount: number;
   bundleAssetMapStatus: string;
   mirrorCandidateStatus: string;
+  nextCaptureTargetCount: number;
   nextOperatorAction: string | null;
   blockerHighlights: string[];
   blockerSummaryMarkdown: string | null;
+  nextCaptureTargets: Array<{
+    url: string;
+    relativePath: string;
+    priority: string;
+    kind: string;
+    reason: string;
+  }>;
 }
 
 export interface ProjectSliceBundle {
@@ -798,9 +807,12 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
     ?? `10_donors/${donorId}/evidence/local_only/harvest/scan-summary.json`;
   const blockerSummaryPath = donor.blockerSummaryPath
     ?? `10_donors/${donorId}/evidence/local_only/harvest/blocker-summary.md`;
-  const [scanSummary, blockerSummaryMarkdown] = await Promise.all([
+  const nextCaptureTargetsPath = donor.nextCaptureTargetsPath
+    ?? `10_donors/${donorId}/evidence/local_only/harvest/next-capture-targets.json`;
+  const [scanSummary, blockerSummaryMarkdown, nextCaptureTargetsFile] = await Promise.all([
     readOptionalJsonFile(path.join(workspaceRoot, scanSummaryPath)) as Promise<JsonObject | null>,
-    readOptionalTextFile(path.join(workspaceRoot, blockerSummaryPath))
+    readOptionalTextFile(path.join(workspaceRoot, blockerSummaryPath)),
+    readOptionalJsonFile(path.join(workspaceRoot, nextCaptureTargetsPath)) as Promise<JsonObject | null>
   ]);
 
   if (!scanSummary) {
@@ -810,6 +822,19 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
   const blockerHighlights = Array.isArray(scanSummary.blockerHighlights)
     ? scanSummary.blockerHighlights.filter((value): value is string => typeof value === "string")
     : [];
+  const nextCaptureTargets = Array.isArray(nextCaptureTargetsFile?.targets)
+    ? nextCaptureTargetsFile.targets
+        .filter((value): value is JsonObject => Boolean(value) && typeof value === "object" && !Array.isArray(value))
+        .map((target) => ({
+          url: typeof target.url === "string" ? target.url : "",
+          relativePath: typeof target.relativePath === "string" ? target.relativePath : "",
+          priority: typeof target.priority === "string" ? target.priority : "unknown",
+          kind: typeof target.kind === "string" ? target.kind : "unknown",
+          reason: typeof target.reason === "string" ? target.reason : "No reason recorded."
+        }))
+        .filter((target) => target.url.length > 0)
+        .slice(0, 5)
+    : [];
 
   return {
     donorId,
@@ -817,13 +842,16 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
     scanState: typeof scanSummary.scanState === "string" ? scanSummary.scanState : (donor.scanStatus ?? "unknown"),
     scanSummaryPath,
     blockerSummaryPath: blockerSummaryMarkdown ? blockerSummaryPath : null,
+    nextCaptureTargetsPath: nextCaptureTargetsFile ? nextCaptureTargetsPath : null,
     runtimeCandidateCount: typeof scanSummary.runtimeCandidateCount === "number" ? scanSummary.runtimeCandidateCount : (donor.runtimeCandidateCount ?? 0),
     atlasManifestCount: typeof scanSummary.atlasManifestCount === "number" ? scanSummary.atlasManifestCount : (donor.atlasManifestCount ?? 0),
     bundleAssetMapStatus: typeof scanSummary.bundleAssetMapStatus === "string" ? scanSummary.bundleAssetMapStatus : (donor.bundleAssetMapStatus ?? "unknown"),
     mirrorCandidateStatus: typeof scanSummary.mirrorCandidateStatus === "string" ? scanSummary.mirrorCandidateStatus : (donor.mirrorCandidateStatus ?? "unknown"),
+    nextCaptureTargetCount: typeof scanSummary.nextCaptureTargetCount === "number" ? scanSummary.nextCaptureTargetCount : (donor.nextCaptureTargetCount ?? nextCaptureTargets.length),
     nextOperatorAction: typeof scanSummary.nextOperatorAction === "string" ? scanSummary.nextOperatorAction : (donor.nextOperatorAction ?? null),
     blockerHighlights,
-    blockerSummaryMarkdown
+    blockerSummaryMarkdown,
+    nextCaptureTargets
   };
 }
 

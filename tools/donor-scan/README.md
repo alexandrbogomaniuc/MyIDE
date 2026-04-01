@@ -42,9 +42,12 @@ Key files:
 - `runtime-candidates.json`
 - `bundle-asset-map.json`
 - `atlas-manifests.json`
+- `next-capture-targets.json`
 - `package-graph.json`
 - `blocker-summary.md`
 - `scan-summary.json`
+
+`next-capture-targets.json` is the first actionable operator output. It ranks the missing runtime files the IDE should try to capture next, using atlas missing-page refs, unresolved runtime candidates, and missing bundle references.
 
 ## What The Scan Can Break Early
 

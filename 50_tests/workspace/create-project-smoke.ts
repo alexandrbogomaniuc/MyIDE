@@ -143,10 +143,12 @@ async function main(): Promise<void> {
     assert.equal(donor.scanStatus, "scanned", "smoke donor scan should complete");
     assert.equal(typeof donor.scanSummaryPath, "string", "smoke donor scan summary path should be recorded");
     assert.equal(typeof donor.blockerSummaryPath, "string", "smoke donor blocker summary path should be recorded");
+    assert.equal(typeof donor.nextCaptureTargetsPath, "string", "smoke donor next capture targets path should be recorded");
     assert.equal(typeof donor.runtimeCandidateCount, "number", "smoke donor scan should record runtime candidate counts");
     assert.equal(typeof donor.atlasManifestCount, "number", "smoke donor scan should record atlas manifest counts");
     assert.equal(typeof donor.bundleAssetMapStatus, "string", "smoke donor scan should record bundle map status");
     assert.equal(typeof donor.mirrorCandidateStatus, "string", "smoke donor scan should record mirror candidate status");
+    assert.equal(typeof donor.nextCaptureTargetCount, "number", "smoke donor scan should record next capture target counts");
     assert.equal(typeof donor.nextOperatorAction, "string", "smoke donor scan should record the next operator action");
     const projectMetaValid = validateProjectMeta(meta);
     assert(projectMetaValid, `smoke project meta failed schema validation: ${formatErrors(validateProjectMeta.errors)}`);
@@ -175,6 +177,7 @@ async function main(): Promise<void> {
     assert.equal(createdProjectSlice.selectedProjectId, created.projectId, "project slice should load the created project");
     assert.equal(createdProjectSlice.donorScan?.scanState, "scanned", "project slice should expose donor scan state");
     assert.ok((createdProjectSlice.donorScan?.runtimeCandidateCount ?? 0) >= 1, "project slice should expose donor scan runtime candidate counts");
+    assert.ok((createdProjectSlice.donorScan?.nextCaptureTargetCount ?? 0) >= 1, "project slice should expose donor scan next capture target counts");
     assert(
       (createdProjectSlice.donorAssetCatalog?.assetCount ?? 0) >= 1,
       "created project slice should expose harvested donor/runtime image assets as editable donor asset cards"
