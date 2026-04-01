@@ -7,6 +7,7 @@ import type {
   CaptureFamilySourceProfilesFile,
   CaptureFamilySourceState,
   CaptureTargetFamiliesFile,
+  HarvestManifestFile,
   NextCaptureTargetsFile
 } from "./shared";
 
@@ -18,6 +19,7 @@ interface SummarizeCaptureFamilySourceProfilesOptions {
   captureTargetFamilies: CaptureTargetFamiliesFile;
   captureBlockerFamilies: CaptureBlockerFamiliesFile;
   nextCaptureTargets: NextCaptureTargetsFile;
+  harvestManifest: HarvestManifestFile;
 }
 
 interface MutableFamilyProfile {
@@ -36,8 +38,13 @@ interface MutableFamilyProfile {
   locationPrefixes: Set<string>;
   sameFamilyBundleReferenceCount: number;
   sameFamilyVariantAssetCount: number;
+  localSameFamilyBundleReferenceCount: number;
+  localSameFamilyVariantAssetCount: number;
+  localRelatedBundleAssetCount: number;
+  localRelatedVariantAssetCount: number;
   sameFamilyBundleReferencePreview: Set<string>;
   sameFamilyVariantAssetPreview: Set<string>;
+  localSourceAssetPreview: Set<string>;
   relatedBundleAssetHints: Set<string>;
   relatedVariantAssetHints: Set<string>;
   sampleTargetUrls: string[];
@@ -124,8 +131,13 @@ function getOrCreateProfile(
     locationPrefixes: new Set(),
     sameFamilyBundleReferenceCount: 0,
     sameFamilyVariantAssetCount: 0,
+    localSameFamilyBundleReferenceCount: 0,
+    localSameFamilyVariantAssetCount: 0,
+    localRelatedBundleAssetCount: 0,
+    localRelatedVariantAssetCount: 0,
     sameFamilyBundleReferencePreview: new Set(),
     sameFamilyVariantAssetPreview: new Set(),
+    localSourceAssetPreview: new Set(),
     relatedBundleAssetHints: new Set(),
     relatedVariantAssetHints: new Set(),
     sampleTargetUrls: [],
@@ -157,6 +169,14 @@ function inferSourceState(profile: MutableFamilyProfile): CaptureFamilySourceSta
 function buildNextStep(profile: MutableFamilyProfile, state: CaptureFamilySourceState): string {
   if (state === "local-pages-complete") {
     return "Family already has local atlas pages; move to atlas/frame import or deeper runtime linkage.";
+  }
+  const localSourceAssetCount =
+    profile.localSameFamilyBundleReferenceCount
+    + profile.localSameFamilyVariantAssetCount
+    + profile.localRelatedBundleAssetCount
+    + profile.localRelatedVariantAssetCount;
+  if (localSourceAssetCount > 0) {
+    return "Family already has grounded local source assets captured; use them for deeper source discovery or reconstruction before adding more URL heuristics.";
   }
   if (state === "partial-local-pages") {
     return "Capture the remaining missing page images or review the related variant-backed assets before repeating raw capture.";
@@ -192,8 +212,13 @@ function finalizeProfile(profile: MutableFamilyProfile): CaptureFamilySourceProf
     locationPrefixes: [...profile.locationPrefixes].sort((left, right) => left.localeCompare(right)),
     sameFamilyBundleReferenceCount: profile.sameFamilyBundleReferenceCount,
     sameFamilyVariantAssetCount: profile.sameFamilyVariantAssetCount,
+    localSameFamilyBundleReferenceCount: profile.localSameFamilyBundleReferenceCount,
+    localSameFamilyVariantAssetCount: profile.localSameFamilyVariantAssetCount,
+    localRelatedBundleAssetCount: profile.localRelatedBundleAssetCount,
+    localRelatedVariantAssetCount: profile.localRelatedVariantAssetCount,
     sameFamilyBundleReferencePreview: [...profile.sameFamilyBundleReferencePreview].sort((left, right) => left.localeCompare(right)).slice(0, 5),
     sameFamilyVariantAssetPreview: [...profile.sameFamilyVariantAssetPreview].sort((left, right) => left.localeCompare(right)).slice(0, 5),
+    localSourceAssetPreview: [...profile.localSourceAssetPreview].sort((left, right) => left.localeCompare(right)).slice(0, 5),
     relatedBundleAssetHints: [...profile.relatedBundleAssetHints].sort((left, right) => left.localeCompare(right)).slice(0, 5),
     relatedVariantAssetHints: [...profile.relatedVariantAssetHints].sort((left, right) => left.localeCompare(right)).slice(0, 5),
     sampleTargetUrls: [...profile.sampleTargetUrls],
@@ -208,6 +233,18 @@ export function summarizeCaptureFamilySourceProfiles(
   options: SummarizeCaptureFamilySourceProfilesOptions
 ): CaptureFamilySourceProfilesFile {
   const profileMap = new Map<string, MutableFamilyProfile>();
+  const downloadedLookup = new Map<string, string>();
+  for (const entry of Array.isArray(options.harvestManifest.entries) ? options.harvestManifest.entries : []) {
+    if (entry.status !== "downloaded" || typeof entry.localPath !== "string") {
+      continue;
+    }
+    if (typeof entry.sourceUrl === "string" && entry.sourceUrl.length > 0) {
+      downloadedLookup.set(entry.sourceUrl, entry.localPath);
+    }
+    if (typeof entry.resolvedUrl === "string" && entry.resolvedUrl.length > 0) {
+      downloadedLookup.set(entry.resolvedUrl, entry.localPath);
+    }
+  }
 
   for (const family of options.captureTargetFamilies.families) {
     if (family.familyName.length === 0 || !family.sampleUrls.some(isSourceMaterialUrl)) {
@@ -278,8 +315,20 @@ export function summarizeCaptureFamilySourceProfiles(
         if (profile.sameFamilyBundleReferencePreview.size < 5) {
           profile.sameFamilyBundleReferencePreview.add(sourcePath);
         }
+        if (reference.localStatus === "downloaded") {
+          profile.localSameFamilyBundleReferenceCount += 1;
+          if (reference.localPath && profile.localSourceAssetPreview.size < 5) {
+            profile.localSourceAssetPreview.add(reference.localPath);
+          }
+        }
       } else if (hasTokenOverlap(tokens, referenceTokens) && profile.relatedBundleAssetHints.size < 5) {
         profile.relatedBundleAssetHints.add(sourcePath);
+        if (reference.localStatus === "downloaded") {
+          profile.localRelatedBundleAssetCount += 1;
+          if (reference.localPath && profile.localSourceAssetPreview.size < 5) {
+            profile.localSourceAssetPreview.add(reference.localPath);
+          }
+        }
       }
     }
   }
@@ -295,8 +344,30 @@ export function summarizeCaptureFamilySourceProfiles(
         if (profile.sameFamilyVariantAssetPreview.size < 5) {
           profile.sameFamilyVariantAssetPreview.add(logicalPath);
         }
+        const localVariantPaths = variant.variantUrls
+          .map((variantUrl) => downloadedLookup.get(variantUrl.url))
+          .filter((value): value is string => typeof value === "string" && value.length > 0);
+        if (localVariantPaths.length > 0) {
+          profile.localSameFamilyVariantAssetCount += localVariantPaths.length;
+          for (const localPath of localVariantPaths) {
+            if (profile.localSourceAssetPreview.size < 5) {
+              profile.localSourceAssetPreview.add(localPath);
+            }
+          }
+        }
       } else if (hasTokenOverlap(tokens, variantTokens) && profile.relatedVariantAssetHints.size < 5) {
         profile.relatedVariantAssetHints.add(logicalPath);
+        const localVariantPaths = variant.variantUrls
+          .map((variantUrl) => downloadedLookup.get(variantUrl.url))
+          .filter((value): value is string => typeof value === "string" && value.length > 0);
+        if (localVariantPaths.length > 0) {
+          profile.localRelatedVariantAssetCount += localVariantPaths.length;
+          for (const localPath of localVariantPaths) {
+            if (profile.localSourceAssetPreview.size < 5) {
+              profile.localSourceAssetPreview.add(localPath);
+            }
+          }
+        }
       }
     }
   }

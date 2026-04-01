@@ -15277,7 +15277,7 @@ function renderProjectSummary() {
           <div class="detail-list">
             <small><strong>Family source discovery</strong></small>
             ${donorScan.topFamilySourceProfiles.map((family) => `
-              <small><strong>${escapeHtml(family.familyName)}</strong> · ${escapeHtml(family.sourceState)} · atlas ${escapeHtml(String(family.localPageCount))}/${escapeHtml(String(family.atlasPageRefCount))} local pages · ${escapeHtml(String(family.sameFamilyBundleReferenceCount))} same-family bundle ref${family.sameFamilyBundleReferenceCount === 1 ? "" : "s"} · ${escapeHtml(String(family.sameFamilyVariantAssetCount))} same-family variant asset${family.sameFamilyVariantAssetCount === 1 ? "" : "s"} · ${escapeHtml(family.nextStep)}</small>
+              <small><strong>${escapeHtml(family.familyName)}</strong> · ${escapeHtml(family.sourceState)} · atlas ${escapeHtml(String(family.localPageCount))}/${escapeHtml(String(family.atlasPageRefCount))} local pages · ${escapeHtml(String(family.sameFamilyBundleReferenceCount))} same-family bundle ref${family.sameFamilyBundleReferenceCount === 1 ? "" : "s"} · ${escapeHtml(String(family.sameFamilyVariantAssetCount))} same-family variant asset${family.sameFamilyVariantAssetCount === 1 ? "" : "s"} · ${escapeHtml(String((family.localSameFamilyBundleReferenceCount || 0) + (family.localSameFamilyVariantAssetCount || 0) + (family.localRelatedBundleAssetCount || 0) + (family.localRelatedVariantAssetCount || 0)))} captured local source${((family.localSameFamilyBundleReferenceCount || 0) + (family.localSameFamilyVariantAssetCount || 0) + (family.localRelatedBundleAssetCount || 0) + (family.localRelatedVariantAssetCount || 0)) === 1 ? "" : "s"} · ${escapeHtml(family.nextStep)}</small>
               <div class="evidence-actions">
                 <button
                   type="button"
@@ -15292,6 +15292,7 @@ function renderProjectSummary() {
                 const evidenceValue = family.sampleMissingPageUrl
                   ?? family.sampleBlockedTargetUrl
                   ?? family.sampleUntriedTargetUrl
+                  ?? family.sampleLocalSourceAssetPath
                   ?? family.sampleVariantAsset
                   ?? family.sampleBundleReference
                   ?? family.sampleLocalPagePath;
@@ -15301,6 +15302,8 @@ function renderProjectSummary() {
                     ? "blocked target"
                     : family.sampleUntriedTargetUrl
                       ? "next target"
+                      : family.sampleLocalSourceAssetPath
+                        ? "local source"
                       : family.sampleVariantAsset
                         ? "variant hint"
                         : family.sampleBundleReference

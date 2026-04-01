@@ -450,8 +450,13 @@ export interface CaptureFamilySourceProfileRecord {
   locationPrefixes: string[];
   sameFamilyBundleReferenceCount: number;
   sameFamilyVariantAssetCount: number;
+  localSameFamilyBundleReferenceCount: number;
+  localSameFamilyVariantAssetCount: number;
+  localRelatedBundleAssetCount: number;
+  localRelatedVariantAssetCount: number;
   sameFamilyBundleReferencePreview: string[];
   sameFamilyVariantAssetPreview: string[];
+  localSourceAssetPreview: string[];
   relatedBundleAssetHints: string[];
   relatedVariantAssetHints: string[];
   sampleTargetUrls: string[];

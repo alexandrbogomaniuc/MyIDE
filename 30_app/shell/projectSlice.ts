@@ -203,8 +203,13 @@ export interface DonorScanStatus {
     targetCount: number;
     sameFamilyBundleReferenceCount: number;
     sameFamilyVariantAssetCount: number;
+    localSameFamilyBundleReferenceCount: number;
+    localSameFamilyVariantAssetCount: number;
+    localRelatedBundleAssetCount: number;
+    localRelatedVariantAssetCount: number;
     sampleMissingPageUrl: string | null;
     sampleLocalPagePath: string | null;
+    sampleLocalSourceAssetPath: string | null;
     sampleBundleReference: string | null;
     sampleVariantAsset: string | null;
     sampleUntriedTargetUrl: string | null;
@@ -933,8 +938,13 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
           atlasManifestKindCount: Array.isArray(family.atlasManifestKinds) ? family.atlasManifestKinds.length : 0,
           sameFamilyBundleReferenceCount: typeof family.sameFamilyBundleReferenceCount === "number" ? family.sameFamilyBundleReferenceCount : 0,
           sameFamilyVariantAssetCount: typeof family.sameFamilyVariantAssetCount === "number" ? family.sameFamilyVariantAssetCount : 0,
+          localSameFamilyBundleReferenceCount: typeof family.localSameFamilyBundleReferenceCount === "number" ? family.localSameFamilyBundleReferenceCount : 0,
+          localSameFamilyVariantAssetCount: typeof family.localSameFamilyVariantAssetCount === "number" ? family.localSameFamilyVariantAssetCount : 0,
+          localRelatedBundleAssetCount: typeof family.localRelatedBundleAssetCount === "number" ? family.localRelatedBundleAssetCount : 0,
+          localRelatedVariantAssetCount: typeof family.localRelatedVariantAssetCount === "number" ? family.localRelatedVariantAssetCount : 0,
           sampleMissingPageUrl: Array.isArray(family.missingPageUrls) && typeof family.missingPageUrls[0] === "string" ? family.missingPageUrls[0] : null,
           sampleLocalPagePath: Array.isArray(family.localPagePaths) && typeof family.localPagePaths[0] === "string" ? family.localPagePaths[0] : null,
+          sampleLocalSourceAssetPath: Array.isArray(family.localSourceAssetPreview) && typeof family.localSourceAssetPreview[0] === "string" ? family.localSourceAssetPreview[0] : null,
           sampleBundleReference: Array.isArray(family.sameFamilyBundleReferencePreview) && typeof family.sameFamilyBundleReferencePreview[0] === "string" ? family.sameFamilyBundleReferencePreview[0] : null,
           sampleVariantAsset: Array.isArray(family.sameFamilyVariantAssetPreview) && typeof family.sameFamilyVariantAssetPreview[0] === "string" ? family.sameFamilyVariantAssetPreview[0] : null,
           sampleUntriedTargetUrl: Array.isArray(family.topUntriedTargetUrls) && typeof family.topUntriedTargetUrls[0] === "string" ? family.topUntriedTargetUrls[0] : null,
@@ -948,6 +958,10 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
             family.blockedTargetCount > 0
             || family.atlasManifestKindCount > 0
             || family.sameFamilyVariantAssetCount > 0
+            || family.localSameFamilyBundleReferenceCount > 0
+            || family.localSameFamilyVariantAssetCount > 0
+            || family.localRelatedBundleAssetCount > 0
+            || family.localRelatedVariantAssetCount > 0
             || family.targetCount >= 3
           )
         )
