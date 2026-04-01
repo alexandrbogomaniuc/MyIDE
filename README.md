@@ -39,7 +39,7 @@ MyIDE is a universal local-first IDE for multiple game projects over time, with 
 - Project metadata that explains donor -> internal model -> target/resulting game relationships.
 - Standard project folder templates and lifecycle docs for adding new projects by folder.
 - Donor URL intake now writes a bounded donor-package graph under `10_donors/<donorId>/evidence/local_only/harvest/package-graph.json` so the captured donor surface is summarized as nodes, edges, and unresolved entries instead of only flat download counts.
-- Harvested package-graph images now carry package-family grouping into the donor asset palette, so captured runtime/package image bundles can be imported into Compose as grouped donor-backed scene objects instead of only one flat image card at a time.
+- Harvested package-graph images now carry package-family grouping into the donor asset palette, so captured runtime/package image bundles can be imported into Compose as grouped donor-backed scene kits instead of only one flat image card at a time.
 - Those harvested package-graph image nodes can now appear in the shell donor asset palette as importable editable-image candidates, so new donor-URL projects are no longer limited to the older hand-indexed donor image set.
 
 ## Public Repo Exclusions

@@ -184,6 +184,11 @@ async function main(): Promise<void> {
         && createdProjectSlice.donorAssetCatalog.assets.some((asset) => asset.assetGroupKind === "package-family" && typeof asset.assetGroupKey === "string" && asset.assetGroupKey.length > 0),
       "created project slice should tag harvested donor/runtime image assets with package-family metadata"
     );
+    assert(
+      Array.isArray(createdProjectSlice.donorAssetCatalog?.assetGroups)
+        && createdProjectSlice.donorAssetCatalog.assetGroups.some((group) => group.kind === "package-family" && typeof group.suggestedLayerId === "string" && typeof group.layoutStyle === "string"),
+      "created project slice should infer scene-kit placement hints for harvested package-family bundles"
+    );
 
     assert(
       discoveredProjects.some((project) => project.projectId === "project_001"),

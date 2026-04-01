@@ -572,6 +572,46 @@
     };
   }
 
+  function createDonorAssetGroupObject(editorData, options = {}) {
+    if (!editorData || !Array.isArray(editorData.objects)) {
+      return null;
+    }
+
+    const layer = resolveCreationLayer(editorData.layers, options.selectedLayerId);
+    if (!layer) {
+      return null;
+    }
+
+    const viewportWidth = Number.isFinite(options.viewport?.width) ? options.viewport.width : 1280;
+    const viewportHeight = Number.isFinite(options.viewport?.height) ? options.viewport.height : 720;
+    const width = sanitizeObjectDimension(options.width, Math.round(viewportWidth * 0.46));
+    const height = sanitizeObjectDimension(options.height, Math.round(viewportHeight * 0.32));
+    const objectId = createNumberedObjectId(editorData.objects, "node.donor-kit");
+    const baseX = Number.isFinite(options.position?.x) ? options.position.x : Math.round((viewportWidth - width) / 2);
+    const baseY = Number.isFinite(options.position?.y) ? options.position.y : Math.round((viewportHeight - height) / 2);
+    const clamped = {
+      x: Math.max(0, Math.min(Math.round(baseX), Math.max(0, viewportWidth - width))),
+      y: Math.max(0, Math.min(Math.round(baseY), Math.max(0, viewportHeight - height)))
+    };
+
+    return {
+      id: objectId,
+      displayName: options.displayName || "Donor Scene Kit",
+      type: "container",
+      layerId: layer.id,
+      x: clamped.x,
+      y: clamped.y,
+      width,
+      height,
+      scaleX: 1,
+      scaleY: 1,
+      visible: options.visible === false ? false : true,
+      locked: false,
+      placeholderRef: options.placeholderRef || "placeholder.container.donor-scene-kit",
+      notes: options.notes || "Grouped donor-backed scene kit created inside MyIDE."
+    };
+  }
+
   function createDonorAssetObject(editorData, options = {}) {
     if (!editorData || !Array.isArray(editorData.objects) || !options.asset) {
       return null;
@@ -595,9 +635,10 @@
 
     return {
       id: objectId,
-      displayName: options.asset.title || options.asset.filename || "Donor Image",
+      displayName: options.displayName || options.asset.title || options.asset.filename || "Donor Image",
       type: "image",
       layerId: layer.id,
+      ...(typeof options.parentId === "string" && options.parentId.length > 0 ? { parentId: options.parentId } : {}),
       x: clamped.x,
       y: clamped.y,
       width: dimensions.width,
@@ -608,7 +649,9 @@
       locked: false,
       assetRef: options.asset.assetId,
       donorAsset: buildEditableDonorAssetLink(options.asset),
-      notes: `Imported from donor asset ${options.asset.evidenceId} (${options.asset.filename}) inside MyIDE.`
+      notes: [options.notes, `Imported from donor asset ${options.asset.evidenceId} (${options.asset.filename}) inside MyIDE.`]
+        .filter(Boolean)
+        .join(" ")
     };
   }
 
@@ -1245,6 +1288,7 @@
     getPlaceholderPresets,
     getPlaceholderPreset,
     createPlaceholderObject,
+    createDonorAssetGroupObject,
     createDonorAssetObject,
     replaceObjectWithDonorAsset,
     duplicateObject,

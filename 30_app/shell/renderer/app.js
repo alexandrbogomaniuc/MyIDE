@@ -8850,6 +8850,26 @@ function getSceneObjectsForDonorAssetId(assetId) {
   return state.editorData.objects.filter((object) => getDonorAssetForObject(object)?.assetId === assetId);
 }
 
+function getSceneObjectsForDonorAssetGroupKey(groupKey) {
+  if (typeof groupKey !== "string" || groupKey.length === 0 || !state.editorData || !Array.isArray(state.editorData.objects)) {
+    return [];
+  }
+
+  const assetIds = new Set(
+    getDonorAssetItemsForGroup(groupKey)
+      .map((item) => item?.assetId)
+      .filter((assetId) => typeof assetId === "string" && assetId.length > 0)
+  );
+  if (assetIds.size === 0) {
+    return [];
+  }
+
+  return state.editorData.objects.filter((object) => {
+    const assetId = getDonorAssetForObject(object)?.assetId;
+    return typeof assetId === "string" && assetIds.has(assetId);
+  });
+}
+
 function getRuntimeReferenceScreens() {
   return runtimeReferenceScreenDefs.map((entry) => ({
     ...entry,
@@ -9011,6 +9031,22 @@ function getDonorAssetGroupSummary(groupKey) {
   }
 
   return getDonorAssetGroupOptions().find((entry) => entry?.key === groupKey) ?? null;
+}
+
+function getDonorAssetGroupSceneKitSummary(groupKey) {
+  const groupSummary = getDonorAssetGroupSummary(groupKey);
+  if (!groupSummary) {
+    return null;
+  }
+
+  const layerId = groupSummary.suggestedLayerId || "layer.gameplay";
+  const layerLabel = getLayerById(layerId)?.displayName ?? layerId;
+  return {
+    ...groupSummary,
+    layerId,
+    layerLabel,
+    importLabel: `${labelizeStatus(groupSummary.sceneKitKind)} scene kit`
+  };
 }
 
 function getDonorAssetItemsForGroup(groupKey) {
@@ -9978,6 +10014,37 @@ function focusSceneObjectInWorkflow(objectId, {
   setPreviewStatus(statusMessage ?? `Selected ${selectedObject?.displayName ?? objectId} in Compose Mode.`);
 }
 
+function focusSceneObjectGroupInWorkflow(objectIds, {
+  statusMessage = null,
+  label = "scene kit"
+} = {}) {
+  const normalizedIds = uniqueStrings(Array.isArray(objectIds) ? objectIds : [])
+    .filter((objectId) => Boolean(getEditableObjectById(objectId)));
+  if (normalizedIds.length === 0) {
+    setPreviewStatus(`Could not find any editable objects for that ${label} in the current internal scene.`);
+    return;
+  }
+
+  setWorkbenchMode("scene", { silent: true });
+  state.workflowUi.activePanel = "compose";
+  setSelectedObjectIds(normalizedIds, normalizedIds[0]);
+  renderAll();
+  window.requestAnimationFrame(() => {
+    const row = elements.sceneExplorer?.querySelector(`[data-object-id="${normalizedIds[0]}"]`);
+    if (row instanceof HTMLElement) {
+      row.scrollIntoView({
+        block: "nearest",
+        behavior: "smooth"
+      });
+    }
+  });
+
+  setPreviewStatus(
+    statusMessage
+      ?? `Selected ${normalizedIds.length} editable object${normalizedIds.length === 1 ? "" : "s"} for the current ${label} in Compose Mode.`
+  );
+}
+
 function selectObjectFromEvidence(objectId) {
   focusSceneObjectInWorkflow(objectId, {
     statusMessage: `Selected ${getEditableObjectById(objectId)?.displayName ?? objectId} from donor evidence linkage.`
@@ -10058,6 +10125,21 @@ function handleNavigationClick(event) {
   if (focusSceneObjectButton instanceof HTMLElement && focusSceneObjectButton.dataset.focusSceneObjectId) {
     event.preventDefault();
     focusSceneObjectInWorkflow(focusSceneObjectButton.dataset.focusSceneObjectId);
+    return true;
+  }
+
+  const focusSceneObjectGroupButton = target.closest("[data-focus-scene-object-group-key]");
+  if (focusSceneObjectGroupButton instanceof HTMLElement && focusSceneObjectGroupButton.dataset.focusSceneObjectGroupKey) {
+    event.preventDefault();
+    const groupKey = focusSceneObjectGroupButton.dataset.focusSceneObjectGroupKey;
+    const linkedGroupObjects = getSceneObjectsForDonorAssetGroupKey(groupKey);
+    const groupSummary = getDonorAssetGroupSceneKitSummary(groupKey);
+    focusSceneObjectGroupInWorkflow(linkedGroupObjects.map((entry) => entry.id), {
+      label: groupSummary?.importLabel ?? "scene kit",
+      statusMessage: linkedGroupObjects.length > 0
+        ? `Selected ${linkedGroupObjects.length} editable object${linkedGroupObjects.length === 1 ? "" : "s"} for ${groupSummary?.label ?? groupKey} in Compose Mode.`
+        : null
+    });
     return true;
   }
 
@@ -10357,19 +10439,32 @@ function renderDonorAssetCards(items, evidenceObjectIndex = new Map()) {
   return `
     <div class="donor-asset-groups">
       ${groupedItems.map((group) => `
+        ${(() => {
+          const sceneKitSummary = getDonorAssetGroupSceneKitSummary(group.key);
+          const linkedGroupObjects = getSceneObjectsForDonorAssetGroupKey(group.key);
+          return `
         <section class="donor-asset-group">
           <div class="donor-asset-group-head">
             <div class="donor-asset-group-meta">
               <strong>${escapeHtml(group.label)}</strong>
-              <span>${group.count} item${group.count === 1 ? "" : "s"}${group.kind === "package-family" ? " in this harvested runtime/package bundle" : ""}</span>
+              <span>${group.count} item${group.count === 1 ? "" : "s"}${group.kind === "package-family" ? " in this harvested runtime/package scene kit" : ""}</span>
               ${group.description ? `<small>${escapeHtml(group.description)}</small>` : ""}
+              ${sceneKitSummary ? `<small>Scene kit target: ${escapeHtml(sceneKitSummary.layerLabel)} · ${escapeHtml(sceneKitSummary.layoutStyle)} layout · ${escapeHtml(sceneKitSummary.importLabel)}</small>` : ""}
             </div>
             <div class="evidence-actions">
               ${group.kind === "package-family"
-                ? `<button type="button" class="copy-button" data-import-donor-asset-group-key="${escapeAttribute(group.key)}">Import Bundle To Compose</button>`
+                ? `<button type="button" class="copy-button" data-import-donor-asset-group-key="${escapeAttribute(group.key)}">Import Scene Kit To Compose</button>`
                 : ""}
+              ${linkedGroupObjects.length > 0 ? `<button type="button" class="copy-button" data-focus-scene-object-group-key="${escapeAttribute(group.key)}">Select Scene Kit Objects</button>` : ""}
+              ${linkedGroupObjects.length > 0 ? renderCopyButton(linkedGroupObjects.map((entry) => entry.id).join("\n"), `scene kit object ids for ${group.label}`, "Copy Linked IDs") : ""}
             </div>
           </div>
+          ${linkedGroupObjects.length > 0 ? `
+            <div class="chip-row donor-asset-summary-chips">
+              <span>${linkedGroupObjects.length} linked scene object${linkedGroupObjects.length === 1 ? "" : "s"}</span>
+              <span>${escapeHtml(linkedGroupObjects[0]?.displayName ?? "linked object")}</span>
+            </div>
+          ` : ""}
           <div class="donor-asset-grid">
             ${group.items.map((item) => {
               const linkedObjects = evidenceObjectIndex.get(item.evidenceId) ?? [];
@@ -10437,6 +10532,8 @@ function renderDonorAssetCards(items, evidenceObjectIndex = new Map()) {
             }).join("")}
           </div>
         </section>
+      `;
+        })()}
       `).join("")}
     </div>
   `;
@@ -13906,12 +14003,38 @@ function handleImportDonorAsset(assetId, scenePoint = null) {
   return true;
 }
 
-function buildDonorAssetGroupImportPosition(index, viewport, assetCount) {
+function buildDonorAssetGroupImportPosition(index, viewport, assetCount, layoutStyle = "grid", containerBounds = null) {
   const viewportWidth = Number.isFinite(viewport?.width) ? viewport.width : 1280;
   const viewportHeight = Number.isFinite(viewport?.height) ? viewport.height : 720;
+  const originX = Number.isFinite(containerBounds?.x) ? containerBounds.x : 72;
+  const originY = Number.isFinite(containerBounds?.y) ? containerBounds.y : 96;
+  const availableWidth = Number.isFinite(containerBounds?.width) ? containerBounds.width : Math.max(360, viewportWidth - originX * 2);
+  const availableHeight = Number.isFinite(containerBounds?.height) ? containerBounds.height : Math.max(240, viewportHeight - originY * 2);
+
+  if (layoutStyle === "hero") {
+    return {
+      x: Math.min(Math.max(0, Math.round(originX + 32)), Math.max(0, viewportWidth - 220)),
+      y: Math.min(Math.max(0, Math.round(originY + 24 + index * 28)), Math.max(0, viewportHeight - 160))
+    };
+  }
+
+  if (layoutStyle === "strip") {
+    return {
+      x: Math.min(Math.max(0, Math.round(originX + 24 + index * 196)), Math.max(0, viewportWidth - 220)),
+      y: Math.min(Math.max(0, Math.round(originY + availableHeight * 0.5 - 70)), Math.max(0, viewportHeight - 140))
+    };
+  }
+
+  if (layoutStyle === "stack") {
+    return {
+      x: Math.min(Math.max(0, Math.round(originX + availableWidth * 0.5 - 110 + (index % 2) * 28)), Math.max(0, viewportWidth - 220)),
+      y: Math.min(Math.max(0, Math.round(originY + 24 + index * 92)), Math.max(0, viewportHeight - 140))
+    };
+  }
+
   const columns = Math.max(1, Math.min(4, Math.ceil(Math.sqrt(Math.max(1, assetCount)))));
-  const horizontalPadding = 72;
-  const verticalPadding = 96;
+  const horizontalPadding = originX + 24;
+  const verticalPadding = originY + 24;
   const horizontalGap = 220;
   const verticalGap = 180;
   const row = Math.floor(index / columns);
@@ -13925,37 +14048,68 @@ function buildDonorAssetGroupImportPosition(index, viewport, assetCount) {
   };
 }
 
+function resolveDonorSceneKitImportLayerId(sceneKitSummary) {
+  const requestedLayerId = String(state.donorAssetUi?.importTargetLayerId ?? "auto").trim();
+  if (requestedLayerId && requestedLayerId !== "auto") {
+    return requestedLayerId;
+  }
+
+  return sceneKitSummary?.layerId ?? "layer.gameplay";
+}
+
 function handleImportDonorAssetGroup(groupKey) {
   if (!state.editorData) {
-    setPreviewStatus("No editable scene data is available for donor bundle import.");
+    setPreviewStatus("No editable scene data is available for donor scene-kit import.");
     return false;
   }
 
   const groupSummary = getDonorAssetGroupSummary(groupKey);
+  const sceneKitSummary = getDonorAssetGroupSceneKitSummary(groupKey);
   const donorAssets = getDonorAssetItemsForGroup(groupKey).filter((asset) => Boolean(asset?.previewUrl));
   if (donorAssets.length === 0) {
-    setPreviewStatus("That donor bundle does not have any usable local image assets on this machine.");
+    setPreviewStatus("That donor scene kit does not have any usable local image assets on this machine.");
     return false;
   }
 
   if (getAssignableLayers().length === 0) {
-    setPreviewStatus("Every layer is locked, so donor bundle import is currently blocked.");
+    setPreviewStatus("Every layer is locked, so donor scene-kit import is currently blocked.");
     return false;
   }
 
   const createdObjectIds = [];
   const viewport = getSceneViewport();
-  const targetLayerId = getDonorImportTargetLayerId();
-  let createdLayerName = getDonorImportTargetLayerLabel();
-  const didChange = applyEditorMutation(`Imported donor bundle ${groupSummary?.label ?? groupKey}.`, (editorData) => {
+  const targetLayerId = resolveDonorSceneKitImportLayerId(sceneKitSummary);
+  let createdLayerName = getLayerById(targetLayerId)?.displayName ?? getDonorImportTargetLayerLabel();
+  const containerPosition = buildDonorAssetGroupImportPosition(0, viewport, donorAssets.length, sceneKitSummary?.layoutStyle ?? "grid");
+  let containerObjectId = null;
+  const didChange = applyEditorMutation(`Imported donor scene kit ${groupSummary?.label ?? groupKey}.`, (editorData) => {
     const tools = getEditorStateTools();
+    const containerObject = typeof tools.createDonorAssetGroupObject === "function"
+      ? tools.createDonorAssetGroupObject(editorData, {
+          displayName: `${sceneKitSummary?.label ?? groupSummary?.label ?? groupKey} Scene Kit`,
+          selectedLayerId: targetLayerId,
+          viewport,
+          position: containerPosition,
+          width: sceneKitSummary?.layoutStyle === "strip" ? 960 : sceneKitSummary?.layoutStyle === "stack" ? 360 : 760,
+          height: sceneKitSummary?.layoutStyle === "hero" ? 420 : sceneKitSummary?.layoutStyle === "stack" ? 520 : 320,
+          visible: false,
+          notes: `Hidden scene-kit container for ${sceneKitSummary?.label ?? groupSummary?.label ?? groupKey}. Children keep the imported donor-backed visual pieces grouped together.`
+        })
+      : null;
+    if (containerObject) {
+      containerObjectId = containerObject.id;
+      editorData.objects.push(containerObject);
+    }
     donorAssets.forEach((asset, index) => {
       const nextObject = typeof tools.createDonorAssetObject === "function"
         ? tools.createDonorAssetObject(editorData, {
           asset,
           viewport,
-          position: buildDonorAssetGroupImportPosition(index, viewport, donorAssets.length),
-          selectedLayerId: targetLayerId
+          position: buildDonorAssetGroupImportPosition(index, viewport, donorAssets.length, sceneKitSummary?.layoutStyle ?? "grid", containerObject),
+          selectedLayerId: targetLayerId,
+          parentId: containerObjectId,
+          displayName: `${sceneKitSummary?.label ?? groupSummary?.label ?? "Scene Kit"} · ${asset.title ?? asset.filename}`,
+          notes: `${sceneKitSummary?.importLabel ?? "Scene kit"} import from donor scene kit ${groupSummary?.label ?? groupKey}.`
         })
         : null;
 
@@ -13973,15 +14127,15 @@ function handleImportDonorAssetGroup(groupKey) {
   });
 
   if (!didChange || createdObjectIds.length === 0) {
-    setPreviewStatus(`Could not import donor bundle ${groupSummary?.label ?? groupKey}.`);
+    setPreviewStatus(`Could not import donor scene kit ${groupSummary?.label ?? groupKey}.`);
     return false;
   }
 
-  setSelectedObject(createdObjectIds[0]);
+  setSelectedObjectIds(createdObjectIds, createdObjectIds[0]);
   state.donorAssetUi.highlightedAssetId = donorAssets[0]?.assetId ?? null;
   ensureSelectedObject();
   renderAll();
-  setPreviewStatus(`Imported ${createdObjectIds.length} donor-backed objects from ${groupSummary?.label ?? groupKey} onto ${createdLayerName}. Save to persist this bundle import.`);
+  setPreviewStatus(`Imported ${createdObjectIds.length} donor-backed objects from ${sceneKitSummary?.importLabel ?? "scene kit"} ${groupSummary?.label ?? groupKey} onto ${createdLayerName}. Save to persist this grouped kit import.`);
   return true;
 }
 

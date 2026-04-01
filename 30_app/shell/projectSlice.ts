@@ -81,6 +81,9 @@ export interface DonorAssetGroupSummary {
   label: string;
   kind: "indexed-donor-images" | "package-family";
   description: string | null;
+  sceneKitKind: "background" | "gameplay" | "ui" | "overlay" | "misc";
+  suggestedLayerId: string;
+  layoutStyle: "grid" | "strip" | "stack" | "hero";
   count: number;
   sampleAssetId: string;
 }
@@ -526,6 +529,61 @@ function buildPackageGraphAssetGroupDescription(node: HarvestedPackageGraphNode)
   return "Harvested from the donor package graph.";
 }
 
+function inferSceneKitKind(
+  groupLabel: string,
+  assets: readonly Pick<DonorAssetItem, "title" | "filename" | "sourceUrl" | "discoveredFromUrl">[]
+): DonorAssetGroupSummary["sceneKitKind"] {
+  const haystack = [
+    groupLabel,
+    ...assets.flatMap((asset) => [
+      asset.title,
+      asset.filename,
+      asset.sourceUrl ?? "",
+      asset.discoveredFromUrl ?? ""
+    ])
+  ].join(" ").toLowerCase();
+
+  if (/(modal|overlay|popup|intro|loading|award|transition|splash)/.test(haystack)) {
+    return "overlay";
+  }
+  if (/(hud|ui|button|counter|bar|badge|panel|label|control|menu)/.test(haystack)) {
+    return "ui";
+  }
+  if (/(background|backdrop|wallpaper|landscape|forest|garden-bg|scene-bg)/.test(haystack)) {
+    return "background";
+  }
+  if (/(board|reel|symbol|book|logo|title|flower|key|scatter|frame|tile)/.test(haystack)) {
+    return "gameplay";
+  }
+
+  return "misc";
+}
+
+function getSceneKitSuggestedLayerId(sceneKitKind: DonorAssetGroupSummary["sceneKitKind"]): string {
+  if (sceneKitKind === "ui") {
+    return "layer.ui";
+  }
+  if (sceneKitKind === "overlay") {
+    return "layer.overlay";
+  }
+
+  return "layer.gameplay";
+}
+
+function getSceneKitLayoutStyle(sceneKitKind: DonorAssetGroupSummary["sceneKitKind"]): DonorAssetGroupSummary["layoutStyle"] {
+  if (sceneKitKind === "background") {
+    return "hero";
+  }
+  if (sceneKitKind === "ui") {
+    return "strip";
+  }
+  if (sceneKitKind === "overlay") {
+    return "stack";
+  }
+
+  return "grid";
+}
+
 async function loadPackageGraphAssets(
   selectedProject: WorkspaceProjectSummary | null,
   selectedProjectId: string
@@ -656,11 +714,15 @@ async function loadDonorAssetCatalog(selectedProject: WorkspaceProjectSummary | 
       current.count += 1;
       continue;
     }
+    const sceneKitKind = inferSceneKitKind(asset.assetGroupLabel, assets.filter((entry) => entry.assetGroupKey === asset.assetGroupKey));
     assetGroupMap.set(asset.assetGroupKey, {
       key: asset.assetGroupKey,
       label: asset.assetGroupLabel,
       kind: asset.assetGroupKind,
       description: asset.assetGroupDescription,
+      sceneKitKind,
+      suggestedLayerId: getSceneKitSuggestedLayerId(sceneKitKind),
+      layoutStyle: getSceneKitLayoutStyle(sceneKitKind),
       count: 1,
       sampleAssetId: asset.assetId
     });
