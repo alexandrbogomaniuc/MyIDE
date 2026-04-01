@@ -147,6 +147,8 @@ export interface DonorScanPaths {
   captureBlockerFamiliesPath: string;
   captureFamilySourceProfilesPath: string;
   captureFamilyActionsPath: string;
+  familyActionRunPath: string;
+  familyActionWorksetsRoot: string;
   captureRunPath: string;
   blockerSummaryPath: string;
   scanSummaryPath: string;
@@ -512,6 +514,8 @@ export interface CaptureFamilyActionsFile {
 
 export type CaptureRunStatus = "captured" | "partial" | "blocked" | "skipped";
 export type CaptureRunMode = "ranked-targets" | "family-sources";
+export type FamilyActionRunStatus = CaptureRunStatus | "prepared";
+export type FamilyActionRunMode = CaptureRunMode | "prepare-workset";
 
 export interface CaptureRunTargetResult {
   rank: number;
@@ -548,6 +552,65 @@ export interface CaptureRunFile {
   refreshedScanSummaryPath: string;
   refreshedNextCaptureTargetsPath: string;
   results: CaptureRunTargetResult[];
+}
+
+export interface FamilyActionWorksetFile {
+  schemaVersion: string;
+  donorId: string;
+  donorName: string;
+  generatedAt: string;
+  familyName: string;
+  actionClass: CaptureFamilyActionClass;
+  priority: CaptureFamilyActionRecord["priority"];
+  reason: string;
+  nextStep: string;
+  sampleEvidence: string | null;
+  sourceState: CaptureFamilySourceProfileRecord["sourceState"] | "unknown";
+  targetCount: number;
+  blockedTargetCount: number;
+  localSourceAssetCount: number;
+  localPageCount: number;
+  atlasPageRefCount: number;
+  sameFamilyBundleReferenceCount: number;
+  sameFamilyVariantAssetCount: number;
+  localSourceAssetPreview: string[];
+  localPagePaths: string[];
+  sameFamilyBundleReferencePreview: string[];
+  sameFamilyVariantAssetPreview: string[];
+  relatedBundleAssetHints: string[];
+  relatedVariantAssetHints: string[];
+  sampleTargetUrls: string[];
+  topUntriedTargetUrls: string[];
+  topBlockedTargetUrls: string[];
+  rawPayloadBlockedReason: string | null;
+  preparedEvidenceCount: number;
+  sourceProfilePath: string;
+  familyActionsPath: string;
+}
+
+export interface FamilyActionRunFile {
+  schemaVersion: string;
+  donorId: string;
+  donorName: string;
+  generatedAt: string;
+  familyName: string;
+  actionClass: CaptureFamilyActionClass;
+  requestedLimit: number;
+  requestedMode: FamilyActionRunMode;
+  status: FamilyActionRunStatus;
+  worksetPath: string | null;
+  captureRunPath: string | null;
+  preparedEvidenceCount: number;
+  localSourceAssetCount: number;
+  targetCount: number;
+  blockedTargetCount: number;
+  attemptedCount: number;
+  downloadedCount: number;
+  failedCount: number;
+  skippedCount: number;
+  reason: string;
+  nextStep: string;
+  nextOperatorAction: string;
 }
 
 function readUrlHost(urlString: string): string | null {
@@ -603,6 +666,8 @@ export function buildDonorScanPaths(donorId: string): DonorScanPaths {
     captureBlockerFamiliesPath: path.join(harvestRoot, "capture-blocker-families.json"),
     captureFamilySourceProfilesPath: path.join(harvestRoot, "capture-family-source-profiles.json"),
     captureFamilyActionsPath: path.join(harvestRoot, "capture-family-actions.json"),
+    familyActionRunPath: path.join(harvestRoot, "family-action-run.json"),
+    familyActionWorksetsRoot: path.join(harvestRoot, "family-action-worksets"),
     captureRunPath: path.join(harvestRoot, "next-capture-run.json"),
     blockerSummaryPath: path.join(harvestRoot, "blocker-summary.md"),
     scanSummaryPath: path.join(harvestRoot, "scan-summary.json")

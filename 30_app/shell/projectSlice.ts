@@ -155,6 +155,7 @@ export interface DonorScanStatus {
   blockerSummaryPath: string | null;
   nextCaptureTargetsPath: string | null;
   captureRunPath: string | null;
+  familyActionRunPath: string | null;
   captureTargetFamiliesPath: string | null;
   captureFamilySourceProfilesPath: string | null;
   captureFamilyActionsPath: string | null;
@@ -188,6 +189,11 @@ export interface DonorScanStatus {
   captureDownloadedCount: number;
   captureFailedCount: number;
   captureGeneratedAt: string | null;
+  familyActionRunStatus: string | null;
+  familyActionRunMode: string | null;
+  familyActionRunFamily: string | null;
+  familyActionPreparedEvidenceCount: number;
+  familyActionWorksetPath: string | null;
   nextOperatorAction: string | null;
   blockerHighlights: string[];
   blockerSummaryMarkdown: string | null;
@@ -887,14 +893,16 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
   const captureFamilySourceProfilesPath = `10_donors/${donorId}/evidence/local_only/harvest/capture-family-source-profiles.json`;
   const captureFamilyActionsPath = `10_donors/${donorId}/evidence/local_only/harvest/capture-family-actions.json`;
   const captureRunPath = `10_donors/${donorId}/evidence/local_only/harvest/next-capture-run.json`;
-  const [scanSummary, blockerSummaryMarkdown, nextCaptureTargetsFile, captureRunSummary, captureTargetFamiliesFile, captureFamilySourceProfilesFile, captureFamilyActionsFile] = await Promise.all([
+  const familyActionRunPath = `10_donors/${donorId}/evidence/local_only/harvest/family-action-run.json`;
+  const [scanSummary, blockerSummaryMarkdown, nextCaptureTargetsFile, captureRunSummary, captureTargetFamiliesFile, captureFamilySourceProfilesFile, captureFamilyActionsFile, familyActionRunSummary] = await Promise.all([
     readOptionalJsonFile(path.join(workspaceRoot, scanSummaryPath)) as Promise<JsonObject | null>,
     readOptionalTextFile(path.join(workspaceRoot, blockerSummaryPath)),
     readOptionalJsonFile(path.join(workspaceRoot, nextCaptureTargetsPath)) as Promise<JsonObject | null>,
     readOptionalJsonFile(path.join(workspaceRoot, captureRunPath)) as Promise<JsonObject | null>,
     readOptionalJsonFile(path.join(workspaceRoot, captureTargetFamiliesPath)) as Promise<JsonObject | null>,
     readOptionalJsonFile(path.join(workspaceRoot, captureFamilySourceProfilesPath)) as Promise<JsonObject | null>,
-    readOptionalJsonFile(path.join(workspaceRoot, captureFamilyActionsPath)) as Promise<JsonObject | null>
+    readOptionalJsonFile(path.join(workspaceRoot, captureFamilyActionsPath)) as Promise<JsonObject | null>,
+    readOptionalJsonFile(path.join(workspaceRoot, familyActionRunPath)) as Promise<JsonObject | null>
   ]);
 
   if (!scanSummary) {
@@ -1009,6 +1017,7 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
     blockerSummaryPath: blockerSummaryMarkdown ? blockerSummaryPath : null,
     nextCaptureTargetsPath: nextCaptureTargetsFile ? nextCaptureTargetsPath : null,
     captureRunPath: captureRunSummary ? captureRunPath : null,
+    familyActionRunPath: familyActionRunSummary ? familyActionRunPath : null,
     captureTargetFamiliesPath: captureTargetFamiliesFile ? captureTargetFamiliesPath : null,
     captureFamilySourceProfilesPath: captureFamilySourceProfilesFile ? captureFamilySourceProfilesPath : null,
     captureFamilyActionsPath: captureFamilyActionsFile ? captureFamilyActionsPath : null,
@@ -1050,6 +1059,11 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
     captureDownloadedCount: typeof captureRunSummary?.downloadedCount === "number" ? captureRunSummary.downloadedCount : 0,
     captureFailedCount: typeof captureRunSummary?.failedCount === "number" ? captureRunSummary.failedCount : 0,
     captureGeneratedAt: typeof captureRunSummary?.generatedAt === "string" ? captureRunSummary.generatedAt : null,
+    familyActionRunStatus: typeof familyActionRunSummary?.status === "string" ? familyActionRunSummary.status : null,
+    familyActionRunMode: typeof familyActionRunSummary?.requestedMode === "string" ? familyActionRunSummary.requestedMode : null,
+    familyActionRunFamily: typeof familyActionRunSummary?.familyName === "string" ? familyActionRunSummary.familyName : null,
+    familyActionPreparedEvidenceCount: typeof familyActionRunSummary?.preparedEvidenceCount === "number" ? familyActionRunSummary.preparedEvidenceCount : 0,
+    familyActionWorksetPath: typeof familyActionRunSummary?.worksetPath === "string" ? familyActionRunSummary.worksetPath : null,
     nextOperatorAction: typeof scanSummary.nextOperatorAction === "string" ? scanSummary.nextOperatorAction : (donor.nextOperatorAction ?? null),
     blockerHighlights,
     blockerSummaryMarkdown,

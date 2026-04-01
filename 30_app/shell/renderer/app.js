@@ -3185,6 +3185,48 @@ async function runDonorScanCapture(limit = 5, family = null, mode = "ranked-targ
   }
 }
 
+async function runDonorScanFamilyAction(family, limit = 10) {
+  const api = window.myideApi;
+  const selectedProject = getSelectedProject();
+  const donorId = typeof selectedProject?.donor?.donorId === "string" ? selectedProject.donor.donorId : "";
+  const familyLabel = typeof family === "string" && family.trim().length > 0 ? family.trim() : "";
+  if (!api || typeof api.runDonorScanFamilyAction !== "function" || !donorId || !familyLabel) {
+    setPreviewStatus("Donor family actions are not available in this renderer session.");
+    return;
+  }
+
+  setPreviewStatus(`Running donor family action for ${familyLabel}...`);
+  try {
+    const result = await api.runDonorScanFamilyAction(donorId, familyLabel, limit);
+    await reloadWorkspace(false, state.selectedProjectId);
+
+    const status = typeof result?.status === "string" ? result.status : "blocked";
+    const requestedMode = typeof result?.requestedMode === "string" ? result.requestedMode : "prepare-workset";
+    const preparedEvidenceCount = Number(result?.preparedEvidenceCount ?? 0);
+    const downloadedCount = Number(result?.downloadedCount ?? 0);
+    const failedCount = Number(result?.failedCount ?? 0);
+    const attemptedCount = Number(result?.attemptedCount ?? 0);
+    const worksetPath = typeof result?.worksetPath === "string" ? result.worksetPath : null;
+    const nextOperatorAction = typeof result?.nextOperatorAction === "string" ? result.nextOperatorAction : "Review the donor scan family action queue.";
+
+    if (requestedMode === "prepare-workset") {
+      setPreviewStatus(
+        `Family ${familyLabel}: prepared workset with ${preparedEvidenceCount} grounded source or evidence item${preparedEvidenceCount === 1 ? "" : "s"}`
+        + `${worksetPath ? ` at ${worksetPath}` : ""}. ${nextOperatorAction}`
+      );
+      return;
+    }
+
+    setPreviewStatus(
+      `Family ${familyLabel}: action ${status}. Downloaded ${downloadedCount} of ${attemptedCount} attempted target${attemptedCount === 1 ? "" : "s"}`
+      + `${failedCount > 0 ? ` with ${failedCount} failure${failedCount === 1 ? "" : "s"}` : ""}. ${nextOperatorAction}`
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    setPreviewStatus(`Family ${familyLabel}: donor family action failed: ${message}`);
+  }
+}
+
 async function handleRuntimeAction(action) {
   if (action === "launch") {
     await handleRuntimeLaunch();
@@ -11663,6 +11705,15 @@ function handleNavigationClick(event) {
       void runDonorScanCapture(Number.isFinite(limit) ? limit : 5, family, mode);
       return true;
     }
+    if (donorScanActionButton.dataset.donorScanAction === "run-family-action") {
+      const limit = Number.parseInt(donorScanActionButton.dataset.donorScanCaptureLimit ?? "10", 10);
+      const family = typeof donorScanActionButton.dataset.donorScanCaptureFamily === "string"
+        && donorScanActionButton.dataset.donorScanCaptureFamily.trim().length > 0
+        ? donorScanActionButton.dataset.donorScanCaptureFamily.trim()
+        : "";
+      void runDonorScanFamilyAction(family, Number.isFinite(limit) ? limit : 10);
+      return true;
+    }
   }
 
   const focusSceneObjectButton = target.closest("[data-focus-scene-object-id]");
@@ -15257,7 +15308,13 @@ function renderProjectSummary() {
           <span>${typeof donorScan?.nextCaptureTargetCount === "number" ? donorScan.nextCaptureTargetCount : 0} next capture targets</span>
           <span>${typeof donorScan?.captureRunStatus === "string" ? escapeHtml(donorScan.captureRunStatus) : "idle"} ${donorScan?.captureRunMode === "family-sources" ? "family source capture" : "guided capture"}${typeof donorScan?.captureRunRequestedFamily === "string" && donorScan.captureRunRequestedFamily.length > 0 ? ` (${escapeHtml(donorScan.captureRunRequestedFamily)})` : ""}</span>
           <span>${typeof donorScan?.captureDownloadedCount === "number" ? donorScan.captureDownloadedCount : 0} downloaded last run</span>
+          <span>${typeof donorScan?.familyActionRunStatus === "string" ? escapeHtml(donorScan.familyActionRunStatus) : "idle"} family action${typeof donorScan?.familyActionRunFamily === "string" && donorScan.familyActionRunFamily.length > 0 ? ` (${escapeHtml(donorScan.familyActionRunFamily)})` : ""}</span>
         </div>
+        ${donorScan?.familyActionRunStatus ? `
+          <div class="detail-list">
+            <small><strong>Latest family action</strong> · ${escapeHtml(donorScan.familyActionRunStatus)} · ${escapeHtml(donorScan.familyActionRunMode || "unknown")}${donorScan.familyActionRunWorksetPath ? ` · <code>${escapeHtml(donorScan.familyActionRunWorksetPath)}</code>` : ""}${donorScan.familyActionPreparedEvidenceCount > 0 ? ` · ${escapeHtml(String(donorScan.familyActionPreparedEvidenceCount))} prepared evidence item${donorScan.familyActionPreparedEvidenceCount === 1 ? "" : "s"}` : ""}</small>
+          </div>
+        ` : ""}
         ${Array.isArray(donorScan?.topCaptureFamilies) && donorScan.topCaptureFamilies.length > 0 ? `
           <div class="detail-list">
             <small><strong>Capture by family</strong></small>
@@ -15326,18 +15383,21 @@ function renderProjectSummary() {
               <small><strong>${escapeHtml(family.familyName)}</strong> · ${escapeHtml(family.actionClass)} · ${escapeHtml(family.priority)} priority · ${escapeHtml(family.reason)}</small>
               ${family.sampleEvidence ? `<small>evidence · <code>${escapeHtml(family.sampleEvidence)}</code></small>` : ""}
               <small>${escapeHtml(family.nextStep)}</small>
-              ${family.actionClass === "capture-family-sources" ? `
-                <div class="evidence-actions">
-                  <button
-                    type="button"
-                    class="copy-button"
-                    data-donor-scan-action="capture-next"
-                    data-donor-scan-capture-mode="family-sources"
-                    data-donor-scan-capture-limit="10"
-                    data-donor-scan-capture-family="${escapeAttribute(family.familyName)}"
-                  >Capture ${escapeHtml(family.familyName)} sources</button>
-                </div>
-              ` : ""}
+              <div class="evidence-actions">
+                <button
+                  type="button"
+                  class="copy-button"
+                  data-donor-scan-action="run-family-action"
+                  data-donor-scan-capture-limit="10"
+                  data-donor-scan-capture-family="${escapeAttribute(family.familyName)}"
+                >${escapeHtml(
+                  family.actionClass === "capture-family-sources"
+                    ? `Capture ${family.familyName} sources`
+                    : family.actionClass === "capture-missing-pages"
+                      ? `Capture ${family.familyName} pages`
+                      : `Prepare ${family.familyName} workset`
+                )}</button>
+              </div>
             `).join("")}
           </div>
         ` : ""}

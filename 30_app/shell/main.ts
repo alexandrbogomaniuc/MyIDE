@@ -43,6 +43,7 @@ import {
   type RuntimeDebugPickPayload
 } from "../runtime/runtimeDebugHost";
 import { captureNextTargets } from "../../tools/donor-scan/captureNextTargets";
+import { runFamilyAction } from "../../tools/donor-scan/runFamilyAction";
 
 const isBridgeSmokeMode = process.env.MYIDE_BRIDGE_SMOKE === "1";
 const isRuntimeDebugSmokeMode = process.env.MYIDE_RUNTIME_DEBUG_SMOKE === "1";
@@ -2112,6 +2113,13 @@ ipcMain.handle("myide:run-donor-scan-capture", async (_event, donorId: string, l
     limit: typeof limit === "number" ? limit : undefined,
     family: typeof family === "string" ? family : undefined,
     mode: mode === "family-sources" ? "family-sources" : "ranked-targets"
+  });
+});
+ipcMain.handle("myide:run-donor-scan-family-action", async (_event, donorId: string, family: string, limit?: number) => {
+  return runFamilyAction({
+    donorId,
+    family,
+    limit: typeof limit === "number" ? limit : undefined
   });
 });
 ipcMain.handle("myide:get-runtime-override-status", async (_event, projectId: string) => {

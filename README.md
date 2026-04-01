@@ -26,6 +26,7 @@ MyIDE is a universal local-first IDE for multiple game projects over time, with 
 - Donor scan now also normalizes optional runtime request evidence into `request-backed-static-hints.json`, so future games can surface exact request-backed static alternates when a live runtime harvest really observed them. Those request-backed alternates also feed the same family-alias inference that ranked capture targets already use.
 - Donor scan now also has a guided capture runner: `npm run donor-scan:capture-next -- --donor-id donor_XXX --limit 5` attempts the top ranked missing donor/runtime files, rewrites grounded placeholder-style paths such as `_resourcesPath_...` when possible, tries the strongest grounded alternates first when bundle-image-variant or request-backed hints exist, writes `next-capture-run.json`, refreshes donor scan, and tells the operator whether the blocker queue actually shrank.
 - Donor scan now also has a grounded family-source capture runner: `npm run donor-scan:capture-family-sources -- --donor-id donor_XXX --family big_win --limit 10` turns one family dossier back into a reusable source-material queue and captures variant-backed, bundle-backed, atlas-missing, or still-open family URLs without inventing new hosts or filenames.
+- Donor scan now also has a generic family-action runner: `npm run donor-scan:run-family-action -- --donor-id donor_XXX --family big_win --limit 10` executes the current family action queue directly. Capture-oriented families reuse donor-scan capture; evidence/reconstruction families prepare a grounded family workset instead of retrying URLs blindly.
 - Guided capture failure evidence now feeds back into donor scan too, so ranked targets can show when the latest guided capture already exhausted the current grounded URL attempts and the operator should switch to deeper source discovery instead of repeating the same run.
 - Donor scan now also classifies `raw-payload-blocked` image targets when guided capture has already exhausted only raw/direct grounded URLs for them and no stronger grounded alternate path exists yet, so the operator can stop treating those families as near-term capture wins.
 - Donor scan now also groups those dead ends into `capture-blocker-families.json`, so the IDE can say “the `coin`, `big_win`, or `bird` family is blocked” instead of only dumping a flat list of failed URLs.
@@ -94,6 +95,7 @@ Public publication rules are defined in [`00_control/PUBLIC_REPO_POLICY.md`](./0
 - `npm run manual:reset:project_001`
 - `npm run donor:intake:url -- --donor-id donor_003_example --donor-name "Example Donor" --url "https://demo.example.com/play/Game/FUN?server=demo"`
 - `npm run donor-scan:url -- --donor-id donor_001_mystery_garden --donor-name "Mystery Garden"`
+- `npm run donor-scan:run-family-action -- --donor-id donor_001_mystery_garden --family big_win --limit 10`
 - `npm run donor-scan:verify -- --donor-id donor_001_mystery_garden`
 - `npm run runtime:mirror:project_001`
 - `npm run runtime:harvest:project_001`
@@ -123,6 +125,7 @@ Public publication rules are defined in [`00_control/PUBLIC_REPO_POLICY.md`](./0
 - `npm run handoff:verify`
 - `npm run create:project -- --config 40_projects/templates/project-template/project.meta.json.example --project-root 40_projects/project_003`
 - `npm run smoke:create-project`
+- `npm run smoke:donor-scan-family-action`
 - `npm run smoke:edit-project`
 - `npm run smoke:create-object`
 - `npm run smoke:order-isolate`
