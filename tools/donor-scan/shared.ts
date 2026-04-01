@@ -143,6 +143,7 @@ export interface DonorScanPaths {
   bundleAssetMapPath: string;
   atlasManifestsPath: string;
   nextCaptureTargetsPath: string;
+  captureTargetFamiliesPath: string;
   captureBlockerFamiliesPath: string;
   captureRunPath: string;
   blockerSummaryPath: string;
@@ -334,6 +335,8 @@ export interface DonorScanResult {
   translationPayloadStatus: BundleAssetMapStatus;
   translationPayloadCount: number;
   mirrorCandidateStatus: MirrorCandidateStatus;
+  captureFamilyCount: number;
+  topCaptureFamilyNames: string[];
   rawPayloadBlockedCaptureTargetCount: number;
   rawPayloadBlockedFamilyCount: number;
   rawPayloadBlockedFamilyNames: string[];
@@ -394,6 +397,30 @@ export interface CaptureBlockerFamiliesFile {
   generatedAt: string;
   familyCount: number;
   families: CaptureBlockerFamilyRecord[];
+}
+
+export interface CaptureTargetFamilyRecord {
+  familyName: string;
+  targetCount: number;
+  untriedTargetCount: number;
+  blockedTargetCount: number;
+  minRank: number;
+  minUntriedRank: number | null;
+  targetKinds: string[];
+  captureStrategies: CaptureTargetStrategy[];
+  locationPrefixes: string[];
+  recentCaptureAttemptCountMax: number;
+  recentCaptureFailureReasons: string[];
+  sampleUrls: string[];
+}
+
+export interface CaptureTargetFamiliesFile {
+  schemaVersion: string;
+  donorId: string;
+  donorName: string;
+  generatedAt: string;
+  familyCount: number;
+  families: CaptureTargetFamilyRecord[];
 }
 
 export type CaptureRunStatus = "captured" | "partial" | "blocked" | "skipped";
@@ -480,6 +507,7 @@ export function buildDonorScanPaths(donorId: string): DonorScanPaths {
     bundleAssetMapPath: path.join(harvestRoot, "bundle-asset-map.json"),
     atlasManifestsPath: path.join(harvestRoot, "atlas-manifests.json"),
     nextCaptureTargetsPath: path.join(harvestRoot, "next-capture-targets.json"),
+    captureTargetFamiliesPath: path.join(harvestRoot, "capture-target-families.json"),
     captureBlockerFamiliesPath: path.join(harvestRoot, "capture-blocker-families.json"),
     captureRunPath: path.join(harvestRoot, "next-capture-run.json"),
     blockerSummaryPath: path.join(harvestRoot, "blocker-summary.md"),

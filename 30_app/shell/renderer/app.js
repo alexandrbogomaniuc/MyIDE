@@ -10159,6 +10159,8 @@ function getSelectedProjectEvidenceSummary() {
     donorMirrorCandidateStatus: typeof donorScan?.mirrorCandidateStatus === "string" ? donorScan.mirrorCandidateStatus : (typeof selectedProject.donor?.mirrorCandidateStatus === "string" ? selectedProject.donor.mirrorCandidateStatus : null),
     donorRequestBackedStaticHintCount: typeof donorScan?.requestBackedStaticHintCount === "number" ? donorScan.requestBackedStaticHintCount : 0,
     donorRecentlyBlockedCaptureTargetCount: typeof donorScan?.recentlyBlockedCaptureTargetCount === "number" ? donorScan.recentlyBlockedCaptureTargetCount : 0,
+    donorCaptureFamilyCount: typeof donorScan?.captureFamilyCount === "number" ? donorScan.captureFamilyCount : 0,
+    donorTopCaptureFamilyNames: Array.isArray(donorScan?.topCaptureFamilyNames) ? donorScan.topCaptureFamilyNames : [],
     donorRawPayloadBlockedCaptureTargetCount: typeof donorScan?.rawPayloadBlockedCaptureTargetCount === "number" ? donorScan.rawPayloadBlockedCaptureTargetCount : 0,
     donorRawPayloadBlockedFamilyCount: typeof donorScan?.rawPayloadBlockedFamilyCount === "number" ? donorScan.rawPayloadBlockedFamilyCount : 0,
     donorRawPayloadBlockedFamilyNames: Array.isArray(donorScan?.rawPayloadBlockedFamilyNames) ? donorScan.rawPayloadBlockedFamilyNames : [],
@@ -14761,6 +14763,7 @@ function renderEvidenceBrowser() {
             <span>${summary.donorMirrorCandidateStatus ? escapeHtml(summary.donorMirrorCandidateStatus) : "unknown"} mirror status</span>
             <span>${summary.donorRequestBackedStaticHintCount} request-backed alternates</span>
             <span>${summary.donorRecentlyBlockedCaptureTargetCount} recently blocked</span>
+            <span>${summary.donorCaptureFamilyCount} capture families</span>
             <span>${summary.donorRawPayloadBlockedCaptureTargetCount} raw-payload blocked</span>
             <span>${summary.donorRawPayloadBlockedFamilyCount} blocker families</span>
             <span>${summary.donorNextCaptureTargetCount} next capture targets</span>
@@ -14774,6 +14777,11 @@ function renderEvidenceBrowser() {
           ${summary.donorBlockerHighlights.length > 0 ? `
             <div class="detail-list">
               ${summary.donorBlockerHighlights.slice(0, 3).map((entry) => `<small>${escapeHtml(entry)}</small>`).join("")}
+            </div>
+          ` : ""}
+          ${summary.donorTopCaptureFamilyNames.length > 0 ? `
+            <div class="detail-list">
+              <small><strong>Top capture families</strong> · ${summary.donorTopCaptureFamilyNames.map((family) => escapeHtml(family)).join(", ")}</small>
             </div>
           ` : ""}
           ${summary.donorRawPayloadBlockedFamilyNames.length > 0 ? `
@@ -15214,12 +15222,18 @@ function renderProjectSummary() {
           <span>translation payload rule: ${typeof donorScan?.translationPayloadStatus === "string" ? escapeHtml(donorScan.translationPayloadStatus) : "unknown"}</span>
           <span>${typeof donorScan?.requestBackedStaticHintCount === "number" ? donorScan.requestBackedStaticHintCount : 0} request-backed alternates</span>
           <span>${typeof donorScan?.recentlyBlockedCaptureTargetCount === "number" ? donorScan.recentlyBlockedCaptureTargetCount : 0} recently blocked</span>
+          <span>${typeof donorScan?.captureFamilyCount === "number" ? donorScan.captureFamilyCount : 0} capture families</span>
           <span>${typeof donorScan?.rawPayloadBlockedCaptureTargetCount === "number" ? donorScan.rawPayloadBlockedCaptureTargetCount : 0} raw-payload blocked</span>
           <span>${typeof donorScan?.rawPayloadBlockedFamilyCount === "number" ? donorScan.rawPayloadBlockedFamilyCount : 0} blocker families</span>
           <span>${typeof donorScan?.nextCaptureTargetCount === "number" ? donorScan.nextCaptureTargetCount : 0} next capture targets</span>
           <span>${typeof donorScan?.captureRunStatus === "string" ? escapeHtml(donorScan.captureRunStatus) : "idle"} guided capture</span>
           <span>${typeof donorScan?.captureDownloadedCount === "number" ? donorScan.captureDownloadedCount : 0} downloaded last run</span>
         </div>
+        ${Array.isArray(donorScan?.topCaptureFamilyNames) && donorScan.topCaptureFamilyNames.length > 0 ? `
+          <div class="detail-list">
+            <small><strong>Top capture families</strong> · ${donorScan.topCaptureFamilyNames.map((family) => escapeHtml(family)).join(", ")}</small>
+          </div>
+        ` : ""}
         ${Array.isArray(donorScan?.rawPayloadBlockedFamilyNames) && donorScan.rawPayloadBlockedFamilyNames.length > 0 ? `
           <div class="detail-list">
             <small><strong>Blocked families</strong> · ${donorScan.rawPayloadBlockedFamilyNames.map((family) => escapeHtml(family)).join(", ")}</small>

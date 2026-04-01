@@ -165,11 +165,15 @@ async function main(): Promise<void> {
 
     const refreshedSummary = JSON.parse(await fs.readFile(beforeSummaryPath, "utf8")) as {
       recentlyBlockedCaptureTargetCount?: number;
+      captureFamilyCount?: number;
+      topCaptureFamilyNames?: string[];
       rawPayloadBlockedCaptureTargetCount?: number;
       rawPayloadBlockedFamilyCount?: number;
       rawPayloadBlockedFamilyNames?: string[];
     };
     assert.ok((refreshedSummary.recentlyBlockedCaptureTargetCount ?? 0) >= 1, "scan summary should surface recently blocked capture targets after a partial run");
+    assert.ok((refreshedSummary.captureFamilyCount ?? 0) >= 1, "scan summary should surface capture family counts after a partial run");
+    assert.ok(Array.isArray(refreshedSummary.topCaptureFamilyNames), "scan summary should surface top capture family names after a partial run");
     assert.ok((refreshedSummary.rawPayloadBlockedCaptureTargetCount ?? 0) >= 1, "scan summary should surface raw-payload-blocked capture targets after a raw-root-only dead end");
     assert.ok((refreshedSummary.rawPayloadBlockedFamilyCount ?? 0) >= 1, "scan summary should surface raw-payload-blocked family counts after a raw-root-only dead end");
     assert.ok(Array.isArray(refreshedSummary.rawPayloadBlockedFamilyNames), "scan summary should surface raw-payload-blocked family names");

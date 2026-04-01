@@ -1,5 +1,5 @@
 import type { AssetClassificationSummary } from "./classifyAssets";
-import type { AtlasManifestFile, BundleAssetMapFile, CaptureBlockerFamiliesFile, CaptureRunFile, DonorScanPaths, NextCaptureTargetsFile, RuntimeCandidatesFile } from "./shared";
+import type { AtlasManifestFile, BundleAssetMapFile, CaptureBlockerFamiliesFile, CaptureRunFile, CaptureTargetFamiliesFile, DonorScanPaths, NextCaptureTargetsFile, RuntimeCandidatesFile } from "./shared";
 import { toRepoRelativePath, writeTextFile } from "./shared";
 
 interface WriteBlockerSummaryOptions {
@@ -10,6 +10,7 @@ interface WriteBlockerSummaryOptions {
   bundleAssetMap: BundleAssetMapFile;
   atlasManifestFile: AtlasManifestFile;
   nextCaptureTargets: NextCaptureTargetsFile;
+  captureTargetFamilies: CaptureTargetFamiliesFile;
   captureBlockerFamilies: CaptureBlockerFamiliesFile;
   captureRun: CaptureRunFile | null;
   paths: DonorScanPaths;
@@ -98,6 +99,7 @@ export async function writeBlockerSummary(options: WriteBlockerSummaryOptions): 
     `- Translation payloads: \`${options.bundleAssetMap.translationPayloadStatus}\` (${options.bundleAssetMap.translationPayloadCount} grounded locale JSON URLs)`,
     `- Mirror candidate status: \`${options.runtimeCandidates.mirrorCandidateStatus}\``,
     `- Next capture targets: ${options.nextCaptureTargets.targetCount}`,
+    `- Capture target families: ${options.captureTargetFamilies.familyCount}`,
     `- Capture blocker families: ${options.captureBlockerFamilies.familyCount}`,
     "",
     "## Early blocker answer",
@@ -136,6 +138,7 @@ export async function writeBlockerSummary(options: WriteBlockerSummaryOptions): 
     `- Bundle asset map: \`${toRepoRelativePath(options.paths.bundleAssetMapPath)}\``,
     `- Atlas manifests: \`${toRepoRelativePath(options.paths.atlasManifestsPath)}\``,
     `- Next capture targets: \`${toRepoRelativePath(options.paths.nextCaptureTargetsPath)}\``,
+    `- Capture target families: \`${toRepoRelativePath(options.paths.captureTargetFamiliesPath)}\``,
     `- Capture blocker families: \`${toRepoRelativePath(options.paths.captureBlockerFamiliesPath)}\``,
     `- Latest capture run: \`${toRepoRelativePath(options.paths.captureRunPath)}\``,
     `- Existing asset manifest: \`${toRepoRelativePath(options.paths.assetManifestPath)}\``,

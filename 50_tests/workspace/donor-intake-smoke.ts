@@ -389,6 +389,8 @@ async function main(): Promise<void> {
       translationPayloadCount?: number;
       mirrorCandidateStatus?: string;
       nextCaptureTargetCount?: number;
+      captureFamilyCount?: number;
+      topCaptureFamilyNames?: string[];
       rawPayloadBlockedCaptureTargetCount?: number;
       rawPayloadBlockedFamilyCount?: number;
       rawPayloadBlockedFamilyNames?: string[];
@@ -407,6 +409,8 @@ async function main(): Promise<void> {
     assert.ok((scanSummary.translationPayloadCount ?? 0) >= 1, "donor scan summary should surface translation payload counts");
     assert.equal(typeof scanSummary.mirrorCandidateStatus, "string", "donor scan summary should surface mirror candidate status");
     assert.ok((scanSummary.nextCaptureTargetCount ?? 0) >= 1, "donor scan summary should expose next capture target counts");
+    assert.equal(typeof scanSummary.captureFamilyCount, "number", "donor scan summary should surface capture family counts");
+    assert.ok(Array.isArray(scanSummary.topCaptureFamilyNames), "donor scan summary should surface top capture family names");
     assert.equal(typeof scanSummary.rawPayloadBlockedCaptureTargetCount, "number", "donor scan summary should surface raw-payload-blocked target counts");
     assert.equal(typeof scanSummary.rawPayloadBlockedFamilyCount, "number", "donor scan summary should surface raw-payload-blocked family counts");
     assert.ok(Array.isArray(scanSummary.rawPayloadBlockedFamilyNames), "donor scan summary should surface raw-payload-blocked family names");

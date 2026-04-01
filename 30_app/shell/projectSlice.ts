@@ -168,6 +168,8 @@ export interface DonorScanStatus {
   mirrorCandidateStatus: string;
   requestBackedStaticHintCount: number;
   recentlyBlockedCaptureTargetCount: number;
+  captureFamilyCount: number;
+  topCaptureFamilyNames: string[];
   rawPayloadBlockedCaptureTargetCount: number;
   rawPayloadBlockedFamilyCount: number;
   rawPayloadBlockedFamilyNames: string[];
@@ -893,6 +895,10 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
     mirrorCandidateStatus: typeof scanSummary.mirrorCandidateStatus === "string" ? scanSummary.mirrorCandidateStatus : (donor.mirrorCandidateStatus ?? "unknown"),
     requestBackedStaticHintCount: typeof scanSummary.requestBackedStaticHintCount === "number" ? scanSummary.requestBackedStaticHintCount : 0,
     recentlyBlockedCaptureTargetCount: typeof scanSummary.recentlyBlockedCaptureTargetCount === "number" ? scanSummary.recentlyBlockedCaptureTargetCount : nextCaptureTargets.filter((target) => target.recentCaptureStatus === "blocked").length,
+    captureFamilyCount: typeof scanSummary.captureFamilyCount === "number" ? scanSummary.captureFamilyCount : 0,
+    topCaptureFamilyNames: Array.isArray(scanSummary.topCaptureFamilyNames)
+      ? scanSummary.topCaptureFamilyNames.filter((value): value is string => typeof value === "string")
+      : [],
     rawPayloadBlockedCaptureTargetCount: typeof scanSummary.rawPayloadBlockedCaptureTargetCount === "number" ? scanSummary.rawPayloadBlockedCaptureTargetCount : 0,
     rawPayloadBlockedFamilyCount: typeof scanSummary.rawPayloadBlockedFamilyCount === "number" ? scanSummary.rawPayloadBlockedFamilyCount : 0,
     rawPayloadBlockedFamilyNames: Array.isArray(scanSummary.rawPayloadBlockedFamilyNames)

@@ -6,6 +6,7 @@ import { discoverRequestBackedStaticHints } from "./discoverRequestBackedStaticH
 import { discoverAtlasMetadata } from "./discoverAtlasMetadata";
 import { discoverRuntimeCandidates } from "./discoverRuntimeCandidates";
 import { extractBundleAssetMap } from "./extractBundleAssetMap";
+import { summarizeCaptureTargetFamilies } from "./summarizeCaptureTargetFamilies";
 import { summarizeCaptureBlockerFamilies } from "./summarizeCaptureBlockerFamilies";
 import {
   type CaptureRunFile,
@@ -416,6 +417,8 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
       translationPayloadStatus: "skipped",
       translationPayloadCount: 0,
       mirrorCandidateStatus: "blocked",
+      captureFamilyCount: 0,
+      topCaptureFamilyNames: [],
       nextCaptureTargetCount: 0,
       rawPayloadBlockedCaptureTargetCount: 0,
       rawPayloadBlockedFamilyCount: 0,
@@ -451,6 +454,8 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
       translationPayloadStatus: "skipped",
       translationPayloadCount: 0,
       mirrorCandidateStatus: "blocked",
+      captureFamilyCount: 0,
+      topCaptureFamilyNames: [],
       nextCaptureTargetCount: 0,
       rawPayloadBlockedCaptureTargetCount: 0,
       rawPayloadBlockedFamilyCount: 0,
@@ -525,6 +530,12 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
   await writeJsonFile(paths.runtimeCandidatesPath, runtimeCandidates);
   await writeJsonFile(paths.requestBackedStaticHintsPath, requestBackedStaticHints);
   await writeJsonFile(paths.nextCaptureTargetsPath, nextCaptureTargets);
+  const captureTargetFamilies = summarizeCaptureTargetFamilies({
+    donorId: options.donorId,
+    donorName: options.donorName,
+    nextCaptureTargets
+  });
+  await writeJsonFile(paths.captureTargetFamiliesPath, captureTargetFamilies);
   const captureBlockerFamilies = summarizeCaptureBlockerFamilies({
     donorId: options.donorId,
     donorName: options.donorName,
@@ -542,6 +553,7 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
     bundleAssetMap,
     atlasManifestFile,
     nextCaptureTargets,
+    captureTargetFamilies,
     captureBlockerFamilies,
     captureRun,
     paths
@@ -578,6 +590,11 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
     requestBackedStaticHintCount: requestBackedStaticHints.hintCount,
     requestBackedObservedStaticCount: requestBackedStaticHints.observedStaticRequestCount,
     recentlyBlockedCaptureTargetCount: nextCaptureTargets.targets.filter((target) => target.recentCaptureStatus === "blocked").length,
+    captureFamilyCount: captureTargetFamilies.familyCount,
+    topCaptureFamilyNames: captureTargetFamilies.families
+      .filter((family) => family.untriedTargetCount > 0)
+      .slice(0, 8)
+      .map((family) => family.familyName),
     rawPayloadBlockedCaptureTargetCount: nextCaptureTargets.targets.filter((target) => target.blockerClass === "raw-payload-blocked").length,
     rawPayloadBlockedFamilyCount: rawPayloadBlockedFamilies.length,
     rawPayloadBlockedFamilyNames: rawPayloadBlockedFamilies.slice(0, 8).map((family) => family.familyName),
@@ -631,6 +648,11 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
     translationPayloadStatus: bundleAssetMap.translationPayloadStatus,
     translationPayloadCount: bundleAssetMap.translationPayloadCount,
     mirrorCandidateStatus: runtimeCandidates.mirrorCandidateStatus,
+    captureFamilyCount: captureTargetFamilies.familyCount,
+    topCaptureFamilyNames: captureTargetFamilies.families
+      .filter((family) => family.untriedTargetCount > 0)
+      .slice(0, 8)
+      .map((family) => family.familyName),
     rawPayloadBlockedCaptureTargetCount: nextCaptureTargets.targets.filter((target) => target.blockerClass === "raw-payload-blocked").length,
     rawPayloadBlockedFamilyCount: rawPayloadBlockedFamilies.length,
     rawPayloadBlockedFamilyNames: rawPayloadBlockedFamilies.slice(0, 8).map((family) => family.familyName),
