@@ -51,6 +51,8 @@ function startFixtureServer(): Promise<{ server: http.Server; port: number }> {
           "window.assetUrl = '/audio/ambient.ogg';",
           "window.configUrl = '/config/game.json';",
           "window.atlasUrl = '/atlases/ui.atlas';",
+          "window.altSpin1 = '/spines/spin_1.png';",
+          "window.altSpin2 = '/spines/spin_2.png';",
           "console.log('smoke bundle');"
         ].join("\n"));
         return;
@@ -85,7 +87,8 @@ function startFixtureServer(): Promise<{ server: http.Server; port: number }> {
         response.end(JSON.stringify({
           sheet: "/img/symbols.png",
           spine: "/spines/stick.json",
-          spriteSheet: "/sprites/pack.json"
+          spriteSheet: "/sprites/pack.json",
+          bonusSheets: ["/sprites/spin_1.json", "/sprites/spin_2.json", "/sprites/spin_3.json"]
         }));
         return;
       }
@@ -133,6 +136,28 @@ function startFixtureServer(): Promise<{ server: http.Server; port: number }> {
           },
           meta: {
             image: "/img/symbols.png"
+          }
+        }));
+        return;
+      }
+
+      if (
+        request.url === "/sprites/spin_1.json"
+        || request.url === "/sprites/spin_2.json"
+        || request.url === "/sprites/spin_3.json"
+      ) {
+        const stem = request.url.includes("/spin_1.json")
+          ? "spin_1"
+          : request.url.includes("/spin_2.json")
+            ? "spin_2"
+            : "spin_3";
+        response.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+        response.end(JSON.stringify({
+          frames: {
+            [stem]: { frame: { x: 0, y: 0, w: 32, h: 32 } }
+          },
+          meta: {
+            image: `/img/spines/${stem}.png`
           }
         }));
         return;
@@ -296,6 +321,16 @@ async function main(): Promise<void> {
     assert.ok((nextCaptureTargets.targetCount ?? 0) >= 1, "donor scan should write next capture targets");
     assert.ok(Array.isArray(nextCaptureTargets.targets) && nextCaptureTargets.targets.some((target) => typeof target.relativePath === "string" && target.relativePath.length > 0), "next capture targets should keep a relative path");
     assert.ok(Array.isArray(nextCaptureTargets.targets) && nextCaptureTargets.targets.some((target) => Array.isArray(target.alternateCaptureHints)), "next capture targets should persist grounded alternate capture hint arrays");
+    assert.ok(
+      Array.isArray(nextCaptureTargets.targets)
+        && nextCaptureTargets.targets.some((target) =>
+          typeof target.relativePath === "string"
+          && target.relativePath.includes("img/spines/spin_3.png")
+          && Array.isArray(target.alternateCaptureHints)
+          && target.alternateCaptureHints.some((hint) => typeof hint.url === "string" && hint.url.includes("/spines/spin_3.png"))
+        ),
+      "next capture targets should derive family-alias alternates from grounded same-basename path substitutions"
+    );
 
     const blockerSummary = await fs.readFile(path.join(donorRoot, "evidence", "local_only", "harvest", "blocker-summary.md"), "utf8");
     assert.match(blockerSummary, /Next operator step/, "blocker summary should explain the next operator step");

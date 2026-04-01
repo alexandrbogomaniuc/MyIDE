@@ -31,6 +31,15 @@ interface MutableTarget {
   reasons: Set<string>;
 }
 
+interface DirectoryAliasSupportRecord {
+  targetDirectory: string;
+  alternateDirectory: string;
+  category: string;
+  familySignature: string;
+  supportCount: number;
+  sourceLabels: Set<string>;
+}
+
 function readHost(urlString: string): string {
   try {
     return new URL(urlString).host || "(no-host)";
@@ -56,6 +65,45 @@ function confidenceWeight(confidence: ReferenceConfidence): number {
       return 10;
     default:
       return 0;
+  }
+}
+
+function readUrlDirectory(urlString: string): string | null {
+  try {
+    const parsed = new URL(urlString);
+    const segments = parsed.pathname.split("/");
+    segments.pop();
+    const directory = segments.join("/") || "/";
+    return directory;
+  } catch {
+    return null;
+  }
+}
+
+function replaceUrlDirectory(urlString: string, nextDirectory: string): string | null {
+  try {
+    const parsed = new URL(urlString);
+    const basename = parsed.pathname.split("/").pop() ?? "";
+    if (!basename) {
+      return null;
+    }
+    const normalizedDirectory = nextDirectory.startsWith("/") ? nextDirectory : `/${nextDirectory}`;
+    parsed.pathname = `${normalizedDirectory.replace(/\/+$/g, "")}/${basename}`.replace(/\/{2,}/g, "/");
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
+function readBasenameFamilySignature(urlString: string): string | null {
+  try {
+    const parsed = new URL(urlString);
+    const basename = parsed.pathname.split("/").pop() ?? "";
+    const dotIndex = basename.lastIndexOf(".");
+    const stem = (dotIndex >= 0 ? basename.slice(0, dotIndex) : basename).toLowerCase();
+    return stem.replace(/[0-9]+/g, "#");
+  } catch {
+    return null;
   }
 }
 
@@ -120,7 +168,8 @@ function toTargetRecord(
   url: string,
   mutable: MutableTarget,
   rank: number,
-  bundleAssetMap: BundleAssetMapFile
+  bundleAssetMap: BundleAssetMapFile,
+  directoryAliasSupport: Map<string, DirectoryAliasSupportRecord>
 ): NextCaptureTargetRecord {
   const sourceCount = mutable.sourceLabels.size;
   const score = mutable.score + Math.min(20, sourceCount * 5);
@@ -131,6 +180,31 @@ function toTargetRecord(
     category: mutable.category,
     bundleAssetMap
   });
+  const targetDirectory = readUrlDirectory(url);
+  const familySignature = readBasenameFamilySignature(url);
+  if (targetDirectory) {
+    for (const support of directoryAliasSupport.values()) {
+      if (
+        support.targetDirectory !== targetDirectory
+        || support.category !== mutable.category
+        || mutable.category !== "image"
+        || !familySignature
+        || support.familySignature !== familySignature
+      ) {
+        continue;
+      }
+      const alternateUrl = replaceUrlDirectory(url, support.alternateDirectory);
+      if (!alternateUrl || alternateUrl === url || alternateCaptureHints.some((hint) => hint.url === alternateUrl)) {
+        continue;
+      }
+      alternateCaptureHints.push({
+        url: alternateUrl,
+        source: `family-alias:${support.targetDirectory}->${support.alternateDirectory}`,
+        confidence: support.supportCount >= 3 ? "likely" : "provisional",
+        note: `Grounded same-basename matches show ${support.supportCount} rooted-path substitutions from ${support.targetDirectory} to ${support.alternateDirectory}.`
+      });
+    }
+  }
   return {
     rank,
     url,
@@ -147,6 +221,53 @@ function toTargetRecord(
     blockers: [...mutable.blockers].sort((left, right) => left.localeCompare(right)),
     alternateCaptureHints
   };
+}
+
+function buildDirectoryAliasSupport(
+  targetEntries: Array<[string, MutableTarget]>,
+  bundleAssetMap: BundleAssetMapFile
+): Map<string, DirectoryAliasSupportRecord> {
+  const support = new Map<string, DirectoryAliasSupportRecord>();
+
+  for (const [url, target] of targetEntries) {
+    const targetDirectory = readUrlDirectory(url);
+    const familySignature = readBasenameFamilySignature(url);
+    if (!targetDirectory || !familySignature || target.category !== "image") {
+      continue;
+    }
+    const exactHints = buildAlternateCaptureHints({
+      url,
+      kind: target.kind,
+      category: target.category,
+      bundleAssetMap
+    });
+    for (const hint of exactHints) {
+      if (hint.source === "placeholder-rewrite") {
+        continue;
+      }
+      const alternateDirectory = readUrlDirectory(hint.url);
+      if (!alternateDirectory || alternateDirectory === targetDirectory) {
+        continue;
+      }
+      const key = `${target.category}\t${targetDirectory}\t${alternateDirectory}\t${familySignature}`;
+      const existing = support.get(key);
+      if (existing) {
+        existing.supportCount += 1;
+        existing.sourceLabels.add(hint.source);
+      } else {
+        support.set(key, {
+          targetDirectory,
+          alternateDirectory,
+          category: target.category,
+          familySignature,
+          supportCount: 1,
+          sourceLabels: new Set<string>([hint.source])
+        });
+      }
+    }
+  }
+
+  return support;
 }
 
 export function buildNextCaptureTargets(options: BuildNextCaptureTargetsOptions): NextCaptureTargetsFile {
@@ -245,8 +366,10 @@ export function buildNextCaptureTargets(options: BuildNextCaptureTargetsOptions)
     );
   }
 
-  const targets = [...targetMap.entries()]
-    .map(([url, target], index) => toTargetRecord(url, target, index + 1, options.bundleAssetMap))
+  const targetEntries = [...targetMap.entries()];
+  const directoryAliasSupport = buildDirectoryAliasSupport(targetEntries, options.bundleAssetMap);
+  const targets = targetEntries
+    .map(([url, target], index) => toTargetRecord(url, target, index + 1, options.bundleAssetMap, directoryAliasSupport))
     .sort((left, right) => {
       if (left.score !== right.score) {
         return right.score - left.score;
