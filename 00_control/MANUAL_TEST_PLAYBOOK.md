@@ -100,6 +100,7 @@ Use this when testing the current local MyIDE build by hand.
    - If the donor bundle proves the image request-base rule, confirm the donor scan summary also shows grounded bundle-image URL rule status plus grounded optimized variant URL counts instead of stopping at suffix-token counts.
    - If donor scan proves translation loader rules from bundle/runtime code, confirm the donor scan summary also shows grounded translation payload status plus locale JSON payload counts instead of only a bare translation root.
    - If next capture targets are present, click **Run Guided Capture** once and confirm the shell reports a guided capture result with attempted/downloaded/failed counts.
+   - If top capture families are shown, click one family-focused capture button such as `big_win` or `coin` once and confirm the shell reports the family name together with attempted/downloaded/failed counts.
    - Confirm the guided capture result now also exposes attempted fallback URLs, so placeholder-style or bundle-sibling rewrites are visible instead of hidden.
    - Use **Copy Capture Targets Path** or **Copy Top Targets** once and confirm the shell exposes the current next capture target set without opening raw harvest files by hand.
 

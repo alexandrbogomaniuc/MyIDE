@@ -155,6 +155,7 @@ export interface DonorScanStatus {
   blockerSummaryPath: string | null;
   nextCaptureTargetsPath: string | null;
   captureRunPath: string | null;
+  captureTargetFamiliesPath: string | null;
   runtimeCandidateCount: number;
   atlasManifestCount: number;
   bundleAssetMapStatus: string;
@@ -175,6 +176,7 @@ export interface DonorScanStatus {
   rawPayloadBlockedFamilyNames: string[];
   nextCaptureTargetCount: number;
   captureRunStatus: string | null;
+  captureRunRequestedFamily: string | null;
   captureAttemptedCount: number;
   captureDownloadedCount: number;
   captureFailedCount: number;
@@ -182,6 +184,12 @@ export interface DonorScanStatus {
   nextOperatorAction: string | null;
   blockerHighlights: string[];
   blockerSummaryMarkdown: string | null;
+  topCaptureFamilies: Array<{
+    familyName: string;
+    targetCount: number;
+    untriedTargetCount: number;
+    blockedTargetCount: number;
+  }>;
   nextCaptureTargets: Array<{
     url: string;
     relativePath: string;
@@ -834,12 +842,14 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
     ?? `10_donors/${donorId}/evidence/local_only/harvest/blocker-summary.md`;
   const nextCaptureTargetsPath = donor.nextCaptureTargetsPath
     ?? `10_donors/${donorId}/evidence/local_only/harvest/next-capture-targets.json`;
+  const captureTargetFamiliesPath = `10_donors/${donorId}/evidence/local_only/harvest/capture-target-families.json`;
   const captureRunPath = `10_donors/${donorId}/evidence/local_only/harvest/next-capture-run.json`;
-  const [scanSummary, blockerSummaryMarkdown, nextCaptureTargetsFile, captureRunSummary] = await Promise.all([
+  const [scanSummary, blockerSummaryMarkdown, nextCaptureTargetsFile, captureRunSummary, captureTargetFamiliesFile] = await Promise.all([
     readOptionalJsonFile(path.join(workspaceRoot, scanSummaryPath)) as Promise<JsonObject | null>,
     readOptionalTextFile(path.join(workspaceRoot, blockerSummaryPath)),
     readOptionalJsonFile(path.join(workspaceRoot, nextCaptureTargetsPath)) as Promise<JsonObject | null>,
-    readOptionalJsonFile(path.join(workspaceRoot, captureRunPath)) as Promise<JsonObject | null>
+    readOptionalJsonFile(path.join(workspaceRoot, captureRunPath)) as Promise<JsonObject | null>,
+    readOptionalJsonFile(path.join(workspaceRoot, captureTargetFamiliesPath)) as Promise<JsonObject | null>
   ]);
 
   if (!scanSummary) {
@@ -874,6 +884,19 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
         .slice(0, 5)
     : [];
 
+  const topCaptureFamilies = Array.isArray(captureTargetFamiliesFile?.families)
+    ? captureTargetFamiliesFile.families
+        .filter((value): value is JsonObject => Boolean(value) && typeof value === "object" && !Array.isArray(value))
+        .map((family) => ({
+          familyName: typeof family.familyName === "string" ? family.familyName : "",
+          targetCount: typeof family.targetCount === "number" ? family.targetCount : 0,
+          untriedTargetCount: typeof family.untriedTargetCount === "number" ? family.untriedTargetCount : 0,
+          blockedTargetCount: typeof family.blockedTargetCount === "number" ? family.blockedTargetCount : 0
+        }))
+        .filter((family) => family.familyName.length > 0)
+        .slice(0, 5)
+    : [];
+
   return {
     donorId,
     donorName: donor?.donorName ?? donorId,
@@ -882,6 +905,7 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
     blockerSummaryPath: blockerSummaryMarkdown ? blockerSummaryPath : null,
     nextCaptureTargetsPath: nextCaptureTargetsFile ? nextCaptureTargetsPath : null,
     captureRunPath: captureRunSummary ? captureRunPath : null,
+    captureTargetFamiliesPath: captureTargetFamiliesFile ? captureTargetFamiliesPath : null,
     runtimeCandidateCount: typeof scanSummary.runtimeCandidateCount === "number" ? scanSummary.runtimeCandidateCount : (donor.runtimeCandidateCount ?? 0),
     atlasManifestCount: typeof scanSummary.atlasManifestCount === "number" ? scanSummary.atlasManifestCount : (donor.atlasManifestCount ?? 0),
     bundleAssetMapStatus: typeof scanSummary.bundleAssetMapStatus === "string" ? scanSummary.bundleAssetMapStatus : (donor.bundleAssetMapStatus ?? "unknown"),
@@ -906,6 +930,7 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
       : [],
     nextCaptureTargetCount: typeof scanSummary.nextCaptureTargetCount === "number" ? scanSummary.nextCaptureTargetCount : (donor.nextCaptureTargetCount ?? nextCaptureTargets.length),
     captureRunStatus: typeof captureRunSummary?.status === "string" ? captureRunSummary.status : null,
+    captureRunRequestedFamily: typeof captureRunSummary?.requestedFamily === "string" ? captureRunSummary.requestedFamily : null,
     captureAttemptedCount: typeof captureRunSummary?.attemptedCount === "number" ? captureRunSummary.attemptedCount : 0,
     captureDownloadedCount: typeof captureRunSummary?.downloadedCount === "number" ? captureRunSummary.downloadedCount : 0,
     captureFailedCount: typeof captureRunSummary?.failedCount === "number" ? captureRunSummary.failedCount : 0,
@@ -913,6 +938,7 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
     nextOperatorAction: typeof scanSummary.nextOperatorAction === "string" ? scanSummary.nextOperatorAction : (donor.nextOperatorAction ?? null),
     blockerHighlights,
     blockerSummaryMarkdown,
+    topCaptureFamilies,
     nextCaptureTargets
   };
 }

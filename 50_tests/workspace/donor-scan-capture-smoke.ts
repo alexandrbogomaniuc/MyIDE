@@ -43,8 +43,8 @@ function startFixtureServer(): Promise<{ server: http.Server; port: number }> {
         response.writeHead(200, { "content-type": "text/plain; charset=utf-8" });
         response.end([
           "ui.png",
-          "ui_missing.png",
-          "ui_later.png",
+          "ui_2.png",
+          "ui_3.png",
           "size: 128,128",
           "format: RGBA8888",
           "filter: Linear,Linear",
@@ -109,9 +109,12 @@ async function main(): Promise<void> {
 
     const capture = await captureNextTargets({
       donorId,
+      family: "ui",
       limit: 2
     });
     assert.equal(capture.status, "partial", "guided capture should resolve one target and leave one grounded blocker");
+    assert.equal(capture.requestedFamily, "ui", "guided capture should record the requested family when family-focused capture is used");
+    assert.equal(capture.familyTargetCountBefore, 3, "guided capture should report how many ranked targets matched the requested family before the run");
     assert.ok(capture.downloadedCount >= 1, "guided capture should fetch the atlas page image");
     assert.ok(capture.failedCount >= 1, "guided capture should preserve one blocked target");
 
@@ -120,11 +123,15 @@ async function main(): Promise<void> {
       status?: string;
       downloadedCount?: number;
       failedCount?: number;
+      requestedFamily?: string | null;
+      familyTargetCountBefore?: number | null;
       targetCountBefore?: number;
       targetCountAfter?: number;
       results?: Array<{ relativePath?: string; status?: string; attemptedUrls?: string[]; downloadedFromUrl?: string | null }>;
     };
     assert.ok(["captured", "partial"].includes(captureRun.status ?? ""), "capture summary should record a successful or partial run");
+    assert.equal(captureRun.requestedFamily, "ui", "capture summary should record the requested family");
+    assert.equal(captureRun.familyTargetCountBefore, 3, "capture summary should record how many ranked targets matched the requested family before the run");
     assert.ok((captureRun.downloadedCount ?? 0) >= 1, "capture summary should record the atlas page download");
     assert.ok((captureRun.failedCount ?? 0) >= 1, "capture summary should record the still-missing atlas page");
     assert.ok(
@@ -143,8 +150,8 @@ async function main(): Promise<void> {
       targets?: Array<{ relativePath?: string; recentCaptureStatus?: string; recentCaptureAttemptCount?: number; recentCaptureFailureReason?: string | null; rank?: number; blockerClass?: string | null }>;
     };
     const refreshedTargetList = Array.isArray(refreshedTargets.targets) ? refreshedTargets.targets : [];
-    const blockedTarget = refreshedTargetList.find((target) => target.relativePath?.includes("ui_missing.png"));
-    const promotedUntriedTarget = refreshedTargetList.find((target) => target.relativePath?.includes("ui_later.png"));
+    const blockedTarget = refreshedTargetList.find((target) => target.relativePath?.includes("ui_2.png"));
+    const promotedUntriedTarget = refreshedTargetList.find((target) => target.relativePath?.includes("ui_3.png"));
     assert.ok(
       blockedTarget
         && blockedTarget.recentCaptureStatus === "blocked"
@@ -303,6 +310,8 @@ async function main(): Promise<void> {
         generatedAt: new Date().toISOString(),
         status: "blocked",
         requestedLimit: 1,
+        requestedFamily: null,
+        familyTargetCountBefore: null,
         attemptedCount: 1,
         downloadedCount: 0,
         failedCount: 1,

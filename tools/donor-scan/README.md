@@ -30,6 +30,8 @@ and answers early:
   - Verify the machine-readable donor-scan outputs exist and are internally coherent enough for operator use.
 - `npm run donor-scan:capture-next -- --donor-id donor_XXX --limit 5`
   - Attempt the top ranked missing donor/runtime files from `next-capture-targets.json`, rewrite grounded placeholder-style URLs when possible, try the strongest grounded alternates first when bundle-image-variant or request-backed hints exist, refresh donor scan, and write a machine-readable capture run summary.
+- `npm run donor-scan:capture-family -- --donor-id donor_XXX --family big_win --limit 10`
+  - Run the same guided capture runner, but constrain it to one ranked capture family from `capture-target-families.json` so operators can attack `big_win`, `bird`, `coin`, and other grouped blocker families directly.
 
 ## Outputs
 

@@ -26,6 +26,7 @@ import {
 interface CaptureNextTargetsOptions {
   donorId: string;
   limit?: number;
+  family?: string;
 }
 
 interface CaptureNextTargetsResult {
@@ -33,6 +34,8 @@ interface CaptureNextTargetsResult {
   donorName: string;
   status: CaptureRunStatus;
   captureRunPath: string;
+  requestedFamily: string | null;
+  familyTargetCountBefore: number | null;
   attemptedCount: number;
   downloadedCount: number;
   failedCount: number;
@@ -162,6 +165,19 @@ function clampCaptureLimit(value: number | undefined): number {
   return Math.min(50, Math.max(1, Math.floor(value ?? 10)));
 }
 
+function deriveFamilyName(urlString: string): string {
+  try {
+    const parsed = new URL(urlString);
+    const basename = path.basename(parsed.pathname, path.extname(parsed.pathname));
+    const underscoreStripped = basename.replace(/(?:_\d+)+$/, "");
+    const digitStripped = underscoreStripped.replace(/(?<=[A-Za-z_-])\d{3,}$/, "");
+    const normalized = digitStripped.replace(/[_-]+$/, "");
+    return normalized.length > 0 ? normalized : basename;
+  } catch {
+    return "(invalid-url)";
+  }
+}
+
 export function buildCaptureAttemptUrls(
   target: NextCaptureTargetRecord,
   bundleAssetMap: BundleAssetMapFile | null
@@ -231,6 +247,9 @@ export async function captureNextTargets(options: CaptureNextTargetsOptions): Pr
   }
 
   const limit = clampCaptureLimit(options.limit);
+  const requestedFamily = typeof options.family === "string" && options.family.trim().length > 0
+    ? options.family.trim()
+    : null;
   const paths = buildDonorScanPaths(donorId);
   const [nextCaptureTargets, harvestManifest, scanSummary, packageManifest] = await Promise.all([
     readOptionalJsonFile<NextCaptureTargetsFile>(paths.nextCaptureTargetsPath),
@@ -246,7 +265,17 @@ export async function captureNextTargets(options: CaptureNextTargetsOptions): Pr
   const bundleAssetMap = await readOptionalJsonFile<BundleAssetMapFile>(paths.bundleAssetMapPath);
 
   const { donorName, launchUrl, resolvedLaunchUrl, sourceHost } = readLaunchContext(scanSummary, packageManifest);
-  const queuedTargets = Array.isArray(nextCaptureTargets.targets) ? nextCaptureTargets.targets.slice(0, limit) : [];
+  const allQueuedTargets = Array.isArray(nextCaptureTargets.targets) ? nextCaptureTargets.targets : [];
+  const familyFilteredTargets = requestedFamily
+    ? allQueuedTargets.filter((target) => deriveFamilyName(target.url).toLowerCase() === requestedFamily.toLowerCase())
+    : allQueuedTargets;
+
+  if (requestedFamily && familyFilteredTargets.length === 0) {
+    throw new Error(`No ranked capture targets matched family "${requestedFamily}".`);
+  }
+
+  const queuedTargets = familyFilteredTargets.slice(0, limit);
+  const familyTargetCountBefore = requestedFamily ? familyFilteredTargets.length : null;
   const discoveredUrlMap = new Map<string, DiscoveredDonorUrl>();
   for (const discovered of Array.isArray(harvestManifest.discoveredUrls) ? harvestManifest.discoveredUrls : []) {
     if (typeof discovered?.url !== "string" || discovered.url.length === 0) {
@@ -423,6 +452,8 @@ export async function captureNextTargets(options: CaptureNextTargetsOptions): Pr
     generatedAt: new Date().toISOString(),
     status,
     requestedLimit: limit,
+    requestedFamily,
+    familyTargetCountBefore,
     targetCountBefore: nextCaptureTargets.targetCount,
     targetCountAfter: nextCaptureTargets.targetCount,
     attemptedCount,
@@ -454,6 +485,8 @@ export async function captureNextTargets(options: CaptureNextTargetsOptions): Pr
     donorName,
     status,
     captureRunPath: paths.captureRunPath,
+    requestedFamily,
+    familyTargetCountBefore,
     attemptedCount,
     downloadedCount,
     failedCount,
@@ -467,6 +500,7 @@ export async function captureNextTargets(options: CaptureNextTargetsOptions): Pr
 function parseArgs(argv: readonly string[]): CaptureNextTargetsOptions {
   let donorId = "";
   let limit: number | undefined;
+  let family: string | undefined;
 
   for (let index = 0; index < argv.length; index += 1) {
     const token = argv[index];
@@ -479,6 +513,11 @@ function parseArgs(argv: readonly string[]): CaptureNextTargetsOptions {
     if (token === "--limit" && next) {
       limit = Number.parseInt(next, 10);
       index += 1;
+      continue;
+    }
+    if (token === "--family" && next) {
+      family = next;
+      index += 1;
     }
   }
 
@@ -486,13 +525,17 @@ function parseArgs(argv: readonly string[]): CaptureNextTargetsOptions {
     throw new Error("Missing required --donor-id argument.");
   }
 
-  return { donorId, limit };
+  return { donorId, limit, family };
 }
 
 async function main(): Promise<void> {
   const result = await captureNextTargets(parseArgs(process.argv.slice(2)));
   console.log("PASS donor-scan:capture-next");
   console.log(`Donor: ${result.donorId}`);
+  if (result.requestedFamily) {
+    console.log(`Family: ${result.requestedFamily}`);
+    console.log(`Family targets before: ${result.familyTargetCountBefore ?? 0}`);
+  }
   console.log(`Status: ${result.status}`);
   console.log(`Attempted: ${result.attemptedCount}`);
   console.log(`Downloaded: ${result.downloadedCount}`);

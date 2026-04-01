@@ -447,6 +447,8 @@ export interface CaptureRunFile {
   generatedAt: string;
   status: CaptureRunStatus;
   requestedLimit: number;
+  requestedFamily: string | null;
+  familyTargetCountBefore: number | null;
   targetCountBefore: number;
   targetCountAfter: number;
   attemptedCount: number;
