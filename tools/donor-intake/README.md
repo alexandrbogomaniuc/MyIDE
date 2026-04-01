@@ -8,6 +8,7 @@ Use this when you want to start a project from a real donor launch URL instead o
 - Writes a bounded discovered URL inventory that starts from the launch page and then recurses through downloaded JS/CSS/JSON references.
 - Downloads bounded static assets into `10_donors/<donorId>/evidence/local_only/harvest/files/`.
 - Writes a machine-readable harvest manifest at `10_donors/<donorId>/evidence/local_only/harvest/asset-manifest.json`.
+- Writes a donor-package manifest at `10_donors/<donorId>/evidence/local_only/harvest/package-manifest.json` with entry points, host coverage, bounded asset families, and unresolved references.
 - Keeps raw donor bootstrap files read-only after capture.
 - Does **not** yet recurse through the full donor runtime package or reconstruct gameplay logic.
 
@@ -21,4 +22,5 @@ Use this when you want to start a project from a real donor launch URL instead o
 - `10_donors/<donorId>/raw/discovered/discovered-urls.json`
 - `10_donors/<donorId>/reports/DONOR_INTAKE_REPORT.md`
 - `10_donors/<donorId>/evidence/local_only/harvest/asset-manifest.json`
+- `10_donors/<donorId>/evidence/local_only/harvest/package-manifest.json`
 - `10_donors/<donorId>/evidence/local_only/harvest/files/`

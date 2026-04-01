@@ -131,6 +131,10 @@ async function main(): Promise<void> {
     assert.equal(typeof donor.harvestManifestPath, "string", "smoke donor harvest manifest path should be recorded");
     assert.equal(typeof donor.harvestedAssetCount, "number", "smoke donor harvest count should be recorded");
     assert.ok((donor.harvestedAssetCount as number) >= 3, "smoke donor harvest should download the fixture assets");
+    assert.equal(donor.packageStatus, "packaged", "smoke donor package manifest should complete");
+    assert.equal(typeof donor.packageManifestPath, "string", "smoke donor package manifest path should be recorded");
+    assert.equal(typeof donor.packageFamilyCount, "number", "smoke donor package family count should be recorded");
+    assert.ok((donor.packageReferencedUrlCount as number) >= 4, "smoke donor package should summarize referenced URLs");
     const projectMetaValid = validateProjectMeta(meta);
     assert(projectMetaValid, `smoke project meta failed schema validation: ${formatErrors(validateProjectMeta.errors)}`);
 

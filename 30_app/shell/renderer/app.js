@@ -9583,6 +9583,10 @@ function getSelectedProjectEvidenceSummary() {
     donorHarvestManifestPath: typeof selectedProject.donor?.harvestManifestPath === "string" ? selectedProject.donor.harvestManifestPath : null,
     donorHarvestedAssetCount: typeof selectedProject.donor?.harvestedAssetCount === "number" ? selectedProject.donor.harvestedAssetCount : 0,
     donorFailedAssetCount: typeof selectedProject.donor?.failedAssetCount === "number" ? selectedProject.donor.failedAssetCount : 0,
+    donorPackageStatus: typeof selectedProject.donor?.packageStatus === "string" ? selectedProject.donor.packageStatus : null,
+    donorPackageManifestPath: typeof selectedProject.donor?.packageManifestPath === "string" ? selectedProject.donor.packageManifestPath : null,
+    donorPackageFamilyCount: typeof selectedProject.donor?.packageFamilyCount === "number" ? selectedProject.donor.packageFamilyCount : 0,
+    donorPackageReferencedUrlCount: typeof selectedProject.donor?.packageReferencedUrlCount === "number" ? selectedProject.donor.packageReferencedUrlCount : 0,
     donorNotes: typeof selectedProject.donor?.notes === "string" ? selectedProject.donor.notes : null,
     evidenceCatalog,
     donorAssetCatalog
@@ -12075,7 +12079,7 @@ async function handleCreateProject(event) {
     pushLog(`Created project scaffold ${created.projectId} at ${created.projectRoot}.`);
     const donorIntake = created.donorIntake;
     const donorIntakeSummary = donorIntake?.status === "captured"
-      ? ` Donor intake captured ${donorIntake.discoveredUrlCount} bounded donor URLs into ${donorIntake.donorRoot.replace(/^.*10_donors\//, "10_donors/")}.${typeof donorIntake.harvestedAssetCount === "number" ? ` Harvested ${donorIntake.harvestedAssetCount} bounded static assets${typeof donorIntake.failedAssetCount === "number" ? ` with ${donorIntake.failedAssetCount} failures` : ""}.` : ""}`
+      ? ` Donor intake captured ${donorIntake.discoveredUrlCount} bounded donor URLs into ${donorIntake.donorRoot.replace(/^.*10_donors\//, "10_donors/")}.${typeof donorIntake.harvestedAssetCount === "number" ? ` Harvested ${donorIntake.harvestedAssetCount} bounded static assets${typeof donorIntake.failedAssetCount === "number" ? ` with ${donorIntake.failedAssetCount} failures` : ""}.` : ""}${typeof donorIntake.packageFamilyCount === "number" ? ` Packaged ${donorIntake.packageFamilyCount} bounded asset families across ${donorIntake.packageReferencedUrlCount ?? 0} referenced URLs.` : ""}`
       : donorIntake?.status === "blocked"
         ? ` Donor intake was blocked: ${donorIntake.error ?? "unknown error"}.`
         : donorLaunchUrl
@@ -12662,6 +12666,9 @@ function renderEvidenceBrowser() {
     `Harvest Status: ${summary.donorHarvestStatus || "unknown"}`,
     `Harvested Assets: ${summary.donorHarvestedAssetCount}`,
     `Failed Harvests: ${summary.donorFailedAssetCount}`,
+    `Package Status: ${summary.donorPackageStatus || "unknown"}`,
+    `Package Families: ${summary.donorPackageFamilyCount}`,
+    `Package Referenced URLs: ${summary.donorPackageReferencedUrlCount}`,
     `Evidence Root: ${summary.evidenceRoot}`,
     `Donor Asset Count: ${donorAssetCount}`,
     `Capture Sessions: ${summary.captureSessions.join(", ") || "none"}`,
@@ -12682,6 +12689,7 @@ function renderEvidenceBrowser() {
         <span>${escapeHtml(summary.donorId)}</span>
         <span>${donorAssetCount} donor image assets</span>
         <span>${summary.donorHarvestedAssetCount} harvested assets</span>
+        <span>${summary.donorPackageFamilyCount} package families</span>
         <span>${summary.donorFailedAssetCount} harvest failures</span>
         <span>${summary.captureSessions.length} capture sessions</span>
         <span>${summary.donorEvidenceRefs.length} donor evidence refs</span>
@@ -12755,6 +12763,18 @@ function renderEvidenceBrowser() {
           </div>
           <div class="evidence-actions">
             ${summary.donorHarvestManifestPath ? renderCopyButton(summary.donorHarvestManifestPath, "donor harvest manifest path", "Copy Harvest Manifest Path") : ""}
+          </div>
+        </div>
+        <div class="detail-card">
+          <span>Donor Package</span>
+          <strong>${summary.donorPackageStatus ? escapeHtml(summary.donorPackageStatus) : "unknown"}</strong>
+          <small>${summary.donorPackageReferencedUrlCount} referenced URLs grouped into ${summary.donorPackageFamilyCount} bounded asset families.</small>
+          <div class="chip-row">
+            <span>${summary.donorPackageFamilyCount} families</span>
+            <span>${summary.donorPackageReferencedUrlCount} referenced URLs</span>
+          </div>
+          <div class="evidence-actions">
+            ${summary.donorPackageManifestPath ? renderCopyButton(summary.donorPackageManifestPath, "donor package manifest path", "Copy Package Manifest Path") : ""}
           </div>
         </div>
       </div>

@@ -36,6 +36,10 @@ export interface DonorIntakeResult {
   harvestedAssetCount?: number;
   skippedAssetCount?: number;
   failedAssetCount?: number;
+  packageStatus?: "packaged" | "blocked" | "skipped";
+  packageManifestPath?: string;
+  packageFamilyCount?: number;
+  packageReferencedUrlCount?: number;
   error?: string;
 }
 
@@ -58,6 +62,7 @@ interface DonorAssetHarvestResult {
   status: "harvested" | "blocked" | "skipped";
   manifestPath: string;
   discoveredUrls: DiscoveredDonorUrl[];
+  entries: HarvestedDonorAssetEntry[];
   attemptedAssetCount: number;
   harvestedAssetCount: number;
   skippedAssetCount: number;
@@ -90,7 +95,8 @@ function buildDonorPaths(donorId: string) {
     requestPath: path.join(donorRoot, "raw", "bootstrap", "launch-request.json"),
     bootstrapHtmlPath: path.join(donorRoot, "raw", "bootstrap", "launch.html"),
     discoveredUrlsPath: path.join(donorRoot, "raw", "discovered", "discovered-urls.json"),
-    harvestManifestPath: path.join(donorRoot, "evidence", "local_only", "harvest", "asset-manifest.json")
+    harvestManifestPath: path.join(donorRoot, "evidence", "local_only", "harvest", "asset-manifest.json"),
+    packageManifestPath: path.join(donorRoot, "evidence", "local_only", "harvest", "package-manifest.json")
   };
 }
 
@@ -332,6 +338,163 @@ function shouldHarvestDiscoveredUrl(entry: DiscoveredDonorUrl): boolean {
   return ["script", "style", "image", "audio", "video", "font", "json"].includes(entry.category);
 }
 
+function categorizeDownloadedEntries(entries: readonly HarvestedDonorAssetEntry[]): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const entry of entries) {
+    if (entry.status !== "downloaded") {
+      continue;
+    }
+    counts[entry.category] = (counts[entry.category] ?? 0) + 1;
+  }
+  return counts;
+}
+
+function sortRecordByKey(record: Record<string, number>): Record<string, number> {
+  return Object.fromEntries(Object.entries(record).sort(([left], [right]) => left.localeCompare(right)));
+}
+
+function buildPackageFamilyKey(urlString: string, category: DiscoveredDonorUrl["category"]): string {
+  try {
+    const parsed = new URL(urlString);
+    const segments = parsed.pathname.split("/").filter(Boolean);
+    const suffix = segments.slice(0, Math.min(2, segments.length)).join("/") || "(root)";
+    return `${category}:${suffix}`;
+  } catch {
+    return `${category}:(invalid-url)`;
+  }
+}
+
+function buildEntryPointList(discoveredUrls: readonly DiscoveredDonorUrl[], category: DiscoveredDonorUrl["category"]): string[] {
+  return discoveredUrls
+    .filter((entry) => entry.category === category && (entry.depth ?? 0) <= 1)
+    .map((entry) => entry.url)
+    .slice(0, 20);
+}
+
+async function writeDonorPackageManifest(
+  donorId: string,
+  donorName: string,
+  sourceHost: string | undefined,
+  launchUrl: string,
+  resolvedLaunchUrl: string,
+  paths: ReturnType<typeof buildDonorPaths>,
+  discoveredUrls: readonly DiscoveredDonorUrl[],
+  entries: readonly HarvestedDonorAssetEntry[],
+  overwrite: boolean
+): Promise<{
+  status: "packaged" | "blocked" | "skipped";
+  packageManifestPath: string;
+  packageFamilyCount: number;
+  packageReferencedUrlCount: number;
+}> {
+  const hostStats = new Map<string, { discoveredUrlCount: number; downloadedAssetCount: number; failedAssetCount: number }>();
+  const familyStats = new Map<string, { category: DiscoveredDonorUrl["category"]; discoveredUrlCount: number; downloadedAssetCount: number; sampleUrl: string }>();
+  const downloadedSourceUrls = new Set(entries.filter((entry) => entry.status === "downloaded").map((entry) => entry.sourceUrl));
+
+  for (const discoveredUrl of discoveredUrls) {
+    let host = "(invalid-url)";
+    try {
+      host = new URL(discoveredUrl.url).host || "(no-host)";
+    } catch {
+      // keep invalid marker
+    }
+
+    const hostEntry = hostStats.get(host) ?? { discoveredUrlCount: 0, downloadedAssetCount: 0, failedAssetCount: 0 };
+    hostEntry.discoveredUrlCount += 1;
+    if (downloadedSourceUrls.has(discoveredUrl.url)) {
+      hostEntry.downloadedAssetCount += 1;
+    }
+    hostStats.set(host, hostEntry);
+
+    const familyKey = buildPackageFamilyKey(discoveredUrl.url, discoveredUrl.category);
+    const familyEntry = familyStats.get(familyKey) ?? {
+      category: discoveredUrl.category,
+      discoveredUrlCount: 0,
+      downloadedAssetCount: 0,
+      sampleUrl: discoveredUrl.url
+    };
+    familyEntry.discoveredUrlCount += 1;
+    if (downloadedSourceUrls.has(discoveredUrl.url)) {
+      familyEntry.downloadedAssetCount += 1;
+    }
+    familyStats.set(familyKey, familyEntry);
+  }
+
+  for (const entry of entries) {
+    if (entry.status !== "failed") {
+      continue;
+    }
+    let host = "(invalid-url)";
+    try {
+      host = new URL(entry.resolvedUrl ?? entry.sourceUrl).host || "(no-host)";
+    } catch {
+      // keep invalid marker
+    }
+    const hostEntry = hostStats.get(host) ?? { discoveredUrlCount: 0, downloadedAssetCount: 0, failedAssetCount: 0 };
+    hostEntry.failedAssetCount += 1;
+    hostStats.set(host, hostEntry);
+  }
+
+  const downloadedAssetCount = entries.filter((entry) => entry.status === "downloaded").length;
+  const failedAssetCount = entries.filter((entry) => entry.status === "failed").length;
+  const skippedAssetCount = entries.filter((entry) => entry.status === "skipped").length;
+  const packageStatus: "packaged" | "blocked" | "skipped" = entries.length === 0
+    ? "skipped"
+    : downloadedAssetCount > 0
+      ? "packaged"
+      : "blocked";
+
+  const hostSummary = [...hostStats.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([host, stats]) => ({ host, ...stats }));
+  const familySummary = [...familyStats.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([familyKey, stats]) => ({ familyKey, ...stats }));
+
+  await writeFileConditionally(paths.packageManifestPath, `${JSON.stringify({
+    schemaVersion: "0.1.0",
+    donorId,
+    donorName,
+    packageStatus,
+    sourceHost,
+    generatedAt: new Date().toISOString(),
+    launchUrl,
+    resolvedLaunchUrl,
+    discoveredUrlCount: discoveredUrls.length,
+    downloadedAssetCount,
+    failedAssetCount,
+    skippedAssetCount,
+    recursiveHarvestDepthLimit,
+    downloadedByCategory: sortRecordByKey(categorizeDownloadedEntries(entries)),
+    entryPoints: {
+      scripts: buildEntryPointList(discoveredUrls, "script"),
+      styles: buildEntryPointList(discoveredUrls, "style"),
+      json: buildEntryPointList(discoveredUrls, "json")
+    },
+    hosts: hostSummary,
+    assetFamilies: familySummary,
+    unresolvedEntries: entries
+      .filter((entry) => entry.status !== "downloaded")
+      .map((entry) => ({
+        sourceUrl: entry.sourceUrl,
+        resolvedUrl: entry.resolvedUrl,
+        category: entry.category,
+        status: entry.status,
+        reason: entry.reason,
+        depth: entry.depth,
+        discoveredFromUrl: entry.discoveredFromUrl
+      }))
+      .slice(0, 50)
+  }, null, 2)}\n`, overwrite);
+
+  return {
+    status: packageStatus,
+    packageManifestPath: paths.packageManifestPath,
+    packageFamilyCount: familySummary.length,
+    packageReferencedUrlCount: discoveredUrls.length
+  };
+}
+
 function shouldExtractRecursiveReferences(entry: DiscoveredDonorUrl, contentType?: string | null): boolean {
   if (["script", "style", "json"].includes(entry.category)) {
     return true;
@@ -561,6 +724,7 @@ async function harvestDiscoveredAssets(
     status,
     manifestPath: paths.harvestManifestPath,
     discoveredUrls: allDiscoveredUrls,
+    entries,
     attemptedAssetCount,
     harvestedAssetCount,
     skippedAssetCount,
@@ -599,6 +763,12 @@ function buildIntakeReport(result: DonorIntakeResult, donorName: string): string
     lines.push(`- Failed assets: ${result.failedAssetCount ?? 0}`);
     lines.push(`- Skipped assets: ${result.skippedAssetCount ?? 0}`);
   }
+  if (result.packageStatus) {
+    lines.push(`- Package status: \`${result.packageStatus}\``);
+    lines.push(`- Package manifest path: \`${result.packageManifestPath ? path.relative(workspaceRoot, result.packageManifestPath) : "not captured"}\``);
+    lines.push(`- Package families: ${result.packageFamilyCount ?? 0}`);
+    lines.push(`- Package referenced URLs: ${result.packageReferencedUrlCount ?? 0}`);
+  }
 
   if (result.error) {
     lines.push(`- Error: ${result.error}`);
@@ -610,7 +780,7 @@ function buildIntakeReport(result: DonorIntakeResult, donorName: string): string
     "",
     result.status === "captured"
       ? (result.harvestStatus === "harvested"
-        ? "- The donor entry page was fetched, a donor URL inventory was written locally, and bounded recursive static assets were downloaded into the local-only donor pack."
+        ? "- The donor entry page was fetched, a donor URL inventory was written locally, bounded recursive static assets were downloaded into the local-only donor pack, and a package-level manifest now summarizes the captured donor surface."
         : "- The donor entry page was fetched and a first-pass URL inventory was written locally.")
       : result.status === "blocked"
         ? "- The donor pack scaffold exists, but the first donor launch capture failed and needs investigation."
@@ -654,6 +824,10 @@ export async function bootstrapDonorIntake(options: BootstrapDonorIntakeOptions)
     discoveredUrlCount: 0,
     harvestStatus: donorLaunchUrl && harvestAssets ? "blocked" : "skipped",
     harvestManifestPath: donorLaunchUrl && harvestAssets ? paths.harvestManifestPath : undefined,
+    packageStatus: donorLaunchUrl && harvestAssets ? "blocked" : "skipped",
+    packageManifestPath: donorLaunchUrl && harvestAssets ? paths.packageManifestPath : undefined,
+    packageFamilyCount: 0,
+    packageReferencedUrlCount: 0,
     attemptedAssetCount: 0,
     harvestedAssetCount: 0,
     skippedAssetCount: 0,
@@ -699,14 +873,30 @@ export async function bootstrapDonorIntake(options: BootstrapDonorIntakeOptions)
       harvestResult = await harvestDiscoveredAssets(donorId, donorName, discoveredUrls, paths, overwrite);
       discoveredUrls = harvestResult.discoveredUrls;
       result.discoveredUrlCount = discoveredUrls.length;
+      const packageResult = await writeDonorPackageManifest(
+        donorId,
+        donorName,
+        result.sourceHost,
+        sanitizeStoredUrl(donorLaunchUrl),
+        resolvedLaunchUrl,
+        paths,
+        discoveredUrls,
+        harvestResult.entries,
+        overwrite
+      );
       result.harvestStatus = harvestResult.status;
       result.harvestManifestPath = harvestResult.manifestPath;
+      result.packageStatus = packageResult.status;
+      result.packageManifestPath = packageResult.packageManifestPath;
+      result.packageFamilyCount = packageResult.packageFamilyCount;
+      result.packageReferencedUrlCount = packageResult.packageReferencedUrlCount;
       result.attemptedAssetCount = harvestResult.attemptedAssetCount;
       result.harvestedAssetCount = harvestResult.harvestedAssetCount;
       result.skippedAssetCount = harvestResult.skippedAssetCount;
       result.failedAssetCount = harvestResult.failedAssetCount;
     } else {
       result.harvestStatus = "skipped";
+      result.packageStatus = "skipped";
     }
 
     await Promise.all([

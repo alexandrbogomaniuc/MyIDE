@@ -107,6 +107,10 @@ export interface ProjectMetaLike {
     harvestManifestPath?: string;
     harvestedAssetCount?: number;
     failedAssetCount?: number;
+    packageStatus?: "unknown" | "packaged" | "blocked" | "skipped";
+    packageManifestPath?: string;
+    packageFamilyCount?: number;
+    packageReferencedUrlCount?: number;
     notes?: string;
   };
   targetGame: {
@@ -386,6 +390,10 @@ function normalizeDonor(value: unknown, relativeProjectRoot: string, projectName
     harvestManifestPath: optionalString(donor.harvestManifestPath),
     harvestedAssetCount: typeof donor.harvestedAssetCount === "number" ? donor.harvestedAssetCount : undefined,
     failedAssetCount: typeof donor.failedAssetCount === "number" ? donor.failedAssetCount : undefined,
+    packageStatus: (optionalString(donor.packageStatus) as ProjectMetaLike["donor"]["packageStatus"] | undefined) ?? "unknown",
+    packageManifestPath: optionalString(donor.packageManifestPath),
+    packageFamilyCount: typeof donor.packageFamilyCount === "number" ? donor.packageFamilyCount : undefined,
+    packageReferencedUrlCount: typeof donor.packageReferencedUrlCount === "number" ? donor.packageReferencedUrlCount : undefined,
     notes: optionalString(donor.notes) ?? `${projectName} scaffold only. Replace with evidence-backed donor references before validation.`
   };
 }
@@ -647,9 +655,11 @@ export function buildProjectMetaFromInput(input: ShellCreateProjectInput): Proje
       intakeReportPath: `10_donors/${donorId}/reports/DONOR_INTAKE_REPORT.md`,
       harvestStatus: donorLaunchUrl ? (harvestDonorAssets ? "unknown" : "skipped") : "unknown",
       harvestManifestPath: donorLaunchUrl && harvestDonorAssets ? `10_donors/${donorId}/evidence/local_only/harvest/asset-manifest.json` : undefined,
+      packageStatus: donorLaunchUrl ? (harvestDonorAssets ? "unknown" : "skipped") : "unknown",
+      packageManifestPath: donorLaunchUrl && harvestDonorAssets ? `10_donors/${donorId}/evidence/local_only/harvest/package-manifest.json` : undefined,
       notes: donorLaunchUrl
         ? (harvestDonorAssets
-          ? "Shell-created donor reference with launch capture plus first-pass asset harvest queued. Replace scaffold claims with evidence-backed donor materials before validation."
+          ? "Shell-created donor reference with launch capture plus bounded recursive donor harvest queued. Replace scaffold claims with evidence-backed donor materials before validation."
           : "Shell-created donor reference with a first launch URL queued for intake capture. Replace scaffold claims with evidence-backed donor materials before validation.")
         : "Shell-created donor reference only. Add a donor launch URL or evidence-backed donor materials before validation."
     },
@@ -678,8 +688,8 @@ export function buildProjectMetaFromInput(input: ShellCreateProjectInput): Proje
       plannedWork: notesInput
         ? [notesInput]
         : [donorLaunchUrl
-          ? (harvestDonorAssets
-            ? "Review the donor intake report plus harvested asset manifest and convert that first-pass donor package into evidence-backed donor capture work."
+        ? (harvestDonorAssets
+            ? "Review the donor intake report plus donor package manifests and convert that bounded donor package into evidence-backed donor capture work."
             : "Review the donor intake report and convert first-pass URL discovery into evidence-backed donor capture work.")
           : "Replace scaffold metadata with evidence-backed donor, import, and replay details."],
       assumptions: [
@@ -710,6 +720,10 @@ export async function createProjectFromInput(input: ShellCreateProjectInput, ove
   meta.donor.harvestManifestPath = donorIntake.harvestManifestPath ? path.relative(workspaceRoot, donorIntake.harvestManifestPath).replace(/\\/g, "/") : undefined;
   meta.donor.harvestedAssetCount = donorIntake.harvestedAssetCount;
   meta.donor.failedAssetCount = donorIntake.failedAssetCount;
+  meta.donor.packageStatus = donorIntake.packageStatus ?? "unknown";
+  meta.donor.packageManifestPath = donorIntake.packageManifestPath ? path.relative(workspaceRoot, donorIntake.packageManifestPath).replace(/\\/g, "/") : undefined;
+  meta.donor.packageFamilyCount = donorIntake.packageFamilyCount;
+  meta.donor.packageReferencedUrlCount = donorIntake.packageReferencedUrlCount;
   meta.donor.status = donorIntake.status === "blocked"
     ? "blocked"
     : donorIntake.status === "captured"
@@ -718,7 +732,10 @@ export async function createProjectFromInput(input: ShellCreateProjectInput, ove
   if (donorIntake.status === "captured") {
     meta.notes.provenFacts.push("Initial donor launch HTML and discovered URL inventory were captured into the shared donor pack.");
     if ((donorIntake.harvestedAssetCount ?? 0) > 0) {
-      meta.notes.provenFacts.push(`First-pass donor harvest downloaded ${donorIntake.harvestedAssetCount} direct static assets into the local-only donor pack.`);
+      meta.notes.provenFacts.push(`Bounded donor harvest downloaded ${donorIntake.harvestedAssetCount} static assets into the local-only donor pack.`);
+    }
+    if ((donorIntake.packageFamilyCount ?? 0) > 0) {
+      meta.notes.provenFacts.push(`Donor intake generated a bounded package manifest spanning ${donorIntake.packageFamilyCount} asset families and ${donorIntake.packageReferencedUrlCount ?? 0} referenced URLs.`);
     }
   }
   if (donorIntake.status === "blocked" && donorIntake.error) {
