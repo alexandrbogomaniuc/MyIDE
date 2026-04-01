@@ -143,6 +143,7 @@ export interface DonorScanPaths {
   bundleAssetMapPath: string;
   atlasManifestsPath: string;
   nextCaptureTargetsPath: string;
+  captureBlockerFamiliesPath: string;
   captureRunPath: string;
   blockerSummaryPath: string;
   scanSummaryPath: string;
@@ -334,6 +335,8 @@ export interface DonorScanResult {
   translationPayloadCount: number;
   mirrorCandidateStatus: MirrorCandidateStatus;
   rawPayloadBlockedCaptureTargetCount: number;
+  rawPayloadBlockedFamilyCount: number;
+  rawPayloadBlockedFamilyNames: string[];
   nextCaptureTargetCount: number;
   nextOperatorAction: string;
   blockerHighlights: string[];
@@ -369,6 +372,28 @@ export interface NextCaptureTargetsFile {
   targetCount: number;
   countsByPriority: Record<CaptureTargetPriority, number>;
   targets: NextCaptureTargetRecord[];
+}
+
+export interface CaptureBlockerFamilyRecord {
+  familyName: string;
+  blockerClass: CaptureTargetBlockerClass;
+  targetCount: number;
+  minRank: number;
+  targetKinds: string[];
+  captureStrategies: CaptureTargetStrategy[];
+  locationPrefixes: string[];
+  recentCaptureAttemptCountMax: number;
+  recentCaptureFailureReasons: string[];
+  sampleUrls: string[];
+}
+
+export interface CaptureBlockerFamiliesFile {
+  schemaVersion: string;
+  donorId: string;
+  donorName: string;
+  generatedAt: string;
+  familyCount: number;
+  families: CaptureBlockerFamilyRecord[];
 }
 
 export type CaptureRunStatus = "captured" | "partial" | "blocked" | "skipped";
@@ -455,6 +480,7 @@ export function buildDonorScanPaths(donorId: string): DonorScanPaths {
     bundleAssetMapPath: path.join(harvestRoot, "bundle-asset-map.json"),
     atlasManifestsPath: path.join(harvestRoot, "atlas-manifests.json"),
     nextCaptureTargetsPath: path.join(harvestRoot, "next-capture-targets.json"),
+    captureBlockerFamiliesPath: path.join(harvestRoot, "capture-blocker-families.json"),
     captureRunPath: path.join(harvestRoot, "next-capture-run.json"),
     blockerSummaryPath: path.join(harvestRoot, "blocker-summary.md"),
     scanSummaryPath: path.join(harvestRoot, "scan-summary.json")

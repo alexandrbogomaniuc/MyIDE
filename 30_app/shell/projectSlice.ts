@@ -169,6 +169,8 @@ export interface DonorScanStatus {
   requestBackedStaticHintCount: number;
   recentlyBlockedCaptureTargetCount: number;
   rawPayloadBlockedCaptureTargetCount: number;
+  rawPayloadBlockedFamilyCount: number;
+  rawPayloadBlockedFamilyNames: string[];
   nextCaptureTargetCount: number;
   captureRunStatus: string | null;
   captureAttemptedCount: number;
@@ -892,6 +894,10 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
     requestBackedStaticHintCount: typeof scanSummary.requestBackedStaticHintCount === "number" ? scanSummary.requestBackedStaticHintCount : 0,
     recentlyBlockedCaptureTargetCount: typeof scanSummary.recentlyBlockedCaptureTargetCount === "number" ? scanSummary.recentlyBlockedCaptureTargetCount : nextCaptureTargets.filter((target) => target.recentCaptureStatus === "blocked").length,
     rawPayloadBlockedCaptureTargetCount: typeof scanSummary.rawPayloadBlockedCaptureTargetCount === "number" ? scanSummary.rawPayloadBlockedCaptureTargetCount : 0,
+    rawPayloadBlockedFamilyCount: typeof scanSummary.rawPayloadBlockedFamilyCount === "number" ? scanSummary.rawPayloadBlockedFamilyCount : 0,
+    rawPayloadBlockedFamilyNames: Array.isArray(scanSummary.rawPayloadBlockedFamilyNames)
+      ? scanSummary.rawPayloadBlockedFamilyNames.filter((value): value is string => typeof value === "string")
+      : [],
     nextCaptureTargetCount: typeof scanSummary.nextCaptureTargetCount === "number" ? scanSummary.nextCaptureTargetCount : (donor.nextCaptureTargetCount ?? nextCaptureTargets.length),
     captureRunStatus: typeof captureRunSummary?.status === "string" ? captureRunSummary.status : null,
     captureAttemptedCount: typeof captureRunSummary?.attemptedCount === "number" ? captureRunSummary.attemptedCount : 0,

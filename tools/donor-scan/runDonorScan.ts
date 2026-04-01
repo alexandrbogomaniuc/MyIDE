@@ -6,6 +6,7 @@ import { discoverRequestBackedStaticHints } from "./discoverRequestBackedStaticH
 import { discoverAtlasMetadata } from "./discoverAtlasMetadata";
 import { discoverRuntimeCandidates } from "./discoverRuntimeCandidates";
 import { extractBundleAssetMap } from "./extractBundleAssetMap";
+import { summarizeCaptureBlockerFamilies } from "./summarizeCaptureBlockerFamilies";
 import {
   type CaptureRunFile,
   type DiscoveredDonorUrl,
@@ -417,6 +418,8 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
       mirrorCandidateStatus: "blocked",
       nextCaptureTargetCount: 0,
       rawPayloadBlockedCaptureTargetCount: 0,
+      rawPayloadBlockedFamilyCount: 0,
+      rawPayloadBlockedFamilyNames: [],
       fullLocalRuntimePackage: false,
       partialLocalRuntimePackage: false,
       entryPointCount: 0,
@@ -450,6 +453,8 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
       mirrorCandidateStatus: "blocked",
       nextCaptureTargetCount: 0,
       rawPayloadBlockedCaptureTargetCount: 0,
+      rawPayloadBlockedFamilyCount: 0,
+      rawPayloadBlockedFamilyNames: [],
       nextOperatorAction: "Run donor URL intake or provide a harvested donor package before scanning.",
       blockerHighlights: ["No harvested donor asset manifest exists yet."]
     };
@@ -520,6 +525,14 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
   await writeJsonFile(paths.runtimeCandidatesPath, runtimeCandidates);
   await writeJsonFile(paths.requestBackedStaticHintsPath, requestBackedStaticHints);
   await writeJsonFile(paths.nextCaptureTargetsPath, nextCaptureTargets);
+  const captureBlockerFamilies = summarizeCaptureBlockerFamilies({
+    donorId: options.donorId,
+    donorName: options.donorName,
+    nextCaptureTargets
+  });
+  await writeJsonFile(paths.captureBlockerFamiliesPath, captureBlockerFamilies);
+  const rawPayloadBlockedFamilies = captureBlockerFamilies.families
+    .filter((family) => family.blockerClass === "raw-payload-blocked");
 
   const blockerSummary = await writeBlockerSummary({
     donorId: options.donorId,
@@ -529,6 +542,7 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
     bundleAssetMap,
     atlasManifestFile,
     nextCaptureTargets,
+    captureBlockerFamilies,
     captureRun,
     paths
   });
@@ -565,6 +579,8 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
     requestBackedObservedStaticCount: requestBackedStaticHints.observedStaticRequestCount,
     recentlyBlockedCaptureTargetCount: nextCaptureTargets.targets.filter((target) => target.recentCaptureStatus === "blocked").length,
     rawPayloadBlockedCaptureTargetCount: nextCaptureTargets.targets.filter((target) => target.blockerClass === "raw-payload-blocked").length,
+    rawPayloadBlockedFamilyCount: rawPayloadBlockedFamilies.length,
+    rawPayloadBlockedFamilyNames: rawPayloadBlockedFamilies.slice(0, 8).map((family) => family.familyName),
     bundleAssetMapStatus: bundleAssetMap.status,
     bundleReferenceCount: bundleAssetMap.referenceCount,
     bundleImageVariantStatus: bundleAssetMap.imageVariantStatus,
@@ -616,6 +632,8 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
     translationPayloadCount: bundleAssetMap.translationPayloadCount,
     mirrorCandidateStatus: runtimeCandidates.mirrorCandidateStatus,
     rawPayloadBlockedCaptureTargetCount: nextCaptureTargets.targets.filter((target) => target.blockerClass === "raw-payload-blocked").length,
+    rawPayloadBlockedFamilyCount: rawPayloadBlockedFamilies.length,
+    rawPayloadBlockedFamilyNames: rawPayloadBlockedFamilies.slice(0, 8).map((family) => family.familyName),
     nextCaptureTargetCount: nextCaptureTargets.targetCount,
     nextOperatorAction: blockerSummary.nextOperatorAction,
     blockerHighlights: blockerSummary.blockerHighlights

@@ -1,5 +1,5 @@
 import type { AssetClassificationSummary } from "./classifyAssets";
-import type { AtlasManifestFile, BundleAssetMapFile, CaptureRunFile, DonorScanPaths, NextCaptureTargetsFile, RuntimeCandidatesFile } from "./shared";
+import type { AtlasManifestFile, BundleAssetMapFile, CaptureBlockerFamiliesFile, CaptureRunFile, DonorScanPaths, NextCaptureTargetsFile, RuntimeCandidatesFile } from "./shared";
 import { toRepoRelativePath, writeTextFile } from "./shared";
 
 interface WriteBlockerSummaryOptions {
@@ -10,6 +10,7 @@ interface WriteBlockerSummaryOptions {
   bundleAssetMap: BundleAssetMapFile;
   atlasManifestFile: AtlasManifestFile;
   nextCaptureTargets: NextCaptureTargetsFile;
+  captureBlockerFamilies: CaptureBlockerFamiliesFile;
   captureRun: CaptureRunFile | null;
   paths: DonorScanPaths;
 }
@@ -52,12 +53,16 @@ export async function writeBlockerSummary(options: WriteBlockerSummaryOptions): 
 
   const recentlyBlockedTargets = options.nextCaptureTargets.targets.filter((target) => target.recentCaptureStatus === "blocked");
   const rawPayloadBlockedTargets = options.nextCaptureTargets.targets.filter((target) => target.blockerClass === "raw-payload-blocked");
+  const rawPayloadBlockedFamilies = options.captureBlockerFamilies.families.filter((family) => family.blockerClass === "raw-payload-blocked");
   const untriedTargets = options.nextCaptureTargets.targets.filter((target) => target.recentCaptureStatus !== "blocked");
   if (recentlyBlockedTargets.length > 0) {
     blockerHighlights.push(`${recentlyBlockedTargets.length} ranked capture targets were already retried in the latest guided capture run and still failed on every grounded URL attempt.`);
   }
   if (rawPayloadBlockedTargets.length > 0) {
     blockerHighlights.push(`${rawPayloadBlockedTargets.length} ranked image targets are now classified as raw-payload-blocked: donor scan exhausted only raw/direct grounded URLs for them and still has no stronger alternate capture path.`);
+  }
+  if (rawPayloadBlockedFamilies.length > 0) {
+    blockerHighlights.push(`${rawPayloadBlockedFamilies.length} blocker families are now explicit in donor scan, led by ${rawPayloadBlockedFamilies.slice(0, 4).map((family) => `\`${family.familyName}\``).join(", ")}.`);
   }
 
   let nextOperatorAction = "Review the donor scan summary and decide whether deeper runtime capture is still needed.";
@@ -93,6 +98,7 @@ export async function writeBlockerSummary(options: WriteBlockerSummaryOptions): 
     `- Translation payloads: \`${options.bundleAssetMap.translationPayloadStatus}\` (${options.bundleAssetMap.translationPayloadCount} grounded locale JSON URLs)`,
     `- Mirror candidate status: \`${options.runtimeCandidates.mirrorCandidateStatus}\``,
     `- Next capture targets: ${options.nextCaptureTargets.targetCount}`,
+    `- Capture blocker families: ${options.captureBlockerFamilies.familyCount}`,
     "",
     "## Early blocker answer",
     "",
@@ -111,6 +117,16 @@ export async function writeBlockerSummary(options: WriteBlockerSummaryOptions): 
           )
         ]
       : []),
+    ...(rawPayloadBlockedFamilies.length > 0
+      ? [
+          "",
+          "## Raw-Payload-Blocked Families",
+          "",
+          ...rawPayloadBlockedFamilies.slice(0, 8).map((family) =>
+            `- \`${family.familyName}\` — ${family.targetCount} target${family.targetCount === 1 ? "" : "s"}, kinds: ${family.targetKinds.join(", ")}, capture strategies: ${family.captureStrategies.join(", ")}, locations: ${family.locationPrefixes.join(", ")}`
+          )
+        ]
+      : []),
     "",
     "## Backing artifacts",
     "",
@@ -120,6 +136,7 @@ export async function writeBlockerSummary(options: WriteBlockerSummaryOptions): 
     `- Bundle asset map: \`${toRepoRelativePath(options.paths.bundleAssetMapPath)}\``,
     `- Atlas manifests: \`${toRepoRelativePath(options.paths.atlasManifestsPath)}\``,
     `- Next capture targets: \`${toRepoRelativePath(options.paths.nextCaptureTargetsPath)}\``,
+    `- Capture blocker families: \`${toRepoRelativePath(options.paths.captureBlockerFamiliesPath)}\``,
     `- Latest capture run: \`${toRepoRelativePath(options.paths.captureRunPath)}\``,
     `- Existing asset manifest: \`${toRepoRelativePath(options.paths.assetManifestPath)}\``,
     `- Existing package graph: \`${toRepoRelativePath(options.paths.packageGraphPath)}\``

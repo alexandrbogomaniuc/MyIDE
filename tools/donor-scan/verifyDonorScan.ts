@@ -63,6 +63,8 @@ async function main(): Promise<void> {
     mirrorCandidateStatus?: string;
     requestBackedStaticHintCount?: number;
     rawPayloadBlockedCaptureTargetCount?: number;
+    rawPayloadBlockedFamilyCount?: number;
+    rawPayloadBlockedFamilyNames?: string[];
     nextCaptureTargetCount?: number;
     nextOperatorAction?: string;
   }>(paths.scanSummaryPath);
@@ -81,6 +83,8 @@ async function main(): Promise<void> {
   assert.ok(typeof scanSummary.mirrorCandidateStatus === "string", "scan summary should record mirror candidate status");
   assert.ok(typeof scanSummary.requestBackedStaticHintCount === "number", "scan summary should record request-backed static hint count");
   assert.ok(typeof scanSummary.rawPayloadBlockedCaptureTargetCount === "number", "scan summary should record raw-payload-blocked target counts");
+  assert.ok(typeof scanSummary.rawPayloadBlockedFamilyCount === "number", "scan summary should record raw-payload-blocked family counts");
+  assert.ok(Array.isArray(scanSummary.rawPayloadBlockedFamilyNames), "scan summary should record raw-payload-blocked family names");
   assert.ok(typeof scanSummary.nextCaptureTargetCount === "number", "scan summary should record next capture target count");
   assert.ok(typeof scanSummary.nextOperatorAction === "string" && scanSummary.nextOperatorAction.length > 0, "scan summary should record the next operator action");
 
@@ -97,6 +101,7 @@ async function main(): Promise<void> {
   console.log(`Translation payloads: ${scanSummary.translationPayloadCount} (${scanSummary.translationPayloadStatus})`);
   console.log(`Request-backed alternates: ${scanSummary.requestBackedStaticHintCount}`);
   console.log(`Raw-payload-blocked targets: ${scanSummary.rawPayloadBlockedCaptureTargetCount}`);
+  console.log(`Raw-payload-blocked families: ${scanSummary.rawPayloadBlockedFamilyCount} (${scanSummary.rawPayloadBlockedFamilyNames.join(", ")})`);
   console.log(`Next capture targets: ${scanSummary.nextCaptureTargetCount}`);
   console.log(`Next operator action: ${scanSummary.nextOperatorAction}`);
 }
