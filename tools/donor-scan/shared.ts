@@ -300,6 +300,9 @@ export interface NextCaptureTargetRecord {
   reason: string;
   blockers: string[];
   alternateCaptureHints: AlternateCaptureHintRecord[];
+  recentCaptureStatus: "untried" | "blocked";
+  recentCaptureAttemptCount: number;
+  recentCaptureFailureReason: string | null;
 }
 
 export interface NextCaptureTargetsFile {

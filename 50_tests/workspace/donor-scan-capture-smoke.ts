@@ -42,6 +42,7 @@ function startFixtureServer(): Promise<{ server: http.Server; port: number }> {
         response.writeHead(200, { "content-type": "text/plain; charset=utf-8" });
         response.end([
           "ui.png",
+          "ui_missing.png",
           "size: 128,128",
           "format: RGBA8888",
           "filter: Linear,Linear",
@@ -93,36 +94,31 @@ async function main(): Promise<void> {
       nextCaptureTargetCount?: number;
       atlasMissingPageCount?: number;
     };
-    assert.ok((beforeSummary.atlasMissingPageCount ?? 0) >= 1, "fixture should begin with a missing atlas page");
+    assert.ok((beforeSummary.atlasMissingPageCount ?? 0) >= 2, "fixture should begin with multiple missing atlas pages");
 
     const capture = await captureNextTargets({
       donorId,
       limit: 2
     });
-    assert.ok(["captured", "partial"].includes(capture.status), "guided capture should download at least one missing target");
+    assert.equal(capture.status, "partial", "guided capture should resolve one target and leave one grounded blocker");
     assert.ok(capture.downloadedCount >= 1, "guided capture should fetch the atlas page image");
+    assert.ok(capture.failedCount >= 1, "guided capture should preserve one blocked target");
 
     const captureRunPath = path.join(donorRoot, "evidence", "local_only", "harvest", "next-capture-run.json");
     const captureRun = JSON.parse(await fs.readFile(captureRunPath, "utf8")) as {
       status?: string;
       downloadedCount?: number;
+      failedCount?: number;
       targetCountBefore?: number;
       targetCountAfter?: number;
       results?: Array<{ relativePath?: string; status?: string; attemptedUrls?: string[]; downloadedFromUrl?: string | null }>;
     };
     assert.ok(["captured", "partial"].includes(captureRun.status ?? ""), "capture summary should record a successful or partial run");
-    assert.ok((captureRun.downloadedCount ?? 0) >= 2, "capture summary should record the atlas page and placeholder asset download");
+    assert.ok((captureRun.downloadedCount ?? 0) >= 1, "capture summary should record the atlas page download");
+    assert.ok((captureRun.failedCount ?? 0) >= 1, "capture summary should record the still-missing atlas page");
     assert.ok(
       Array.isArray(captureRun.results) && captureRun.results.some((entry) => entry.relativePath?.includes("ui.png") && entry.status === "downloaded"),
       "capture summary should record the downloaded atlas page image"
-    );
-    assert.ok(
-      Array.isArray(captureRun.results) && captureRun.results.some((entry) =>
-        entry.downloadedFromUrl?.includes("/preloader-assets/logo.png")
-        && Array.isArray(entry.attemptedUrls)
-        && entry.attemptedUrls.some((attemptUrl) => attemptUrl.includes("/preloader-assets/logo.png"))
-      ),
-      "capture summary should record the normalized preloader asset capture"
     );
     assert.ok((captureRun.targetCountAfter ?? 0) < (captureRun.targetCountBefore ?? 999999), "capture run should reduce the pending target count");
 
@@ -130,7 +126,27 @@ async function main(): Promise<void> {
     const atlasManifest = JSON.parse(await fs.readFile(atlasManifestPath, "utf8")) as {
       missingPageCount?: number;
     };
-    assert.equal(atlasManifest.missingPageCount, 0, "atlas page capture should resolve the missing atlas page in the refreshed scan");
+    assert.equal(atlasManifest.missingPageCount, 1, "atlas page capture should leave only the truly missing atlas page unresolved in the refreshed scan");
+
+    const refreshedTargets = JSON.parse(await fs.readFile(path.join(donorRoot, "evidence", "local_only", "harvest", "next-capture-targets.json"), "utf8")) as {
+      targets?: Array<{ relativePath?: string; recentCaptureStatus?: string; recentCaptureAttemptCount?: number; recentCaptureFailureReason?: string | null }>;
+    };
+    assert.ok(
+      Array.isArray(refreshedTargets.targets)
+        && refreshedTargets.targets.some((target) =>
+          target.relativePath?.includes("ui_missing.png")
+          && target.recentCaptureStatus === "blocked"
+          && (target.recentCaptureAttemptCount ?? 0) >= 1
+          && typeof target.recentCaptureFailureReason === "string"
+          && target.recentCaptureFailureReason.includes("404")
+        ),
+      "refreshed next capture targets should mark the remaining atlas page as recently blocked after guided capture"
+    );
+
+    const refreshedSummary = JSON.parse(await fs.readFile(beforeSummaryPath, "utf8")) as {
+      recentlyBlockedCaptureTargetCount?: number;
+    };
+    assert.ok((refreshedSummary.recentlyBlockedCaptureTargetCount ?? 0) >= 1, "scan summary should surface recently blocked capture targets after a partial run");
 
     console.log("PASS smoke:donor-scan-capture");
     console.log(`Donor: ${donorId}`);

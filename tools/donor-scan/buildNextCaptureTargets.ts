@@ -2,6 +2,7 @@ import type {
   AlternateCaptureHintRecord,
   AtlasManifestFile,
   BundleAssetMapFile,
+  CaptureRunFile,
   CaptureTargetPriority,
   NextCaptureTargetRecord,
   NextCaptureTargetsFile,
@@ -18,6 +19,7 @@ interface BuildNextCaptureTargetsOptions {
   bundleAssetMap: BundleAssetMapFile;
   atlasManifestFile: AtlasManifestFile;
   requestBackedStaticHints: RequestBackedStaticHintFile | null;
+  captureRun: CaptureRunFile | null;
 }
 
 interface MutableTarget {
@@ -172,7 +174,8 @@ function toTargetRecord(
   rank: number,
   bundleAssetMap: BundleAssetMapFile,
   directoryAliasSupport: Map<string, DirectoryAliasSupportRecord>,
-  requestBackedStaticHints: RequestBackedStaticHintFile | null
+  requestBackedStaticHints: RequestBackedStaticHintFile | null,
+  captureRunResults: Map<string, { attemptedUrlCount: number; failureReason: string | null }>
 ): NextCaptureTargetRecord {
   const sourceCount = mutable.sourceLabels.size;
   const score = mutable.score + Math.min(20, sourceCount * 5);
@@ -209,6 +212,7 @@ function toTargetRecord(
       });
     }
   }
+  const captureEvidence = captureRunResults.get(url) ?? null;
   return {
     rank,
     url,
@@ -223,8 +227,25 @@ function toTargetRecord(
     sourceLabels: [...mutable.sourceLabels].sort((left, right) => left.localeCompare(right)),
     reason: [...mutable.reasons].join(" + "),
     blockers: [...mutable.blockers].sort((left, right) => left.localeCompare(right)),
-    alternateCaptureHints
+    alternateCaptureHints,
+    recentCaptureStatus: captureEvidence ? "blocked" : "untried",
+    recentCaptureAttemptCount: captureEvidence?.attemptedUrlCount ?? 0,
+    recentCaptureFailureReason: captureEvidence?.failureReason ?? null
   };
+}
+
+function buildCaptureRunResultMap(captureRun: CaptureRunFile | null): Map<string, { attemptedUrlCount: number; failureReason: string | null }> {
+  const results = new Map<string, { attemptedUrlCount: number; failureReason: string | null }>();
+  for (const result of Array.isArray(captureRun?.results) ? captureRun.results : []) {
+    if (result.status !== "failed" || typeof result.url !== "string" || result.url.length === 0) {
+      continue;
+    }
+    results.set(result.url, {
+      attemptedUrlCount: Array.isArray(result.attemptedUrls) ? result.attemptedUrls.length : 0,
+      failureReason: typeof result.reason === "string" ? result.reason : null
+    });
+  }
+  return results;
 }
 
 function buildDirectoryAliasSupport(
@@ -400,9 +421,10 @@ export function buildNextCaptureTargets(options: BuildNextCaptureTargetsOptions)
   }
 
   const targetEntries = [...targetMap.entries()];
+  const captureRunResults = buildCaptureRunResultMap(options.captureRun);
   const directoryAliasSupport = buildDirectoryAliasSupport(targetEntries, options.bundleAssetMap, options.requestBackedStaticHints);
   const targets = targetEntries
-    .map(([url, target], index) => toTargetRecord(url, target, index + 1, options.bundleAssetMap, directoryAliasSupport, options.requestBackedStaticHints))
+    .map(([url, target], index) => toTargetRecord(url, target, index + 1, options.bundleAssetMap, directoryAliasSupport, options.requestBackedStaticHints, captureRunResults))
     .sort((left, right) => {
       if (left.score !== right.score) {
         return right.score - left.score;

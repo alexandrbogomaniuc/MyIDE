@@ -10151,6 +10151,7 @@ function getSelectedProjectEvidenceSummary() {
     donorBundleAssetMapStatus: typeof donorScan?.bundleAssetMapStatus === "string" ? donorScan.bundleAssetMapStatus : (typeof selectedProject.donor?.bundleAssetMapStatus === "string" ? selectedProject.donor.bundleAssetMapStatus : null),
     donorMirrorCandidateStatus: typeof donorScan?.mirrorCandidateStatus === "string" ? donorScan.mirrorCandidateStatus : (typeof selectedProject.donor?.mirrorCandidateStatus === "string" ? selectedProject.donor.mirrorCandidateStatus : null),
     donorRequestBackedStaticHintCount: typeof donorScan?.requestBackedStaticHintCount === "number" ? donorScan.requestBackedStaticHintCount : 0,
+    donorRecentlyBlockedCaptureTargetCount: typeof donorScan?.recentlyBlockedCaptureTargetCount === "number" ? donorScan.recentlyBlockedCaptureTargetCount : 0,
     donorNextCaptureTargetsPath: typeof donorScan?.nextCaptureTargetsPath === "string" ? donorScan.nextCaptureTargetsPath : (typeof selectedProject.donor?.nextCaptureTargetsPath === "string" ? selectedProject.donor.nextCaptureTargetsPath : null),
     donorNextCaptureTargetCount: typeof donorScan?.nextCaptureTargetCount === "number" ? donorScan.nextCaptureTargetCount : (typeof selectedProject.donor?.nextCaptureTargetCount === "number" ? selectedProject.donor.nextCaptureTargetCount : 0),
     donorNextCaptureTargets: Array.isArray(donorScan?.nextCaptureTargets) ? donorScan.nextCaptureTargets : [],
@@ -14743,6 +14744,7 @@ function renderEvidenceBrowser() {
             <span>${summary.donorBundleAssetMapStatus ? escapeHtml(summary.donorBundleAssetMapStatus) : "unknown"} bundle map</span>
             <span>${summary.donorMirrorCandidateStatus ? escapeHtml(summary.donorMirrorCandidateStatus) : "unknown"} mirror status</span>
             <span>${summary.donorRequestBackedStaticHintCount} request-backed alternates</span>
+            <span>${summary.donorRecentlyBlockedCaptureTargetCount} recently blocked</span>
             <span>${summary.donorNextCaptureTargetCount} next capture targets</span>
           </div>
           <div class="chip-row">
@@ -14759,7 +14761,7 @@ function renderEvidenceBrowser() {
           ${summary.donorNextCaptureTargets.length > 0 ? `
             <div class="detail-list">
               ${summary.donorNextCaptureTargets.slice(0, 3).map((target) => `
-                <small><strong>${escapeHtml(target.priority)}</strong> · <code>${escapeHtml(target.relativePath || target.url)}</code> · ${escapeHtml(target.reason || "No reason recorded.")}${target.alternateHintCount > 0 ? ` · ${escapeHtml(String(target.alternateHintCount))} grounded alternate${target.alternateHintCount === 1 ? "" : "s"}` : ""}</small>
+                <small><strong>${escapeHtml(target.priority)}</strong> · <code>${escapeHtml(target.relativePath || target.url)}</code> · ${escapeHtml(target.reason || "No reason recorded.")}${target.alternateHintCount > 0 ? ` · ${escapeHtml(String(target.alternateHintCount))} grounded alternate${target.alternateHintCount === 1 ? "" : "s"}` : ""}${target.recentCaptureStatus === "blocked" ? ` · latest capture already failed on ${escapeHtml(String(target.recentCaptureAttemptCount || 0))} grounded URL${target.recentCaptureAttemptCount === 1 ? "" : "s"}` : ""}</small>
               `).join("")}
             </div>
           ` : ""}
@@ -14775,7 +14777,7 @@ function renderEvidenceBrowser() {
             ${summary.donorBlockerSummaryPath ? renderCopyButton(summary.donorBlockerSummaryPath, "donor blocker summary path", "Copy Blocker Summary Path") : ""}
             ${summary.donorNextCaptureTargetsPath ? renderCopyButton(summary.donorNextCaptureTargetsPath, "donor next capture targets path", "Copy Capture Targets Path") : ""}
             ${summary.donorCaptureRunPath ? renderCopyButton(summary.donorCaptureRunPath, "donor guided capture summary path", "Copy Capture Run Path") : ""}
-            ${summary.donorNextCaptureTargets.length > 0 ? renderCopyButton(summary.donorNextCaptureTargets.map((target) => `${target.priority}\t${target.kind}\t${target.relativePath || target.url}\t${target.reason || "No reason recorded."}\t${target.alternateHintCount} alternate(s)\t${target.alternateHintPreview.join(" | ")}`).join("\n"), "donor next capture targets", "Copy Top Targets") : ""}
+            ${summary.donorNextCaptureTargets.length > 0 ? renderCopyButton(summary.donorNextCaptureTargets.map((target) => `${target.priority}\t${target.kind}\t${target.relativePath || target.url}\t${target.reason || "No reason recorded."}\t${target.alternateHintCount} alternate(s)\t${target.recentCaptureStatus}\t${target.recentCaptureAttemptCount} recent attempt(s)\t${target.recentCaptureFailureReason || ""}\t${target.alternateHintPreview.join(" | ")}`).join("\n"), "donor next capture targets", "Copy Top Targets") : ""}
           </div>
         </div>
       </div>
@@ -15177,11 +15179,12 @@ function renderProjectSummary() {
           : "Run donor scan to surface runtime candidates, atlas metadata, bundle asset-map status, and the next operator action."}</small>
         ${Array.isArray(donorScan?.nextCaptureTargets) && donorScan.nextCaptureTargets.length > 0 ? `
           <div class="detail-list">
-            ${donorScan.nextCaptureTargets.slice(0, 2).map((target) => `<small><strong>${escapeHtml(target.priority)}</strong> · <code>${escapeHtml(target.relativePath || target.url)}</code>${target.alternateHintCount > 0 ? ` · ${escapeHtml(String(target.alternateHintCount))} grounded alternate${target.alternateHintCount === 1 ? "" : "s"}` : ""}</small>`).join("")}
+            ${donorScan.nextCaptureTargets.slice(0, 2).map((target) => `<small><strong>${escapeHtml(target.priority)}</strong> · <code>${escapeHtml(target.relativePath || target.url)}</code>${target.alternateHintCount > 0 ? ` · ${escapeHtml(String(target.alternateHintCount))} grounded alternate${target.alternateHintCount === 1 ? "" : "s"}` : ""}${target.recentCaptureStatus === "blocked" ? ` · latest capture already failed` : ""}</small>`).join("")}
           </div>
         ` : ""}
         <div class="chip-row">
           <span>${typeof donorScan?.requestBackedStaticHintCount === "number" ? donorScan.requestBackedStaticHintCount : 0} request-backed alternates</span>
+          <span>${typeof donorScan?.recentlyBlockedCaptureTargetCount === "number" ? donorScan.recentlyBlockedCaptureTargetCount : 0} recently blocked</span>
           <span>${typeof donorScan?.nextCaptureTargetCount === "number" ? donorScan.nextCaptureTargetCount : 0} next capture targets</span>
           <span>${typeof donorScan?.captureRunStatus === "string" ? escapeHtml(donorScan.captureRunStatus) : "idle"} guided capture</span>
           <span>${typeof donorScan?.captureDownloadedCount === "number" ? donorScan.captureDownloadedCount : 0} downloaded last run</span>

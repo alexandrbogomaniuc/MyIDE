@@ -395,14 +395,6 @@ export async function captureNextTargets(options: CaptureNextTargetsOptions): Pr
     entries
   });
 
-  const refreshedScan = await runDonorScan({
-    donorId,
-    donorName,
-    launchUrl,
-    resolvedLaunchUrl,
-    sourceHost
-  });
-
   const downloadedCount = results.filter((entry) => entry.status === "downloaded").length;
   const failedCount = results.filter((entry) => entry.status === "failed").length;
   const skippedCount = results.filter((entry) => entry.status === "skipped").length;
@@ -415,7 +407,7 @@ export async function captureNextTargets(options: CaptureNextTargetsOptions): Pr
         ? "partial"
         : "blocked";
 
-  const captureRun: CaptureRunFile = {
+  const provisionalCaptureRun: CaptureRunFile = {
     schemaVersion: "0.1.0",
     donorId,
     donorName,
@@ -423,7 +415,7 @@ export async function captureNextTargets(options: CaptureNextTargetsOptions): Pr
     status,
     requestedLimit: limit,
     targetCountBefore: nextCaptureTargets.targetCount,
-    targetCountAfter: refreshedScan.nextCaptureTargetCount,
+    targetCountAfter: nextCaptureTargets.targetCount,
     attemptedCount,
     downloadedCount,
     failedCount,
@@ -431,6 +423,20 @@ export async function captureNextTargets(options: CaptureNextTargetsOptions): Pr
     refreshedScanSummaryPath: toRepoRelativePath(paths.scanSummaryPath),
     refreshedNextCaptureTargetsPath: toRepoRelativePath(paths.nextCaptureTargetsPath),
     results
+  };
+  await writeJsonFile(paths.captureRunPath, provisionalCaptureRun);
+
+  const refreshedScan = await runDonorScan({
+    donorId,
+    donorName,
+    launchUrl,
+    resolvedLaunchUrl,
+    sourceHost
+  });
+
+  const captureRun: CaptureRunFile = {
+    ...provisionalCaptureRun,
+    targetCountAfter: refreshedScan.nextCaptureTargetCount
   };
   await writeJsonFile(paths.captureRunPath, captureRun);
 

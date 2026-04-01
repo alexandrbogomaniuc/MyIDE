@@ -7,6 +7,7 @@ import { discoverAtlasMetadata } from "./discoverAtlasMetadata";
 import { discoverRuntimeCandidates } from "./discoverRuntimeCandidates";
 import { extractBundleAssetMap } from "./extractBundleAssetMap";
 import {
+  type CaptureRunFile,
   type DiscoveredDonorUrl,
   type DonorUrlCategory,
   type HarvestManifestFile,
@@ -440,6 +441,7 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
 
   const assetSummary = buildAssetClassificationSummary(harvestManifest);
   const runtimeRequestEvidence = await loadOptionalRuntimeRequestLog(options.donorId, paths);
+  const captureRun = await readOptionalJsonFile<CaptureRunFile>(paths.captureRunPath);
   const bundleAssetMap = await extractBundleAssetMap({
     donorId: options.donorId,
     donorName: options.donorName,
@@ -469,7 +471,8 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
     runtimeCandidates,
     bundleAssetMap,
     atlasManifestFile,
-    requestBackedStaticHints
+    requestBackedStaticHints,
+    captureRun
   });
 
   await writeJsonFile(paths.entryPointsPath, {
@@ -510,6 +513,7 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
     bundleAssetMap,
     atlasManifestFile,
     nextCaptureTargets,
+    captureRun,
     paths
   });
 
@@ -543,6 +547,7 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
     atlasMissingPageCount: atlasManifestFile.missingPageCount,
     requestBackedStaticHintCount: requestBackedStaticHints.hintCount,
     requestBackedObservedStaticCount: requestBackedStaticHints.observedStaticRequestCount,
+    recentlyBlockedCaptureTargetCount: nextCaptureTargets.targets.filter((target) => target.recentCaptureStatus === "blocked").length,
     bundleAssetMapStatus: bundleAssetMap.status,
     bundleReferenceCount: bundleAssetMap.referenceCount,
     mirrorCandidateStatus: runtimeCandidates.mirrorCandidateStatus,

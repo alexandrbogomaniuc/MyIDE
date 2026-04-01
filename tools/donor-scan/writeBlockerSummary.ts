@@ -1,5 +1,5 @@
 import type { AssetClassificationSummary } from "./classifyAssets";
-import type { AtlasManifestFile, BundleAssetMapFile, DonorScanPaths, NextCaptureTargetsFile, RuntimeCandidatesFile } from "./shared";
+import type { AtlasManifestFile, BundleAssetMapFile, CaptureRunFile, DonorScanPaths, NextCaptureTargetsFile, RuntimeCandidatesFile } from "./shared";
 import { toRepoRelativePath, writeTextFile } from "./shared";
 
 interface WriteBlockerSummaryOptions {
@@ -10,6 +10,7 @@ interface WriteBlockerSummaryOptions {
   bundleAssetMap: BundleAssetMapFile;
   atlasManifestFile: AtlasManifestFile;
   nextCaptureTargets: NextCaptureTargetsFile;
+  captureRun: CaptureRunFile | null;
   paths: DonorScanPaths;
 }
 
@@ -43,9 +44,16 @@ export async function writeBlockerSummary(options: WriteBlockerSummaryOptions): 
     blockerHighlights.push("No major donor-scan blockers were detected in the bounded harvested surface.");
   }
 
+  const recentlyBlockedTargets = options.nextCaptureTargets.targets.filter((target) => target.recentCaptureStatus === "blocked");
+  if (recentlyBlockedTargets.length > 0) {
+    blockerHighlights.push(`${recentlyBlockedTargets.length} ranked capture targets were already retried in the latest guided capture run and still failed on every grounded URL attempt.`);
+  }
+
   let nextOperatorAction = "Review the donor scan summary and decide whether deeper runtime capture is still needed.";
   if (!options.runtimeCandidates.partialLocalRuntimePackage) {
     nextOperatorAction = "Capture a grounded launch HTML plus runtime bundles so the donor scan has a real local runtime entry surface.";
+  } else if (recentlyBlockedTargets.length >= Math.min(5, Math.max(1, options.nextCaptureTargets.targets.length))) {
+    nextOperatorAction = "The latest guided capture already exhausted the current grounded URLs for the top ranked targets, so the next step is deeper source discovery rather than repeating the same capture run.";
   } else if (options.runtimeCandidates.unresolvedDependencyCount > 0) {
     nextOperatorAction = "Use bundle-discovered missing runtime URLs as the next mirror-capture target set until the unresolved dependency count falls.";
   } else if (options.atlasManifestFile.missingPageCount > 0) {
@@ -78,7 +86,7 @@ export async function writeBlockerSummary(options: WriteBlockerSummaryOptions): 
           "## Highest-priority next capture targets",
           "",
           ...options.nextCaptureTargets.targets.slice(0, 5).map((target) =>
-            `- [${target.priority}] \`${target.relativePath}\` via \`${target.kind}\` — ${target.reason}`
+            `- [${target.priority}] \`${target.relativePath}\` via \`${target.kind}\` — ${target.reason}${target.recentCaptureStatus === "blocked" ? ` (latest guided capture already tried ${target.recentCaptureAttemptCount} grounded URL${target.recentCaptureAttemptCount === 1 ? "" : "s"}${target.recentCaptureFailureReason ? ` and failed with ${target.recentCaptureFailureReason}` : ""})` : ""}`
           )
         ]
       : []),
@@ -91,6 +99,7 @@ export async function writeBlockerSummary(options: WriteBlockerSummaryOptions): 
     `- Bundle asset map: \`${toRepoRelativePath(options.paths.bundleAssetMapPath)}\``,
     `- Atlas manifests: \`${toRepoRelativePath(options.paths.atlasManifestsPath)}\``,
     `- Next capture targets: \`${toRepoRelativePath(options.paths.nextCaptureTargetsPath)}\``,
+    `- Latest capture run: \`${toRepoRelativePath(options.paths.captureRunPath)}\``,
     `- Existing asset manifest: \`${toRepoRelativePath(options.paths.assetManifestPath)}\``,
     `- Existing package graph: \`${toRepoRelativePath(options.paths.packageGraphPath)}\``
   ];

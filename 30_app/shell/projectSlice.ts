@@ -160,6 +160,7 @@ export interface DonorScanStatus {
   bundleAssetMapStatus: string;
   mirrorCandidateStatus: string;
   requestBackedStaticHintCount: number;
+  recentlyBlockedCaptureTargetCount: number;
   nextCaptureTargetCount: number;
   captureRunStatus: string | null;
   captureAttemptedCount: number;
@@ -177,6 +178,9 @@ export interface DonorScanStatus {
     reason: string;
     alternateHintCount: number;
     alternateHintPreview: string[];
+    recentCaptureStatus: string;
+    recentCaptureAttemptCount: number;
+    recentCaptureFailureReason: string | null;
   }>;
 }
 
@@ -849,7 +853,10 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
                 .map((value) => typeof value.url === "string" ? value.url : "")
                 .filter((value) => value.length > 0)
                 .slice(0, 2)
-            : []
+            : [],
+          recentCaptureStatus: typeof target.recentCaptureStatus === "string" ? target.recentCaptureStatus : "untried",
+          recentCaptureAttemptCount: typeof target.recentCaptureAttemptCount === "number" ? target.recentCaptureAttemptCount : 0,
+          recentCaptureFailureReason: typeof target.recentCaptureFailureReason === "string" ? target.recentCaptureFailureReason : null
         }))
         .filter((target) => target.url.length > 0)
         .slice(0, 5)
@@ -868,6 +875,7 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
     bundleAssetMapStatus: typeof scanSummary.bundleAssetMapStatus === "string" ? scanSummary.bundleAssetMapStatus : (donor.bundleAssetMapStatus ?? "unknown"),
     mirrorCandidateStatus: typeof scanSummary.mirrorCandidateStatus === "string" ? scanSummary.mirrorCandidateStatus : (donor.mirrorCandidateStatus ?? "unknown"),
     requestBackedStaticHintCount: typeof scanSummary.requestBackedStaticHintCount === "number" ? scanSummary.requestBackedStaticHintCount : 0,
+    recentlyBlockedCaptureTargetCount: typeof scanSummary.recentlyBlockedCaptureTargetCount === "number" ? scanSummary.recentlyBlockedCaptureTargetCount : nextCaptureTargets.filter((target) => target.recentCaptureStatus === "blocked").length,
     nextCaptureTargetCount: typeof scanSummary.nextCaptureTargetCount === "number" ? scanSummary.nextCaptureTargetCount : (donor.nextCaptureTargetCount ?? nextCaptureTargets.length),
     captureRunStatus: typeof captureRunSummary?.status === "string" ? captureRunSummary.status : null,
     captureAttemptedCount: typeof captureRunSummary?.attemptedCount === "number" ? captureRunSummary.attemptedCount : 0,
