@@ -9095,8 +9095,35 @@ function getSceneKitContextForObject(object) {
     groupSummary,
     donorAsset,
     containerObject,
-    memberObjects
+    memberObjects,
+    sectionId: containerObject?.id ?? "",
+    sectionLabel: containerObject?.displayName ?? `${groupSummary.label} Scene Kit`
   };
+}
+
+function getSceneSectionEntries(editorData = state.editorData) {
+  if (!editorData || !Array.isArray(editorData.objects)) {
+    return [];
+  }
+
+  return editorData.objects
+    .filter((object) => isDonorSceneKitContainer(object))
+    .map((containerObject) => {
+      const members = editorData.objects.filter((entry) => entry?.parentId === containerObject.id);
+      const layerLabels = uniqueStrings(
+        members.map((entry) => getLayerById(entry.layerId)?.displayName ?? entry.layerId)
+      );
+      return {
+        id: containerObject.id,
+        label: containerObject.displayName,
+        memberObjects: members,
+        memberObjectIds: members.map((entry) => entry.id),
+        count: members.length,
+        layerLabels
+      };
+    })
+    .filter((entry) => entry.count > 0)
+    .sort((left, right) => left.label.localeCompare(right.label));
 }
 
 function groupVisibleDonorAssets(items) {
@@ -10201,6 +10228,19 @@ function handleNavigationClick(event) {
       objectIds = [];
     }
     focusSceneObjectGroupInWorkflow(objectIds);
+    return true;
+  }
+
+  const focusSceneSectionButton = target.closest("[data-focus-scene-section-id]");
+  if (focusSceneSectionButton instanceof HTMLElement && focusSceneSectionButton.dataset.focusSceneSectionId) {
+    event.preventDefault();
+    const sectionEntry = getSceneSectionEntries().find((entry) => entry.id === focusSceneSectionButton.dataset.focusSceneSectionId);
+    focusSceneObjectGroupInWorkflow(sectionEntry?.memberObjectIds ?? [], {
+      label: "scene section",
+      statusMessage: sectionEntry
+        ? `Selected ${sectionEntry.count} editable object${sectionEntry.count === 1 ? "" : "s"} in scene section ${sectionEntry.label}.`
+        : null
+    });
     return true;
   }
 
@@ -13188,6 +13228,20 @@ function renderSceneExplorer() {
   const renderableLayerIds = new Set(getRenderableLayerIds(editorData));
   const isolatedLayer = getIsolatedLayer();
   const displayedLayers = sortedLayers.filter((layer) => renderableLayerIds.has(layer.id));
+  const sceneSectionEntries = getSceneSectionEntries(editorData);
+  const sceneSectionBanner = sceneSectionEntries.length > 0 ? `
+    <div class="tree-row isolate-banner">
+      <strong>Scene Sections</strong>
+      <span>Imported donor scene kits now appear as named editable sections. Select one section to work on the whole captured group at once.</span>
+      <div class="chip-row">
+        ${sceneSectionEntries.map((entry) => `
+          <button type="button" class="copy-button" data-focus-scene-section-id="${escapeAttribute(entry.id)}">
+            ${escapeHtml(entry.label)} · ${entry.count}
+          </button>
+        `).join("")}
+      </div>
+    </div>
+  ` : "";
   const isolationBanner = isolatedLayer ? `
     <div class="tree-row isolate-banner">
       <strong>Solo Layer View</strong>
@@ -13213,7 +13267,7 @@ function renderSceneExplorer() {
           ${donorAsset ? `
             <div class="chip-row object-row-badges">
               <span class="object-row-badge is-donor">Donor-backed</span>
-              ${sceneKitContext ? `<span class="object-row-badge">${escapeHtml(sceneKitContext.groupSummary.label)}</span>` : ""}
+              ${sceneKitContext ? `<span class="object-row-badge">${escapeHtml(sceneKitContext.sectionLabel)}</span>` : ""}
               ${donorAsset.fileType ? `<span class="asset-format-badge">${escapeHtml(String(donorAsset.fileType).toUpperCase())}</span>` : ""}
               ${donorAsset.evidenceId ? `<span><code>${escapeHtml(donorAsset.evidenceId)}</code></span>` : ""}
             </div>
@@ -13256,10 +13310,12 @@ function renderSceneExplorer() {
       <div class="chip-row">
         <span>${sortedLayers.length} layers</span>
         <span>${editorData.objects.length} objects</span>
+        <span>${sceneSectionEntries.length} scene section${sceneSectionEntries.length === 1 ? "" : "s"}</span>
         <span>${state.dirty ? "unsaved changes" : "saved"}</span>
         <span>${isolatedLayer ? `solo ${isolatedLayer.displayName}` : "no solo layer"}</span>
       </div>
     </div>
+    ${sceneSectionBanner}
     ${isolationBanner}
     ${layerMarkup}
   `;
@@ -15040,7 +15096,7 @@ function renderInspector() {
         ` : ""}
         <div class="chip-row donor-asset-chip-row">
           <span class="object-row-badge is-donor">Donor-backed object</span>
-          ${sceneKitContext ? `<span class="object-row-badge">${escapeHtml(sceneKitContext.groupSummary.label)}</span>` : ""}
+          ${sceneKitContext ? `<span class="object-row-badge">${escapeHtml(sceneKitContext.sectionLabel)}</span>` : ""}
           ${donorAsset.fileType ? `<span class="asset-format-badge">${escapeHtml(String(donorAsset.fileType).toUpperCase())}</span>` : ""}
           ${donorAsset.captureSessionId ? `<span>${escapeHtml(donorAsset.captureSessionId)}</span>` : ""}
           ${donorAsset.evidenceId ? `<span><code>${escapeHtml(donorAsset.evidenceId)}</code></span>` : ""}
@@ -15075,22 +15131,28 @@ function renderInspector() {
       <div class="donor-linkage-summary">
         <div class="donor-linkage-summary-head">
           <div>
-            <strong>Imported Scene Kit</strong>
-            <small>This donor-backed object belongs to a grouped scene kit imported from the harvested donor package, not just a one-off image card.</small>
+            <strong>Imported Scene Section</strong>
+            <small>This donor-backed object belongs to a grouped scene section created from one harvested donor scene kit, not just a one-off image card.</small>
           </div>
           <div class="evidence-actions">
             <button type="button" class="copy-button" data-focus-donor-asset-group-key="${escapeAttribute(sceneKitContext.groupKey)}">Show Scene Kit In Palette</button>
+            ${sceneKitContext.sectionId ? `<button type="button" class="copy-button" data-focus-scene-section-id="${escapeAttribute(sceneKitContext.sectionId)}">Select Scene Section</button>` : ""}
             <button type="button" class="copy-button" data-focus-scene-object-ids="${escapeAttribute(JSON.stringify(sceneKitContext.memberObjects.map((entry) => entry.id)))}">Select This Scene Kit</button>
             ${renderCopyButton(sceneKitContext.memberObjects.map((entry) => entry.id).join("\n"), `scene kit object ids for ${sceneKitContext.groupSummary.label}`, "Copy Kit IDs")}
           </div>
         </div>
         <div class="chip-row donor-asset-chip-row">
           <span class="object-row-badge">${escapeHtml(sceneKitContext.groupSummary.importLabel)}</span>
+          <span>${escapeHtml(sceneKitContext.sectionLabel)}</span>
           <span>${escapeHtml(sceneKitContext.groupSummary.layerLabel)}</span>
           <span>${escapeHtml(sceneKitContext.groupSummary.layoutStyle)} layout</span>
           <span>${sceneKitContext.memberObjects.length} object${sceneKitContext.memberObjects.length === 1 ? "" : "s"}</span>
         </div>
         <div class="detail-grid donor-linkage-grid">
+          <div class="detail-card">
+            <span>Scene Section</span>
+            <strong>${escapeHtml(sceneKitContext.sectionLabel)}</strong>
+          </div>
           <div class="detail-card">
             <span>Scene Kit Label</span>
             <strong>${escapeHtml(sceneKitContext.groupSummary.label)}</strong>

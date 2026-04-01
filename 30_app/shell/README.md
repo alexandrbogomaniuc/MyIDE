@@ -19,6 +19,7 @@ Electron desktop shell for MyIDE.
 - The shell new-project flow can now take an optional donor launch URL, scaffold a shared donor pack under `10_donors/<donorId>/`, capture the donor launch HTML in sanitized form, write a bounded discovered URL inventory, harvest bounded recursive static assets into the local-only donor pack, and generate both a donor-package manifest plus a donor-package graph before any replay/import claims are made.
 - The donor asset palette can now merge hand-indexed donor images with downloaded donor-package-graph image nodes, group those harvested images by donor-package family, and import either one image or a whole harvested scene kit into Compose as editable donor-backed objects.
 - Once a harvested scene kit is imported, selected donor-backed objects can now expose that kit membership in the inspector and jump back to the donor scene kit or reselect the current imported kit members in one Compose-facing action.
+- Compose now also exposes those imported donor scene kits as named scene sections in the scene explorer so a tester can reselect a whole imported section without hunting through a flat object list.
 - Support a simple workspace rescan so newly added project folders can appear after discovery refreshes the derived registry.
 - Show the selected project's donor, target/resulting game, lifecycle stage summary, phase, verification status, folder path, and notes.
 - Split the main workbench into a runtime-first `Runtime` mode and a bounded secondary `Compose` mode for `project_001`.
