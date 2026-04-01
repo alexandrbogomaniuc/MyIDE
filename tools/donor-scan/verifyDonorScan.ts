@@ -32,6 +32,7 @@ async function main(): Promise<void> {
   const requiredPaths = [
     paths.assetManifestPath,
     paths.packageGraphPath,
+    paths.requestBackedStaticHintsPath,
     paths.entryPointsPath,
     paths.urlInventoryPath,
     paths.runtimeCandidatesPath,
@@ -53,6 +54,7 @@ async function main(): Promise<void> {
     atlasManifestCount?: number;
     bundleAssetMapStatus?: string;
     mirrorCandidateStatus?: string;
+    requestBackedStaticHintCount?: number;
     nextCaptureTargetCount?: number;
     nextOperatorAction?: string;
   }>(paths.scanSummaryPath);
@@ -62,6 +64,7 @@ async function main(): Promise<void> {
   assert.ok(typeof scanSummary.atlasManifestCount === "number", "scan summary should record atlas manifest count");
   assert.ok(typeof scanSummary.bundleAssetMapStatus === "string", "scan summary should record bundle asset-map status");
   assert.ok(typeof scanSummary.mirrorCandidateStatus === "string", "scan summary should record mirror candidate status");
+  assert.ok(typeof scanSummary.requestBackedStaticHintCount === "number", "scan summary should record request-backed static hint count");
   assert.ok(typeof scanSummary.nextCaptureTargetCount === "number", "scan summary should record next capture target count");
   assert.ok(typeof scanSummary.nextOperatorAction === "string" && scanSummary.nextOperatorAction.length > 0, "scan summary should record the next operator action");
 
@@ -73,6 +76,7 @@ async function main(): Promise<void> {
   console.log(`Scan state: ${scanSummary.scanState}`);
   console.log(`Runtime candidates: ${scanSummary.runtimeCandidateCount}`);
   console.log(`Atlas manifests: ${scanSummary.atlasManifestCount}`);
+  console.log(`Request-backed alternates: ${scanSummary.requestBackedStaticHintCount}`);
   console.log(`Next capture targets: ${scanSummary.nextCaptureTargetCount}`);
   console.log(`Next operator action: ${scanSummary.nextOperatorAction}`);
 }

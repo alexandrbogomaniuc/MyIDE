@@ -133,6 +133,8 @@ export interface DonorScanPaths {
   assetManifestPath: string;
   packageManifestPath: string;
   packageGraphPath: string;
+  runtimeRequestLogPath: string;
+  requestBackedStaticHintsPath: string;
   entryPointsPath: string;
   urlInventoryPath: string;
   runtimeCandidatesPath: string;
@@ -178,6 +180,33 @@ export interface AlternateCaptureHintRecord {
   source: string;
   confidence: ReferenceConfidence;
   note: string;
+}
+
+export interface RequestBackedStaticHintRecord {
+  canonicalSourceUrl: string;
+  latestRequestUrl: string;
+  alternateUrl: string;
+  runtimeRelativePath: string | null;
+  requestSource: string;
+  requestCategory: "static-asset";
+  fileType: string | null;
+  category: string;
+  hitCount: number;
+  hintType: "redirect-target" | "rooted-path-alias";
+  confidence: ReferenceConfidence;
+  note: string;
+  evidencePath: string | null;
+}
+
+export interface RequestBackedStaticHintFile {
+  schemaVersion: string;
+  donorId: string;
+  donorName: string;
+  generatedAt: string;
+  evidencePath: string | null;
+  observedStaticRequestCount: number;
+  hintCount: number;
+  hints: RequestBackedStaticHintRecord[];
 }
 
 export interface AtlasManifestRecord {
@@ -359,6 +388,8 @@ export function buildDonorScanPaths(donorId: string): DonorScanPaths {
     assetManifestPath: path.join(harvestRoot, "asset-manifest.json"),
     packageManifestPath: path.join(harvestRoot, "package-manifest.json"),
     packageGraphPath: path.join(harvestRoot, "package-graph.json"),
+    runtimeRequestLogPath: path.join(harvestRoot, "runtime-request-log.json"),
+    requestBackedStaticHintsPath: path.join(harvestRoot, "request-backed-static-hints.json"),
     entryPointsPath: path.join(harvestRoot, "entry-points.json"),
     urlInventoryPath: path.join(harvestRoot, "url-inventory.json"),
     runtimeCandidatesPath: path.join(harvestRoot, "runtime-candidates.json"),
@@ -468,10 +499,12 @@ export function buildAlternateCaptureHints(options: {
   kind: NextCaptureTargetRecord["kind"];
   category: string;
   bundleAssetMap: BundleAssetMapFile | null;
+  requestBackedStaticHints?: RequestBackedStaticHintFile | null;
 }): AlternateCaptureHintRecord[] {
   const hints: AlternateCaptureHintRecord[] = [];
   const targetHost = readUrlHost(options.url);
   const targetBasename = readUrlBasename(options.url)?.toLowerCase();
+  const normalizedTargetUrl = rewriteKnownPlaceholderSegments(options.url);
   const rewrittenPrimaryUrl = rewriteKnownPlaceholderSegments(options.url);
   if (rewrittenPrimaryUrl !== options.url) {
     hints.push({
@@ -480,6 +513,26 @@ export function buildAlternateCaptureHints(options: {
       confidence: "likely",
       note: "Known placeholder-style path segments were normalized."
     });
+  }
+
+  if (options.requestBackedStaticHints) {
+    for (const hint of options.requestBackedStaticHints.hints) {
+      if (hint.canonicalSourceUrl !== normalizedTargetUrl || hint.alternateUrl === normalizedTargetUrl) {
+        continue;
+      }
+      if (options.category === "image" && hint.category !== "image") {
+        continue;
+      }
+      if (options.category !== "image" && hint.category !== options.category) {
+        continue;
+      }
+      hints.push({
+        url: hint.alternateUrl,
+        source: `request-log:${hint.hintType}`,
+        confidence: hint.confidence,
+        note: hint.note
+      });
+    }
   }
 
   if (options.bundleAssetMap && targetHost && targetBasename) {

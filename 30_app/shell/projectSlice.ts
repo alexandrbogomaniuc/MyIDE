@@ -159,6 +159,7 @@ export interface DonorScanStatus {
   atlasManifestCount: number;
   bundleAssetMapStatus: string;
   mirrorCandidateStatus: string;
+  requestBackedStaticHintCount: number;
   nextCaptureTargetCount: number;
   captureRunStatus: string | null;
   captureAttemptedCount: number;
@@ -866,6 +867,7 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
     atlasManifestCount: typeof scanSummary.atlasManifestCount === "number" ? scanSummary.atlasManifestCount : (donor.atlasManifestCount ?? 0),
     bundleAssetMapStatus: typeof scanSummary.bundleAssetMapStatus === "string" ? scanSummary.bundleAssetMapStatus : (donor.bundleAssetMapStatus ?? "unknown"),
     mirrorCandidateStatus: typeof scanSummary.mirrorCandidateStatus === "string" ? scanSummary.mirrorCandidateStatus : (donor.mirrorCandidateStatus ?? "unknown"),
+    requestBackedStaticHintCount: typeof scanSummary.requestBackedStaticHintCount === "number" ? scanSummary.requestBackedStaticHintCount : 0,
     nextCaptureTargetCount: typeof scanSummary.nextCaptureTargetCount === "number" ? scanSummary.nextCaptureTargetCount : (donor.nextCaptureTargetCount ?? nextCaptureTargets.length),
     captureRunStatus: typeof captureRunSummary?.status === "string" ? captureRunSummary.status : null,
     captureAttemptedCount: typeof captureRunSummary?.attemptedCount === "number" ? captureRunSummary.attemptedCount : 0,

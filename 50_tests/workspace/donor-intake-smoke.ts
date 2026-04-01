@@ -3,6 +3,7 @@ import { promises as fs } from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import { bootstrapDonorIntake } from "../../30_app/workspace/donorIntake";
+import { runDonorScan } from "../../tools/donor-scan/runDonorScan";
 
 const workspaceRoot = path.resolve(__dirname, "../../..");
 
@@ -88,7 +89,8 @@ function startFixtureServer(): Promise<{ server: http.Server; port: number }> {
           sheet: "/img/symbols.png",
           spine: "/spines/stick.json",
           spriteSheet: "/sprites/pack.json",
-          bonusSheets: ["/sprites/spin_1.json", "/sprites/spin_2.json", "/sprites/spin_3.json"]
+          bonusSheets: ["/sprites/spin_1.json", "/sprites/spin_2.json", "/sprites/spin_3.json"],
+          requestSheets: ["/sprites/request_1.json", "/sprites/request_2.json", "/sprites/request_3.json"]
         }));
         return;
       }
@@ -145,19 +147,31 @@ function startFixtureServer(): Promise<{ server: http.Server; port: number }> {
         request.url === "/sprites/spin_1.json"
         || request.url === "/sprites/spin_2.json"
         || request.url === "/sprites/spin_3.json"
+        || request.url === "/sprites/request_1.json"
+        || request.url === "/sprites/request_2.json"
+        || request.url === "/sprites/request_3.json"
       ) {
         const stem = request.url.includes("/spin_1.json")
           ? "spin_1"
           : request.url.includes("/spin_2.json")
             ? "spin_2"
-            : "spin_3";
+            : request.url.includes("/spin_3.json")
+              ? "spin_3"
+              : request.url.includes("/request_1.json")
+                ? "request_1"
+                : request.url.includes("/request_2.json")
+                  ? "request_2"
+                  : "request_3";
+        const imagePath = stem.startsWith("request_")
+          ? `/img/requested/${stem}.png`
+          : `/img/spines/${stem}.png`;
         response.writeHead(200, { "content-type": "application/json; charset=utf-8" });
         response.end(JSON.stringify({
           frames: {
             [stem]: { frame: { x: 0, y: 0, w: 32, h: 32 } }
           },
           meta: {
-            image: `/img/spines/${stem}.png`
+            image: imagePath
           }
         }));
         return;
@@ -331,6 +345,81 @@ async function main(): Promise<void> {
         ),
       "next capture targets should derive family-alias alternates from grounded same-basename path substitutions"
     );
+
+    const runtimeRequestLogPath = path.join(donorRoot, "evidence", "local_only", "harvest", "runtime-request-log.json");
+    await fs.writeFile(runtimeRequestLogPath, `${JSON.stringify({
+      generatedAtUtc: new Date().toISOString(),
+      entries: [
+        {
+          canonicalSourceUrl: `http://127.0.0.1:${port}/img/requested/request_1.png`,
+          latestRequestUrl: `http://127.0.0.1:${port}/requested/request_1.png`,
+          requestSource: "upstream-request",
+          requestCategory: "static-asset",
+          runtimeRelativePath: "img/requested/request_1.png",
+          fileType: "png",
+          hitCount: 2
+        },
+        {
+          canonicalSourceUrl: `http://127.0.0.1:${port}/img/requested/request_2.png`,
+          latestRequestUrl: `http://127.0.0.1:${port}/requested/request_2.png`,
+          requestSource: "upstream-request",
+          requestCategory: "static-asset",
+          runtimeRelativePath: "img/requested/request_2.png",
+          fileType: "png",
+          hitCount: 2
+        }
+      ]
+    }, null, 2)}\n`, "utf8");
+
+    const rescanned = await runDonorScan({
+      donorId,
+      donorName: "Smoke Intake Donor",
+      launchUrl: `http://127.0.0.1:${port}/launch`,
+      resolvedLaunchUrl: `http://127.0.0.1:${port}/launch`,
+      sourceHost: `127.0.0.1:${port}`
+    });
+    assert.equal(rescanned.status, "scanned", "donor scan should remain scanned after request-backed hint refresh");
+
+    const requestBackedHints = JSON.parse(await fs.readFile(path.join(donorRoot, "evidence", "local_only", "harvest", "request-backed-static-hints.json"), "utf8")) as {
+      hintCount?: number;
+      hints?: Array<{ canonicalSourceUrl?: string; alternateUrl?: string; hintType?: string }>;
+    };
+    assert.ok((requestBackedHints.hintCount ?? 0) >= 2, "request-backed static hint artifact should persist grounded static alternates");
+    assert.ok(
+      Array.isArray(requestBackedHints.hints)
+        && requestBackedHints.hints.some((hint) =>
+          typeof hint.canonicalSourceUrl === "string"
+          && hint.canonicalSourceUrl.includes("/img/requested/request_1.png")
+          && typeof hint.alternateUrl === "string"
+          && hint.alternateUrl.includes("/requested/request_1.png")
+          && hint.hintType === "rooted-path-alias"
+        ),
+      "request-backed static hint artifact should preserve rooted-path alternates from runtime request evidence"
+    );
+
+    const nextCaptureTargetsAfterRequestEvidence = JSON.parse(await fs.readFile(path.join(donorRoot, "evidence", "local_only", "harvest", "next-capture-targets.json"), "utf8")) as {
+      targets?: Array<{ relativePath?: string; alternateCaptureHints?: Array<{ url?: string; source?: string }> }>;
+    };
+    assert.ok(
+      Array.isArray(nextCaptureTargetsAfterRequestEvidence.targets)
+        && nextCaptureTargetsAfterRequestEvidence.targets.some((target) =>
+          typeof target.relativePath === "string"
+          && target.relativePath.includes("img/requested/request_3.png")
+          && Array.isArray(target.alternateCaptureHints)
+          && target.alternateCaptureHints.some((hint) =>
+            typeof hint.url === "string"
+            && hint.url.includes("/requested/request_3.png")
+            && typeof hint.source === "string"
+            && hint.source.startsWith("family-alias:")
+          )
+        ),
+      "request-backed static alternates should feed the same family-alias inference for missing sibling atlas pages"
+    );
+
+    const refreshedScanSummary = JSON.parse(await fs.readFile(path.join(donorRoot, "evidence", "local_only", "harvest", "scan-summary.json"), "utf8")) as {
+      requestBackedStaticHintCount?: number;
+    };
+    assert.ok((refreshedScanSummary.requestBackedStaticHintCount ?? 0) >= 2, "scan summary should surface request-backed static hint counts");
 
     const blockerSummary = await fs.readFile(path.join(donorRoot, "evidence", "local_only", "harvest", "blocker-summary.md"), "utf8");
     assert.match(blockerSummary, /Next operator step/, "blocker summary should explain the next operator step");

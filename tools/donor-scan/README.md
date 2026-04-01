@@ -41,6 +41,8 @@ Key files:
 - `entry-points.json`
 - `url-inventory.json`
 - `asset-manifest.json`
+- `runtime-request-log.json` when donor scan has grounded runtime request evidence to normalize
+- `request-backed-static-hints.json`
 - `runtime-candidates.json`
 - `bundle-asset-map.json`
 - `atlas-manifests.json`
@@ -50,7 +52,9 @@ Key files:
 - `blocker-summary.md`
 - `scan-summary.json`
 
-`next-capture-targets.json` is the first actionable operator output. It ranks the missing runtime files the IDE should try to capture next, using atlas missing-page refs, unresolved runtime candidates, and missing bundle references. It now also carries grounded `alternateCaptureHints` so the scan can expose placeholder rewrites, bundle-backed rooted path variants, and image-family rooted path substitutions before any capture run starts.
+`request-backed-static-hints.json` is an optional supporting donor-scan artifact. When live runtime harvest evidence exists, donor scan normalizes exact request-backed static alternates there first and then reuses them in ranked capture targets.
+
+`next-capture-targets.json` is the first actionable operator output. It ranks the missing runtime files the IDE should try to capture next, using atlas missing-page refs, unresolved runtime candidates, and missing bundle references. It now also carries grounded `alternateCaptureHints` so the scan can expose placeholder rewrites, bundle-backed rooted path variants, request-backed static alternates, and image-family rooted path substitutions before any capture run starts.
 
 `next-capture-run.json` records what the guided capture runner attempted, which exact URLs were tried, which URL actually downloaded when a fallback worked, what failed, and how many ranked targets still remain after donor scan was refreshed.
 

@@ -6,6 +6,7 @@ import type {
   NextCaptureTargetRecord,
   NextCaptureTargetsFile,
   ReferenceConfidence,
+  RequestBackedStaticHintFile,
   RuntimeCandidatesFile
 } from "./shared";
 import { buildAlternateCaptureHints } from "./shared";
@@ -16,6 +17,7 @@ interface BuildNextCaptureTargetsOptions {
   runtimeCandidates: RuntimeCandidatesFile;
   bundleAssetMap: BundleAssetMapFile;
   atlasManifestFile: AtlasManifestFile;
+  requestBackedStaticHints: RequestBackedStaticHintFile | null;
 }
 
 interface MutableTarget {
@@ -169,7 +171,8 @@ function toTargetRecord(
   mutable: MutableTarget,
   rank: number,
   bundleAssetMap: BundleAssetMapFile,
-  directoryAliasSupport: Map<string, DirectoryAliasSupportRecord>
+  directoryAliasSupport: Map<string, DirectoryAliasSupportRecord>,
+  requestBackedStaticHints: RequestBackedStaticHintFile | null
 ): NextCaptureTargetRecord {
   const sourceCount = mutable.sourceLabels.size;
   const score = mutable.score + Math.min(20, sourceCount * 5);
@@ -178,7 +181,8 @@ function toTargetRecord(
     url,
     kind: mutable.kind,
     category: mutable.category,
-    bundleAssetMap
+    bundleAssetMap,
+    requestBackedStaticHints
   });
   const targetDirectory = readUrlDirectory(url);
   const familySignature = readBasenameFamilySignature(url);
@@ -225,7 +229,8 @@ function toTargetRecord(
 
 function buildDirectoryAliasSupport(
   targetEntries: Array<[string, MutableTarget]>,
-  bundleAssetMap: BundleAssetMapFile
+  bundleAssetMap: BundleAssetMapFile,
+  requestBackedStaticHints: RequestBackedStaticHintFile | null
 ): Map<string, DirectoryAliasSupportRecord> {
   const support = new Map<string, DirectoryAliasSupportRecord>();
 
@@ -239,7 +244,8 @@ function buildDirectoryAliasSupport(
       url,
       kind: target.kind,
       category: target.category,
-      bundleAssetMap
+      bundleAssetMap,
+      requestBackedStaticHints
     });
     for (const hint of exactHints) {
       if (hint.source === "placeholder-rewrite") {
@@ -264,6 +270,33 @@ function buildDirectoryAliasSupport(
           sourceLabels: new Set<string>([hint.source])
         });
       }
+    }
+  }
+
+  for (const hint of Array.isArray(requestBackedStaticHints?.hints) ? requestBackedStaticHints.hints : []) {
+    if (hint.category !== "image") {
+      continue;
+    }
+    const targetDirectory = readUrlDirectory(hint.canonicalSourceUrl);
+    const alternateDirectory = readUrlDirectory(hint.alternateUrl);
+    const familySignature = readBasenameFamilySignature(hint.canonicalSourceUrl);
+    if (!targetDirectory || !alternateDirectory || !familySignature || alternateDirectory === targetDirectory) {
+      continue;
+    }
+    const key = `${hint.category}\t${targetDirectory}\t${alternateDirectory}\t${familySignature}`;
+    const existing = support.get(key);
+    if (existing) {
+      existing.supportCount += 1;
+      existing.sourceLabels.add(`request-log:${hint.hintType}`);
+    } else {
+      support.set(key, {
+        targetDirectory,
+        alternateDirectory,
+        category: hint.category,
+        familySignature,
+        supportCount: 1,
+        sourceLabels: new Set<string>([`request-log:${hint.hintType}`])
+      });
     }
   }
 
@@ -367,9 +400,9 @@ export function buildNextCaptureTargets(options: BuildNextCaptureTargetsOptions)
   }
 
   const targetEntries = [...targetMap.entries()];
-  const directoryAliasSupport = buildDirectoryAliasSupport(targetEntries, options.bundleAssetMap);
+  const directoryAliasSupport = buildDirectoryAliasSupport(targetEntries, options.bundleAssetMap, options.requestBackedStaticHints);
   const targets = targetEntries
-    .map(([url, target], index) => toTargetRecord(url, target, index + 1, options.bundleAssetMap, directoryAliasSupport))
+    .map(([url, target], index) => toTargetRecord(url, target, index + 1, options.bundleAssetMap, directoryAliasSupport, options.requestBackedStaticHints))
     .sort((left, right) => {
       if (left.score !== right.score) {
         return right.score - left.score;

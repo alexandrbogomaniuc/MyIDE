@@ -2,6 +2,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { buildAssetClassificationSummary } from "./classifyAssets";
 import { buildNextCaptureTargets } from "./buildNextCaptureTargets";
+import { discoverRequestBackedStaticHints } from "./discoverRequestBackedStaticHints";
 import { discoverAtlasMetadata } from "./discoverAtlasMetadata";
 import { discoverRuntimeCandidates } from "./discoverRuntimeCandidates";
 import { extractBundleAssetMap } from "./extractBundleAssetMap";
@@ -48,8 +49,12 @@ interface RuntimeMirrorManifestFile {
 
 interface RuntimeRequestLogEntry {
   canonicalSourceUrl?: string;
+  latestRequestUrl?: string;
+  requestSource?: string;
   requestCategory?: string;
+  runtimeRelativePath?: string | null;
   fileType?: string | null;
+  hitCount?: number | null;
 }
 
 interface RuntimeRequestLogFile {
@@ -109,6 +114,61 @@ function buildPackageFamilyKey(urlString: string, category: DonorUrlCategory): s
   } catch {
     return `${category}:(invalid-url)`;
   }
+}
+
+async function findProjectRuntimeRequestLogPath(donorId: string): Promise<string | null> {
+  const projectsRoot = path.join(workspaceRoot, "40_projects");
+  const projectDirs = await fs.readdir(projectsRoot, { withFileTypes: true });
+
+  for (const dirent of projectDirs) {
+    if (!dirent.isDirectory()) {
+      continue;
+    }
+    const projectRoot = path.join(projectsRoot, dirent.name);
+    const projectMeta = await readOptionalJsonFile<Record<string, unknown>>(path.join(projectRoot, "project.meta.json"));
+    const donor = projectMeta && typeof projectMeta.donor === "object" && projectMeta.donor !== null
+      ? projectMeta.donor as Record<string, unknown>
+      : null;
+    if (!donor || donor.donorId !== donorId) {
+      continue;
+    }
+
+    const requestLogPath = path.join(projectRoot, "runtime", "local-mirror", "request-log.latest.json");
+    if (await fs.stat(requestLogPath).then(() => true).catch(() => false)) {
+      return requestLogPath;
+    }
+  }
+
+  return null;
+}
+
+async function loadOptionalRuntimeRequestLog(
+  donorId: string,
+  paths: DonorScanPaths
+): Promise<{ evidencePath: string | null; requestLog: RuntimeRequestLogFile | null }> {
+  const donorScopedRequestLog = await readOptionalJsonFile<RuntimeRequestLogFile>(paths.runtimeRequestLogPath);
+  if (donorScopedRequestLog) {
+    return {
+      evidencePath: toRepoRelativePath(paths.runtimeRequestLogPath),
+      requestLog: donorScopedRequestLog
+    };
+  }
+
+  const projectRequestLogPath = await findProjectRuntimeRequestLogPath(donorId);
+  if (!projectRequestLogPath) {
+    return { evidencePath: null, requestLog: null };
+  }
+
+  const projectRequestLog = await readOptionalJsonFile<RuntimeRequestLogFile>(projectRequestLogPath);
+  if (!projectRequestLog) {
+    return { evidencePath: null, requestLog: null };
+  }
+
+  await writeJsonFile(paths.runtimeRequestLogPath, projectRequestLog);
+  return {
+    evidencePath: toRepoRelativePath(paths.runtimeRequestLogPath),
+    requestLog: projectRequestLog
+  };
 }
 
 async function synthesizeHarvestFromRuntimeMirror(
@@ -379,6 +439,7 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
   }
 
   const assetSummary = buildAssetClassificationSummary(harvestManifest);
+  const runtimeRequestEvidence = await loadOptionalRuntimeRequestLog(options.donorId, paths);
   const bundleAssetMap = await extractBundleAssetMap({
     donorId: options.donorId,
     donorName: options.donorName,
@@ -396,12 +457,19 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
     bundleAssetMap,
     atlasManifestFile
   });
+  const requestBackedStaticHints = discoverRequestBackedStaticHints({
+    donorId: options.donorId,
+    donorName: options.donorName,
+    requestLog: runtimeRequestEvidence.requestLog,
+    evidencePath: runtimeRequestEvidence.evidencePath
+  });
   const nextCaptureTargets = buildNextCaptureTargets({
     donorId: options.donorId,
     donorName: options.donorName,
     runtimeCandidates,
     bundleAssetMap,
-    atlasManifestFile
+    atlasManifestFile,
+    requestBackedStaticHints
   });
 
   await writeJsonFile(paths.entryPointsPath, {
@@ -431,6 +499,7 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
   await writeJsonFile(paths.bundleAssetMapPath, bundleAssetMap);
   await writeJsonFile(paths.atlasManifestsPath, atlasManifestFile);
   await writeJsonFile(paths.runtimeCandidatesPath, runtimeCandidates);
+  await writeJsonFile(paths.requestBackedStaticHintsPath, requestBackedStaticHints);
   await writeJsonFile(paths.nextCaptureTargetsPath, nextCaptureTargets);
 
   const blockerSummary = await writeBlockerSummary({
@@ -472,6 +541,8 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
     atlasManifestCount: atlasManifestFile.manifests.length,
     atlasFrameManifestCount: atlasManifestFile.frameManifestCount,
     atlasMissingPageCount: atlasManifestFile.missingPageCount,
+    requestBackedStaticHintCount: requestBackedStaticHints.hintCount,
+    requestBackedObservedStaticCount: requestBackedStaticHints.observedStaticRequestCount,
     bundleAssetMapStatus: bundleAssetMap.status,
     bundleReferenceCount: bundleAssetMap.referenceCount,
     mirrorCandidateStatus: runtimeCandidates.mirrorCandidateStatus,

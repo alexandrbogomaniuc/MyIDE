@@ -10150,6 +10150,7 @@ function getSelectedProjectEvidenceSummary() {
     donorAtlasManifestCount: typeof donorScan?.atlasManifestCount === "number" ? donorScan.atlasManifestCount : (typeof selectedProject.donor?.atlasManifestCount === "number" ? selectedProject.donor.atlasManifestCount : 0),
     donorBundleAssetMapStatus: typeof donorScan?.bundleAssetMapStatus === "string" ? donorScan.bundleAssetMapStatus : (typeof selectedProject.donor?.bundleAssetMapStatus === "string" ? selectedProject.donor.bundleAssetMapStatus : null),
     donorMirrorCandidateStatus: typeof donorScan?.mirrorCandidateStatus === "string" ? donorScan.mirrorCandidateStatus : (typeof selectedProject.donor?.mirrorCandidateStatus === "string" ? selectedProject.donor.mirrorCandidateStatus : null),
+    donorRequestBackedStaticHintCount: typeof donorScan?.requestBackedStaticHintCount === "number" ? donorScan.requestBackedStaticHintCount : 0,
     donorNextCaptureTargetsPath: typeof donorScan?.nextCaptureTargetsPath === "string" ? donorScan.nextCaptureTargetsPath : (typeof selectedProject.donor?.nextCaptureTargetsPath === "string" ? selectedProject.donor.nextCaptureTargetsPath : null),
     donorNextCaptureTargetCount: typeof donorScan?.nextCaptureTargetCount === "number" ? donorScan.nextCaptureTargetCount : (typeof selectedProject.donor?.nextCaptureTargetCount === "number" ? selectedProject.donor.nextCaptureTargetCount : 0),
     donorNextCaptureTargets: Array.isArray(donorScan?.nextCaptureTargets) ? donorScan.nextCaptureTargets : [],
@@ -14741,6 +14742,7 @@ function renderEvidenceBrowser() {
             <span>${summary.donorAtlasManifestCount} atlas metadata</span>
             <span>${summary.donorBundleAssetMapStatus ? escapeHtml(summary.donorBundleAssetMapStatus) : "unknown"} bundle map</span>
             <span>${summary.donorMirrorCandidateStatus ? escapeHtml(summary.donorMirrorCandidateStatus) : "unknown"} mirror status</span>
+            <span>${summary.donorRequestBackedStaticHintCount} request-backed alternates</span>
             <span>${summary.donorNextCaptureTargetCount} next capture targets</span>
           </div>
           <div class="chip-row">
@@ -15179,6 +15181,7 @@ function renderProjectSummary() {
           </div>
         ` : ""}
         <div class="chip-row">
+          <span>${typeof donorScan?.requestBackedStaticHintCount === "number" ? donorScan.requestBackedStaticHintCount : 0} request-backed alternates</span>
           <span>${typeof donorScan?.nextCaptureTargetCount === "number" ? donorScan.nextCaptureTargetCount : 0} next capture targets</span>
           <span>${typeof donorScan?.captureRunStatus === "string" ? escapeHtml(donorScan.captureRunStatus) : "idle"} guided capture</span>
           <span>${typeof donorScan?.captureDownloadedCount === "number" ? donorScan.captureDownloadedCount : 0} downloaded last run</span>
