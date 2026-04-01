@@ -136,6 +136,14 @@
       "type": "integer",
       "minimum": 0
     },
+    "translationPayloadStatus": {
+      "type": "string",
+      "enum": ["mapped", "blocked", "skipped"]
+    },
+    "translationPayloadCount": {
+      "type": "integer",
+      "minimum": 0
+    },
     "mirrorCandidateStatus": {
       "type": "string",
       "enum": ["strong-partial", "weak-partial", "blocked"]

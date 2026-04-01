@@ -124,6 +124,8 @@ export interface ProjectMetaLike {
     bundleAssetMapStatus?: "mapped" | "blocked" | "skipped";
     bundleImageVariantUrlBuilderStatus?: "mapped" | "blocked" | "skipped";
     bundleImageVariantUrlCount?: number;
+    translationPayloadStatus?: "mapped" | "blocked" | "skipped";
+    translationPayloadCount?: number;
     mirrorCandidateStatus?: "strong-partial" | "weak-partial" | "blocked";
     nextCaptureTargetCount?: number;
     nextOperatorAction?: string;
@@ -774,6 +776,8 @@ export async function createProjectFromInput(input: ShellCreateProjectInput, ove
   meta.donor.bundleAssetMapStatus = donorIntake.bundleAssetMapStatus;
   meta.donor.bundleImageVariantUrlBuilderStatus = donorIntake.bundleImageVariantUrlBuilderStatus;
   meta.donor.bundleImageVariantUrlCount = donorIntake.bundleImageVariantUrlCount;
+  meta.donor.translationPayloadStatus = donorIntake.translationPayloadStatus;
+  meta.donor.translationPayloadCount = donorIntake.translationPayloadCount;
   meta.donor.mirrorCandidateStatus = donorIntake.mirrorCandidateStatus;
   meta.donor.nextCaptureTargetCount = donorIntake.nextCaptureTargetCount;
   meta.donor.nextOperatorAction = donorIntake.nextOperatorAction;
@@ -795,6 +799,9 @@ export async function createProjectFromInput(input: ShellCreateProjectInput, ove
     }
     if ((donorIntake.runtimeCandidateCount ?? 0) > 0) {
       meta.notes.provenFacts.push(`Donor scan recorded ${donorIntake.runtimeCandidateCount} runtime candidates and ${donorIntake.atlasManifestCount ?? 0} atlas/frame metadata entries.`);
+    }
+    if ((donorIntake.translationPayloadCount ?? 0) > 0) {
+      meta.notes.provenFacts.push(`Donor scan grounded ${donorIntake.translationPayloadCount} translation payload URLs from bundle/runtime evidence.`);
     }
   }
   if (donorIntake.status === "blocked" && donorIntake.error) {

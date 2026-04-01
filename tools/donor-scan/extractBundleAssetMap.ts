@@ -3,6 +3,7 @@ import path from "node:path";
 import {
   type BundleAssetMapFile,
   type BundleImageVariantRecord,
+  type BundleTranslationPayloadRecord,
   type BundleAssetMapReference,
   type HarvestManifestFile,
   type ReferenceConfidence,
@@ -21,6 +22,11 @@ interface ExtractBundleAssetMapOptions {
 }
 
 interface BundleImageUrlBuilderRule {
+  status: "mapped" | "blocked";
+  note: string;
+}
+
+interface BundleTranslationPayloadRule {
   status: "mapped" | "blocked";
   note: string;
 }
@@ -139,6 +145,122 @@ function describeVariantUrl(key: string): string {
   return `Optimized request URL proven by bundle images table key ${key}.`;
 }
 
+function normalizeLocaleHint(rawLocale: string): string | null {
+  const trimmed = rawLocale.trim().toLowerCase();
+  if (!/^[a-z]{2,3}(?:[-_][a-z0-9]{2,8})*$/i.test(trimmed)) {
+    return null;
+  }
+  return trimmed.replace(/_/g, "-");
+}
+
+function readTranslationRoot(urlString: string): string | null {
+  try {
+    const parsed = new URL(urlString);
+    if (parsed.host !== "translations.bgaming-network.com") {
+      return null;
+    }
+    if (/\.json$/i.test(parsed.pathname)) {
+      parsed.pathname = parsed.pathname.replace(/\/[^/]+\.json$/i, "");
+    }
+    parsed.search = "";
+    parsed.hash = "";
+    return parsed.toString().replace(/\/+$/g, "");
+  } catch {
+    return null;
+  }
+}
+
+function detectBundleTranslationPayloadRule(bundleText: string): BundleTranslationPayloadRule {
+  const loadLanguagesRuleFound = /loadLanguages=function\([^)]*\)\{[^]*?fetchResource\(/.test(bundleText)
+    && /[A-Za-z_$][A-Za-z0-9_$]*\+[\"']\/[\"']\+[A-Za-z_$][A-Za-z0-9_$]*\+[\"']\.json[\"']/.test(bundleText);
+
+  if (loadLanguagesRuleFound) {
+    return {
+      status: "mapped",
+      note: "Bundle proves translation payload loading through loadLanguages(base + \"/\" + locale + \".json\") backed by fetchResource."
+    };
+  }
+
+  return {
+    status: "blocked",
+    note: "Bundle references translation resources, but the locale JSON payload loading rule was not proven in this bundle."
+  };
+}
+
+function extractTranslationPayloads(options: {
+  bundleText: string;
+  bundleSourceUrl: string;
+  bundleLocalPath: string;
+  rawCandidates: readonly string[];
+  downloadedLookup: Map<string, string>;
+}): BundleTranslationPayloadRecord[] {
+  const translationRule = detectBundleTranslationPayloadRule(options.bundleText);
+  const translationRoots = new Set<string>();
+  const localeHints = new Map<string, BundleTranslationPayloadRecord["localeHintSource"]>();
+
+  for (const candidate of options.rawCandidates) {
+    const resolvedUrl = normalizeCandidateUrl(candidate, options.bundleSourceUrl);
+    if (!resolvedUrl) {
+      continue;
+    }
+
+    const translationRoot = readTranslationRoot(resolvedUrl);
+    if (translationRoot) {
+      translationRoots.add(translationRoot);
+      const directPayloadMatch = resolvedUrl.match(/\/([a-z]{2,3}(?:[-_][a-z0-9]{2,8})*)\.json$/i);
+      const directLocale = directPayloadMatch?.[1] ? normalizeLocaleHint(directPayloadMatch[1]) : null;
+      if (directLocale && !localeHints.has(directLocale)) {
+        localeHints.set(directLocale, "direct-payload");
+      }
+    }
+
+    try {
+      const parsed = new URL(resolvedUrl);
+      if (parsed.host === "rules.bgaming-network.com") {
+        const locale = normalizeLocaleHint(parsed.pathname.split("/").filter(Boolean)[0] ?? "");
+        if (locale && !localeHints.has(locale)) {
+          localeHints.set(locale, "rules-url");
+        }
+      }
+    } catch {
+      // ignore invalid URL candidates
+    }
+  }
+
+  for (const match of options.bundleText.matchAll(/defaultLanguage\s*:\s*"([^"]+)"/g)) {
+    const locale = normalizeLocaleHint(match[1] ?? "");
+    if (locale && !localeHints.has(locale)) {
+      localeHints.set(locale, "default-language");
+    }
+  }
+
+  if (translationRule.status !== "mapped" || translationRoots.size === 0 || localeHints.size === 0) {
+    return [];
+  }
+
+  const payloads: BundleTranslationPayloadRecord[] = [];
+  for (const rootUrl of [...translationRoots].sort((left, right) => left.localeCompare(right))) {
+    for (const [locale, localeHintSource] of [...localeHints.entries()].sort(([left], [right]) => left.localeCompare(right))) {
+      const payloadUrl = `${rootUrl.replace(/\/+$/g, "")}/${locale}.json`;
+      const localPath = options.downloadedLookup.get(payloadUrl) ?? null;
+      payloads.push({
+        bundleSourceUrl: options.bundleSourceUrl,
+        bundleLocalPath: options.bundleLocalPath,
+        rootUrl,
+        locale,
+        localeHintSource,
+        payloadUrl,
+        confidence: "confirmed",
+        localStatus: localPath ? "downloaded" : "missing",
+        localPath,
+        note: `${translationRule.note} Locale hint came from ${localeHintSource}.`
+      });
+    }
+  }
+
+  return payloads;
+}
+
 function extractBundleImageVariants(options: {
   bundleText: string;
   bundleSourceUrl: string;
@@ -230,6 +352,7 @@ export async function extractBundleAssetMap(options: ExtractBundleAssetMapOption
   const bundleEntries = harvestedEntries.filter((entry) => entry.status === "downloaded" && typeof entry.localPath === "string" && /\.(?:js)(?:$|\?)/i.test(entry.localPath));
   const references: BundleAssetMapReference[] = [];
   const imageVariants: BundleImageVariantRecord[] = [];
+  const translationPayloads: BundleTranslationPayloadRecord[] = [];
   const bundleSummaries: Array<{ sourceUrl: string; localPath: string; referenceCount: number }> = [];
 
   for (const entry of bundleEntries) {
@@ -244,6 +367,13 @@ export async function extractBundleAssetMap(options: ExtractBundleAssetMapOption
       bundleText,
       bundleSourceUrl: normalizedSourceUrl,
       bundleLocalPath: entry.localPath!,
+      downloadedLookup
+    }));
+    translationPayloads.push(...extractTranslationPayloads({
+      bundleText,
+      bundleSourceUrl: normalizedSourceUrl,
+      bundleLocalPath: entry.localPath!,
+      rawCandidates,
       downloadedLookup
     }));
 
@@ -302,6 +432,18 @@ export async function extractBundleAssetMap(options: ExtractBundleAssetMapOption
       }
       return left.logicalPath.localeCompare(right.logicalPath);
     });
+  const dedupedTranslationPayloads = Array.from(
+    new Map(translationPayloads.map((entry) => [`${entry.payloadUrl}::${entry.locale}`, entry] as const)).values()
+  )
+    .sort((left, right) => {
+      if (left.bundleLocalPath !== right.bundleLocalPath) {
+        return left.bundleLocalPath.localeCompare(right.bundleLocalPath);
+      }
+      if (left.payloadUrl !== right.payloadUrl) {
+        return left.payloadUrl.localeCompare(right.payloadUrl);
+      }
+      return left.locale.localeCompare(right.locale);
+    });
 
   const countsByConfidence: Record<ReferenceConfidence, number> = {
     confirmed: 0,
@@ -317,12 +459,16 @@ export async function extractBundleAssetMap(options: ExtractBundleAssetMapOption
   const imageVariantFieldCounts: Record<string, number> = {};
   let imageVariantSuffixCount = 0;
   let imageVariantUrlCount = 0;
+  const translationLocaleHints = new Set<string>();
   for (const entry of dedupedImageVariants) {
     imageVariantSuffixCount += entry.variantCount;
     imageVariantUrlCount += entry.variantUrls.length;
     for (const key of entry.variantKeys) {
       imageVariantFieldCounts[key] = (imageVariantFieldCounts[key] ?? 0) + 1;
     }
+  }
+  for (const entry of dedupedTranslationPayloads) {
+    translationLocaleHints.add(entry.locale);
   }
 
   const bundleCount = bundleSummaries.length;
@@ -342,6 +488,11 @@ export async function extractBundleAssetMap(options: ExtractBundleAssetMapOption
     : dedupedImageVariants.some((entry) => typeof entry.requestBaseUrl === "string" && entry.requestBaseUrl.length > 0)
       ? "mapped"
       : "blocked";
+  const translationPayloadStatus: BundleAssetMapFile["translationPayloadStatus"] = bundleCount === 0
+    ? "skipped"
+    : dedupedTranslationPayloads.length > 0
+      ? "mapped"
+      : "blocked";
 
   return {
     schemaVersion: "0.1.0",
@@ -357,6 +508,9 @@ export async function extractBundleAssetMap(options: ExtractBundleAssetMapOption
     imageVariantUrlBuilderStatus,
     imageVariantUrlCount,
     imageVariantFieldCounts: sanitizeCountRecord(imageVariantFieldCounts),
+    translationPayloadStatus,
+    translationPayloadCount: dedupedTranslationPayloads.length,
+    translationLocaleHintCount: translationLocaleHints.size,
     countsByConfidence,
     countsByCategory: sanitizeCountRecord(countsByCategory),
     bundles: bundleSummaries.map((bundle) => ({
@@ -365,6 +519,11 @@ export async function extractBundleAssetMap(options: ExtractBundleAssetMapOption
       referenceCount: bundle.referenceCount
     })),
     imageVariants: dedupedImageVariants.map((entry) => ({
+      ...entry,
+      bundleLocalPath: toRepoRelativePath(path.join(workspaceRoot, entry.bundleLocalPath)),
+      localPath: entry.localPath
+    })),
+    translationPayloads: dedupedTranslationPayloads.map((entry) => ({
       ...entry,
       bundleLocalPath: toRepoRelativePath(path.join(workspaceRoot, entry.bundleLocalPath)),
       localPath: entry.localPath

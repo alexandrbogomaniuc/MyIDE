@@ -76,6 +76,7 @@ async function main(): Promise<void> {
   console.log(`Bundle asset-map status: ${result.bundleAssetMapStatus}`);
   console.log(`Bundle image variants: ${result.bundleImageVariantCount} entries / ${result.bundleImageVariantSuffixCount} suffix tokens (${result.bundleImageVariantStatus})`);
   console.log(`Bundle image URL rule: ${result.bundleImageVariantUrlBuilderStatus} (${result.bundleImageVariantUrlCount} grounded variant URLs)`);
+  console.log(`Translation payloads: ${result.translationPayloadCount} (${result.translationPayloadStatus})`);
   console.log(`Mirror candidate status: ${result.mirrorCandidateStatus}`);
   console.log(`Next operator action: ${result.nextOperatorAction}`);
 }

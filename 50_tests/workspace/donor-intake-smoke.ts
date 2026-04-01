@@ -53,8 +53,10 @@ function startFixtureServer(): Promise<{ server: http.Server; port: number }> {
           "window.configUrl = '/config/game.json';",
           "window.atlasUrl = '/atlases/ui.atlas';",
           "window.bundleMeta = {images:{\"spines/spin_1.png\":{e:\".png_80_80.webp\",f_e:\".f.png_80_90.png\"},\"spines/spin_2.png\":{e:\".png_80_80.webp\"},\"requested/request_1.png\":{e:\".png_80_90.png\"}}};",
-          "var at={resourcesPath:'https://fixture.example.test/'},s={images:window.bundleMeta.images};",
+          "window.projectDesc = {localeResourcesPath:'https://translations.bgaming-network.com/SmokeDonor',defaultLanguage:'en',rulesUrl:'https://rules.bgaming-network.com/en/SmokeRules.json'};",
+          "var at={resourcesPath:'https://fixture.example.test/',projectDesc:window.projectDesc},s={images:window.bundleMeta.images};",
           "var yt=t=>t?at.resourcesPath+\"img/\"+t:null;at._textureNameToPath=yt,at.getImageMetadata=t=>s.images[t]||{};",
+          "var langApi={};langApi.loadLanguages=function(t,e){return t||(t='en'),new Promise((i=>{var n=e+\"/\"+t+\".json\";return fetchResource(n).then(i)}))};",
           "window.altSpin1 = '/spines/spin_1.png';",
           "window.altSpin2 = '/spines/spin_2.png';",
           "console.log('smoke bundle');"
@@ -302,7 +304,15 @@ async function main(): Promise<void> {
       imageVariantSuffixCount?: number;
       imageVariantUrlBuilderStatus?: string;
       imageVariantUrlCount?: number;
+      translationPayloadStatus?: string;
+      translationPayloadCount?: number;
       imageVariantFieldCounts?: Record<string, number>;
+      translationPayloads?: Array<{
+        rootUrl?: string;
+        locale?: string;
+        payloadUrl?: string;
+        localeHintSource?: string;
+      }>;
       imageVariants?: Array<{
         logicalPath?: string;
         requestBaseUrl?: string | null;
@@ -340,6 +350,18 @@ async function main(): Promise<void> {
         ),
       "bundle asset map should generate grounded optimized variant URLs when the bundle proves the image request-path rule"
     );
+    assert.equal(bundleAssetMap.translationPayloadStatus, "mapped", "bundle asset map should prove translation payload URLs when the bundle exposes localeResourcesPath plus loadLanguages");
+    assert.ok((bundleAssetMap.translationPayloadCount ?? 0) >= 1, "bundle asset map should surface grounded translation payload counts");
+    assert.ok(
+      Array.isArray(bundleAssetMap.translationPayloads)
+        && bundleAssetMap.translationPayloads.some((entry) =>
+          entry.rootUrl?.includes("translations.bgaming-network.com/SmokeDonor")
+          && entry.locale === "en"
+          && entry.payloadUrl?.includes("translations.bgaming-network.com/SmokeDonor/en.json")
+          && ["default-language", "rules-url", "direct-payload"].includes(entry.localeHintSource ?? "")
+        ),
+      "bundle asset map should preserve grounded translation payload URLs without guessing the locale root"
+    );
 
     const atlasManifests = JSON.parse(await fs.readFile(path.join(donorRoot, "evidence", "local_only", "harvest", "atlas-manifests.json"), "utf8")) as {
       atlasTextCount?: number;
@@ -362,6 +384,8 @@ async function main(): Promise<void> {
       bundleImageVariantSuffixCount?: number;
       bundleImageVariantUrlBuilderStatus?: string;
       bundleImageVariantUrlCount?: number;
+      translationPayloadStatus?: string;
+      translationPayloadCount?: number;
       mirrorCandidateStatus?: string;
       nextCaptureTargetCount?: number;
       nextOperatorAction?: string;
@@ -375,13 +399,15 @@ async function main(): Promise<void> {
     assert.ok((scanSummary.bundleImageVariantSuffixCount ?? 0) >= 4, "donor scan summary should surface bundle image variant suffix counts");
     assert.equal(scanSummary.bundleImageVariantUrlBuilderStatus, "mapped", "donor scan summary should surface bundle image URL builder status");
     assert.ok((scanSummary.bundleImageVariantUrlCount ?? 0) >= 4, "donor scan summary should surface grounded bundle image variant URL counts");
+    assert.equal(scanSummary.translationPayloadStatus, "mapped", "donor scan summary should surface translation payload status");
+    assert.ok((scanSummary.translationPayloadCount ?? 0) >= 1, "donor scan summary should surface translation payload counts");
     assert.equal(typeof scanSummary.mirrorCandidateStatus, "string", "donor scan summary should surface mirror candidate status");
     assert.ok((scanSummary.nextCaptureTargetCount ?? 0) >= 1, "donor scan summary should expose next capture target counts");
     assert.equal(typeof scanSummary.nextOperatorAction, "string", "donor scan summary should recommend the next operator action");
 
     const nextCaptureTargets = JSON.parse(await fs.readFile(path.join(donorRoot, "evidence", "local_only", "harvest", "next-capture-targets.json"), "utf8")) as {
       targetCount?: number;
-      targets?: Array<{ relativePath?: string; priority?: string; alternateCaptureHints?: Array<{ url?: string }> }>;
+      targets?: Array<{ relativePath?: string; priority?: string; kind?: string; alternateCaptureHints?: Array<{ url?: string }> }>;
     };
     assert.ok((nextCaptureTargets.targetCount ?? 0) >= 1, "donor scan should write next capture targets");
     assert.ok(Array.isArray(nextCaptureTargets.targets) && nextCaptureTargets.targets.some((target) => typeof target.relativePath === "string" && target.relativePath.length > 0), "next capture targets should keep a relative path");
@@ -406,6 +432,15 @@ async function main(): Promise<void> {
           && target.alternateCaptureHints.some((hint) => typeof hint.url === "string" && hint.url.includes("/img/spines/spin_1.f.png_80_90.png"))
         ),
       "next capture targets should expose grounded optimized variant URLs when the bundle proves the image request-path rule"
+    );
+    assert.ok(
+      Array.isArray(nextCaptureTargets.targets)
+        && nextCaptureTargets.targets.some((target) =>
+          target.kind === "translation-payload"
+          && typeof target.relativePath === "string"
+          && target.relativePath.includes("SmokeDonor/en.json")
+        ),
+      "next capture targets should include grounded translation payload URLs when the bundle proves the translation loader rule"
     );
 
     const runtimeRequestLogPath = path.join(donorRoot, "evidence", "local_only", "harvest", "runtime-request-log.json");

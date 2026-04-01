@@ -42,6 +42,9 @@ export async function writeBlockerSummary(options: WriteBlockerSummaryOptions): 
   if (options.bundleAssetMap.imageVariantStatus === "mapped" && options.bundleAssetMap.imageVariantUrlBuilderStatus === "mapped") {
     blockerHighlights.push(`Bundle image metadata already proves ${options.bundleAssetMap.imageVariantUrlCount} grounded optimized image URLs, so the next capture lane can try real variant URLs instead of raw suffix tokens.`);
   }
+  if (options.bundleAssetMap.translationPayloadStatus === "mapped") {
+    blockerHighlights.push(`Bundle/runtime code already proves ${options.bundleAssetMap.translationPayloadCount} grounded translation payload URLs, so translation JSON capture no longer depends on guessing locale roots by hand.`);
+  }
 
   if (blockerHighlights.length === 0) {
     blockerHighlights.push("No major donor-scan blockers were detected in the bounded harvested surface.");
@@ -78,6 +81,7 @@ export async function writeBlockerSummary(options: WriteBlockerSummaryOptions): 
     `- Bundle asset-map status: \`${options.bundleAssetMap.status}\``,
     `- Bundle image variants: \`${options.bundleAssetMap.imageVariantStatus}\` (${options.bundleAssetMap.imageVariantEntryCount} logical entries / ${options.bundleAssetMap.imageVariantSuffixCount} suffix tokens)`,
     `- Bundle image URL rule: \`${options.bundleAssetMap.imageVariantUrlBuilderStatus}\` (${options.bundleAssetMap.imageVariantUrlCount} grounded variant URLs)`,
+    `- Translation payloads: \`${options.bundleAssetMap.translationPayloadStatus}\` (${options.bundleAssetMap.translationPayloadCount} grounded locale JSON URLs)`,
     `- Mirror candidate status: \`${options.runtimeCandidates.mirrorCandidateStatus}\``,
     `- Next capture targets: ${options.nextCaptureTargets.targetCount}`,
     "",

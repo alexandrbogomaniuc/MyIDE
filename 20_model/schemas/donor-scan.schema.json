@@ -18,6 +18,8 @@
     "bundleImageVariantSuffixCount",
     "bundleImageVariantUrlBuilderStatus",
     "bundleImageVariantUrlCount",
+    "translationPayloadStatus",
+    "translationPayloadCount",
     "mirrorCandidateStatus",
     "fullLocalRuntimePackage",
     "partialLocalRuntimePackage",
@@ -117,6 +119,16 @@
       "enum": ["mapped", "blocked", "skipped"]
     },
     "bundleImageVariantUrlCount": {
+      "type": "integer"
+    },
+    "translationPayloadStatus": {
+      "type": "string",
+      "enum": ["mapped", "blocked", "skipped"]
+    },
+    "translationPayloadCount": {
+      "type": "integer"
+    },
+    "translationLocaleHintCount": {
       "type": "integer"
     },
     "bundleReferenceCount": {

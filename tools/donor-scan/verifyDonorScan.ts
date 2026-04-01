@@ -58,6 +58,8 @@ async function main(): Promise<void> {
     bundleImageVariantSuffixCount?: number;
     bundleImageVariantUrlBuilderStatus?: string;
     bundleImageVariantUrlCount?: number;
+    translationPayloadStatus?: string;
+    translationPayloadCount?: number;
     mirrorCandidateStatus?: string;
     requestBackedStaticHintCount?: number;
     nextCaptureTargetCount?: number;
@@ -73,6 +75,8 @@ async function main(): Promise<void> {
   assert.ok(typeof scanSummary.bundleImageVariantSuffixCount === "number", "scan summary should record bundle image variant suffix count");
   assert.ok(typeof scanSummary.bundleImageVariantUrlBuilderStatus === "string", "scan summary should record bundle image variant URL builder status");
   assert.ok(typeof scanSummary.bundleImageVariantUrlCount === "number", "scan summary should record bundle image variant URL count");
+  assert.ok(typeof scanSummary.translationPayloadStatus === "string", "scan summary should record translation payload status");
+  assert.ok(typeof scanSummary.translationPayloadCount === "number", "scan summary should record translation payload count");
   assert.ok(typeof scanSummary.mirrorCandidateStatus === "string", "scan summary should record mirror candidate status");
   assert.ok(typeof scanSummary.requestBackedStaticHintCount === "number", "scan summary should record request-backed static hint count");
   assert.ok(typeof scanSummary.nextCaptureTargetCount === "number", "scan summary should record next capture target count");
@@ -88,6 +92,7 @@ async function main(): Promise<void> {
   console.log(`Atlas manifests: ${scanSummary.atlasManifestCount}`);
   console.log(`Bundle image variants: ${scanSummary.bundleImageVariantCount}`);
   console.log(`Bundle variant URLs: ${scanSummary.bundleImageVariantUrlCount} (${scanSummary.bundleImageVariantUrlBuilderStatus})`);
+  console.log(`Translation payloads: ${scanSummary.translationPayloadCount} (${scanSummary.translationPayloadStatus})`);
   console.log(`Request-backed alternates: ${scanSummary.requestBackedStaticHintCount}`);
   console.log(`Next capture targets: ${scanSummary.nextCaptureTargetCount}`);
   console.log(`Next operator action: ${scanSummary.nextOperatorAction}`);

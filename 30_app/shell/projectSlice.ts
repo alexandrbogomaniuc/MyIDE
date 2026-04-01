@@ -163,6 +163,8 @@ export interface DonorScanStatus {
   bundleImageVariantSuffixCount: number;
   bundleImageVariantUrlBuilderStatus: string;
   bundleImageVariantUrlCount: number;
+  translationPayloadStatus: string;
+  translationPayloadCount: number;
   mirrorCandidateStatus: string;
   requestBackedStaticHintCount: number;
   recentlyBlockedCaptureTargetCount: number;
@@ -883,6 +885,8 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
     bundleImageVariantSuffixCount: typeof scanSummary.bundleImageVariantSuffixCount === "number" ? scanSummary.bundleImageVariantSuffixCount : 0,
     bundleImageVariantUrlBuilderStatus: typeof scanSummary.bundleImageVariantUrlBuilderStatus === "string" ? scanSummary.bundleImageVariantUrlBuilderStatus : (donor.bundleImageVariantUrlBuilderStatus ?? "unknown"),
     bundleImageVariantUrlCount: typeof scanSummary.bundleImageVariantUrlCount === "number" ? scanSummary.bundleImageVariantUrlCount : (donor.bundleImageVariantUrlCount ?? 0),
+    translationPayloadStatus: typeof scanSummary.translationPayloadStatus === "string" ? scanSummary.translationPayloadStatus : (donor.translationPayloadStatus ?? "unknown"),
+    translationPayloadCount: typeof scanSummary.translationPayloadCount === "number" ? scanSummary.translationPayloadCount : (donor.translationPayloadCount ?? 0),
     mirrorCandidateStatus: typeof scanSummary.mirrorCandidateStatus === "string" ? scanSummary.mirrorCandidateStatus : (donor.mirrorCandidateStatus ?? "unknown"),
     requestBackedStaticHintCount: typeof scanSummary.requestBackedStaticHintCount === "number" ? scanSummary.requestBackedStaticHintCount : 0,
     recentlyBlockedCaptureTargetCount: typeof scanSummary.recentlyBlockedCaptureTargetCount === "number" ? scanSummary.recentlyBlockedCaptureTargetCount : nextCaptureTargets.filter((target) => target.recentCaptureStatus === "blocked").length,

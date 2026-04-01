@@ -60,6 +60,8 @@ export interface WorkspaceProjectSummary {
     bundleAssetMapStatus?: string;
     bundleImageVariantUrlBuilderStatus?: string;
     bundleImageVariantUrlCount?: number;
+    translationPayloadStatus?: string;
+    translationPayloadCount?: number;
     mirrorCandidateStatus?: string;
     nextCaptureTargetCount?: number;
     nextOperatorAction?: string;
@@ -389,6 +391,8 @@ function normalizeProjectMeta(entry: JsonObject, index: number): WorkspaceProjec
       bundleAssetMapStatus: asOptionalString(donor.bundleAssetMapStatus),
       bundleImageVariantUrlBuilderStatus: asOptionalString(donor.bundleImageVariantUrlBuilderStatus),
       bundleImageVariantUrlCount: asOptionalNumber(donor.bundleImageVariantUrlCount),
+      translationPayloadStatus: asOptionalString(donor.translationPayloadStatus),
+      translationPayloadCount: asOptionalNumber(donor.translationPayloadCount),
       mirrorCandidateStatus: asOptionalString(donor.mirrorCandidateStatus),
       nextCaptureTargetCount: asOptionalNumber(donor.nextCaptureTargetCount),
       nextOperatorAction: asOptionalString(donor.nextOperatorAction),

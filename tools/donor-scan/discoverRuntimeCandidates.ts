@@ -53,6 +53,17 @@ export function discoverRuntimeCandidates(options: DiscoverRuntimeCandidatesOpti
       note: `Referenced by ${reference.bundleSourceUrl}.`
     }));
 
+  const translationPayloadCandidates = options.bundleAssetMap.translationPayloads
+    .map((payload) => ({
+      kind: "runtime-metadata" as const,
+      url: payload.payloadUrl,
+      confidence: payload.confidence,
+      localStatus: payload.localStatus,
+      localPath: payload.localPath,
+      category: "translation",
+      note: `Translation payload proven by ${payload.bundleSourceUrl} using ${payload.localeHintSource} locale hint ${payload.locale}.`
+    }));
+
   const bundleReferenceCandidates = options.bundleAssetMap.references
     .filter((reference) =>
       reference.resolvedUrl
@@ -84,6 +95,13 @@ export function discoverRuntimeCandidates(options: DiscoverRuntimeCandidatesOpti
         return null;
       }
     }),
+    ...translationPayloadCandidates.map((entry) => {
+      try {
+        return new URL(entry.url).host;
+      } catch {
+        return null;
+      }
+    }),
     ...bundleReferenceCandidates.map((entry) => {
       try {
         return new URL(entry.url).host;
@@ -94,7 +112,7 @@ export function discoverRuntimeCandidates(options: DiscoverRuntimeCandidatesOpti
   ]).sort((left, right) => left.localeCompare(right));
 
   const dedupedCandidateMap = new Map<string, RuntimeCandidateRecord>();
-  for (const entry of [...runtimeEntryPoints, ...runtimeMetadataCandidates, ...bundleReferenceCandidates]) {
+  for (const entry of [...runtimeEntryPoints, ...runtimeMetadataCandidates, ...translationPayloadCandidates, ...bundleReferenceCandidates]) {
     const key = `${entry.kind}::${entry.url}`;
     const existing = dedupedCandidateMap.get(key);
     if (!existing) {

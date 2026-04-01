@@ -10154,6 +10154,8 @@ function getSelectedProjectEvidenceSummary() {
     donorBundleImageVariantSuffixCount: typeof donorScan?.bundleImageVariantSuffixCount === "number" ? donorScan.bundleImageVariantSuffixCount : 0,
     donorBundleImageVariantUrlBuilderStatus: typeof donorScan?.bundleImageVariantUrlBuilderStatus === "string" ? donorScan.bundleImageVariantUrlBuilderStatus : (typeof selectedProject.donor?.bundleImageVariantUrlBuilderStatus === "string" ? selectedProject.donor.bundleImageVariantUrlBuilderStatus : "unknown"),
     donorBundleImageVariantUrlCount: typeof donorScan?.bundleImageVariantUrlCount === "number" ? donorScan.bundleImageVariantUrlCount : (typeof selectedProject.donor?.bundleImageVariantUrlCount === "number" ? selectedProject.donor.bundleImageVariantUrlCount : 0),
+    donorTranslationPayloadStatus: typeof donorScan?.translationPayloadStatus === "string" ? donorScan.translationPayloadStatus : (typeof selectedProject.donor?.translationPayloadStatus === "string" ? selectedProject.donor.translationPayloadStatus : "unknown"),
+    donorTranslationPayloadCount: typeof donorScan?.translationPayloadCount === "number" ? donorScan.translationPayloadCount : (typeof selectedProject.donor?.translationPayloadCount === "number" ? selectedProject.donor.translationPayloadCount : 0),
     donorMirrorCandidateStatus: typeof donorScan?.mirrorCandidateStatus === "string" ? donorScan.mirrorCandidateStatus : (typeof selectedProject.donor?.mirrorCandidateStatus === "string" ? selectedProject.donor.mirrorCandidateStatus : null),
     donorRequestBackedStaticHintCount: typeof donorScan?.requestBackedStaticHintCount === "number" ? donorScan.requestBackedStaticHintCount : 0,
     donorRecentlyBlockedCaptureTargetCount: typeof donorScan?.recentlyBlockedCaptureTargetCount === "number" ? donorScan.recentlyBlockedCaptureTargetCount : 0,
@@ -14613,6 +14615,7 @@ function renderEvidenceBrowser() {
     `Runtime Candidates: ${summary.donorRuntimeCandidateCount}`,
     `Atlas Metadata Count: ${summary.donorAtlasManifestCount}`,
     `Bundle Asset Map Status: ${summary.donorBundleAssetMapStatus || "unknown"}`,
+    `Translation Payloads: ${summary.donorTranslationPayloadCount} (${summary.donorTranslationPayloadStatus || "unknown"})`,
     `Mirror Candidate Status: ${summary.donorMirrorCandidateStatus || "unknown"}`,
     `Next Capture Targets: ${summary.donorNextCaptureTargetCount}`,
     `Guided Capture Status: ${summary.donorCaptureRunStatus || "idle"}`,
@@ -14750,6 +14753,8 @@ function renderEvidenceBrowser() {
             <span>${escapeHtml(summary.donorBundleImageVariantStatus || "unknown")} bundle image variants</span>
             <span>${summary.donorBundleImageVariantCount} logical image entries</span>
             <span>${summary.donorBundleImageVariantSuffixCount} variant suffixes</span>
+            <span>${summary.donorTranslationPayloadCount} translation payloads</span>
+            <span>${escapeHtml(summary.donorTranslationPayloadStatus || "unknown")} translation payload status</span>
             <span>${summary.donorMirrorCandidateStatus ? escapeHtml(summary.donorMirrorCandidateStatus) : "unknown"} mirror status</span>
             <span>${summary.donorRequestBackedStaticHintCount} request-backed alternates</span>
             <span>${summary.donorRecentlyBlockedCaptureTargetCount} recently blocked</span>
@@ -15195,6 +15200,8 @@ function renderProjectSummary() {
           <span>${typeof donorScan?.bundleImageVariantSuffixCount === "number" ? donorScan.bundleImageVariantSuffixCount : 0} variant suffixes</span>
           <span>${typeof donorScan?.bundleImageVariantUrlCount === "number" ? donorScan.bundleImageVariantUrlCount : 0} grounded variant URLs</span>
           <span>bundle image URL rule: ${typeof donorScan?.bundleImageVariantUrlBuilderStatus === "string" ? escapeHtml(donorScan.bundleImageVariantUrlBuilderStatus) : "unknown"}</span>
+          <span>${typeof donorScan?.translationPayloadCount === "number" ? donorScan.translationPayloadCount : 0} translation payloads</span>
+          <span>translation payload rule: ${typeof donorScan?.translationPayloadStatus === "string" ? escapeHtml(donorScan.translationPayloadStatus) : "unknown"}</span>
           <span>${typeof donorScan?.requestBackedStaticHintCount === "number" ? donorScan.requestBackedStaticHintCount : 0} request-backed alternates</span>
           <span>${typeof donorScan?.recentlyBlockedCaptureTargetCount === "number" ? donorScan.recentlyBlockedCaptureTargetCount : 0} recently blocked</span>
           <span>${typeof donorScan?.nextCaptureTargetCount === "number" ? donorScan.nextCaptureTargetCount : 0} next capture targets</span>

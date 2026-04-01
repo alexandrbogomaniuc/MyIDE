@@ -61,6 +61,15 @@ function readRelativePath(urlString: string): string {
   }
 }
 
+function isConcreteTranslationPayloadUrl(urlString: string): boolean {
+  try {
+    const parsed = new URL(urlString);
+    return parsed.host === "translations.bgaming-network.com" && /\.json$/i.test(parsed.pathname);
+  } catch {
+    return false;
+  }
+}
+
 function confidenceWeight(confidence: ReferenceConfidence): number {
   switch (confidence) {
     case "confirmed":
@@ -378,7 +387,7 @@ export function buildNextCaptureTargets(options: BuildNextCaptureTargetsOptions)
   }
 
   for (const candidate of options.runtimeCandidates.unresolvedDependencies) {
-    const kind = candidate.category === "translation" || readHost(candidate.url) === "translations.bgaming-network.com"
+    const kind = isConcreteTranslationPayloadUrl(candidate.url)
       ? "translation-payload"
       : candidate.kind === "runtime-script"
         ? "runtime-script"
@@ -411,7 +420,7 @@ export function buildNextCaptureTargets(options: BuildNextCaptureTargetsOptions)
     const count = bundleReferenceCounts.get(reference.resolvedUrl) ?? 1;
     upsertTarget(
       reference.resolvedUrl,
-      reference.category === "translation" ? "translation-payload" : "bundle-asset",
+      isConcreteTranslationPayloadUrl(reference.resolvedUrl) ? "translation-payload" : "bundle-asset",
       reference.category,
       reference.confidence,
       count > 1
