@@ -4,6 +4,7 @@ import http from "node:http";
 import path from "node:path";
 import { bootstrapDonorIntake } from "../../30_app/workspace/donorIntake";
 import { captureNextTargets } from "../../tools/donor-scan/captureNextTargets";
+import { buildNextCaptureTargets } from "../../tools/donor-scan/buildNextCaptureTargets";
 
 const workspaceRoot = path.resolve(__dirname, "../../..");
 
@@ -165,6 +166,170 @@ async function main(): Promise<void> {
       recentlyBlockedCaptureTargetCount?: number;
     };
     assert.ok((refreshedSummary.recentlyBlockedCaptureTargetCount ?? 0) >= 1, "scan summary should surface recently blocked capture targets after a partial run");
+
+    const expandedTargetQueue = buildNextCaptureTargets({
+      donorId: "donor_expanded_queue_smoke",
+      donorName: "Expanded Queue Smoke",
+      runtimeCandidates: {
+        schemaVersion: "0.1.0",
+        donorId: "donor_expanded_queue_smoke",
+        donorName: "Expanded Queue Smoke",
+        generatedAt: new Date().toISOString(),
+        fullLocalRuntimePackage: false,
+        partialLocalRuntimePackage: true,
+        mirrorCandidateStatus: "strong-partial",
+        entryPointCount: 1,
+        runtimeCandidateCount: 0,
+        mirrorCandidateCount: 0,
+        unresolvedDependencyCount: 1,
+        hostRoots: ["https://fixture.example.test/"],
+        runtimeEntryPoints: [],
+        runtimeCandidates: [],
+        unresolvedDependencies: []
+      },
+      bundleAssetMap: {
+        schemaVersion: "0.1.0",
+        donorId: "donor_expanded_queue_smoke",
+        donorName: "Expanded Queue Smoke",
+        generatedAt: new Date().toISOString(),
+        status: "mapped",
+        bundleCount: 1,
+        referenceCount: 1,
+        countsByCategory: { image: 1 },
+        countsByConfidence: { confirmed: 1, likely: 0, provisional: 0 },
+        imageVariantStatus: "mapped",
+        imageVariantEntryCount: 1,
+        imageVariantSuffixCount: 2,
+        imageVariantUrlBuilderStatus: "mapped",
+        imageVariantUrlCount: 2,
+        imageVariantFieldCounts: { e: 1, f_e: 1 },
+        translationPayloadStatus: "skipped",
+        translationPayloadCount: 0,
+        translationLocaleHintCount: 0,
+        bundles: [
+          {
+            sourceUrl: "https://fixture.example.test/bundle.js",
+            localPath: "10_donors/donor_expanded_queue_smoke/raw/bootstrap/bundle.js",
+            referenceCount: 1
+          }
+        ],
+        references: [
+          {
+            bundleSourceUrl: "https://fixture.example.test/bundle.js",
+            bundleLocalPath: "10_donors/donor_expanded_queue_smoke/raw/bootstrap/bundle.js",
+            referenceText: "symbols/spin_3.png",
+            resolvedUrl: "https://fixture.example.test/symbols/spin_3.png",
+            category: "image",
+            confidence: "confirmed",
+            localStatus: "inventory-only",
+            localPath: null
+          }
+        ],
+        imageVariants: [
+          {
+            bundleSourceUrl: "https://fixture.example.test/bundle.js",
+            bundleLocalPath: "10_donors/donor_expanded_queue_smoke/raw/bootstrap/bundle.js",
+            logicalPath: "symbols/spin_3.png",
+            resolvedUrl: "https://fixture.example.test/symbols/spin_3.png",
+            requestBaseUrl: "https://fixture.example.test/img/symbols/spin_3.png",
+            confidence: "confirmed",
+            localStatus: "inventory-only",
+            localPath: null,
+            variantKeys: ["e", "f_e"],
+            variants: {
+              e: ".png_80_80.webp",
+              f_e: ".f.png_80_90.png"
+            },
+            variantUrls: [
+              {
+                key: "e",
+                url: "https://fixture.example.test/img/symbols/spin_3.png_80_80.webp",
+                note: "Primary optimized request URL proven by the bundle images table."
+              },
+              {
+                key: "f_e",
+                url: "https://fixture.example.test/img/symbols/spin_3.f.png_80_90.png",
+                note: "Fallback optimized request URL proven by the bundle images table."
+              }
+            ],
+            variantCount: 2,
+            note: "Smoke proof"
+          }
+        ],
+        translationPayloads: []
+      },
+      atlasManifestFile: {
+        schemaVersion: "0.1.0",
+        donorId: "donor_expanded_queue_smoke",
+        donorName: "Expanded Queue Smoke",
+        generatedAt: new Date().toISOString(),
+        atlasTextCount: 1,
+        spriteSheetJsonCount: 0,
+        plistCount: 0,
+        spineJsonCount: 0,
+        frameManifestCount: 1,
+        missingPageCount: 1,
+        manifests: [
+          {
+            sourceUrl: "https://fixture.example.test/img/spines/spin_3.atlas",
+            localPath: "10_donors/donor_expanded_queue_smoke/raw/bootstrap/spin_3.atlas",
+            kind: "atlas-text",
+            frameCount: 1,
+            regionCount: 1,
+            animationCount: null,
+            pageRefs: ["spin_3.png"],
+            localPagePaths: [],
+            missingPageUrls: ["https://fixture.example.test/img/spines/spin_3.png"],
+            notes: []
+          }
+        ]
+      },
+      requestBackedStaticHints: null,
+      captureRun: {
+        schemaVersion: "0.1.0",
+        donorId: "donor_expanded_queue_smoke",
+        donorName: "Expanded Queue Smoke",
+        generatedAt: new Date().toISOString(),
+        status: "blocked",
+        requestedLimit: 1,
+        attemptedCount: 1,
+        downloadedCount: 0,
+        failedCount: 1,
+        skippedCount: 0,
+        targetCountBefore: 1,
+        targetCountAfter: 1,
+        refreshedScanSummaryPath: "10_donors/donor_expanded_queue_smoke/evidence/local_only/harvest/scan-summary.json",
+        refreshedNextCaptureTargetsPath: "10_donors/donor_expanded_queue_smoke/evidence/local_only/harvest/next-capture-targets.json",
+        results: [
+          {
+            rank: 1,
+            url: "https://fixture.example.test/img/spines/spin_3.png",
+            relativePath: "img/spines/spin_3.png",
+            kind: "atlas-page",
+            priority: "immediate",
+            status: "failed",
+            attemptedUrls: [
+              "https://fixture.example.test/img/spines/spin_3.png",
+              "https://fixture.example.test/spines/spin_3.png",
+              "https://fixture.example.test/symbols/spin_3.png"
+            ],
+            downloadedFromUrl: null,
+            localPath: null,
+            contentType: null,
+            sizeBytes: null,
+            reason: "HTTP 404"
+          }
+        ]
+      }
+    });
+    const expandedTarget = expandedTargetQueue.targets.find((target) => target.relativePath.includes("img/spines/spin_3.png"));
+    assert.ok(
+      expandedTarget
+        && expandedTarget.recentCaptureStatus === "untried"
+        && expandedTarget.alternateCaptureHints.some((hint) => hint.url.includes("/img/symbols/spin_3.png_80_80.webp"))
+        && expandedTarget.alternateCaptureHints.some((hint) => hint.url.includes("/img/symbols/spin_3.f.png_80_90.png")),
+      "new grounded variant URLs should re-open a previously blocked atlas-page target instead of leaving it stuck as blocked"
+    );
 
     console.log("PASS smoke:donor-scan-capture");
     console.log(`Donor: ${donorId}`);

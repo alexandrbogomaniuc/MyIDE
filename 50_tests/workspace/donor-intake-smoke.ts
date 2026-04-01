@@ -52,13 +52,14 @@ function startFixtureServer(): Promise<{ server: http.Server; port: number }> {
           "window.assetUrl = '/audio/ambient.ogg';",
           "window.configUrl = '/config/game.json';",
           "window.atlasUrl = '/atlases/ui.atlas';",
-          "window.bundleMeta = {images:{\"spines/spin_1.png\":{e:\".png_80_80.webp\",f_e:\".f.png_80_90.png\"},\"spines/spin_2.png\":{e:\".png_80_80.webp\"},\"requested/request_1.png\":{e:\".png_80_90.png\"}}};",
+          "window.bundleMeta = {images:{\"spines/spin_1.png\":{e:\".png_80_80.webp\",f_e:\".f.png_80_90.png\"},\"spines/spin_2.png\":{e:\".png_80_80.webp\"},\"symbols/spin_3.png\":{e:\".png_80_80.webp\",f_e:\".f.png_80_90.png\"},\"requested/request_1.png\":{e:\".png_80_90.png\"}}};",
           "window.projectDesc = {localeResourcesPath:'https://translations.bgaming-network.com/SmokeDonor',defaultLanguage:'en',rulesUrl:'https://rules.bgaming-network.com/en/SmokeRules.json'};",
           "var at={resourcesPath:'https://fixture.example.test/',projectDesc:window.projectDesc},s={images:window.bundleMeta.images};",
           "var yt=t=>t?at.resourcesPath+\"img/\"+t:null;at._textureNameToPath=yt,at.getImageMetadata=t=>s.images[t]||{};",
           "var langApi={};langApi.loadLanguages=function(t,e){return t||(t='en'),new Promise((i=>{var n=e+\"/\"+t+\".json\";return fetchResource(n).then(i)}))};",
           "window.altSpin1 = '/spines/spin_1.png';",
           "window.altSpin2 = '/spines/spin_2.png';",
+          "window.altSymbolSpin3 = '/symbols/spin_3.png';",
           "console.log('smoke bundle');"
         ].join("\n"));
         return;
@@ -432,6 +433,18 @@ async function main(): Promise<void> {
           && target.alternateCaptureHints.some((hint) => typeof hint.url === "string" && hint.url.includes("/img/spines/spin_1.f.png_80_90.png"))
         ),
       "next capture targets should expose grounded optimized variant URLs when the bundle proves the image request-path rule"
+    );
+    assert.ok(
+      Array.isArray(nextCaptureTargets.targets)
+        && nextCaptureTargets.targets.some((target) =>
+          typeof target.relativePath === "string"
+          && target.relativePath.includes("img/spines/spin_3.png")
+          && Array.isArray(target.alternateCaptureHints)
+          && target.alternateCaptureHints.some((hint) => typeof hint.url === "string" && hint.url.includes("/symbols/spin_3.png"))
+          && target.alternateCaptureHints.some((hint) => typeof hint.url === "string" && hint.url.includes("/img/symbols/spin_3.png_80_80.webp"))
+          && target.alternateCaptureHints.some((hint) => typeof hint.url === "string" && hint.url.includes("/img/symbols/spin_3.f.png_80_90.png"))
+        ),
+      "next capture targets should promote optimized variant URLs from bundle-backed alternate rooted image families"
     );
     assert.ok(
       Array.isArray(nextCaptureTargets.targets)

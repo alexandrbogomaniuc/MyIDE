@@ -629,6 +629,27 @@ export function buildAlternateCaptureHints(options: {
         confidence: reference.confidence,
         note: "Bundle asset-map uses the same basename under an alternate rooted path."
       });
+
+      if (options.category !== "image") {
+        continue;
+      }
+
+      for (const imageVariant of options.bundleAssetMap.imageVariants) {
+        if (imageVariant.resolvedUrl !== reference.resolvedUrl) {
+          continue;
+        }
+        for (const variantUrl of imageVariant.variantUrls) {
+          if (variantUrl.url === normalizedTargetUrl || variantUrl.url === reference.resolvedUrl) {
+            continue;
+          }
+          hints.push({
+            url: variantUrl.url,
+            source: `bundle-image-variant:${imageVariant.bundleLocalPath}:${variantUrl.key}`,
+            confidence: "confirmed",
+            note: `${variantUrl.note} The bundle also maps the current target basename to this alternate rooted family.`
+          });
+        }
+      }
     }
   }
 

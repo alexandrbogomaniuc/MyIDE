@@ -184,7 +184,7 @@ function toTargetRecord(
   bundleAssetMap: BundleAssetMapFile,
   directoryAliasSupport: Map<string, DirectoryAliasSupportRecord>,
   requestBackedStaticHints: RequestBackedStaticHintFile | null,
-  captureRunResults: Map<string, { attemptedUrlCount: number; failureReason: string | null }>
+  captureRunResults: Map<string, { attemptedUrlCount: number; failureReason: string | null; attemptedUrls: Set<string> }>
 ): NextCaptureTargetRecord {
   const sourceCount = mutable.sourceLabels.size;
   const score = mutable.score + Math.min(20, sourceCount * 5);
@@ -222,6 +222,10 @@ function toTargetRecord(
     }
   }
   const captureEvidence = captureRunResults.get(url) ?? null;
+  const currentAttemptUrls = new Set<string>([url, ...alternateCaptureHints.map((hint) => hint.url)]);
+  const exhaustedCurrentGroundedUrls = captureEvidence
+    ? [...currentAttemptUrls].every((attemptUrl) => captureEvidence.attemptedUrls.has(attemptUrl))
+    : false;
   return {
     rank,
     url,
@@ -237,21 +241,28 @@ function toTargetRecord(
     reason: [...mutable.reasons].join(" + "),
     blockers: [...mutable.blockers].sort((left, right) => left.localeCompare(right)),
     alternateCaptureHints,
-    recentCaptureStatus: captureEvidence ? "blocked" : "untried",
+    recentCaptureStatus: captureEvidence && exhaustedCurrentGroundedUrls ? "blocked" : "untried",
     recentCaptureAttemptCount: captureEvidence?.attemptedUrlCount ?? 0,
     recentCaptureFailureReason: captureEvidence?.failureReason ?? null
   };
 }
 
-function buildCaptureRunResultMap(captureRun: CaptureRunFile | null): Map<string, { attemptedUrlCount: number; failureReason: string | null }> {
-  const results = new Map<string, { attemptedUrlCount: number; failureReason: string | null }>();
+function buildCaptureRunResultMap(captureRun: CaptureRunFile | null): Map<string, { attemptedUrlCount: number; failureReason: string | null; attemptedUrls: Set<string> }> {
+  const results = new Map<string, { attemptedUrlCount: number; failureReason: string | null; attemptedUrls: Set<string> }>();
   for (const result of Array.isArray(captureRun?.results) ? captureRun.results : []) {
     if (result.status !== "failed" || typeof result.url !== "string" || result.url.length === 0) {
       continue;
     }
+    const attemptedUrls = new Set<string>();
+    for (const attemptUrl of Array.isArray(result.attemptedUrls) ? result.attemptedUrls : []) {
+      if (typeof attemptUrl === "string" && attemptUrl.length > 0) {
+        attemptedUrls.add(attemptUrl);
+      }
+    }
     results.set(result.url, {
-      attemptedUrlCount: Array.isArray(result.attemptedUrls) ? result.attemptedUrls.length : 0,
-      failureReason: typeof result.reason === "string" ? result.reason : null
+      attemptedUrlCount: attemptedUrls.size,
+      failureReason: typeof result.reason === "string" ? result.reason : null,
+      attemptedUrls
     });
   }
   return results;

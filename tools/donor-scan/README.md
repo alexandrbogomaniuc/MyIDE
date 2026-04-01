@@ -68,7 +68,9 @@ Donor scan now does the same kind of upgrade for translation roots when the dono
 
 `next-capture-run.json` records what the guided capture runner attempted, which exact URLs were tried, which URL actually downloaded when a fallback worked, what failed, and how many ranked targets still remain after donor scan was refreshed.
 
-After a guided capture run, donor scan now feeds the latest failed attempts back into `next-capture-targets.json` too. That lets the IDE show which ranked targets are still blocked even after every grounded alternate URL in the latest run was already tried, and it now demotes those recently blocked dead ends below the next untried grounded targets.
+After a guided capture run, donor scan now feeds the latest failed attempts back into `next-capture-targets.json` too. That lets the IDE show which ranked targets are still blocked even after every grounded alternate URL in the latest run was already tried, and it now demotes those recently blocked dead ends below the next untried grounded targets. If a later donor-scan pass discovers new grounded alternate URLs for the same target, the target automatically reopens as actionable instead of staying falsely blocked on stale capture evidence.
+
+That reopened-target behavior is already proven on the live Mystery Garden donor: once donor scan started surfacing optimized variant URLs from bundle-backed sibling image families, guided capture successfully downloaded atlas-adjacent payloads such as `h1`, `h2`, `stick`, and `wild` from those newly grounded URLs.
 
 ## What The Scan Can Break Early
 
