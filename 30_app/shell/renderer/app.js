@@ -15240,6 +15240,7 @@ function renderProjectSummary() {
           <span>${typeof donorScan?.requestBackedStaticHintCount === "number" ? donorScan.requestBackedStaticHintCount : 0} request-backed alternates</span>
           <span>${typeof donorScan?.recentlyBlockedCaptureTargetCount === "number" ? donorScan.recentlyBlockedCaptureTargetCount : 0} recently blocked</span>
           <span>${typeof donorScan?.captureFamilyCount === "number" ? donorScan.captureFamilyCount : 0} capture families</span>
+          <span>${typeof donorScan?.familySourceProfileCount === "number" ? donorScan.familySourceProfileCount : 0} source profiles</span>
           <span>${typeof donorScan?.rawPayloadBlockedCaptureTargetCount === "number" ? donorScan.rawPayloadBlockedCaptureTargetCount : 0} raw-payload blocked</span>
           <span>${typeof donorScan?.rawPayloadBlockedFamilyCount === "number" ? donorScan.rawPayloadBlockedFamilyCount : 0} blocker families</span>
           <span>${typeof donorScan?.nextCaptureTargetCount === "number" ? donorScan.nextCaptureTargetCount : 0} next capture targets</span>
@@ -15260,6 +15261,14 @@ function renderProjectSummary() {
                 >${escapeHtml(family.familyName)} (${escapeHtml(String(family.untriedTargetCount))} open${family.blockedTargetCount > 0 ? `, ${escapeHtml(String(family.blockedTargetCount))} blocked` : ""})</button>
               `).join("")}
             </div>
+          </div>
+        ` : ""}
+        ${Array.isArray(donorScan?.topFamilySourceProfiles) && donorScan.topFamilySourceProfiles.length > 0 ? `
+          <div class="detail-list">
+            <small><strong>Family source discovery</strong></small>
+            ${donorScan.topFamilySourceProfiles.map((family) => `
+              <small><strong>${escapeHtml(family.familyName)}</strong> · ${escapeHtml(family.sourceState)} · atlas ${escapeHtml(String(family.localPageCount))}/${escapeHtml(String(family.atlasPageRefCount))} local pages · ${escapeHtml(String(family.sameFamilyBundleReferenceCount))} same-family bundle ref${family.sameFamilyBundleReferenceCount === 1 ? "" : "s"} · ${escapeHtml(String(family.sameFamilyVariantAssetCount))} same-family variant asset${family.sameFamilyVariantAssetCount === 1 ? "" : "s"} · ${escapeHtml(family.nextStep)}</small>
+            `).join("")}
           </div>
         ` : ""}
         ${Array.isArray(donorScan?.topCaptureFamilyNames) && donorScan.topCaptureFamilyNames.length > 0 ? `

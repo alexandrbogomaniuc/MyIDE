@@ -39,6 +39,7 @@ async function main(): Promise<void> {
     paths.bundleAssetMapPath,
     paths.atlasManifestsPath,
     paths.nextCaptureTargetsPath,
+    paths.captureFamilySourceProfilesPath,
     paths.blockerSummaryPath,
     paths.scanSummaryPath
   ];
@@ -64,6 +65,8 @@ async function main(): Promise<void> {
     requestBackedStaticHintCount?: number;
     captureFamilyCount?: number;
     topCaptureFamilyNames?: string[];
+    familySourceProfileCount?: number;
+    topFamilySourceProfileNames?: string[];
     rawPayloadBlockedCaptureTargetCount?: number;
     rawPayloadBlockedFamilyCount?: number;
     rawPayloadBlockedFamilyNames?: string[];
@@ -86,6 +89,8 @@ async function main(): Promise<void> {
   assert.ok(typeof scanSummary.requestBackedStaticHintCount === "number", "scan summary should record request-backed static hint count");
   assert.ok(typeof scanSummary.captureFamilyCount === "number", "scan summary should record capture family counts");
   assert.ok(Array.isArray(scanSummary.topCaptureFamilyNames), "scan summary should record top capture family names");
+  assert.ok(typeof scanSummary.familySourceProfileCount === "number", "scan summary should record family source profile counts");
+  assert.ok(Array.isArray(scanSummary.topFamilySourceProfileNames), "scan summary should record top family source profile names");
   assert.ok(typeof scanSummary.rawPayloadBlockedCaptureTargetCount === "number", "scan summary should record raw-payload-blocked target counts");
   assert.ok(typeof scanSummary.rawPayloadBlockedFamilyCount === "number", "scan summary should record raw-payload-blocked family counts");
   assert.ok(Array.isArray(scanSummary.rawPayloadBlockedFamilyNames), "scan summary should record raw-payload-blocked family names");
@@ -105,6 +110,7 @@ async function main(): Promise<void> {
   console.log(`Translation payloads: ${scanSummary.translationPayloadCount} (${scanSummary.translationPayloadStatus})`);
   console.log(`Request-backed alternates: ${scanSummary.requestBackedStaticHintCount}`);
   console.log(`Capture families: ${scanSummary.captureFamilyCount} (${scanSummary.topCaptureFamilyNames.join(", ")})`);
+  console.log(`Family source profiles: ${scanSummary.familySourceProfileCount} (${scanSummary.topFamilySourceProfileNames.join(", ")})`);
   console.log(`Raw-payload-blocked targets: ${scanSummary.rawPayloadBlockedCaptureTargetCount}`);
   console.log(`Raw-payload-blocked families: ${scanSummary.rawPayloadBlockedFamilyCount} (${scanSummary.rawPayloadBlockedFamilyNames.join(", ")})`);
   console.log(`Next capture targets: ${scanSummary.nextCaptureTargetCount}`);

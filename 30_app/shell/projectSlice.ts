@@ -156,6 +156,7 @@ export interface DonorScanStatus {
   nextCaptureTargetsPath: string | null;
   captureRunPath: string | null;
   captureTargetFamiliesPath: string | null;
+  captureFamilySourceProfilesPath: string | null;
   runtimeCandidateCount: number;
   atlasManifestCount: number;
   bundleAssetMapStatus: string;
@@ -171,6 +172,8 @@ export interface DonorScanStatus {
   recentlyBlockedCaptureTargetCount: number;
   captureFamilyCount: number;
   topCaptureFamilyNames: string[];
+  familySourceProfileCount: number;
+  topFamilySourceProfileNames: string[];
   rawPayloadBlockedCaptureTargetCount: number;
   rawPayloadBlockedFamilyCount: number;
   rawPayloadBlockedFamilyNames: string[];
@@ -189,6 +192,15 @@ export interface DonorScanStatus {
     targetCount: number;
     untriedTargetCount: number;
     blockedTargetCount: number;
+  }>;
+  topFamilySourceProfiles: Array<{
+    familyName: string;
+    sourceState: string;
+    localPageCount: number;
+    atlasPageRefCount: number;
+    sameFamilyBundleReferenceCount: number;
+    sameFamilyVariantAssetCount: number;
+    nextStep: string;
   }>;
   nextCaptureTargets: Array<{
     url: string;
@@ -843,13 +855,15 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
   const nextCaptureTargetsPath = donor.nextCaptureTargetsPath
     ?? `10_donors/${donorId}/evidence/local_only/harvest/next-capture-targets.json`;
   const captureTargetFamiliesPath = `10_donors/${donorId}/evidence/local_only/harvest/capture-target-families.json`;
+  const captureFamilySourceProfilesPath = `10_donors/${donorId}/evidence/local_only/harvest/capture-family-source-profiles.json`;
   const captureRunPath = `10_donors/${donorId}/evidence/local_only/harvest/next-capture-run.json`;
-  const [scanSummary, blockerSummaryMarkdown, nextCaptureTargetsFile, captureRunSummary, captureTargetFamiliesFile] = await Promise.all([
+  const [scanSummary, blockerSummaryMarkdown, nextCaptureTargetsFile, captureRunSummary, captureTargetFamiliesFile, captureFamilySourceProfilesFile] = await Promise.all([
     readOptionalJsonFile(path.join(workspaceRoot, scanSummaryPath)) as Promise<JsonObject | null>,
     readOptionalTextFile(path.join(workspaceRoot, blockerSummaryPath)),
     readOptionalJsonFile(path.join(workspaceRoot, nextCaptureTargetsPath)) as Promise<JsonObject | null>,
     readOptionalJsonFile(path.join(workspaceRoot, captureRunPath)) as Promise<JsonObject | null>,
-    readOptionalJsonFile(path.join(workspaceRoot, captureTargetFamiliesPath)) as Promise<JsonObject | null>
+    readOptionalJsonFile(path.join(workspaceRoot, captureTargetFamiliesPath)) as Promise<JsonObject | null>,
+    readOptionalJsonFile(path.join(workspaceRoot, captureFamilySourceProfilesPath)) as Promise<JsonObject | null>
   ]);
 
   if (!scanSummary) {
@@ -896,6 +910,32 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
         .filter((family) => family.familyName.length > 0)
         .slice(0, 5)
     : [];
+  const topFamilySourceProfiles = Array.isArray(captureFamilySourceProfilesFile?.families)
+    ? captureFamilySourceProfilesFile.families
+        .filter((value): value is JsonObject => Boolean(value) && typeof value === "object" && !Array.isArray(value))
+        .map((family) => ({
+          familyName: typeof family.familyName === "string" ? family.familyName : "",
+          sourceState: typeof family.sourceState === "string" ? family.sourceState : "unknown",
+          localPageCount: typeof family.localPageCount === "number" ? family.localPageCount : 0,
+          atlasPageRefCount: typeof family.atlasPageRefCount === "number" ? family.atlasPageRefCount : 0,
+          blockedTargetCount: typeof family.blockedTargetCount === "number" ? family.blockedTargetCount : 0,
+          targetCount: typeof family.targetCount === "number" ? family.targetCount : 0,
+          atlasManifestKindCount: Array.isArray(family.atlasManifestKinds) ? family.atlasManifestKinds.length : 0,
+          sameFamilyBundleReferenceCount: typeof family.sameFamilyBundleReferenceCount === "number" ? family.sameFamilyBundleReferenceCount : 0,
+          sameFamilyVariantAssetCount: typeof family.sameFamilyVariantAssetCount === "number" ? family.sameFamilyVariantAssetCount : 0,
+          nextStep: typeof family.nextStep === "string" ? family.nextStep : "Review the donor scan family source profile."
+        }))
+        .filter((family) =>
+          family.familyName.length > 0
+          && (
+            family.blockedTargetCount > 0
+            || family.atlasManifestKindCount > 0
+            || family.sameFamilyVariantAssetCount > 0
+            || family.targetCount >= 3
+          )
+        )
+        .slice(0, 5)
+    : [];
 
   return {
     donorId,
@@ -906,6 +946,7 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
     nextCaptureTargetsPath: nextCaptureTargetsFile ? nextCaptureTargetsPath : null,
     captureRunPath: captureRunSummary ? captureRunPath : null,
     captureTargetFamiliesPath: captureTargetFamiliesFile ? captureTargetFamiliesPath : null,
+    captureFamilySourceProfilesPath: captureFamilySourceProfilesFile ? captureFamilySourceProfilesPath : null,
     runtimeCandidateCount: typeof scanSummary.runtimeCandidateCount === "number" ? scanSummary.runtimeCandidateCount : (donor.runtimeCandidateCount ?? 0),
     atlasManifestCount: typeof scanSummary.atlasManifestCount === "number" ? scanSummary.atlasManifestCount : (donor.atlasManifestCount ?? 0),
     bundleAssetMapStatus: typeof scanSummary.bundleAssetMapStatus === "string" ? scanSummary.bundleAssetMapStatus : (donor.bundleAssetMapStatus ?? "unknown"),
@@ -923,6 +964,10 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
     topCaptureFamilyNames: Array.isArray(scanSummary.topCaptureFamilyNames)
       ? scanSummary.topCaptureFamilyNames.filter((value): value is string => typeof value === "string")
       : [],
+    familySourceProfileCount: typeof scanSummary.familySourceProfileCount === "number" ? scanSummary.familySourceProfileCount : 0,
+    topFamilySourceProfileNames: Array.isArray(scanSummary.topFamilySourceProfileNames)
+      ? scanSummary.topFamilySourceProfileNames.filter((value): value is string => typeof value === "string")
+      : [],
     rawPayloadBlockedCaptureTargetCount: typeof scanSummary.rawPayloadBlockedCaptureTargetCount === "number" ? scanSummary.rawPayloadBlockedCaptureTargetCount : 0,
     rawPayloadBlockedFamilyCount: typeof scanSummary.rawPayloadBlockedFamilyCount === "number" ? scanSummary.rawPayloadBlockedFamilyCount : 0,
     rawPayloadBlockedFamilyNames: Array.isArray(scanSummary.rawPayloadBlockedFamilyNames)
@@ -939,6 +984,7 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
     blockerHighlights,
     blockerSummaryMarkdown,
     topCaptureFamilies,
+    topFamilySourceProfiles,
     nextCaptureTargets
   };
 }

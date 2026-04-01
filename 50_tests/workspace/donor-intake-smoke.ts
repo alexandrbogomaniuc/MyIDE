@@ -52,6 +52,7 @@ function startFixtureServer(): Promise<{ server: http.Server; port: number }> {
           "window.assetUrl = '/audio/ambient.ogg';",
           "window.configUrl = '/config/game.json';",
           "window.atlasUrl = '/atlases/ui.atlas';",
+          "window.uiAtlasPage = '/atlases/ui.png';",
           "window.bundleMeta = {images:{\"spines/spin_1.png\":{e:\".png_80_80.webp\",f_e:\".f.png_80_90.png\"},\"spines/spin_2.png\":{e:\".png_80_80.webp\"},\"symbols/spin_3.png\":{e:\".png_80_80.webp\",f_e:\".f.png_80_90.png\"},\"requested/request_1.png\":{e:\".png_80_90.png\"}}};",
           "window.projectDesc = {localeResourcesPath:'https://translations.bgaming-network.com/SmokeDonor',defaultLanguage:'en',rulesUrl:'https://rules.bgaming-network.com/en/SmokeRules.json'};",
           "var at={resourcesPath:'https://fixture.example.test/',projectDesc:window.projectDesc},s={images:window.bundleMeta.images};",
@@ -391,6 +392,8 @@ async function main(): Promise<void> {
       nextCaptureTargetCount?: number;
       captureFamilyCount?: number;
       topCaptureFamilyNames?: string[];
+      familySourceProfileCount?: number;
+      topFamilySourceProfileNames?: string[];
       rawPayloadBlockedCaptureTargetCount?: number;
       rawPayloadBlockedFamilyCount?: number;
       rawPayloadBlockedFamilyNames?: string[];
@@ -411,6 +414,8 @@ async function main(): Promise<void> {
     assert.ok((scanSummary.nextCaptureTargetCount ?? 0) >= 1, "donor scan summary should expose next capture target counts");
     assert.equal(typeof scanSummary.captureFamilyCount, "number", "donor scan summary should surface capture family counts");
     assert.ok(Array.isArray(scanSummary.topCaptureFamilyNames), "donor scan summary should surface top capture family names");
+    assert.equal(typeof scanSummary.familySourceProfileCount, "number", "donor scan summary should surface family source profile counts");
+    assert.ok(Array.isArray(scanSummary.topFamilySourceProfileNames), "donor scan summary should surface top family source profile names");
     assert.equal(typeof scanSummary.rawPayloadBlockedCaptureTargetCount, "number", "donor scan summary should surface raw-payload-blocked target counts");
     assert.equal(typeof scanSummary.rawPayloadBlockedFamilyCount, "number", "donor scan summary should surface raw-payload-blocked family counts");
     assert.ok(Array.isArray(scanSummary.rawPayloadBlockedFamilyNames), "donor scan summary should surface raw-payload-blocked family names");
@@ -432,6 +437,38 @@ async function main(): Promise<void> {
           && target.alternateCaptureHints.some((hint) => typeof hint.url === "string" && hint.url.includes("/spines/spin_3.png"))
         ),
       "next capture targets should derive family-alias alternates from grounded same-basename path substitutions"
+    );
+    const familySourceProfiles = JSON.parse(await fs.readFile(path.join(donorRoot, "evidence", "local_only", "harvest", "capture-family-source-profiles.json"), "utf8")) as {
+      familyCount?: number;
+      families?: Array<{
+        familyName?: string;
+        sourceState?: string;
+        atlasPageRefCount?: number;
+        localPageCount?: number;
+        sameFamilyVariantAssetCount?: number;
+        nextStep?: string;
+      }>;
+    };
+    assert.ok((familySourceProfiles.familyCount ?? 0) >= 1, "donor scan should write family source profiles");
+    assert.ok(
+      Array.isArray(familySourceProfiles.families)
+        && familySourceProfiles.families.some((family) =>
+          family.familyName === "ui"
+          && family.sourceState === "local-pages-complete"
+          && (family.atlasPageRefCount ?? 0) >= 1
+          && (family.localPageCount ?? 0) >= 1
+        ),
+      "family source profiles should classify complete local atlas-page coverage when the donor already has the page image"
+    );
+    assert.ok(
+      Array.isArray(familySourceProfiles.families)
+        && familySourceProfiles.families.some((family) =>
+          family.familyName === "spin"
+          && family.sourceState === "variant-backed"
+          && (family.sameFamilyVariantAssetCount ?? 0) >= 1
+          && typeof family.nextStep === "string"
+        ),
+      "family source profiles should surface variant-backed families when bundle metadata already proves optimized image evidence"
     );
     assert.ok(
       Array.isArray(nextCaptureTargets.targets)

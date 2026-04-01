@@ -1,5 +1,5 @@
 import type { AssetClassificationSummary } from "./classifyAssets";
-import type { AtlasManifestFile, BundleAssetMapFile, CaptureBlockerFamiliesFile, CaptureRunFile, CaptureTargetFamiliesFile, DonorScanPaths, NextCaptureTargetsFile, RuntimeCandidatesFile } from "./shared";
+import type { AtlasManifestFile, BundleAssetMapFile, CaptureBlockerFamiliesFile, CaptureFamilySourceProfilesFile, CaptureRunFile, CaptureTargetFamiliesFile, DonorScanPaths, NextCaptureTargetsFile, RuntimeCandidatesFile } from "./shared";
 import { toRepoRelativePath, writeTextFile } from "./shared";
 
 interface WriteBlockerSummaryOptions {
@@ -12,6 +12,7 @@ interface WriteBlockerSummaryOptions {
   nextCaptureTargets: NextCaptureTargetsFile;
   captureTargetFamilies: CaptureTargetFamiliesFile;
   captureBlockerFamilies: CaptureBlockerFamiliesFile;
+  captureFamilySourceProfiles: CaptureFamilySourceProfilesFile;
   captureRun: CaptureRunFile | null;
   paths: DonorScanPaths;
 }
@@ -101,6 +102,7 @@ export async function writeBlockerSummary(options: WriteBlockerSummaryOptions): 
     `- Next capture targets: ${options.nextCaptureTargets.targetCount}`,
     `- Capture target families: ${options.captureTargetFamilies.familyCount}`,
     `- Capture blocker families: ${options.captureBlockerFamilies.familyCount}`,
+    `- Family source profiles: ${options.captureFamilySourceProfiles.familyCount}`,
     "",
     "## Early blocker answer",
     "",
@@ -129,6 +131,16 @@ export async function writeBlockerSummary(options: WriteBlockerSummaryOptions): 
           )
         ]
       : []),
+    ...(options.captureFamilySourceProfiles.families.length > 0
+      ? [
+          "",
+          "## Family Source Discovery Profiles",
+          "",
+          ...options.captureFamilySourceProfiles.families.slice(0, 8).map((family) =>
+            `- \`${family.familyName}\` — source state: \`${family.sourceState}\`, atlas pages: ${family.localPageCount}/${family.atlasPageRefCount}, same-family bundle refs: ${family.sameFamilyBundleReferenceCount}, same-family variants: ${family.sameFamilyVariantAssetCount}${family.relatedVariantAssetHints.length > 0 ? `, related variants: ${family.relatedVariantAssetHints.join(", ")}` : ""}. Next: ${family.nextStep}`
+          )
+        ]
+      : []),
     "",
     "## Backing artifacts",
     "",
@@ -140,6 +152,7 @@ export async function writeBlockerSummary(options: WriteBlockerSummaryOptions): 
     `- Next capture targets: \`${toRepoRelativePath(options.paths.nextCaptureTargetsPath)}\``,
     `- Capture target families: \`${toRepoRelativePath(options.paths.captureTargetFamiliesPath)}\``,
     `- Capture blocker families: \`${toRepoRelativePath(options.paths.captureBlockerFamiliesPath)}\``,
+    `- Family source profiles: \`${toRepoRelativePath(options.paths.captureFamilySourceProfilesPath)}\``,
     `- Latest capture run: \`${toRepoRelativePath(options.paths.captureRunPath)}\``,
     `- Existing asset manifest: \`${toRepoRelativePath(options.paths.assetManifestPath)}\``,
     `- Existing package graph: \`${toRepoRelativePath(options.paths.packageGraphPath)}\``
