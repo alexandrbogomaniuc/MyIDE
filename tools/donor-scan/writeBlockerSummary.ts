@@ -73,6 +73,7 @@ export async function writeBlockerSummary(options: WriteBlockerSummaryOptions): 
     `- Runtime candidate count: ${options.runtimeCandidates.runtimeCandidateCount}`,
     `- Atlas metadata count: ${options.atlasManifestFile.manifests.length}`,
     `- Bundle asset-map status: \`${options.bundleAssetMap.status}\``,
+    `- Bundle image variants: \`${options.bundleAssetMap.imageVariantStatus}\` (${options.bundleAssetMap.imageVariantEntryCount} logical entries / ${options.bundleAssetMap.imageVariantSuffixCount} suffix tokens)`,
     `- Mirror candidate status: \`${options.runtimeCandidates.mirrorCandidateStatus}\``,
     `- Next capture targets: ${options.nextCaptureTargets.targetCount}`,
     "",

@@ -53,6 +53,9 @@ export interface DonorIntakeResult {
   runtimeCandidateCount?: number;
   atlasManifestCount?: number;
   bundleAssetMapStatus?: BundleAssetMapStatus;
+  bundleImageVariantStatus?: BundleAssetMapStatus;
+  bundleImageVariantCount?: number;
+  bundleImageVariantSuffixCount?: number;
   mirrorCandidateStatus?: MirrorCandidateStatus;
   nextCaptureTargetCount?: number;
   nextOperatorAction?: string;
@@ -899,6 +902,7 @@ function buildIntakeReport(result: DonorIntakeResult, donorName: string): string
     lines.push(`- Runtime candidate count: ${result.runtimeCandidateCount ?? 0}`);
     lines.push(`- Atlas metadata count: ${result.atlasManifestCount ?? 0}`);
     lines.push(`- Bundle asset-map status: \`${result.bundleAssetMapStatus ?? "unknown"}\``);
+    lines.push(`- Bundle image variants: \`${result.bundleImageVariantStatus ?? "unknown"}\` (${result.bundleImageVariantCount ?? 0} logical entries / ${result.bundleImageVariantSuffixCount ?? 0} suffix tokens)`);
     lines.push(`- Mirror candidate status: \`${result.mirrorCandidateStatus ?? "unknown"}\``);
     lines.push(`- Next capture target count: ${result.nextCaptureTargetCount ?? 0}`);
     lines.push(`- Next operator action: ${result.nextOperatorAction ?? "not recorded"}`);
@@ -973,6 +977,9 @@ export async function bootstrapDonorIntake(options: BootstrapDonorIntakeOptions)
     runtimeCandidateCount: 0,
     atlasManifestCount: 0,
     bundleAssetMapStatus: donorLaunchUrl && harvestAssets ? "blocked" : "skipped",
+    bundleImageVariantStatus: donorLaunchUrl && harvestAssets ? "blocked" : "skipped",
+    bundleImageVariantCount: 0,
+    bundleImageVariantSuffixCount: 0,
     mirrorCandidateStatus: donorLaunchUrl && harvestAssets ? "blocked" : "blocked",
     nextCaptureTargetCount: 0,
     attemptedAssetCount: 0,
@@ -1055,6 +1062,9 @@ export async function bootstrapDonorIntake(options: BootstrapDonorIntakeOptions)
       result.runtimeCandidateCount = scanResult.runtimeCandidateCount;
       result.atlasManifestCount = scanResult.atlasManifestCount;
       result.bundleAssetMapStatus = scanResult.bundleAssetMapStatus;
+      result.bundleImageVariantStatus = scanResult.bundleImageVariantStatus;
+      result.bundleImageVariantCount = scanResult.bundleImageVariantCount;
+      result.bundleImageVariantSuffixCount = scanResult.bundleImageVariantSuffixCount;
       result.mirrorCandidateStatus = scanResult.mirrorCandidateStatus;
       result.nextCaptureTargetCount = scanResult.nextCaptureTargetCount;
       result.nextOperatorAction = scanResult.nextOperatorAction;

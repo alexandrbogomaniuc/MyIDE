@@ -52,6 +52,7 @@ function startFixtureServer(): Promise<{ server: http.Server; port: number }> {
           "window.assetUrl = '/audio/ambient.ogg';",
           "window.configUrl = '/config/game.json';",
           "window.atlasUrl = '/atlases/ui.atlas';",
+          "window.bundleMeta = {images:{\"spines/spin_1.png\":{e:\".png_80_80.webp\",f_e:\".f.png_80_90.png\"},\"spines/spin_2.png\":{e:\".png_80_80.webp\"},\"requested/request_1.png\":{e:\".png_80_90.png\"}}};",
           "window.altSpin1 = '/spines/spin_1.png';",
           "window.altSpin2 = '/spines/spin_2.png';",
           "console.log('smoke bundle');"
@@ -294,11 +295,29 @@ async function main(): Promise<void> {
     const bundleAssetMap = JSON.parse(await fs.readFile(path.join(donorRoot, "evidence", "local_only", "harvest", "bundle-asset-map.json"), "utf8")) as {
       status?: string;
       referenceCount?: number;
+      imageVariantStatus?: string;
+      imageVariantEntryCount?: number;
+      imageVariantSuffixCount?: number;
+      imageVariantFieldCounts?: Record<string, number>;
+      imageVariants?: Array<{ logicalPath?: string; variants?: Record<string, string> }>;
       countsByCategory?: Record<string, number>;
     };
     assert.equal(bundleAssetMap.status, "mapped", "donor scan should map bundle asset references");
     assert.ok((bundleAssetMap.referenceCount ?? 0) >= 3, "bundle asset map should expose grounded bundle references");
     assert.ok((bundleAssetMap.countsByCategory?.json ?? 0) >= 1, "bundle asset map should classify runtime metadata references");
+    assert.equal(bundleAssetMap.imageVariantStatus, "mapped", "bundle asset map should expose bundle image variant metadata when the bundle carries an images table");
+    assert.ok((bundleAssetMap.imageVariantEntryCount ?? 0) >= 3, "bundle asset map should count logical image entries from the bundle images table");
+    assert.ok((bundleAssetMap.imageVariantSuffixCount ?? 0) >= 4, "bundle asset map should count extracted variant suffix tokens");
+    assert.ok((bundleAssetMap.imageVariantFieldCounts?.e ?? 0) >= 3, "bundle asset map should count primary variant suffix fields");
+    assert.ok((bundleAssetMap.imageVariantFieldCounts?.f_e ?? 0) >= 1, "bundle asset map should count fallback variant suffix fields");
+    assert.ok(
+      Array.isArray(bundleAssetMap.imageVariants)
+        && bundleAssetMap.imageVariants.some((entry) =>
+          entry.logicalPath?.includes("spines/spin_1.png")
+          && entry.variants?.f_e === ".f.png_80_90.png"
+        ),
+      "bundle asset map should preserve per-image variant metadata without guessing final URLs"
+    );
 
     const atlasManifests = JSON.parse(await fs.readFile(path.join(donorRoot, "evidence", "local_only", "harvest", "atlas-manifests.json"), "utf8")) as {
       atlasTextCount?: number;
@@ -316,6 +335,9 @@ async function main(): Promise<void> {
       runtimeCandidateCount?: number;
       atlasManifestCount?: number;
       bundleAssetMapStatus?: string;
+      bundleImageVariantStatus?: string;
+      bundleImageVariantCount?: number;
+      bundleImageVariantSuffixCount?: number;
       mirrorCandidateStatus?: string;
       nextCaptureTargetCount?: number;
       nextOperatorAction?: string;
@@ -324,6 +346,9 @@ async function main(): Promise<void> {
     assert.ok((scanSummary.runtimeCandidateCount ?? 0) >= 4, "donor scan summary should expose runtime candidate counts");
     assert.ok((scanSummary.atlasManifestCount ?? 0) >= 3, "donor scan summary should expose atlas metadata counts");
     assert.equal(scanSummary.bundleAssetMapStatus, "mapped", "donor scan summary should surface bundle map status");
+    assert.equal(scanSummary.bundleImageVariantStatus, "mapped", "donor scan summary should surface bundle image variant status");
+    assert.ok((scanSummary.bundleImageVariantCount ?? 0) >= 3, "donor scan summary should surface bundle image variant counts");
+    assert.ok((scanSummary.bundleImageVariantSuffixCount ?? 0) >= 4, "donor scan summary should surface bundle image variant suffix counts");
     assert.equal(typeof scanSummary.mirrorCandidateStatus, "string", "donor scan summary should surface mirror candidate status");
     assert.ok((scanSummary.nextCaptureTargetCount ?? 0) >= 1, "donor scan summary should expose next capture target counts");
     assert.equal(typeof scanSummary.nextOperatorAction, "string", "donor scan summary should recommend the next operator action");

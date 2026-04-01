@@ -157,6 +157,20 @@ export interface BundleAssetMapReference {
   localPath: string | null;
 }
 
+export interface BundleImageVariantRecord {
+  bundleSourceUrl: string;
+  bundleLocalPath: string;
+  logicalPath: string;
+  resolvedUrl: string | null;
+  confidence: ReferenceConfidence;
+  localStatus: "downloaded" | "inventory-only" | "missing";
+  localPath: string | null;
+  variantKeys: string[];
+  variants: Record<string, string>;
+  variantCount: number;
+  note: string;
+}
+
 export interface BundleAssetMapFile {
   schemaVersion: string;
   donorId: string;
@@ -165,6 +179,10 @@ export interface BundleAssetMapFile {
   status: BundleAssetMapStatus;
   bundleCount: number;
   referenceCount: number;
+  imageVariantStatus: BundleAssetMapStatus;
+  imageVariantEntryCount: number;
+  imageVariantSuffixCount: number;
+  imageVariantFieldCounts: Record<string, number>;
   countsByConfidence: Record<ReferenceConfidence, number>;
   countsByCategory: Record<string, number>;
   bundles: Array<{
@@ -172,6 +190,7 @@ export interface BundleAssetMapFile {
     localPath: string;
     referenceCount: number;
   }>;
+  imageVariants: BundleImageVariantRecord[];
   references: BundleAssetMapReference[];
 }
 
@@ -279,6 +298,9 @@ export interface DonorScanResult {
   runtimeCandidateCount: number;
   atlasManifestCount: number;
   bundleAssetMapStatus: BundleAssetMapStatus;
+  bundleImageVariantStatus: BundleAssetMapStatus;
+  bundleImageVariantCount: number;
+  bundleImageVariantSuffixCount: number;
   mirrorCandidateStatus: MirrorCandidateStatus;
   nextCaptureTargetCount: number;
   nextOperatorAction: string;

@@ -96,6 +96,7 @@ Use this when testing the current local MyIDE build by hand.
    - If linkage is not grounded, the shell should say so plainly instead of inventing provenance.
 12. Donor scan guidance
    - In the donor summary, confirm the shell now shows a donor scan state plus top next capture targets.
+   - Confirm the donor scan summary now also shows bundle image-variant status plus logical-entry and suffix counts when the donor bundle exposes that metadata.
    - If next capture targets are present, click **Run Guided Capture** once and confirm the shell reports a guided capture result with attempted/downloaded/failed counts.
    - Confirm the guided capture result now also exposes attempted fallback URLs, so placeholder-style or bundle-sibling rewrites are visible instead of hidden.
    - Use **Copy Capture Targets Path** or **Copy Top Targets** once and confirm the shell exposes the current next capture target set without opening raw harvest files by hand.

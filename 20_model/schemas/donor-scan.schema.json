@@ -13,6 +13,9 @@
     "runtimeCandidateCount",
     "atlasManifestCount",
     "bundleAssetMapStatus",
+    "bundleImageVariantStatus",
+    "bundleImageVariantCount",
+    "bundleImageVariantSuffixCount",
     "mirrorCandidateStatus",
     "fullLocalRuntimePackage",
     "partialLocalRuntimePackage",
@@ -96,6 +99,16 @@
     "bundleAssetMapStatus": {
       "type": "string",
       "enum": ["mapped", "blocked", "skipped"]
+    },
+    "bundleImageVariantStatus": {
+      "type": "string",
+      "enum": ["mapped", "blocked", "skipped"]
+    },
+    "bundleImageVariantCount": {
+      "type": "integer"
+    },
+    "bundleImageVariantSuffixCount": {
+      "type": "integer"
     },
     "bundleReferenceCount": {
       "type": "integer"

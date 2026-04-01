@@ -10149,6 +10149,9 @@ function getSelectedProjectEvidenceSummary() {
     donorRuntimeCandidateCount: typeof donorScan?.runtimeCandidateCount === "number" ? donorScan.runtimeCandidateCount : (typeof selectedProject.donor?.runtimeCandidateCount === "number" ? selectedProject.donor.runtimeCandidateCount : 0),
     donorAtlasManifestCount: typeof donorScan?.atlasManifestCount === "number" ? donorScan.atlasManifestCount : (typeof selectedProject.donor?.atlasManifestCount === "number" ? selectedProject.donor.atlasManifestCount : 0),
     donorBundleAssetMapStatus: typeof donorScan?.bundleAssetMapStatus === "string" ? donorScan.bundleAssetMapStatus : (typeof selectedProject.donor?.bundleAssetMapStatus === "string" ? selectedProject.donor.bundleAssetMapStatus : null),
+    donorBundleImageVariantStatus: typeof donorScan?.bundleImageVariantStatus === "string" ? donorScan.bundleImageVariantStatus : "unknown",
+    donorBundleImageVariantCount: typeof donorScan?.bundleImageVariantCount === "number" ? donorScan.bundleImageVariantCount : 0,
+    donorBundleImageVariantSuffixCount: typeof donorScan?.bundleImageVariantSuffixCount === "number" ? donorScan.bundleImageVariantSuffixCount : 0,
     donorMirrorCandidateStatus: typeof donorScan?.mirrorCandidateStatus === "string" ? donorScan.mirrorCandidateStatus : (typeof selectedProject.donor?.mirrorCandidateStatus === "string" ? selectedProject.donor.mirrorCandidateStatus : null),
     donorRequestBackedStaticHintCount: typeof donorScan?.requestBackedStaticHintCount === "number" ? donorScan.requestBackedStaticHintCount : 0,
     donorRecentlyBlockedCaptureTargetCount: typeof donorScan?.recentlyBlockedCaptureTargetCount === "number" ? donorScan.recentlyBlockedCaptureTargetCount : 0,
@@ -14742,6 +14745,9 @@ function renderEvidenceBrowser() {
             <span>${summary.donorRuntimeCandidateCount} runtime candidates</span>
             <span>${summary.donorAtlasManifestCount} atlas metadata</span>
             <span>${summary.donorBundleAssetMapStatus ? escapeHtml(summary.donorBundleAssetMapStatus) : "unknown"} bundle map</span>
+            <span>${escapeHtml(summary.donorBundleImageVariantStatus || "unknown")} bundle image variants</span>
+            <span>${summary.donorBundleImageVariantCount} logical image entries</span>
+            <span>${summary.donorBundleImageVariantSuffixCount} variant suffixes</span>
             <span>${summary.donorMirrorCandidateStatus ? escapeHtml(summary.donorMirrorCandidateStatus) : "unknown"} mirror status</span>
             <span>${summary.donorRequestBackedStaticHintCount} request-backed alternates</span>
             <span>${summary.donorRecentlyBlockedCaptureTargetCount} recently blocked</span>
@@ -15183,6 +15189,8 @@ function renderProjectSummary() {
           </div>
         ` : ""}
         <div class="chip-row">
+          <span>${typeof donorScan?.bundleImageVariantCount === "number" ? donorScan.bundleImageVariantCount : 0} bundle image entries</span>
+          <span>${typeof donorScan?.bundleImageVariantSuffixCount === "number" ? donorScan.bundleImageVariantSuffixCount : 0} variant suffixes</span>
           <span>${typeof donorScan?.requestBackedStaticHintCount === "number" ? donorScan.requestBackedStaticHintCount : 0} request-backed alternates</span>
           <span>${typeof donorScan?.recentlyBlockedCaptureTargetCount === "number" ? donorScan.recentlyBlockedCaptureTargetCount : 0} recently blocked</span>
           <span>${typeof donorScan?.nextCaptureTargetCount === "number" ? donorScan.nextCaptureTargetCount : 0} next capture targets</span>

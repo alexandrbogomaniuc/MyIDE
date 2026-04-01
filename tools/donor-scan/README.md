@@ -15,9 +15,10 @@ and answers early:
 2. what assets exist
 3. what atlas/frame metadata exists
 4. what bundle asset references exist
-5. whether a local mirror candidate is weak, strong-partial, or blocked
-6. what the current blockers are
-7. what the next operator action should be
+5. whether bundles expose structured image variant metadata
+6. whether a local mirror candidate is weak, strong-partial, or blocked
+7. what the current blockers are
+8. what the next operator action should be
 
 ## Commands
 
@@ -51,6 +52,13 @@ Key files:
 - `package-graph.json`
 - `blocker-summary.md`
 - `scan-summary.json`
+
+`bundle-asset-map.json` now preserves two kinds of grounded bundle evidence:
+
+- ordinary resolved references extracted from bundle text
+- structured `images:{...}` table metadata when a bundle exposes per-image variant suffix fields such as `e` and `f_e`
+
+Those bundle image variants are recorded as evidence only. Donor scan does not fabricate final optimized URLs from those suffix tokens unless loader/runtime code later proves the exact URL construction.
 
 `request-backed-static-hints.json` is an optional supporting donor-scan artifact. When live runtime harvest evidence exists, donor scan normalizes exact request-backed static alternates there first and then reuses them in ranked capture targets.
 
@@ -86,3 +94,4 @@ Current grounded result:
 - full standalone local runtime package: no
 - atlas/frame metadata present locally: yes
 - atlas/frame import feasible right now: no, because referenced page images and deeper runtime payloads are still missing
+- bundle image variant metadata present locally: yes, with `233` logical image entries and `385` suffix tokens currently extracted from `bundle.js`

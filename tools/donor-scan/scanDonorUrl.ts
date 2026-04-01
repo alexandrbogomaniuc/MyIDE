@@ -74,6 +74,7 @@ async function main(): Promise<void> {
   console.log(`Runtime candidates: ${result.runtimeCandidateCount}`);
   console.log(`Atlas metadata count: ${result.atlasManifestCount}`);
   console.log(`Bundle asset-map status: ${result.bundleAssetMapStatus}`);
+  console.log(`Bundle image variants: ${result.bundleImageVariantCount} entries / ${result.bundleImageVariantSuffixCount} suffix tokens (${result.bundleImageVariantStatus})`);
   console.log(`Mirror candidate status: ${result.mirrorCandidateStatus}`);
   console.log(`Next operator action: ${result.nextOperatorAction}`);
 }

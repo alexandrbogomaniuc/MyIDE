@@ -158,6 +158,9 @@ export interface DonorScanStatus {
   runtimeCandidateCount: number;
   atlasManifestCount: number;
   bundleAssetMapStatus: string;
+  bundleImageVariantStatus: string;
+  bundleImageVariantCount: number;
+  bundleImageVariantSuffixCount: number;
   mirrorCandidateStatus: string;
   requestBackedStaticHintCount: number;
   recentlyBlockedCaptureTargetCount: number;
@@ -873,6 +876,9 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
     runtimeCandidateCount: typeof scanSummary.runtimeCandidateCount === "number" ? scanSummary.runtimeCandidateCount : (donor.runtimeCandidateCount ?? 0),
     atlasManifestCount: typeof scanSummary.atlasManifestCount === "number" ? scanSummary.atlasManifestCount : (donor.atlasManifestCount ?? 0),
     bundleAssetMapStatus: typeof scanSummary.bundleAssetMapStatus === "string" ? scanSummary.bundleAssetMapStatus : (donor.bundleAssetMapStatus ?? "unknown"),
+    bundleImageVariantStatus: typeof scanSummary.bundleImageVariantStatus === "string" ? scanSummary.bundleImageVariantStatus : "unknown",
+    bundleImageVariantCount: typeof scanSummary.bundleImageVariantCount === "number" ? scanSummary.bundleImageVariantCount : 0,
+    bundleImageVariantSuffixCount: typeof scanSummary.bundleImageVariantSuffixCount === "number" ? scanSummary.bundleImageVariantSuffixCount : 0,
     mirrorCandidateStatus: typeof scanSummary.mirrorCandidateStatus === "string" ? scanSummary.mirrorCandidateStatus : (donor.mirrorCandidateStatus ?? "unknown"),
     requestBackedStaticHintCount: typeof scanSummary.requestBackedStaticHintCount === "number" ? scanSummary.requestBackedStaticHintCount : 0,
     recentlyBlockedCaptureTargetCount: typeof scanSummary.recentlyBlockedCaptureTargetCount === "number" ? scanSummary.recentlyBlockedCaptureTargetCount : nextCaptureTargets.filter((target) => target.recentCaptureStatus === "blocked").length,
