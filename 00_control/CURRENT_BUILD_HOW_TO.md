@@ -65,7 +65,8 @@ Recommended rule:
 16. Scene sections now also expose grouped **Scale Section Up** and **Scale Section Down**, so one imported grouped game-part kit can be resized around its current section center as a bounded edit instead of scaling each child object manually.
 17. Scene sections now also expose **Restore Section Defaults**, so one imported grouped game-part kit can return to a clean baseline in one action: visible, unlocked, reset to its inferred scene-kit layout, back to 100% scale, and restored to its suggested layer when available.
 18. Scene sections now also expose a session-only **Solo Section** view, so one imported grouped game-part kit can temporarily take over the viewport and scene explorer without changing saved visibility or layer rules.
-19. This is still only a bounded donor-package slice. It does not yet recurse through the full runtime package or expose full game logic as editable objects.
+19. Scene sections now also expose **Send Section Backward** and **Bring Section Forward**, so one imported grouped game-part kit can move through the layer stack as a bounded grouped section instead of reordering child objects one by one.
+20. This is still only a bounded donor-package slice. It does not yet recurse through the full runtime package or expose full game logic as editable objects.
 
 ## 3. Runtime Mode Is The Primary Workflow
 1. `project_001` now opens into **Runtime** mode when the grounded donor runtime entry is available.
@@ -132,6 +133,7 @@ Current editable workflow:
 - use **Scale Section Up** or **Scale Section Down** when you want one grouped game-part kit to grow or shrink around its current section center without touching every child object one by one
 - use **Restore Section Defaults** when you want one grouped game-part kit to snap back to a clean working baseline without chaining several section actions manually
 - use **Solo Section** when you want to focus on one imported grouped game-part kit in isolation without saving new visibility changes into the project
+- use **Send Section Backward** or **Bring Section Forward** when you want one grouped game-part kit to move through its current layer stack as one unit instead of reordering each child object by hand
 - use **Restore Suggested Layer** when you want one grouped section to jump back to its inferred scene-kit target layer instead of reassigning every child object one by one
 - align placeholder-backed objects to the viewport
 - reassign objects between unlocked layers

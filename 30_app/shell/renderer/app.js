@@ -10710,6 +10710,108 @@ async function clearSceneSectionRuntimeOverride(sectionId) {
   });
 }
 
+function reorderSceneSectionInLayers(editorData, sectionObjectIds, action) {
+  if (!editorData || !Array.isArray(editorData.objects) || !Array.isArray(sectionObjectIds) || sectionObjectIds.length === 0) {
+    return { changed: false, layerSummaries: [] };
+  }
+
+  const validActions = new Set(["send-backward", "bring-forward", "send-to-back", "bring-to-front"]);
+  if (!validActions.has(action)) {
+    return { changed: false, layerSummaries: [] };
+  }
+
+  const sectionIdSet = new Set(uniqueStrings(sectionObjectIds));
+  const layerIds = uniqueStrings(
+    editorData.objects
+      .filter((entry) => sectionIdSet.has(entry.id))
+      .map((entry) => entry.layerId)
+      .filter((entry) => typeof entry === "string" && entry.length > 0)
+  );
+  const layerSummaries = [];
+
+  for (const layerId of layerIds) {
+    const layerObjects = editorData.objects.filter((entry) => entry.layerId === layerId);
+    const sectionObjectsInLayer = layerObjects.filter((entry) => sectionIdSet.has(entry.id));
+    if (layerObjects.length < 2 || sectionObjectsInLayer.length === 0) {
+      continue;
+    }
+
+    const firstIndex = layerObjects.findIndex((entry) => sectionIdSet.has(entry.id));
+    const lastIndex = layerObjects.length - 1 - [...layerObjects].reverse().findIndex((entry) => sectionIdSet.has(entry.id));
+    if (firstIndex < 0 || lastIndex < 0) {
+      continue;
+    }
+
+    const remainingObjects = layerObjects.filter((entry) => !sectionIdSet.has(entry.id));
+    const beforeStartIndex = firstIndex;
+    let insertIndex = null;
+
+    if (action === "send-to-back") {
+      insertIndex = 0;
+    } else if (action === "bring-to-front") {
+      insertIndex = remainingObjects.length;
+    } else if (action === "send-backward") {
+      const previousObject = layerObjects[firstIndex - 1] ?? null;
+      if (!previousObject) {
+        continue;
+      }
+      const previousIndex = remainingObjects.findIndex((entry) => entry.id === previousObject.id);
+      if (previousIndex < 0) {
+        continue;
+      }
+      insertIndex = previousIndex;
+    } else if (action === "bring-forward") {
+      const nextObject = layerObjects[lastIndex + 1] ?? null;
+      if (!nextObject) {
+        continue;
+      }
+      const nextIndex = remainingObjects.findIndex((entry) => entry.id === nextObject.id);
+      if (nextIndex < 0) {
+        continue;
+      }
+      insertIndex = nextIndex + 1;
+    }
+
+    if (!Number.isInteger(insertIndex)) {
+      continue;
+    }
+
+    const nextLayerObjects = [
+      ...remainingObjects.slice(0, insertIndex),
+      ...sectionObjectsInLayer,
+      ...remainingObjects.slice(insertIndex)
+    ];
+    const afterStartIndex = nextLayerObjects.findIndex((entry) => sectionIdSet.has(entry.id));
+    if (afterStartIndex === beforeStartIndex) {
+      continue;
+    }
+
+    const absoluteIndices = [];
+    for (let index = 0; index < editorData.objects.length; index += 1) {
+      if (editorData.objects[index]?.layerId === layerId) {
+        absoluteIndices.push(index);
+      }
+    }
+
+    absoluteIndices.forEach((absoluteIndex, index) => {
+      editorData.objects[absoluteIndex] = nextLayerObjects[index];
+    });
+
+    layerSummaries.push({
+      layerId,
+      layerName: getLayerById(layerId)?.displayName ?? layerId,
+      beforeStartIndex,
+      afterStartIndex,
+      total: layerObjects.length
+    });
+  }
+
+  return {
+    changed: layerSummaries.length > 0,
+    layerSummaries
+  };
+}
+
 function toggleSceneSectionIsolation(sectionId) {
   const sectionEntry = getSceneSectionEntryById(sectionId);
   if (!sectionEntry || !state.editorData) {
@@ -10749,6 +10851,44 @@ function toggleSceneSectionIsolation(sectionId) {
   pushLog(`Solo section view enabled for ${sectionEntry.label}.`);
   renderAll();
   setPreviewStatus(`Solo section view enabled for ${sectionEntry.label}. This is session-only${previousLayerIsolation ? ` and replaced solo layer view for ${previousLayerIsolation.displayName}` : ""}.`);
+}
+
+function reorderSceneSection(sectionId, action) {
+  const sectionEntry = getSceneSectionEntryById(sectionId);
+  if (!sectionEntry) {
+    setPreviewStatus("Could not find that scene section in the current internal scene.");
+    return;
+  }
+
+  if (state.canvasDrag || state.canvasResize || state.viewport.panDrag) {
+    setPreviewStatus(`Finish the current edit before changing order for scene section ${sectionEntry.label}.`);
+    return;
+  }
+
+  const sectionObjects = uniqueStrings([sectionEntry.id, ...sectionEntry.memberObjectIds])
+    .map((objectId) => getEditableObjectById(objectId))
+    .filter(Boolean);
+  const blockedObjects = sectionObjects.filter((entry) => !isObjectEditable(entry));
+  if (blockedObjects.length > 0) {
+    setPreviewStatus(`Scene section ${sectionEntry.label} cannot change order while ${blockedObjects.length} grouped object${blockedObjects.length === 1 ? "" : "s"} are locked.`);
+    return;
+  }
+
+  let reorderResult = null;
+  const didChange = applyEditorMutation(`Reordered scene section ${sectionEntry.label}.`, (editorData) => {
+    reorderResult = reorderSceneSectionInLayers(editorData, uniqueStrings([sectionEntry.id, ...sectionEntry.memberObjectIds]), action);
+  });
+
+  if (!didChange || !reorderResult?.changed) {
+    setPreviewStatus(`Scene section ${sectionEntry.label} is already at that ordering boundary in its current layer stack.`);
+    return;
+  }
+
+  const movedLayerNames = reorderResult.layerSummaries.map((entry) => entry.layerName);
+  focusSceneObjectGroupInWorkflow(sectionEntry.memberObjectIds, {
+    label: "scene section",
+    statusMessage: `${sectionEntry.label} was ${getOrderActionLabel(action)} across ${movedLayerNames.length} layer${movedLayerNames.length === 1 ? "" : "s"}: ${movedLayerNames.join(", ")}. ${sectionEntry.count} grouped object${sectionEntry.count === 1 ? "" : "s"} remain selected in Compose Mode.`
+  });
 }
 
 function duplicateSceneSection(sectionId) {
@@ -11553,6 +11693,20 @@ function handleNavigationClick(event) {
   if (toggleSceneSectionIsolationButton instanceof HTMLElement && toggleSceneSectionIsolationButton.dataset.toggleSceneSectionIsolationId) {
     event.preventDefault();
     toggleSceneSectionIsolation(toggleSceneSectionIsolationButton.dataset.toggleSceneSectionIsolationId);
+    return true;
+  }
+
+  const reorderSceneSectionButton = target.closest("[data-reorder-scene-section-id]");
+  if (
+    reorderSceneSectionButton instanceof HTMLElement
+    && reorderSceneSectionButton.dataset.reorderSceneSectionId
+    && reorderSceneSectionButton.dataset.reorderSceneSectionAction
+  ) {
+    event.preventDefault();
+    reorderSceneSection(
+      reorderSceneSectionButton.dataset.reorderSceneSectionId,
+      reorderSceneSectionButton.dataset.reorderSceneSectionAction
+    );
     return true;
   }
 
@@ -14693,6 +14847,8 @@ function renderSceneExplorer() {
                 <button type="button" class="copy-button" data-toggle-scene-section-visibility-id="${escapeAttribute(entry.id)}">${escapeHtml(sectionState?.visibilityButtonLabel ?? "Hide Section")}</button>
                 <button type="button" class="copy-button" data-toggle-scene-section-lock-id="${escapeAttribute(entry.id)}">${escapeHtml(sectionState?.lockButtonLabel ?? "Lock Section")}</button>
                 <button type="button" class="copy-button" data-toggle-scene-section-isolation-id="${escapeAttribute(entry.id)}">${escapeHtml(sectionState?.isolationButtonLabel ?? "Solo Section")}</button>
+                <button type="button" class="copy-button" data-reorder-scene-section-id="${escapeAttribute(entry.id)}" data-reorder-scene-section-action="send-backward">Send Section Backward</button>
+                <button type="button" class="copy-button" data-reorder-scene-section-id="${escapeAttribute(entry.id)}" data-reorder-scene-section-action="bring-forward">Bring Section Forward</button>
                 <button type="button" class="copy-button" data-scale-scene-section-up-id="${escapeAttribute(entry.id)}">Scale Section Up</button>
                 <button type="button" class="copy-button" data-scale-scene-section-down-id="${escapeAttribute(entry.id)}">Scale Section Down</button>
                 <button type="button" class="copy-button" data-restore-scene-section-defaults-id="${escapeAttribute(entry.id)}">Restore Section Defaults</button>
@@ -16697,6 +16853,8 @@ function renderInspector() {
             ${sceneKitContext.sectionId ? `<button type="button" class="copy-button" data-toggle-scene-section-visibility-id="${escapeAttribute(sceneKitContext.sectionId)}">${escapeHtml(sceneSectionState?.visibilityButtonLabel ?? "Hide Section")}</button>` : ""}
             ${sceneKitContext.sectionId ? `<button type="button" class="copy-button" data-toggle-scene-section-lock-id="${escapeAttribute(sceneKitContext.sectionId)}">${escapeHtml(sceneSectionState?.lockButtonLabel ?? "Lock Section")}</button>` : ""}
             ${sceneKitContext.sectionId ? `<button type="button" class="copy-button" data-toggle-scene-section-isolation-id="${escapeAttribute(sceneKitContext.sectionId)}">${escapeHtml(sceneSectionState?.isolationButtonLabel ?? "Solo Section")}</button>` : ""}
+            ${sceneKitContext.sectionId ? `<button type="button" class="copy-button" data-reorder-scene-section-id="${escapeAttribute(sceneKitContext.sectionId)}" data-reorder-scene-section-action="send-backward">Send Section Backward</button>` : ""}
+            ${sceneKitContext.sectionId ? `<button type="button" class="copy-button" data-reorder-scene-section-id="${escapeAttribute(sceneKitContext.sectionId)}" data-reorder-scene-section-action="bring-forward">Bring Section Forward</button>` : ""}
             ${sceneKitContext.sectionId ? `<button type="button" class="copy-button" data-scale-scene-section-up-id="${escapeAttribute(sceneKitContext.sectionId)}">Scale Section Up</button>` : ""}
             ${sceneKitContext.sectionId ? `<button type="button" class="copy-button" data-scale-scene-section-down-id="${escapeAttribute(sceneKitContext.sectionId)}">Scale Section Down</button>` : ""}
             ${sceneKitContext.sectionId ? `<button type="button" class="copy-button" data-restore-scene-section-defaults-id="${escapeAttribute(sceneKitContext.sectionId)}">Restore Section Defaults</button>` : ""}
@@ -17340,6 +17498,8 @@ function renderRuntimeInspector() {
             <button type="button" class="copy-button" data-toggle-scene-section-visibility-id="${escapeAttribute(selectedSceneKitContext.sectionId)}">${escapeHtml(selectedSceneSectionState?.visibilityButtonLabel ?? "Hide Section")}</button>
             <button type="button" class="copy-button" data-toggle-scene-section-lock-id="${escapeAttribute(selectedSceneKitContext.sectionId)}">${escapeHtml(selectedSceneSectionState?.lockButtonLabel ?? "Lock Section")}</button>
             <button type="button" class="copy-button" data-toggle-scene-section-isolation-id="${escapeAttribute(selectedSceneKitContext.sectionId)}">${escapeHtml(selectedSceneSectionState?.isolationButtonLabel ?? "Solo Section")}</button>
+            <button type="button" class="copy-button" data-reorder-scene-section-id="${escapeAttribute(selectedSceneKitContext.sectionId)}" data-reorder-scene-section-action="send-backward">Send Section Backward</button>
+            <button type="button" class="copy-button" data-reorder-scene-section-id="${escapeAttribute(selectedSceneKitContext.sectionId)}" data-reorder-scene-section-action="bring-forward">Bring Section Forward</button>
             <button type="button" class="copy-button" data-scale-scene-section-up-id="${escapeAttribute(selectedSceneKitContext.sectionId)}">Scale Section Up</button>
             <button type="button" class="copy-button" data-scale-scene-section-down-id="${escapeAttribute(selectedSceneKitContext.sectionId)}">Scale Section Down</button>
             <button type="button" class="copy-button" data-restore-scene-section-defaults-id="${escapeAttribute(selectedSceneKitContext.sectionId)}">Restore Section Defaults</button>
