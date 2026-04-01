@@ -31,6 +31,24 @@ function startFixtureServer(): Promise<{ server: http.Server; port: number }> {
         return;
       }
 
+      if (request.url === "/styles/app.css") {
+        response.writeHead(200, { "content-type": "text/css; charset=utf-8" });
+        response.end("body { background: #123; }");
+        return;
+      }
+
+      if (request.url === "/bundle.js") {
+        response.writeHead(200, { "content-type": "application/javascript; charset=utf-8" });
+        response.end("console.log('smoke bundle');");
+        return;
+      }
+
+      if (request.url === "/img/logo.png") {
+        response.writeHead(200, { "content-type": "image/png" });
+        response.end(Buffer.from("89504e470d0a1a0a", "hex"));
+        return;
+      }
+
       response.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
       response.end("not found");
     });
@@ -64,6 +82,8 @@ async function main(): Promise<void> {
     assert.equal(result.status, "captured", "donor intake should capture the fixture launch page");
     assert.equal(result.sourceHost, `127.0.0.1:${port}`, "source host should reflect the local fixture host");
     assert.ok(result.discoveredUrlCount >= 4, "intake should discover the launch URL plus referenced assets");
+    assert.equal(result.harvestStatus, "harvested", "direct static assets should be harvested");
+    assert.ok((result.harvestedAssetCount ?? 0) >= 3, "bundle, stylesheet, and logo should be harvested");
 
     const bootstrapHtml = await fs.readFile(path.join(donorRoot, "raw", "bootstrap", "launch.html"), "utf8");
     assert.match(bootstrapHtml, /Smoke Donor/, "captured HTML should be written to the donor pack");
@@ -75,8 +95,19 @@ async function main(): Promise<void> {
     assert.ok(discoveredUrls.some((url) => typeof url === "string" && url.includes("/bundle.js")), "bundle.js should appear in the discovered URL inventory");
     assert.ok(discoveredUrls.some((url) => typeof url === "string" && url.includes("/img/logo.png")), "logo image should appear in the discovered URL inventory");
 
+    const harvestManifest = JSON.parse(await fs.readFile(path.join(donorRoot, "evidence", "local_only", "harvest", "asset-manifest.json"), "utf8")) as {
+      harvestedAssetCount?: number;
+      entries?: Array<{ status?: string; localPath?: string; sourceUrl?: string }>;
+    };
+    assert.ok((harvestManifest.harvestedAssetCount ?? 0) >= 3, "harvest manifest should record downloaded assets");
+    assert.ok(
+      Array.isArray(harvestManifest.entries) && harvestManifest.entries.some((entry) => entry.status === "downloaded" && typeof entry.localPath === "string" && entry.sourceUrl?.includes("/bundle.js")),
+      "harvest manifest should include a downloaded bundle.js entry"
+    );
+
     const report = await fs.readFile(path.join(donorRoot, "reports", "DONOR_INTAKE_REPORT.md"), "utf8");
     assert.match(report, /Discovered URL count:/, "intake report should summarize discovered URL counts");
+    assert.match(report, /Harvested assets:/, "intake report should summarize harvested asset counts");
 
     console.log("PASS smoke:donor-intake");
     console.log(`Created donor intake pack: ${path.relative(workspaceRoot, donorRoot)}`);

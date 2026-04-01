@@ -52,6 +52,22 @@
       "type": "string",
       "minLength": 1
     },
+    "harvestStatus": {
+      "type": "string",
+      "enum": ["unknown", "harvested", "blocked", "skipped"]
+    },
+    "harvestManifestPath": {
+      "type": "string",
+      "minLength": 1
+    },
+    "harvestedAssetCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "failedAssetCount": {
+      "type": "integer",
+      "minimum": 0
+    },
     "notes": {
       "type": "string"
     }

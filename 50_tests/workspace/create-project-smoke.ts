@@ -57,15 +57,67 @@ async function main(): Promise<void> {
   const expectedProjectId = `project_${smokeSlug.replace(/-/g, "_")}`;
   const donorReference = `donor_smoke_onboarding_${smokeSlug.replace(/-/g, "_")}`;
   let smokeDonorRoot: string | null = null;
+  let fixtureServer: import("node:http").Server | null = null;
+  let fixturePort: number | null = null;
 
   await fs.mkdir(projectsRoot, { recursive: true });
 
   try {
+    const http = await import("node:http");
+    const fixtureHtml = [
+      "<!doctype html>",
+      "<html>",
+      "<head><link rel=\"stylesheet\" href=\"/styles/app.css\"></head>",
+      "<body>",
+      "<img src=\"/img/logo.png\" alt=\"logo\" />",
+      "<script src=\"/bundle.js\"></script>",
+      "</body>",
+      "</html>"
+    ].join("\n");
+    const serverResult = await new Promise<{ server: import("node:http").Server; port: number }>((resolve, reject) => {
+      const server = http.createServer((request, response) => {
+        if (request.url === "/launch") {
+          response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+          response.end(fixtureHtml);
+          return;
+        }
+        if (request.url === "/styles/app.css") {
+          response.writeHead(200, { "content-type": "text/css; charset=utf-8" });
+          response.end("body { color: #fff; }");
+          return;
+        }
+        if (request.url === "/bundle.js") {
+          response.writeHead(200, { "content-type": "application/javascript; charset=utf-8" });
+          response.end("console.log('smoke create project bundle');");
+          return;
+        }
+        if (request.url === "/img/logo.png") {
+          response.writeHead(200, { "content-type": "image/png" });
+          response.end(Buffer.from("89504e470d0a1a0a", "hex"));
+          return;
+        }
+        response.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
+        response.end("not found");
+      });
+      server.once("error", reject);
+      server.listen(0, "127.0.0.1", () => {
+        const address = server.address();
+        if (!address || typeof address === "string") {
+          reject(new Error("Failed to start create-project smoke donor fixture server."));
+          return;
+        }
+        resolve({ server, port: address.port });
+      });
+    });
+    fixtureServer = serverResult.server;
+    fixturePort = serverResult.port;
+
     const created = await createProjectFromInput({
       displayName: "Smoke Onboarding Project",
       slug: smokeSlug,
       gameFamily: "slot",
       donorReference,
+      donorLaunchUrl: `http://127.0.0.1:${fixturePort}/launch`,
       targetDisplayName: "Smoke Onboarding Resulting Game",
       notes: "Temporary smoke project used to prove create -> discover -> registry -> shell visibility."
     });
@@ -75,6 +127,10 @@ async function main(): Promise<void> {
     smokeDonorRoot = typeof donor.donorId === "string"
       ? path.join(workspaceRoot, "10_donors", donor.donorId)
       : null;
+    assert.equal(donor.harvestStatus, "harvested", "smoke donor harvest should complete");
+    assert.equal(typeof donor.harvestManifestPath, "string", "smoke donor harvest manifest path should be recorded");
+    assert.equal(typeof donor.harvestedAssetCount, "number", "smoke donor harvest count should be recorded");
+    assert.ok((donor.harvestedAssetCount as number) >= 3, "smoke donor harvest should download the fixture assets");
     const projectMetaValid = validateProjectMeta(meta);
     assert(projectMetaValid, `smoke project meta failed schema validation: ${formatErrors(validateProjectMeta.errors)}`);
 
@@ -112,6 +168,17 @@ async function main(): Promise<void> {
     await fs.rm(smokeProjectRoot, { recursive: true, force: true });
     if (smokeDonorRoot) {
       await fs.rm(smokeDonorRoot, { recursive: true, force: true });
+    }
+    if (fixtureServer) {
+      await new Promise<void>((resolve, reject) => {
+        fixtureServer?.close((error) => {
+          if (error) {
+            reject(error);
+            return;
+          }
+          resolve();
+        });
+      });
     }
   }
 }

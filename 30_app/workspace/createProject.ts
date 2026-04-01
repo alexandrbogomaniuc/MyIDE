@@ -39,6 +39,7 @@ export interface ShellCreateProjectInput {
   gameFamily: ProjectMetaLike["gameFamily"];
   donorReference: string;
   donorLaunchUrl?: string;
+  harvestDonorAssets?: boolean;
   targetDisplayName: string;
   notes?: string;
 }
@@ -102,6 +103,10 @@ export interface ProjectMetaLike {
     resolvedLaunchUrl?: string;
     sourceHost?: string;
     intakeReportPath?: string;
+    harvestStatus?: "unknown" | "harvested" | "blocked" | "skipped";
+    harvestManifestPath?: string;
+    harvestedAssetCount?: number;
+    failedAssetCount?: number;
     notes?: string;
   };
   targetGame: {
@@ -377,6 +382,10 @@ function normalizeDonor(value: unknown, relativeProjectRoot: string, projectName
     resolvedLaunchUrl: optionalString(donor.resolvedLaunchUrl),
     sourceHost: optionalString(donor.sourceHost),
     intakeReportPath: optionalString(donor.intakeReportPath),
+    harvestStatus: (optionalString(donor.harvestStatus) as ProjectMetaLike["donor"]["harvestStatus"] | undefined) ?? "unknown",
+    harvestManifestPath: optionalString(donor.harvestManifestPath),
+    harvestedAssetCount: typeof donor.harvestedAssetCount === "number" ? donor.harvestedAssetCount : undefined,
+    failedAssetCount: typeof donor.failedAssetCount === "number" ? donor.failedAssetCount : undefined,
     notes: optionalString(donor.notes) ?? `${projectName} scaffold only. Replace with evidence-backed donor references before validation.`
   };
 }
@@ -592,6 +601,7 @@ export function buildProjectMetaFromInput(input: ShellCreateProjectInput): Proje
   const slug = slugify(requireTrimmedString(input.slug, "slug"));
   const donorReference = requireTrimmedString(input.donorReference, "donorReference");
   const donorLaunchUrl = optionalString(input.donorLaunchUrl)?.trim();
+  const harvestDonorAssets = input.harvestDonorAssets !== false;
   const targetDisplayName = requireTrimmedString(input.targetDisplayName, "targetDisplayName");
   const notesInput = optionalString(input.notes)?.trim();
   const projectRoot = `40_projects/${slug}`;
@@ -635,8 +645,12 @@ export function buildProjectMetaFromInput(input: ShellCreateProjectInput): Proje
         }
       })() : undefined,
       intakeReportPath: `10_donors/${donorId}/reports/DONOR_INTAKE_REPORT.md`,
+      harvestStatus: donorLaunchUrl ? (harvestDonorAssets ? "unknown" : "skipped") : "unknown",
+      harvestManifestPath: donorLaunchUrl && harvestDonorAssets ? `10_donors/${donorId}/evidence/local_only/harvest/asset-manifest.json` : undefined,
       notes: donorLaunchUrl
-        ? "Shell-created donor reference with a first launch URL queued for intake capture. Replace scaffold claims with evidence-backed donor materials before validation."
+        ? (harvestDonorAssets
+          ? "Shell-created donor reference with launch capture plus first-pass asset harvest queued. Replace scaffold claims with evidence-backed donor materials before validation."
+          : "Shell-created donor reference with a first launch URL queued for intake capture. Replace scaffold claims with evidence-backed donor materials before validation.")
         : "Shell-created donor reference only. Add a donor launch URL or evidence-backed donor materials before validation."
     },
     targetGame: {
@@ -664,7 +678,9 @@ export function buildProjectMetaFromInput(input: ShellCreateProjectInput): Proje
       plannedWork: notesInput
         ? [notesInput]
         : [donorLaunchUrl
-          ? "Review the donor intake report and convert first-pass URL discovery into evidence-backed donor capture work."
+          ? (harvestDonorAssets
+            ? "Review the donor intake report plus harvested asset manifest and convert that first-pass donor package into evidence-backed donor capture work."
+            : "Review the donor intake report and convert first-pass URL discovery into evidence-backed donor capture work.")
           : "Replace scaffold metadata with evidence-backed donor, import, and replay details."],
       assumptions: [
         "This project remains unvalidated until donor evidence and internal replay exist."
@@ -682,6 +698,7 @@ export async function createProjectFromInput(input: ShellCreateProjectInput, ove
     donorId: meta.donor.donorId,
     donorName: meta.donor.donorName,
     donorLaunchUrl: input.donorLaunchUrl,
+    harvestAssets: input.harvestDonorAssets !== false,
     overwrite
   });
   meta.donor.evidenceRoot = path.relative(workspaceRoot, donorIntake.evidenceRoot).replace(/\\/g, "/");
@@ -689,6 +706,10 @@ export async function createProjectFromInput(input: ShellCreateProjectInput, ove
   meta.donor.launchUrl = donorIntake.launchUrl;
   meta.donor.resolvedLaunchUrl = donorIntake.resolvedLaunchUrl;
   meta.donor.sourceHost = donorIntake.sourceHost;
+  meta.donor.harvestStatus = donorIntake.harvestStatus ?? "unknown";
+  meta.donor.harvestManifestPath = donorIntake.harvestManifestPath ? path.relative(workspaceRoot, donorIntake.harvestManifestPath).replace(/\\/g, "/") : undefined;
+  meta.donor.harvestedAssetCount = donorIntake.harvestedAssetCount;
+  meta.donor.failedAssetCount = donorIntake.failedAssetCount;
   meta.donor.status = donorIntake.status === "blocked"
     ? "blocked"
     : donorIntake.status === "captured"
@@ -696,6 +717,9 @@ export async function createProjectFromInput(input: ShellCreateProjectInput, ove
       : meta.donor.status;
   if (donorIntake.status === "captured") {
     meta.notes.provenFacts.push("Initial donor launch HTML and discovered URL inventory were captured into the shared donor pack.");
+    if ((donorIntake.harvestedAssetCount ?? 0) > 0) {
+      meta.notes.provenFacts.push(`First-pass donor harvest downloaded ${donorIntake.harvestedAssetCount} direct static assets into the local-only donor pack.`);
+    }
   }
   if (donorIntake.status === "blocked" && donorIntake.error) {
     meta.notes.unresolvedQuestions = [...(meta.notes.unresolvedQuestions ?? []), `Why did donor intake fail: ${donorIntake.error}`];

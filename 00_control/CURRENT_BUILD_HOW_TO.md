@@ -47,7 +47,9 @@ Recommended rule:
    - `raw/bootstrap/launch-request.json`
    - `raw/discovered/discovered-urls.json`
    - `reports/DONOR_INTAKE_REPORT.md`
-5. This is still only the first donor-intake slice. It does not yet download the full runtime package or expose full game logic as editable objects.
+   - `evidence/local_only/harvest/asset-manifest.json`
+   - downloaded direct static assets under `evidence/local_only/harvest/files/`
+5. This is still only the first donor-package slice. It does not yet recurse through the full runtime package or expose full game logic as editable objects.
 
 ## 3. Runtime Mode Is The Primary Workflow
 1. `project_001` now opens into **Runtime** mode when the grounded donor runtime entry is available.

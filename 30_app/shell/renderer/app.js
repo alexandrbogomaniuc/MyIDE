@@ -9577,6 +9577,12 @@ function getSelectedProjectEvidenceSummary() {
     replayDonorEvidenceRoot: asJsonObject(importProject?.sources)?.donorEvidenceRoot ?? replaySources?.donorEvidenceRoot ?? null,
     rawDonorRoots,
     donorStatus: selectedProject.donor?.status ?? "unknown",
+    donorLaunchUrl: typeof selectedProject.donor?.launchUrl === "string" ? selectedProject.donor.launchUrl : null,
+    donorSourceHost: typeof selectedProject.donor?.sourceHost === "string" ? selectedProject.donor.sourceHost : null,
+    donorHarvestStatus: typeof selectedProject.donor?.harvestStatus === "string" ? selectedProject.donor.harvestStatus : null,
+    donorHarvestManifestPath: typeof selectedProject.donor?.harvestManifestPath === "string" ? selectedProject.donor.harvestManifestPath : null,
+    donorHarvestedAssetCount: typeof selectedProject.donor?.harvestedAssetCount === "number" ? selectedProject.donor.harvestedAssetCount : 0,
+    donorFailedAssetCount: typeof selectedProject.donor?.failedAssetCount === "number" ? selectedProject.donor.failedAssetCount : 0,
     donorNotes: typeof selectedProject.donor?.notes === "string" ? selectedProject.donor.notes : null,
     evidenceCatalog,
     donorAssetCatalog
@@ -12024,6 +12030,7 @@ async function handleCreateProject(event) {
   const gameFamily = elements.fieldGameFamily?.value ?? "slot";
   const donorReference = elements.fieldDonorReference?.value?.trim() ?? "";
   const donorLaunchUrl = elements.fieldDonorLaunchUrl?.value?.trim() ?? "";
+  const harvestDonorAssets = Boolean(donorLaunchUrl);
   const targetDisplayName = elements.fieldTargetDisplayName?.value?.trim() ?? "";
   const notes = elements.fieldNotes?.value?.trim() ?? "";
 
@@ -12042,7 +12049,7 @@ async function handleCreateProject(event) {
   }
 
   setCreateProjectStatus(donorLaunchUrl
-    ? `Creating ${displayName}, scaffolding donor pack ${donorReference}, and capturing the first donor launch page ...`
+    ? `Creating ${displayName}, scaffolding donor pack ${donorReference}, capturing the first donor launch page, and harvesting directly discovered donor assets ...`
     : `Creating ${displayName} under 40_projects/${slug} and scaffolding donor pack ${donorReference} ...`);
 
   try {
@@ -12052,6 +12059,7 @@ async function handleCreateProject(event) {
       gameFamily,
       donorReference,
       donorLaunchUrl,
+      harvestDonorAssets,
       targetDisplayName,
       notes
     });
@@ -12067,7 +12075,7 @@ async function handleCreateProject(event) {
     pushLog(`Created project scaffold ${created.projectId} at ${created.projectRoot}.`);
     const donorIntake = created.donorIntake;
     const donorIntakeSummary = donorIntake?.status === "captured"
-      ? ` Donor intake captured ${donorIntake.discoveredUrlCount} first-pass URLs into ${donorIntake.donorRoot.replace(/^.*10_donors\//, "10_donors/")}.`
+      ? ` Donor intake captured ${donorIntake.discoveredUrlCount} first-pass URLs into ${donorIntake.donorRoot.replace(/^.*10_donors\//, "10_donors/")}.${typeof donorIntake.harvestedAssetCount === "number" ? ` Harvested ${donorIntake.harvestedAssetCount} direct assets${typeof donorIntake.failedAssetCount === "number" ? ` with ${donorIntake.failedAssetCount} failures` : ""}.` : ""}`
       : donorIntake?.status === "blocked"
         ? ` Donor intake was blocked: ${donorIntake.error ?? "unknown error"}.`
         : donorLaunchUrl
@@ -12649,6 +12657,11 @@ function renderEvidenceBrowser() {
     `Donor: ${summary.donorName}`,
     `Donor ID: ${summary.donorId}`,
     `Status: ${summary.donorStatus}`,
+    `Launch URL: ${summary.donorLaunchUrl || "none"}`,
+    `Source Host: ${summary.donorSourceHost || "unknown"}`,
+    `Harvest Status: ${summary.donorHarvestStatus || "unknown"}`,
+    `Harvested Assets: ${summary.donorHarvestedAssetCount}`,
+    `Failed Harvests: ${summary.donorFailedAssetCount}`,
     `Evidence Root: ${summary.evidenceRoot}`,
     `Donor Asset Count: ${donorAssetCount}`,
     `Capture Sessions: ${summary.captureSessions.join(", ") || "none"}`,
@@ -12668,6 +12681,8 @@ function renderEvidenceBrowser() {
       <div class="chip-row">
         <span>${escapeHtml(summary.donorId)}</span>
         <span>${donorAssetCount} donor image assets</span>
+        <span>${summary.donorHarvestedAssetCount} harvested assets</span>
+        <span>${summary.donorFailedAssetCount} harvest failures</span>
         <span>${summary.captureSessions.length} capture sessions</span>
         <span>${summary.donorEvidenceRefs.length} donor evidence refs</span>
         <span>${summary.importEvidenceRefs.length} importer evidence refs</span>
@@ -12727,6 +12742,19 @@ function renderEvidenceBrowser() {
           <div class="chip-row">
             <span>${escapeHtml(summary.donorStatus)}</span>
             <span>${summary.donorNotes ? escapeHtml(summary.donorNotes) : "No extra donor note recorded."}</span>
+          </div>
+        </div>
+        <div class="detail-card">
+          <span>Launch / Harvest</span>
+          <strong>${summary.donorLaunchUrl ? escapeHtml(summary.donorLaunchUrl) : "No launch URL recorded"}</strong>
+          <small>${summary.donorSourceHost ? `Source host ${escapeHtml(summary.donorSourceHost)}.` : "No source host recorded."}</small>
+          <div class="chip-row">
+            <span>${summary.donorHarvestStatus ? escapeHtml(summary.donorHarvestStatus) : "unknown"}</span>
+            <span>${summary.donorHarvestedAssetCount} harvested</span>
+            <span>${summary.donorFailedAssetCount} failed</span>
+          </div>
+          <div class="evidence-actions">
+            ${summary.donorHarvestManifestPath ? renderCopyButton(summary.donorHarvestManifestPath, "donor harvest manifest path", "Copy Harvest Manifest Path") : ""}
           </div>
         </div>
       </div>

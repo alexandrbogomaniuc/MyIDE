@@ -57,6 +57,16 @@ async function main(): Promise<void> {
   console.log(`Evidence root: ${path.relative(process.cwd(), result.evidenceRoot)}`);
   console.log(`Report path: ${path.relative(process.cwd(), result.reportPath)}`);
   console.log(`Discovered URLs: ${result.discoveredUrlCount}`);
+  console.log(`Harvest status: ${result.harvestStatus ?? "unknown"}`);
+  if (result.harvestManifestPath) {
+    console.log(`Harvest manifest: ${path.relative(process.cwd(), result.harvestManifestPath)}`);
+  }
+  if (typeof result.harvestedAssetCount === "number") {
+    console.log(`Harvested assets: ${result.harvestedAssetCount}`);
+  }
+  if (typeof result.failedAssetCount === "number") {
+    console.log(`Failed assets: ${result.failedAssetCount}`);
+  }
   if (result.launchUrl) {
     console.log(`Launch URL: ${result.launchUrl}`);
   }
