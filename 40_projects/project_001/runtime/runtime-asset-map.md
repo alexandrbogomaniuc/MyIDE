@@ -3,7 +3,7 @@
 ## Confirmed
 
 ### Confirmed from local mirror manifest
-- `manifest.json` contains `46` grounded mirrored entries.
+- `manifest.json` contains `47` grounded mirrored entries after the latest safe refresh.
 - confirmed mirrored preloader/static assets:
   - `preloader-assets/a.png`
   - `preloader-assets/b.png`

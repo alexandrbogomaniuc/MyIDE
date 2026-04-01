@@ -44,8 +44,8 @@
   - `3` GIF files
   - `1` JPG file
   - `1` BIN file
-- grounded local mirror host coverage from `manifest.json` (`46` entries total):
-  - `cdn.bgaming-network.com`: `38`
+- grounded local mirror host coverage from the latest safe `manifest.json` refresh (`47` entries total):
+  - `cdn.bgaming-network.com`: `39`
   - `boost2.bgaming-network.com`: `2`
   - `rs-cdn.shared.bgaming-system.com`: `2`
   - `drops-fe.bgaming-network.com`: `1`

@@ -18,11 +18,11 @@
    - blocker: the referenced runtime metadata files are not present locally
 4. `40_projects/project_001/runtime/local-mirror/files/`
    - status: strong partial local hostable runtime asset root
-   - grounded note: contains `46` mirrored files across `7` hosts
+   - grounded note: contains `47` mirrored files across `7` hosts after the latest safe refresh
    - blocker: still missing the deeper runtime asset families needed for standalone local runtime proof
 
 ## Local mirror inventory summary
-- manifest entries: `46`
+- manifest entries: `47`
 - file extension counts:
   - `.js`: `33`
   - `.png`: `9`
