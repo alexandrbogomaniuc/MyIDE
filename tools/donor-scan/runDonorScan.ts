@@ -553,7 +553,8 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
     atlasManifestFile,
     bundleAssetMap,
     captureTargetFamilies,
-    captureBlockerFamilies
+    captureBlockerFamilies,
+    nextCaptureTargets
   });
   await writeJsonFile(paths.captureFamilySourceProfilesPath, captureFamilySourceProfiles);
   const prioritizedFamilySourceProfiles = captureFamilySourceProfiles.families.filter((family) =>

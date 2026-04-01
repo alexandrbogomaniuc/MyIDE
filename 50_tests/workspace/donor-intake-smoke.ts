@@ -443,9 +443,14 @@ async function main(): Promise<void> {
       families?: Array<{
         familyName?: string;
         sourceState?: string;
+        atlasManifestSources?: string[];
         atlasPageRefCount?: number;
         localPageCount?: number;
+        localPagePaths?: string[];
+        missingPageUrls?: string[];
         sameFamilyVariantAssetCount?: number;
+        sameFamilyVariantAssetPreview?: string[];
+        topUntriedTargetUrls?: string[];
         nextStep?: string;
       }>;
     };
@@ -455,8 +460,12 @@ async function main(): Promise<void> {
         && familySourceProfiles.families.some((family) =>
           family.familyName === "ui"
           && family.sourceState === "local-pages-complete"
+          && Array.isArray(family.atlasManifestSources)
+          && family.atlasManifestSources.some((value) => typeof value === "string" && value.includes("/atlases/ui.atlas"))
           && (family.atlasPageRefCount ?? 0) >= 1
           && (family.localPageCount ?? 0) >= 1
+          && Array.isArray(family.localPagePaths)
+          && family.localPagePaths.some((value) => typeof value === "string" && value.includes("/atlases/ui.png"))
         ),
       "family source profiles should classify complete local atlas-page coverage when the donor already has the page image"
     );
@@ -466,6 +475,10 @@ async function main(): Promise<void> {
           family.familyName === "spin"
           && family.sourceState === "variant-backed"
           && (family.sameFamilyVariantAssetCount ?? 0) >= 1
+          && Array.isArray(family.sameFamilyVariantAssetPreview)
+          && family.sameFamilyVariantAssetPreview.some((value) => typeof value === "string" && value.includes("spines/spin_1.png"))
+          && Array.isArray(family.topUntriedTargetUrls)
+          && family.topUntriedTargetUrls.some((value) => typeof value === "string" && value.includes("/img/spines/spin_1.png"))
           && typeof family.nextStep === "string"
         ),
       "family source profiles should surface variant-backed families when bundle metadata already proves optimized image evidence"

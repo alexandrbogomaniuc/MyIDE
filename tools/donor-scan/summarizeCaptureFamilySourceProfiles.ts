@@ -6,7 +6,8 @@ import type {
   CaptureFamilySourceProfileRecord,
   CaptureFamilySourceProfilesFile,
   CaptureFamilySourceState,
-  CaptureTargetFamiliesFile
+  CaptureTargetFamiliesFile,
+  NextCaptureTargetsFile
 } from "./shared";
 
 interface SummarizeCaptureFamilySourceProfilesOptions {
@@ -16,6 +17,7 @@ interface SummarizeCaptureFamilySourceProfilesOptions {
   bundleAssetMap: BundleAssetMapFile;
   captureTargetFamilies: CaptureTargetFamiliesFile;
   captureBlockerFamilies: CaptureBlockerFamiliesFile;
+  nextCaptureTargets: NextCaptureTargetsFile;
 }
 
 interface MutableFamilyProfile {
@@ -24,16 +26,24 @@ interface MutableFamilyProfile {
   untriedTargetCount: number;
   blockedTargetCount: number;
   atlasManifestKinds: Set<CaptureFamilySourceProfileRecord["atlasManifestKinds"][number]>;
+  atlasManifestSources: Set<string>;
   atlasPageRefCount: number;
   localPageCount: number;
   missingPageCount: number;
+  localPagePaths: Set<string>;
+  missingPageUrls: Set<string>;
   captureStrategies: Set<CaptureFamilySourceProfileRecord["captureStrategies"][number]>;
   locationPrefixes: Set<string>;
   sameFamilyBundleReferenceCount: number;
   sameFamilyVariantAssetCount: number;
+  sameFamilyBundleReferencePreview: Set<string>;
+  sameFamilyVariantAssetPreview: Set<string>;
   relatedBundleAssetHints: Set<string>;
   relatedVariantAssetHints: Set<string>;
   sampleTargetUrls: string[];
+  topUntriedTargetUrls: string[];
+  topBlockedTargetUrls: string[];
+  rawPayloadBlockedReason: string | null;
   rawPayloadBlocked: boolean;
 }
 
@@ -104,16 +114,24 @@ function getOrCreateProfile(
     untriedTargetCount: 0,
     blockedTargetCount: 0,
     atlasManifestKinds: new Set(),
+    atlasManifestSources: new Set(),
     atlasPageRefCount: 0,
     localPageCount: 0,
     missingPageCount: 0,
+    localPagePaths: new Set(),
+    missingPageUrls: new Set(),
     captureStrategies: new Set(),
     locationPrefixes: new Set(),
     sameFamilyBundleReferenceCount: 0,
     sameFamilyVariantAssetCount: 0,
+    sameFamilyBundleReferencePreview: new Set(),
+    sameFamilyVariantAssetPreview: new Set(),
     relatedBundleAssetHints: new Set(),
     relatedVariantAssetHints: new Set(),
     sampleTargetUrls: [],
+    topUntriedTargetUrls: [],
+    topBlockedTargetUrls: [],
+    rawPayloadBlockedReason: null,
     rawPayloadBlocked: false
   };
   profileMap.set(familyName, profile);
@@ -164,16 +182,24 @@ function finalizeProfile(profile: MutableFamilyProfile): CaptureFamilySourceProf
     untriedTargetCount: profile.untriedTargetCount,
     blockedTargetCount: profile.blockedTargetCount,
     atlasManifestKinds: [...profile.atlasManifestKinds].sort((left, right) => left.localeCompare(right)),
+    atlasManifestSources: [...profile.atlasManifestSources].sort((left, right) => left.localeCompare(right)).slice(0, 5),
     atlasPageRefCount: profile.atlasPageRefCount,
     localPageCount: profile.localPageCount,
     missingPageCount: profile.missingPageCount,
+    localPagePaths: [...profile.localPagePaths].sort((left, right) => left.localeCompare(right)).slice(0, 5),
+    missingPageUrls: [...profile.missingPageUrls].sort((left, right) => left.localeCompare(right)).slice(0, 5),
     captureStrategies: [...profile.captureStrategies].sort((left, right) => left.localeCompare(right)),
     locationPrefixes: [...profile.locationPrefixes].sort((left, right) => left.localeCompare(right)),
     sameFamilyBundleReferenceCount: profile.sameFamilyBundleReferenceCount,
     sameFamilyVariantAssetCount: profile.sameFamilyVariantAssetCount,
+    sameFamilyBundleReferencePreview: [...profile.sameFamilyBundleReferencePreview].sort((left, right) => left.localeCompare(right)).slice(0, 5),
+    sameFamilyVariantAssetPreview: [...profile.sameFamilyVariantAssetPreview].sort((left, right) => left.localeCompare(right)).slice(0, 5),
     relatedBundleAssetHints: [...profile.relatedBundleAssetHints].sort((left, right) => left.localeCompare(right)).slice(0, 5),
     relatedVariantAssetHints: [...profile.relatedVariantAssetHints].sort((left, right) => left.localeCompare(right)).slice(0, 5),
     sampleTargetUrls: [...profile.sampleTargetUrls],
+    topUntriedTargetUrls: [...profile.topUntriedTargetUrls],
+    topBlockedTargetUrls: [...profile.topBlockedTargetUrls],
+    rawPayloadBlockedReason: profile.rawPayloadBlockedReason,
     nextStep: buildNextStep(profile, sourceState)
   };
 }
@@ -211,15 +237,23 @@ export function summarizeCaptureFamilySourceProfiles(
     const profile = getOrCreateProfile(profileMap, blockerFamily.familyName);
     profile.rawPayloadBlocked = true;
     profile.blockedTargetCount = Math.max(profile.blockedTargetCount, blockerFamily.targetCount);
+    profile.rawPayloadBlockedReason = blockerFamily.recentCaptureFailureReasons[0] ?? "Blocked by the latest grounded capture attempts.";
   }
 
   for (const manifest of options.atlasManifestFile.manifests) {
     const familyName = deriveFamilyName(manifest.sourceUrl);
     const profile = getOrCreateProfile(profileMap, familyName);
     profile.atlasManifestKinds.add(manifest.kind);
+    profile.atlasManifestSources.add(manifest.sourceUrl);
     profile.atlasPageRefCount += manifest.pageRefs.length;
     profile.localPageCount += manifest.localPagePaths.length;
     profile.missingPageCount += manifest.missingPageUrls.length;
+    for (const localPagePath of manifest.localPagePaths) {
+      profile.localPagePaths.add(localPagePath);
+    }
+    for (const missingPageUrl of manifest.missingPageUrls) {
+      profile.missingPageUrls.add(missingPageUrl);
+    }
   }
 
   const familyTokens = new Map<string, string[]>();
@@ -241,6 +275,9 @@ export function summarizeCaptureFamilySourceProfiles(
       const profile = getOrCreateProfile(profileMap, familyName);
       if (referenceFamily === familyName) {
         profile.sameFamilyBundleReferenceCount += 1;
+        if (profile.sameFamilyBundleReferencePreview.size < 5) {
+          profile.sameFamilyBundleReferencePreview.add(sourcePath);
+        }
       } else if (hasTokenOverlap(tokens, referenceTokens) && profile.relatedBundleAssetHints.size < 5) {
         profile.relatedBundleAssetHints.add(sourcePath);
       }
@@ -255,9 +292,33 @@ export function summarizeCaptureFamilySourceProfiles(
       const profile = getOrCreateProfile(profileMap, familyName);
       if (variantFamily === familyName) {
         profile.sameFamilyVariantAssetCount += 1;
+        if (profile.sameFamilyVariantAssetPreview.size < 5) {
+          profile.sameFamilyVariantAssetPreview.add(logicalPath);
+        }
       } else if (hasTokenOverlap(tokens, variantTokens) && profile.relatedVariantAssetHints.size < 5) {
         profile.relatedVariantAssetHints.add(logicalPath);
       }
+    }
+  }
+
+  for (const target of options.nextCaptureTargets.targets) {
+    if (!isSourceMaterialUrl(target.url)) {
+      continue;
+    }
+    const familyName = deriveFamilyName(target.url);
+    const profile = profileMap.get(familyName);
+    if (!profile) {
+      continue;
+    }
+    if (target.recentCaptureStatus === "blocked") {
+      if (profile.topBlockedTargetUrls.length < 5 && !profile.topBlockedTargetUrls.includes(target.url)) {
+        profile.topBlockedTargetUrls.push(target.url);
+      }
+      if (!profile.rawPayloadBlockedReason && typeof target.recentCaptureFailureReason === "string" && target.recentCaptureFailureReason.length > 0) {
+        profile.rawPayloadBlockedReason = target.recentCaptureFailureReason;
+      }
+    } else if (profile.topUntriedTargetUrls.length < 5 && !profile.topUntriedTargetUrls.includes(target.url)) {
+      profile.topUntriedTargetUrls.push(target.url);
     }
   }
 

@@ -137,7 +137,7 @@ export async function writeBlockerSummary(options: WriteBlockerSummaryOptions): 
           "## Family Source Discovery Profiles",
           "",
           ...options.captureFamilySourceProfiles.families.slice(0, 8).map((family) =>
-            `- \`${family.familyName}\` — source state: \`${family.sourceState}\`, atlas pages: ${family.localPageCount}/${family.atlasPageRefCount}, same-family bundle refs: ${family.sameFamilyBundleReferenceCount}, same-family variants: ${family.sameFamilyVariantAssetCount}${family.relatedVariantAssetHints.length > 0 ? `, related variants: ${family.relatedVariantAssetHints.join(", ")}` : ""}. Next: ${family.nextStep}`
+            `- \`${family.familyName}\` — source state: \`${family.sourceState}\`, atlas pages: ${family.localPageCount}/${family.atlasPageRefCount}, same-family bundle refs: ${family.sameFamilyBundleReferenceCount}, same-family variants: ${family.sameFamilyVariantAssetCount}${family.missingPageUrls.length > 0 ? `, sample missing: ${family.missingPageUrls[0]}` : ""}${family.sameFamilyBundleReferencePreview.length > 0 ? `, sample bundle ref: ${family.sameFamilyBundleReferencePreview[0]}` : ""}${family.sameFamilyVariantAssetPreview.length > 0 ? `, sample variant: ${family.sameFamilyVariantAssetPreview[0]}` : ""}${family.rawPayloadBlockedReason ? `, blocker: ${family.rawPayloadBlockedReason}` : ""}${family.relatedVariantAssetHints.length > 0 ? `, related variants: ${family.relatedVariantAssetHints.join(", ")}` : ""}. Next: ${family.nextStep}`
           )
         ]
       : []),

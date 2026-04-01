@@ -15268,6 +15268,30 @@ function renderProjectSummary() {
             <small><strong>Family source discovery</strong></small>
             ${donorScan.topFamilySourceProfiles.map((family) => `
               <small><strong>${escapeHtml(family.familyName)}</strong> · ${escapeHtml(family.sourceState)} · atlas ${escapeHtml(String(family.localPageCount))}/${escapeHtml(String(family.atlasPageRefCount))} local pages · ${escapeHtml(String(family.sameFamilyBundleReferenceCount))} same-family bundle ref${family.sameFamilyBundleReferenceCount === 1 ? "" : "s"} · ${escapeHtml(String(family.sameFamilyVariantAssetCount))} same-family variant asset${family.sameFamilyVariantAssetCount === 1 ? "" : "s"} · ${escapeHtml(family.nextStep)}</small>
+              ${(() => {
+                const evidenceValue = family.sampleMissingPageUrl
+                  ?? family.sampleBlockedTargetUrl
+                  ?? family.sampleUntriedTargetUrl
+                  ?? family.sampleVariantAsset
+                  ?? family.sampleBundleReference
+                  ?? family.sampleLocalPagePath;
+                const evidenceLabel = family.sampleMissingPageUrl
+                  ? "missing page"
+                  : family.sampleBlockedTargetUrl
+                    ? "blocked target"
+                    : family.sampleUntriedTargetUrl
+                      ? "next target"
+                      : family.sampleVariantAsset
+                        ? "variant hint"
+                        : family.sampleBundleReference
+                          ? "bundle hint"
+                          : family.sampleLocalPagePath
+                            ? "local page"
+                            : "";
+                return evidenceValue
+                  ? `<small>evidence · ${escapeHtml(evidenceLabel)} · <code>${escapeHtml(evidenceValue)}</code>${family.rawPayloadBlockedReason ? ` · ${escapeHtml(family.rawPayloadBlockedReason)}` : ""}</small>`
+                  : "";
+              })()}
             `).join("")}
           </div>
         ` : ""}

@@ -52,6 +52,7 @@ Key files:
 - `next-capture-targets.json`
 - `capture-target-families.json`
 - `capture-blocker-families.json`
+- `capture-family-source-profiles.json`
 - `next-capture-run.json`
 - `package-graph.json`
 - `blocker-summary.md`
@@ -79,6 +80,8 @@ When a ranked image target has exhausted only raw/direct grounded URLs and donor
 `capture-target-families.json` groups the whole ranked queue into reusable source families, with untried-vs-blocked counts, capture strategies, and location prefixes. Use it when the next move is family-level source discovery, not another scan of hundreds of flat URLs.
 
 `capture-blocker-families.json` groups only the blocker-class targets into reusable source families such as `coin`, `big_win`, or `bird`, with target counts, sample URLs, capture strategies, and location prefixes. That makes the next operator step more practical: review blocker families, not just one long flat list of failed URLs.
+
+`capture-family-source-profiles.json` turns those families into source-discovery dossiers. Each family now records its source state (`local-pages-complete`, `partial-local-pages`, `variant-backed`, `bundle-evidence-only`, or `raw-only`) plus exact evidence previews such as atlas manifest sources, local page paths, missing page URLs, same-family bundle references, same-family variant assets, and the top untried or blocked target URLs. Use it when you need to answer “what source material do we actually have for this family?” before adding another capture rule.
 
 That reopened-target behavior is already proven on the live Mystery Garden donor: once donor scan started surfacing optimized variant URLs from bundle-backed sibling image families, guided capture successfully downloaded atlas-adjacent payloads such as `h1`, `h2`, `stick`, and `wild` from those newly grounded URLs.
 

@@ -440,16 +440,24 @@ export interface CaptureFamilySourceProfileRecord {
   untriedTargetCount: number;
   blockedTargetCount: number;
   atlasManifestKinds: AtlasManifestRecord["kind"][];
+  atlasManifestSources: string[];
   atlasPageRefCount: number;
   localPageCount: number;
   missingPageCount: number;
+  localPagePaths: string[];
+  missingPageUrls: string[];
   captureStrategies: CaptureTargetStrategy[];
   locationPrefixes: string[];
   sameFamilyBundleReferenceCount: number;
   sameFamilyVariantAssetCount: number;
+  sameFamilyBundleReferencePreview: string[];
+  sameFamilyVariantAssetPreview: string[];
   relatedBundleAssetHints: string[];
   relatedVariantAssetHints: string[];
   sampleTargetUrls: string[];
+  topUntriedTargetUrls: string[];
+  topBlockedTargetUrls: string[];
+  rawPayloadBlockedReason: string | null;
   nextStep: string;
 }
 

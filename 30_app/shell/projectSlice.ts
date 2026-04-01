@@ -198,8 +198,17 @@ export interface DonorScanStatus {
     sourceState: string;
     localPageCount: number;
     atlasPageRefCount: number;
+    blockedTargetCount: number;
+    targetCount: number;
     sameFamilyBundleReferenceCount: number;
     sameFamilyVariantAssetCount: number;
+    sampleMissingPageUrl: string | null;
+    sampleLocalPagePath: string | null;
+    sampleBundleReference: string | null;
+    sampleVariantAsset: string | null;
+    sampleUntriedTargetUrl: string | null;
+    sampleBlockedTargetUrl: string | null;
+    rawPayloadBlockedReason: string | null;
     nextStep: string;
   }>;
   nextCaptureTargets: Array<{
@@ -923,6 +932,13 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
           atlasManifestKindCount: Array.isArray(family.atlasManifestKinds) ? family.atlasManifestKinds.length : 0,
           sameFamilyBundleReferenceCount: typeof family.sameFamilyBundleReferenceCount === "number" ? family.sameFamilyBundleReferenceCount : 0,
           sameFamilyVariantAssetCount: typeof family.sameFamilyVariantAssetCount === "number" ? family.sameFamilyVariantAssetCount : 0,
+          sampleMissingPageUrl: Array.isArray(family.missingPageUrls) && typeof family.missingPageUrls[0] === "string" ? family.missingPageUrls[0] : null,
+          sampleLocalPagePath: Array.isArray(family.localPagePaths) && typeof family.localPagePaths[0] === "string" ? family.localPagePaths[0] : null,
+          sampleBundleReference: Array.isArray(family.sameFamilyBundleReferencePreview) && typeof family.sameFamilyBundleReferencePreview[0] === "string" ? family.sameFamilyBundleReferencePreview[0] : null,
+          sampleVariantAsset: Array.isArray(family.sameFamilyVariantAssetPreview) && typeof family.sameFamilyVariantAssetPreview[0] === "string" ? family.sameFamilyVariantAssetPreview[0] : null,
+          sampleUntriedTargetUrl: Array.isArray(family.topUntriedTargetUrls) && typeof family.topUntriedTargetUrls[0] === "string" ? family.topUntriedTargetUrls[0] : null,
+          sampleBlockedTargetUrl: Array.isArray(family.topBlockedTargetUrls) && typeof family.topBlockedTargetUrls[0] === "string" ? family.topBlockedTargetUrls[0] : null,
+          rawPayloadBlockedReason: typeof family.rawPayloadBlockedReason === "string" ? family.rawPayloadBlockedReason : null,
           nextStep: typeof family.nextStep === "string" ? family.nextStep : "Review the donor scan family source profile."
         }))
         .filter((family) =>
