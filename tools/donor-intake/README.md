@@ -5,15 +5,15 @@ Use this when you want to start a project from a real donor launch URL instead o
 ## Current scope
 - Creates or refreshes a shared donor pack under `10_donors/<donorId>/`.
 - Captures the donor launch HTML in sanitized form.
-- Writes a first-pass discovered URL inventory.
-- Downloads directly discovered static assets into `10_donors/<donorId>/evidence/local_only/harvest/files/`.
+- Writes a bounded discovered URL inventory that starts from the launch page and then recurses through downloaded JS/CSS/JSON references.
+- Downloads bounded static assets into `10_donors/<donorId>/evidence/local_only/harvest/files/`.
 - Writes a machine-readable harvest manifest at `10_donors/<donorId>/evidence/local_only/harvest/asset-manifest.json`.
 - Keeps raw donor bootstrap files read-only after capture.
 - Does **not** yet recurse through the full donor runtime package or reconstruct gameplay logic.
 
 ## Commands
 - `npm run donor:intake:url -- --donor-id donor_003_example --donor-name "Example Donor" --url "https://demo.example.com/play/Game/FUN?server=demo"`
-- The shell **New Project** form now supports the same flow through the optional **Donor Launch URL** field and automatically runs the same first-pass harvest.
+- The shell **New Project** form now supports the same flow through the optional **Donor Launch URL** field and automatically runs the same bounded recursive harvest.
 
 ## Output
 - `10_donors/<donorId>/raw/bootstrap/launch.html`

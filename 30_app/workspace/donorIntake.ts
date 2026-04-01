@@ -13,7 +13,9 @@ export interface BootstrapDonorIntakeOptions {
 export interface DiscoveredDonorUrl {
   url: string;
   category: "html" | "script" | "style" | "image" | "audio" | "video" | "font" | "json" | "api" | "other";
-  source: "launch-url" | "html-attribute" | "html-inline";
+  source: "launch-url" | "html-attribute" | "html-inline" | "harvest-script" | "harvest-style" | "harvest-json";
+  depth?: number;
+  discoveredFromUrl?: string;
 }
 
 export interface DonorIntakeResult {
@@ -42,6 +44,8 @@ export interface HarvestedDonorAssetEntry {
   resolvedUrl?: string;
   category: DiscoveredDonorUrl["category"];
   discoverySource: DiscoveredDonorUrl["source"];
+  depth?: number;
+  discoveredFromUrl?: string;
   status: "downloaded" | "failed" | "skipped";
   localPath?: string;
   contentType?: string;
@@ -53,6 +57,7 @@ export interface HarvestedDonorAssetEntry {
 interface DonorAssetHarvestResult {
   status: "harvested" | "blocked" | "skipped";
   manifestPath: string;
+  discoveredUrls: DiscoveredDonorUrl[];
   attemptedAssetCount: number;
   harvestedAssetCount: number;
   skippedAssetCount: number;
@@ -61,6 +66,7 @@ interface DonorAssetHarvestResult {
 
 const workspaceRoot = path.resolve(__dirname, "../../..");
 const sensitiveQueryKeyPattern = /(token|sid|session|signature|sig|key|auth|password|secret|hash)/i;
+const recursiveHarvestDepthLimit = 2;
 
 function buildDonorPaths(donorId: string) {
   const donorRoot = path.join(workspaceRoot, "10_donors", donorId);
@@ -243,7 +249,8 @@ function extractDiscoveredUrls(html: string, launchUrl: string, resolvedUrl: str
   result.set(normalizedLaunchUrl, {
     url: normalizedLaunchUrl,
     category: "html",
-    source: "launch-url"
+    source: "launch-url",
+    depth: 0
   });
 
   const attributePattern = /\b(?:src|href|poster|data-src|data-url)=["']([^"'<>]+)["']/gi;
@@ -257,7 +264,8 @@ function extractDiscoveredUrls(html: string, launchUrl: string, resolvedUrl: str
     result.set(sanitized, {
       url: sanitized,
       category: classifyUrl(normalized),
-      source: "html-attribute"
+      source: "html-attribute",
+      depth: 0
     });
   }
 
@@ -270,15 +278,25 @@ function extractDiscoveredUrls(html: string, launchUrl: string, resolvedUrl: str
     }
     const sanitized = sanitizeStoredUrl(normalized.toString());
     if (!result.has(sanitized)) {
-      result.set(sanitized, {
-        url: sanitized,
-        category: classifyUrl(normalized),
-        source: "html-inline"
-      });
+        result.set(sanitized, {
+          url: sanitized,
+          category: classifyUrl(normalized),
+          source: "html-inline",
+          depth: 0
+        });
+      }
     }
-  }
 
-  return [...result.values()].sort((left, right) => {
+  return sortDiscoveredUrls([...result.values()]);
+}
+
+function sortDiscoveredUrls(entries: readonly DiscoveredDonorUrl[]): DiscoveredDonorUrl[] {
+  return [...entries].sort((left, right) => {
+    const leftDepth = typeof left.depth === "number" ? left.depth : 0;
+    const rightDepth = typeof right.depth === "number" ? right.depth : 0;
+    if (leftDepth !== rightDepth) {
+      return leftDepth - rightDepth;
+    }
     if (left.category === right.category) {
       return left.url.localeCompare(right.url);
     }
@@ -314,6 +332,87 @@ function shouldHarvestDiscoveredUrl(entry: DiscoveredDonorUrl): boolean {
   return ["script", "style", "image", "audio", "video", "font", "json"].includes(entry.category);
 }
 
+function shouldExtractRecursiveReferences(entry: DiscoveredDonorUrl, contentType?: string | null): boolean {
+  if (["script", "style", "json"].includes(entry.category)) {
+    return true;
+  }
+
+  if (!contentType) {
+    return false;
+  }
+
+  return /(javascript|ecmascript|json|css)/i.test(contentType);
+}
+
+function mapRecursiveSource(category: DiscoveredDonorUrl["category"]): DiscoveredDonorUrl["source"] {
+  if (category === "script") {
+    return "harvest-script";
+  }
+  if (category === "style") {
+    return "harvest-style";
+  }
+  return "harvest-json";
+}
+
+function collectReferenceCandidates(rawText: string): string[] {
+  const candidates = new Set<string>();
+
+  const absoluteUrlPattern = /https?:\/\/[^\s"'<>\\)]+/gi;
+  let absoluteMatch: RegExpExecArray | null;
+  while ((absoluteMatch = absoluteUrlPattern.exec(rawText)) !== null) {
+    candidates.add(absoluteMatch[0]);
+  }
+
+  const cssUrlPattern = /url\((['"]?)([^"'()]+)\1\)/gi;
+  let cssMatch: RegExpExecArray | null;
+  while ((cssMatch = cssUrlPattern.exec(rawText)) !== null) {
+    candidates.add(cssMatch[2]);
+  }
+
+  const quotedPathPattern = /["'`]((?:\/|\.{1,2}\/)[^"'`<>\s\\]+|(?:[a-z0-9._-]+\/)+[a-z0-9._-]+\.(?:js|css|json|png|jpe?g|gif|svg|webp|ogg|mp3|wav|m4a|mp4|webm|mov|woff2?|ttf|otf)(?:\?[^"'`<>\s\\]+)?|\/api\/[^"'`<>\s\\]+)["'`]/gi;
+  let quotedMatch: RegExpExecArray | null;
+  while ((quotedMatch = quotedPathPattern.exec(rawText)) !== null) {
+    candidates.add(quotedMatch[1]);
+  }
+
+  return [...candidates];
+}
+
+function extractReferencedUrlsFromText(
+  rawText: string,
+  resolvedAssetUrl: string,
+  entry: DiscoveredDonorUrl
+): DiscoveredDonorUrl[] {
+  const baseUrl = new URL(resolvedAssetUrl);
+  const sanitizedParentUrl = sanitizeStoredUrl(resolvedAssetUrl);
+  const result = new Map<string, DiscoveredDonorUrl>();
+  const nextDepth = (entry.depth ?? 0) + 1;
+
+  for (const candidateValue of collectReferenceCandidates(rawText)) {
+    const normalized = normalizeDiscoveredUrl(candidateValue, baseUrl);
+    if (!normalized) {
+      continue;
+    }
+
+    const sanitized = sanitizeStoredUrl(normalized.toString());
+    if (!sanitized || sanitized === sanitizedParentUrl) {
+      continue;
+    }
+
+    if (!result.has(sanitized)) {
+      result.set(sanitized, {
+        url: sanitized,
+        category: classifyUrl(normalized),
+        source: mapRecursiveSource(entry.category),
+        depth: nextDepth,
+        discoveredFromUrl: sanitizedParentUrl
+      });
+    }
+  }
+
+  return sortDiscoveredUrls([...result.values()]);
+}
+
 async function harvestDiscoveredAssets(
   donorId: string,
   donorName: string,
@@ -322,15 +421,35 @@ async function harvestDiscoveredAssets(
   overwrite: boolean
 ): Promise<DonorAssetHarvestResult> {
   const entries: HarvestedDonorAssetEntry[] = [];
+  const discoveredUrlMap = new Map<string, DiscoveredDonorUrl>();
+  const queue: DiscoveredDonorUrl[] = [];
+  const seenQueueUrls = new Set<string>();
 
   for (const entry of discoveredUrls) {
+    if (!discoveredUrlMap.has(entry.url)) {
+      discoveredUrlMap.set(entry.url, {
+        ...entry,
+        depth: entry.depth ?? 0
+      });
+      queue.push({
+        ...entry,
+        depth: entry.depth ?? 0
+      });
+      seenQueueUrls.add(entry.url);
+    }
+  }
+
+  while (queue.length > 0) {
+    const entry = queue.shift()!;
     if (!shouldHarvestDiscoveredUrl(entry)) {
       entries.push({
         sourceUrl: entry.url,
         category: entry.category,
         discoverySource: entry.source,
+        depth: entry.depth,
+        discoveredFromUrl: entry.discoveredFromUrl,
         status: "skipped",
-        reason: "Only direct static asset categories are harvested in this first-pass slice."
+        reason: "Only bounded static asset categories are downloaded. API and other references stay inventory-only."
       });
       continue;
     }
@@ -350,6 +469,8 @@ async function harvestDiscoveredAssets(
           resolvedUrl: sanitizeStoredUrl(response.url || entry.url),
           category: entry.category,
           discoverySource: entry.source,
+          depth: entry.depth,
+          discoveredFromUrl: entry.discoveredFromUrl,
           status: "failed",
           reason: `HTTP ${response.status}`
         });
@@ -360,22 +481,48 @@ async function harvestDiscoveredAssets(
       const buffer = Buffer.from(await response.arrayBuffer());
       const filePath = buildHarvestFilePath(paths.localOnlyHarvestFilesRoot, resolvedUrl);
       await writeBufferConditionally(filePath, buffer, overwrite);
+      const contentType = response.headers.get("content-type") ?? undefined;
       entries.push({
         sourceUrl: entry.url,
         resolvedUrl,
         category: entry.category,
         discoverySource: entry.source,
+        depth: entry.depth,
+        discoveredFromUrl: entry.discoveredFromUrl,
         status: "downloaded",
         localPath: path.relative(workspaceRoot, filePath).replace(/\\/g, "/"),
-        contentType: response.headers.get("content-type") ?? undefined,
+        contentType,
         sizeBytes: buffer.length,
         sha256: createHash("sha256").update(buffer).digest("hex")
       });
+
+      if (typeof entry.depth === "number" && entry.depth >= recursiveHarvestDepthLimit) {
+        continue;
+      }
+
+      if (!shouldExtractRecursiveReferences(entry, contentType)) {
+        continue;
+      }
+
+      const nestedDiscoveredUrls = extractReferencedUrlsFromText(buffer.toString("utf8"), response.url || entry.url, entry);
+      for (const nestedEntry of nestedDiscoveredUrls) {
+        if (discoveredUrlMap.has(nestedEntry.url)) {
+          continue;
+        }
+
+        discoveredUrlMap.set(nestedEntry.url, nestedEntry);
+        if (!seenQueueUrls.has(nestedEntry.url)) {
+          queue.push(nestedEntry);
+          seenQueueUrls.add(nestedEntry.url);
+        }
+      }
     } catch (error) {
       entries.push({
         sourceUrl: entry.url,
         category: entry.category,
         discoverySource: entry.source,
+        depth: entry.depth,
+        discoveredFromUrl: entry.discoveredFromUrl,
         status: "failed",
         reason: error instanceof Error ? error.message : String(error)
       });
@@ -391,22 +538,29 @@ async function harvestDiscoveredAssets(
     : harvestedAssetCount > 0
       ? "harvested"
       : "blocked";
+  const allDiscoveredUrls = sortDiscoveredUrls([...discoveredUrlMap.values()]);
+  const recursiveDiscoveredUrlCount = allDiscoveredUrls.filter((entry) => (entry.depth ?? 0) > 0).length;
 
   await writeFileConditionally(paths.harvestManifestPath, `${JSON.stringify({
     schemaVersion: "0.1.0",
     donorId,
     donorName,
     capturedAt: new Date().toISOString(),
+    discoveredUrlCount: allDiscoveredUrls.length,
+    recursiveDiscoveredUrlCount,
+    recursiveHarvestDepthLimit,
     attemptedAssetCount,
     harvestedAssetCount,
     skippedAssetCount,
     failedAssetCount,
+    discoveredUrls: allDiscoveredUrls,
     entries
   }, null, 2)}\n`, overwrite);
 
   return {
     status,
     manifestPath: paths.harvestManifestPath,
+    discoveredUrls: allDiscoveredUrls,
     attemptedAssetCount,
     harvestedAssetCount,
     skippedAssetCount,
@@ -456,7 +610,7 @@ function buildIntakeReport(result: DonorIntakeResult, donorName: string): string
     "",
     result.status === "captured"
       ? (result.harvestStatus === "harvested"
-        ? "- The donor entry page was fetched, a first-pass URL inventory was written locally, and direct static assets were downloaded into the local-only donor pack."
+        ? "- The donor entry page was fetched, a donor URL inventory was written locally, and bounded recursive static assets were downloaded into the local-only donor pack."
         : "- The donor entry page was fetched and a first-pass URL inventory was written locally.")
       : result.status === "blocked"
         ? "- The donor pack scaffold exists, but the first donor launch capture failed and needs investigation."
@@ -465,7 +619,7 @@ function buildIntakeReport(result: DonorIntakeResult, donorName: string): string
     "## Next steps",
     "",
     "- Verify the donor launch URL and add capture sessions under `evidence/capture_sessions/`.",
-    "- Review the harvested asset manifest under `evidence/local_only/harvest/` and decide which missing assets need deeper recursive capture.",
+    "- Review the harvested asset manifest under `evidence/local_only/harvest/` and decide which missing assets still require deeper runtime-aware capture.",
     "- Promote grounded findings into donor reports before claiming runtime parity.",
     "- Keep raw donor bootstrap files read-only once captured."
   );
@@ -525,7 +679,7 @@ export async function bootstrapDonorIntake(options: BootstrapDonorIntakeOptions)
     }
 
     const resolvedLaunchUrl = sanitizeStoredUrl(response.url || donorLaunchUrl);
-    const discoveredUrls = extractDiscoveredUrls(html, donorLaunchUrl, response.url || donorLaunchUrl);
+    let discoveredUrls = extractDiscoveredUrls(html, donorLaunchUrl, response.url || donorLaunchUrl);
     const result: DonorIntakeResult = {
       ...baseResult,
       status: "captured",
@@ -543,6 +697,8 @@ export async function bootstrapDonorIntake(options: BootstrapDonorIntakeOptions)
     let harvestResult: DonorAssetHarvestResult | null = null;
     if (harvestAssets) {
       harvestResult = await harvestDiscoveredAssets(donorId, donorName, discoveredUrls, paths, overwrite);
+      discoveredUrls = harvestResult.discoveredUrls;
+      result.discoveredUrlCount = discoveredUrls.length;
       result.harvestStatus = harvestResult.status;
       result.harvestManifestPath = harvestResult.manifestPath;
       result.attemptedAssetCount = harvestResult.attemptedAssetCount;

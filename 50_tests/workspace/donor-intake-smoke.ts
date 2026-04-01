@@ -33,19 +33,66 @@ function startFixtureServer(): Promise<{ server: http.Server; port: number }> {
 
       if (request.url === "/styles/app.css") {
         response.writeHead(200, { "content-type": "text/css; charset=utf-8" });
-        response.end("body { background: #123; }");
+        response.end([
+          "@font-face {",
+          "  font-family: 'SmokeUi';",
+          "  src: url('/fonts/ui.woff2') format('woff2');",
+          "}",
+          "body {",
+          "  background: #123 url('/img/bg.webp') no-repeat center center;",
+          "}"
+        ].join("\n"));
         return;
       }
 
       if (request.url === "/bundle.js") {
         response.writeHead(200, { "content-type": "application/javascript; charset=utf-8" });
-        response.end("console.log('smoke bundle');");
+        response.end([
+          "window.assetUrl = '/audio/ambient.ogg';",
+          "window.configUrl = '/config/game.json';",
+          "console.log('smoke bundle');"
+        ].join("\n"));
         return;
       }
 
       if (request.url === "/img/logo.png") {
         response.writeHead(200, { "content-type": "image/png" });
         response.end(Buffer.from("89504e470d0a1a0a", "hex"));
+        return;
+      }
+
+      if (request.url === "/img/bg.webp" || request.url === "/img/symbols.png") {
+        response.writeHead(200, { "content-type": request.url.endsWith(".webp") ? "image/webp" : "image/png" });
+        response.end(Buffer.from("52494646", "hex"));
+        return;
+      }
+
+      if (request.url === "/fonts/ui.woff2") {
+        response.writeHead(200, { "content-type": "font/woff2" });
+        response.end(Buffer.from("774f4632", "hex"));
+        return;
+      }
+
+      if (request.url === "/audio/ambient.ogg") {
+        response.writeHead(200, { "content-type": "audio/ogg" });
+        response.end(Buffer.from("4f676753", "hex"));
+        return;
+      }
+
+      if (request.url === "/config/game.json") {
+        response.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+        response.end(JSON.stringify({
+          sheet: "/img/symbols.png",
+          spine: "/spines/stick.json"
+        }));
+        return;
+      }
+
+      if (request.url === "/spines/stick.json") {
+        response.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+        response.end(JSON.stringify({
+          note: "bounded recursive smoke fixture"
+        }));
         return;
       }
 
@@ -81,9 +128,9 @@ async function main(): Promise<void> {
 
     assert.equal(result.status, "captured", "donor intake should capture the fixture launch page");
     assert.equal(result.sourceHost, `127.0.0.1:${port}`, "source host should reflect the local fixture host");
-    assert.ok(result.discoveredUrlCount >= 4, "intake should discover the launch URL plus referenced assets");
+    assert.ok(result.discoveredUrlCount >= 8, "intake should discover launch-time URLs plus bounded recursive asset references");
     assert.equal(result.harvestStatus, "harvested", "direct static assets should be harvested");
-    assert.ok((result.harvestedAssetCount ?? 0) >= 3, "bundle, stylesheet, and logo should be harvested");
+    assert.ok((result.harvestedAssetCount ?? 0) >= 7, "recursive donor harvest should download first and second-level fixture assets");
 
     const bootstrapHtml = await fs.readFile(path.join(donorRoot, "raw", "bootstrap", "launch.html"), "utf8");
     assert.match(bootstrapHtml, /Smoke Donor/, "captured HTML should be written to the donor pack");
@@ -94,15 +141,23 @@ async function main(): Promise<void> {
     const discoveredUrls = Array.isArray(discoveredJson.discoveredUrls) ? discoveredJson.discoveredUrls.map((entry) => entry.url) : [];
     assert.ok(discoveredUrls.some((url) => typeof url === "string" && url.includes("/bundle.js")), "bundle.js should appear in the discovered URL inventory");
     assert.ok(discoveredUrls.some((url) => typeof url === "string" && url.includes("/img/logo.png")), "logo image should appear in the discovered URL inventory");
+    assert.ok(discoveredUrls.some((url) => typeof url === "string" && url.includes("/config/game.json")), "recursive JS-discovered JSON should appear in the discovered URL inventory");
+    assert.ok(discoveredUrls.some((url) => typeof url === "string" && url.includes("/img/symbols.png")), "recursive JSON-discovered image should appear in the discovered URL inventory");
 
     const harvestManifest = JSON.parse(await fs.readFile(path.join(donorRoot, "evidence", "local_only", "harvest", "asset-manifest.json"), "utf8")) as {
       harvestedAssetCount?: number;
-      entries?: Array<{ status?: string; localPath?: string; sourceUrl?: string }>;
+      recursiveDiscoveredUrlCount?: number;
+      entries?: Array<{ status?: string; localPath?: string; sourceUrl?: string; depth?: number; discoveredFromUrl?: string }>;
     };
-    assert.ok((harvestManifest.harvestedAssetCount ?? 0) >= 3, "harvest manifest should record downloaded assets");
+    assert.ok((harvestManifest.harvestedAssetCount ?? 0) >= 7, "harvest manifest should record recursive downloaded assets");
+    assert.ok((harvestManifest.recursiveDiscoveredUrlCount ?? 0) >= 3, "harvest manifest should record recursive discovery counts");
     assert.ok(
       Array.isArray(harvestManifest.entries) && harvestManifest.entries.some((entry) => entry.status === "downloaded" && typeof entry.localPath === "string" && entry.sourceUrl?.includes("/bundle.js")),
       "harvest manifest should include a downloaded bundle.js entry"
+    );
+    assert.ok(
+      Array.isArray(harvestManifest.entries) && harvestManifest.entries.some((entry) => entry.status === "downloaded" && entry.sourceUrl?.includes("/img/symbols.png") && entry.depth === 2 && entry.discoveredFromUrl?.includes("/config/game.json")),
+      "harvest manifest should include a recursive second-level image with depth and provenance"
     );
 
     const report = await fs.readFile(path.join(donorRoot, "reports", "DONOR_INTAKE_REPORT.md"), "utf8");

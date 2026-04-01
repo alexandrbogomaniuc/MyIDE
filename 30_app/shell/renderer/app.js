@@ -12075,7 +12075,7 @@ async function handleCreateProject(event) {
     pushLog(`Created project scaffold ${created.projectId} at ${created.projectRoot}.`);
     const donorIntake = created.donorIntake;
     const donorIntakeSummary = donorIntake?.status === "captured"
-      ? ` Donor intake captured ${donorIntake.discoveredUrlCount} first-pass URLs into ${donorIntake.donorRoot.replace(/^.*10_donors\//, "10_donors/")}.${typeof donorIntake.harvestedAssetCount === "number" ? ` Harvested ${donorIntake.harvestedAssetCount} direct assets${typeof donorIntake.failedAssetCount === "number" ? ` with ${donorIntake.failedAssetCount} failures` : ""}.` : ""}`
+      ? ` Donor intake captured ${donorIntake.discoveredUrlCount} bounded donor URLs into ${donorIntake.donorRoot.replace(/^.*10_donors\//, "10_donors/")}.${typeof donorIntake.harvestedAssetCount === "number" ? ` Harvested ${donorIntake.harvestedAssetCount} bounded static assets${typeof donorIntake.failedAssetCount === "number" ? ` with ${donorIntake.failedAssetCount} failures` : ""}.` : ""}`
       : donorIntake?.status === "blocked"
         ? ` Donor intake was blocked: ${donorIntake.error ?? "unknown error"}.`
         : donorLaunchUrl
