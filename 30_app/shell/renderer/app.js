@@ -10860,6 +10860,13 @@ function centerSceneSectionInViewport(sectionId) {
   });
 }
 
+function getSceneKitLayoutDimensions(layoutStyle) {
+  return {
+    width: layoutStyle === "strip" ? 960 : layoutStyle === "stack" ? 360 : 760,
+    height: layoutStyle === "hero" ? 420 : layoutStyle === "stack" ? 520 : 320
+  };
+}
+
 function resetSceneSectionLayout(sectionId) {
   const sectionEntry = getSceneSectionEntryById(sectionId);
   if (!sectionEntry) {
@@ -10898,8 +10905,9 @@ function resetSceneSectionLayout(sectionId) {
     }
 
     const viewport = getSceneViewport();
-    const nextContainerWidth = sceneKitSummary.layoutStyle === "strip" ? 960 : sceneKitSummary.layoutStyle === "stack" ? 360 : 760;
-    const nextContainerHeight = sceneKitSummary.layoutStyle === "hero" ? 420 : sceneKitSummary.layoutStyle === "stack" ? 520 : 320;
+    const nextLayoutDimensions = getSceneKitLayoutDimensions(sceneKitSummary.layoutStyle);
+    const nextContainerWidth = nextLayoutDimensions.width;
+    const nextContainerHeight = nextLayoutDimensions.height;
     liveContainer.width = nextContainerWidth;
     liveContainer.height = nextContainerHeight;
 
@@ -10931,6 +10939,116 @@ function resetSceneSectionLayout(sectionId) {
   focusSceneObjectGroupInWorkflow(sectionEntry.memberObjectIds, {
     label: "scene section",
     statusMessage: `Reset scene section ${sectionEntry.label} to its ${sceneKitSummary.importLabel ?? "scene-kit"} layout. ${sectionEntry.count} grouped object${sectionEntry.count === 1 ? "" : "s"} remain selected in Compose Mode.`
+  });
+}
+
+function restoreSceneSectionDefaults(sectionId) {
+  const sectionEntry = getSceneSectionEntryById(sectionId);
+  if (!sectionEntry) {
+    setPreviewStatus("Could not find that scene section in the current internal scene.");
+    return;
+  }
+
+  const sourceContainer = getEditableObjectById(sectionEntry.id);
+  const sceneKitSummary = sectionEntry.gamePartSummary?.sceneKitSummary
+    ?? sectionEntry.provenance?.primaryGroupSummary
+    ?? null;
+  if (!sourceContainer || !isDonorSceneKitContainer(sourceContainer) || !sceneKitSummary) {
+    setPreviewStatus(`Scene section ${sectionEntry.label} does not have enough scene-kit structure to restore its defaults yet.`);
+    return;
+  }
+
+  const transformObjectIds = uniqueStrings([sectionEntry.id, ...sectionEntry.memberObjectIds]);
+  const transformObjects = transformObjectIds.map((objectId) => getEditableObjectById(objectId)).filter(Boolean);
+  const blockedCurrentLayers = transformObjects.filter((entry) => getLayerById(entry.layerId)?.locked);
+  if (blockedCurrentLayers.length > 0) {
+    setPreviewStatus(`Scene section ${sectionEntry.label} cannot restore defaults while ${blockedCurrentLayers.length} grouped object${blockedCurrentLayers.length === 1 ? "" : "s"} are on locked layers.`);
+    return;
+  }
+
+  const targetLayer = sceneKitSummary.layerId
+    ? getAssignableLayers().find((entry) => entry.id === sceneKitSummary.layerId) ?? null
+    : null;
+  if (sceneKitSummary.layerId && !targetLayer) {
+    setPreviewStatus(`Scene section ${sectionEntry.label} cannot restore defaults because ${sceneKitSummary.layerId} is not editable right now.`);
+    return;
+  }
+
+  const sectionBounds = getObjectGroupBounds(sectionEntry.memberObjects);
+  const anchorX = Math.round(Number.isFinite(sourceContainer.x) ? sourceContainer.x : sectionBounds?.x ?? 0);
+  const anchorY = Math.round(Number.isFinite(sourceContainer.y) ? sourceContainer.y : sectionBounds?.y ?? 0);
+  const layoutDimensions = getSceneKitLayoutDimensions(sceneKitSummary.layoutStyle);
+
+  const didChange = applyEditorMutation(`Restored scene section ${sectionEntry.label} defaults.`, (editorData) => {
+    if (!Array.isArray(editorData.objects)) {
+      return;
+    }
+
+    const liveContainer = editorData.objects.find((entry) => entry.id === sectionEntry.id);
+    if (!liveContainer || !isDonorSceneKitContainer(liveContainer)) {
+      return;
+    }
+
+    const liveMembers = editorData.objects.filter((entry) => entry?.parentId === liveContainer.id);
+    if (liveMembers.length === 0) {
+      return;
+    }
+
+    const viewport = getSceneViewport();
+    const containerBounds = {
+      x: anchorX,
+      y: anchorY,
+      width: layoutDimensions.width,
+      height: layoutDimensions.height
+    };
+
+    editorData.objects.forEach((entry) => {
+      if (!transformObjectIds.includes(entry.id)) {
+        return;
+      }
+      entry.visible = true;
+      entry.locked = false;
+      entry.scaleX = 1;
+      entry.scaleY = 1;
+      if (targetLayer) {
+        entry.layerId = targetLayer.id;
+      }
+    });
+
+    liveContainer.x = anchorX;
+    liveContainer.y = anchorY;
+    liveContainer.width = layoutDimensions.width;
+    liveContainer.height = layoutDimensions.height;
+
+    liveMembers.forEach((member, index) => {
+      const nextPosition = buildDonorAssetGroupImportPosition(
+        index,
+        viewport,
+        liveMembers.length,
+        sceneKitSummary.layoutStyle ?? "grid",
+        containerBounds
+      );
+      member.x = nextPosition.x;
+      member.y = nextPosition.y;
+    });
+
+    const nextBounds = getObjectGroupBounds(liveMembers);
+    if (nextBounds) {
+      liveContainer.x = nextBounds.x;
+      liveContainer.y = nextBounds.y;
+      liveContainer.width = nextBounds.width;
+      liveContainer.height = nextBounds.height;
+    }
+  });
+
+  if (!didChange) {
+    setPreviewStatus(`Could not restore defaults for scene section ${sectionEntry.label}.`);
+    return;
+  }
+
+  focusSceneObjectGroupInWorkflow(sectionEntry.memberObjectIds, {
+    label: "scene section",
+    statusMessage: `Restored scene section ${sectionEntry.label} defaults. ${sectionEntry.count} grouped object${sectionEntry.count === 1 ? "" : "s"} are visible, unlocked, reset to ${sceneKitSummary.importLabel ?? "scene-kit"} layout, and selected in Compose Mode${targetLayer ? ` on ${targetLayer.displayName}` : ""}.`
   });
 }
 
@@ -11393,6 +11511,13 @@ function handleNavigationClick(event) {
   if (scaleSceneSectionDownButton instanceof HTMLElement && scaleSceneSectionDownButton.dataset.scaleSceneSectionDownId) {
     event.preventDefault();
     scaleSceneSection(scaleSceneSectionDownButton.dataset.scaleSceneSectionDownId, "down");
+    return true;
+  }
+
+  const restoreSceneSectionDefaultsButton = target.closest("[data-restore-scene-section-defaults-id]");
+  if (restoreSceneSectionDefaultsButton instanceof HTMLElement && restoreSceneSectionDefaultsButton.dataset.restoreSceneSectionDefaultsId) {
+    event.preventDefault();
+    restoreSceneSectionDefaults(restoreSceneSectionDefaultsButton.dataset.restoreSceneSectionDefaultsId);
     return true;
   }
 
@@ -14445,6 +14570,7 @@ function renderSceneExplorer() {
                 <button type="button" class="copy-button" data-toggle-scene-section-lock-id="${escapeAttribute(entry.id)}">${escapeHtml(sectionState?.lockButtonLabel ?? "Lock Section")}</button>
                 <button type="button" class="copy-button" data-scale-scene-section-up-id="${escapeAttribute(entry.id)}">Scale Section Up</button>
                 <button type="button" class="copy-button" data-scale-scene-section-down-id="${escapeAttribute(entry.id)}">Scale Section Down</button>
+                <button type="button" class="copy-button" data-restore-scene-section-defaults-id="${escapeAttribute(entry.id)}">Restore Section Defaults</button>
                 <button type="button" class="copy-button" data-center-scene-section-id="${escapeAttribute(entry.id)}">Center Section</button>
                 ${gamePartSummary?.sceneKitSummary?.layoutStyle ? `<button type="button" class="copy-button" data-reset-scene-section-layout-id="${escapeAttribute(entry.id)}">Reset Section Layout</button>` : ""}
                 ${gamePartSummary?.sceneKitSummary?.layerId ? `<button type="button" class="copy-button" data-restore-scene-section-layer-id="${escapeAttribute(entry.id)}">Restore Suggested Layer</button>` : ""}
@@ -16424,6 +16550,7 @@ function renderInspector() {
             ${sceneKitContext.sectionId ? `<button type="button" class="copy-button" data-toggle-scene-section-lock-id="${escapeAttribute(sceneKitContext.sectionId)}">${escapeHtml(sceneSectionState?.lockButtonLabel ?? "Lock Section")}</button>` : ""}
             ${sceneKitContext.sectionId ? `<button type="button" class="copy-button" data-scale-scene-section-up-id="${escapeAttribute(sceneKitContext.sectionId)}">Scale Section Up</button>` : ""}
             ${sceneKitContext.sectionId ? `<button type="button" class="copy-button" data-scale-scene-section-down-id="${escapeAttribute(sceneKitContext.sectionId)}">Scale Section Down</button>` : ""}
+            ${sceneKitContext.sectionId ? `<button type="button" class="copy-button" data-restore-scene-section-defaults-id="${escapeAttribute(sceneKitContext.sectionId)}">Restore Section Defaults</button>` : ""}
             ${sceneKitContext.sectionId && sceneSectionGamePartSummary?.sceneKitSummary?.layoutStyle ? `<button type="button" class="copy-button" data-reset-scene-section-layout-id="${escapeAttribute(sceneKitContext.sectionId)}">Reset Section Layout</button>` : ""}
             ${sceneKitContext.sectionId && (sceneSectionRuntimeContext?.preferredWorkbenchEntry || sceneSectionRuntimeContext?.preferredReference) ? `<button type="button" class="copy-button" data-open-scene-section-runtime-id="${escapeAttribute(sceneKitContext.sectionId)}">Open Runtime Group</button>` : ""}
             ${sceneKitContext.sectionId && sceneSectionProvenance?.evidenceIds?.length ? `<button type="button" class="copy-button" data-focus-scene-section-evidence-id="${escapeAttribute(sceneKitContext.sectionId)}">Show Section Evidence</button>` : ""}
@@ -17064,6 +17191,7 @@ function renderRuntimeInspector() {
             <button type="button" class="copy-button" data-toggle-scene-section-lock-id="${escapeAttribute(selectedSceneKitContext.sectionId)}">${escapeHtml(selectedSceneSectionState?.lockButtonLabel ?? "Lock Section")}</button>
             <button type="button" class="copy-button" data-scale-scene-section-up-id="${escapeAttribute(selectedSceneKitContext.sectionId)}">Scale Section Up</button>
             <button type="button" class="copy-button" data-scale-scene-section-down-id="${escapeAttribute(selectedSceneKitContext.sectionId)}">Scale Section Down</button>
+            <button type="button" class="copy-button" data-restore-scene-section-defaults-id="${escapeAttribute(selectedSceneKitContext.sectionId)}">Restore Section Defaults</button>
             ${selectedSceneSectionGamePartSummary?.sceneKitSummary?.layoutStyle ? `<button type="button" class="copy-button" data-reset-scene-section-layout-id="${escapeAttribute(selectedSceneKitContext.sectionId)}">Reset Section Layout</button>` : ""}
             ${selectedSceneSectionProvenance?.evidenceIds?.length ? `<button type="button" class="copy-button" data-focus-scene-section-evidence-id="${escapeAttribute(selectedSceneKitContext.sectionId)}">Show Section Evidence</button>` : ""}
             ${selectedSceneSectionRuntimeContext?.preferredWorkbenchEntry || selectedSceneSectionRuntimeContext?.preferredReference ? `<button type="button" class="copy-button" data-open-scene-section-runtime-id="${escapeAttribute(selectedSceneKitContext.sectionId)}">Open Runtime Group</button>` : ""}
