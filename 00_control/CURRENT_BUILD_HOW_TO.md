@@ -64,7 +64,8 @@ Recommended rule:
 15. Scene sections now also expose grouped **Hide/Show Section** and **Lock/Unlock Section**, so one imported grouped game-part kit can be hidden, revealed, frozen, or reopened for editing without toggling each child object separately.
 16. Scene sections now also expose grouped **Scale Section Up** and **Scale Section Down**, so one imported grouped game-part kit can be resized around its current section center as a bounded edit instead of scaling each child object manually.
 17. Scene sections now also expose **Restore Section Defaults**, so one imported grouped game-part kit can return to a clean baseline in one action: visible, unlocked, reset to its inferred scene-kit layout, back to 100% scale, and restored to its suggested layer when available.
-18. This is still only a bounded donor-package slice. It does not yet recurse through the full runtime package or expose full game logic as editable objects.
+18. Scene sections now also expose a session-only **Solo Section** view, so one imported grouped game-part kit can temporarily take over the viewport and scene explorer without changing saved visibility or layer rules.
+19. This is still only a bounded donor-package slice. It does not yet recurse through the full runtime package or expose full game logic as editable objects.
 
 ## 3. Runtime Mode Is The Primary Workflow
 1. `project_001` now opens into **Runtime** mode when the grounded donor runtime entry is available.
@@ -130,6 +131,7 @@ Current editable workflow:
 - use **Lock Section** or **Unlock Section** when you want to freeze one grouped game-part kit against accidental edits or reopen it for grouped editing
 - use **Scale Section Up** or **Scale Section Down** when you want one grouped game-part kit to grow or shrink around its current section center without touching every child object one by one
 - use **Restore Section Defaults** when you want one grouped game-part kit to snap back to a clean working baseline without chaining several section actions manually
+- use **Solo Section** when you want to focus on one imported grouped game-part kit in isolation without saving new visibility changes into the project
 - use **Restore Suggested Layer** when you want one grouped section to jump back to its inferred scene-kit target layer instead of reassigning every child object one by one
 - align placeholder-backed objects to the viewport
 - reassign objects between unlocked layers

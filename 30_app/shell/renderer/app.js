@@ -81,6 +81,10 @@ const state = {
   layerIsolation: {
     activeLayerId: null,
     previousSelectedObjectId: null
+  },
+  sceneSectionIsolation: {
+    activeSectionId: null,
+    previousSelectedObjectId: null
   }
 };
 
@@ -9413,6 +9417,7 @@ function getSceneSectionStateSummary(sectionEntry, editorData = state.editorData
   const partiallyHidden = hiddenMemberCount > 0 && !allHidden;
   const allLocked = sectionObjects.length > 0 && lockedObjectCount === sectionObjects.length;
   const partiallyLocked = lockedObjectCount > 0 && !allLocked;
+  const sectionIsolated = getIsolatedSceneSectionId() === sectionEntry.id;
 
   return {
     allHidden,
@@ -9433,7 +9438,10 @@ function getSceneSectionStateSummary(sectionEntry, editorData = state.editorData
         : partiallyLocked
           ? `${lockedObjectCount} locked`
           : "editable",
-    lockButtonLabel: allLocked ? "Unlock Section" : "Lock Section"
+    lockButtonLabel: allLocked ? "Unlock Section" : "Lock Section",
+    sectionIsolated,
+    isolationStatusLabel: sectionIsolated ? "solo section" : isSceneSectionIsolationActive() ? "not soloed" : null,
+    isolationButtonLabel: sectionIsolated ? "Exit Solo Section" : "Solo Section"
   };
 }
 
@@ -10702,6 +10710,47 @@ async function clearSceneSectionRuntimeOverride(sectionId) {
   });
 }
 
+function toggleSceneSectionIsolation(sectionId) {
+  const sectionEntry = getSceneSectionEntryById(sectionId);
+  if (!sectionEntry || !state.editorData) {
+    setPreviewStatus("Could not find that scene section in the current internal scene.");
+    return;
+  }
+
+  if (state.canvasDrag || state.canvasResize || state.viewport.panDrag) {
+    setPreviewStatus(`Finish the current edit before changing the solo section view for ${sectionEntry.label}.`);
+    return;
+  }
+
+  if (getIsolatedSceneSectionId() === sectionId) {
+    const restoreSelectionId = state.sceneSectionIsolation.previousSelectedObjectId;
+    resetSceneSectionIsolation();
+    reconcileSelectedObject(restoreSelectionId, state.selectedObjectId);
+    pushLog(`Cleared solo section view for ${sectionEntry.label}.`);
+    renderAll();
+    setPreviewStatus("Solo section view cleared. Saved visibility and layer rules are active again.");
+    return;
+  }
+
+  const previousLayerIsolation = getIsolatedLayer();
+  if (previousLayerIsolation) {
+    resetLayerIsolation();
+  }
+
+  state.sceneSectionIsolation = {
+    activeSectionId: sectionId,
+    previousSelectedObjectId: state.selectedObjectId
+  };
+
+  setWorkbenchMode("scene", { silent: true });
+  state.workflowUi.activePanel = "compose";
+  setSelectedObjectIds(sectionEntry.memberObjectIds, sectionEntry.memberObjectIds[0] ?? null);
+  reconcileSelectedObject(state.selectedObjectId, state.sceneSectionIsolation.previousSelectedObjectId);
+  pushLog(`Solo section view enabled for ${sectionEntry.label}.`);
+  renderAll();
+  setPreviewStatus(`Solo section view enabled for ${sectionEntry.label}. This is session-only${previousLayerIsolation ? ` and replaced solo layer view for ${previousLayerIsolation.displayName}` : ""}.`);
+}
+
 function duplicateSceneSection(sectionId) {
   const sectionEntry = getSceneSectionEntryById(sectionId);
   if (!sectionEntry) {
@@ -11500,6 +11549,13 @@ function handleNavigationClick(event) {
     return true;
   }
 
+  const toggleSceneSectionIsolationButton = target.closest("[data-toggle-scene-section-isolation-id]");
+  if (toggleSceneSectionIsolationButton instanceof HTMLElement && toggleSceneSectionIsolationButton.dataset.toggleSceneSectionIsolationId) {
+    event.preventDefault();
+    toggleSceneSectionIsolation(toggleSceneSectionIsolationButton.dataset.toggleSceneSectionIsolationId);
+    return true;
+  }
+
   const scaleSceneSectionUpButton = target.closest("[data-scale-scene-section-up-id]");
   if (scaleSceneSectionUpButton instanceof HTMLElement && scaleSceneSectionUpButton.dataset.scaleSceneSectionUpId) {
     event.preventDefault();
@@ -12212,6 +12268,35 @@ function resetLayerIsolation() {
   };
 }
 
+function isSceneSectionIsolationActive() {
+  return typeof state.sceneSectionIsolation?.activeSectionId === "string" && state.sceneSectionIsolation.activeSectionId.length > 0;
+}
+
+function getIsolatedSceneSectionId() {
+  return isSceneSectionIsolationActive() ? state.sceneSectionIsolation.activeSectionId : null;
+}
+
+function resetSceneSectionIsolation() {
+  state.sceneSectionIsolation = {
+    activeSectionId: null,
+    previousSelectedObjectId: null
+  };
+}
+
+function getRenderableSceneSectionObjectIds(editorData = state.editorData) {
+  const isolatedSectionId = getIsolatedSceneSectionId();
+  if (!isolatedSectionId || !editorData) {
+    return null;
+  }
+
+  const sectionEntry = getSceneSectionEntryById(isolatedSectionId, editorData);
+  if (!sectionEntry) {
+    return null;
+  }
+
+  return new Set(uniqueStrings([sectionEntry.id, ...sectionEntry.memberObjectIds]));
+}
+
 function sortLayers(layers) {
   return [...layers].sort((left, right) => left.order - right.order || left.displayName.localeCompare(right.displayName));
 }
@@ -12269,6 +12354,32 @@ function enforceIsolationSelection() {
   setSelectedObjectIds([getFirstSelectableObjectIdForLayer(isolatedLayerId)].filter(Boolean));
 }
 
+function enforceSceneSectionIsolationSelection() {
+  if (!state.editorData || !isSceneSectionIsolationActive()) {
+    return;
+  }
+
+  const isolatedSectionId = getIsolatedSceneSectionId();
+  if (!isolatedSectionId) {
+    return;
+  }
+
+  const sectionEntry = getSceneSectionEntryById(isolatedSectionId, state.editorData);
+  if (!sectionEntry) {
+    resetSceneSectionIsolation();
+    return;
+  }
+
+  const memberIds = uniqueStrings(sectionEntry.memberObjectIds);
+  const isolatedSelectionIds = getSelectedObjectIds().filter((objectId) => memberIds.includes(objectId));
+  if (isolatedSelectionIds.length > 0) {
+    setSelectedObjectIds(isolatedSelectionIds, isolatedSelectionIds[0]);
+    return;
+  }
+
+  setSelectedObjectIds(memberIds.slice(0, 1));
+}
+
 function getSelectedObjectOrderContext() {
   const selectedObject = getSelectedObject();
   if (!selectedObject || !state.editorData) {
@@ -12299,13 +12410,17 @@ function getSelectedObjectOrderContext() {
 
 function getLayerNavigableObjectIds(layerId) {
   const objects = getLayerObjectsInOrder(layerId);
+  const sectionRenderableIds = getRenderableSceneSectionObjectIds();
+  const baseIds = objects
+    .map((entry) => entry.id)
+    .filter((objectId) => !sectionRenderableIds || sectionRenderableIds.has(objectId));
   if (!isLayerIsolationActive()) {
-    return objects.map((entry) => entry.id);
+    return baseIds;
   }
 
   const renderableIds = new Set(getRenderableLayerIds());
   return renderableIds.has(layerId)
-    ? objects.map((entry) => entry.id)
+    ? baseIds
     : [];
 }
 
@@ -13585,6 +13700,7 @@ async function reloadWorkspace(isInitialLoad, requestedProjectId = null) {
   };
   resetViewportSessionState();
   resetLayerIsolation();
+  resetSceneSectionIsolation();
   resetEditorHistory();
   state.workbenchMode = getRuntimeLaunchInfo()?.entryUrl ? "runtime" : "scene";
   state.workflowUi = {
@@ -13813,6 +13929,9 @@ function handleLayerAction(layerId, action) {
       activeLayerId: layerId,
       previousSelectedObjectId: state.selectedObjectId
     };
+    if (isSceneSectionIsolationActive()) {
+      resetSceneSectionIsolation();
+    }
 
     if (getSelectedObject()?.layerId !== layerId) {
       setSelectedObject(getFirstSelectableObjectIdForLayer(layerId));
@@ -14510,7 +14629,11 @@ function renderSceneExplorer() {
 
   const sortedLayers = sortLayers(editorData.layers);
   const renderableLayerIds = new Set(getRenderableLayerIds(editorData));
+  const renderableSectionObjectIds = getRenderableSceneSectionObjectIds(editorData);
   const isolatedLayer = getIsolatedLayer();
+  const isolatedSceneSection = getIsolatedSceneSectionId()
+    ? getSceneSectionEntryById(getIsolatedSceneSectionId(), editorData)
+    : null;
   const displayedLayers = sortedLayers.filter((layer) => renderableLayerIds.has(layer.id));
   const sceneSectionEntries = getSceneSectionEntries(editorData);
   const sceneSectionBanner = sceneSectionEntries.length > 0 ? `
@@ -14543,6 +14666,7 @@ function renderSceneExplorer() {
                 ${sectionState?.visibilityStatusLabel ? `<span>${escapeHtml(sectionState.visibilityStatusLabel)}</span>` : ""}
                 ${sectionState?.lockStatusLabel ? `<span>${escapeHtml(sectionState.lockStatusLabel)}</span>` : ""}
                 ${sectionState?.scaleStatusLabel ? `<span>${escapeHtml(sectionState.scaleStatusLabel)}</span>` : ""}
+                ${sectionState?.isolationStatusLabel ? `<span>${escapeHtml(sectionState.isolationStatusLabel)}</span>` : ""}
               </div>
               ${provenance ? `
                 <small>${escapeHtml(`${provenance.donorAssets.length} donor asset${provenance.donorAssets.length === 1 ? "" : "s"} · ${provenance.evidenceIds.length} evidence ref${provenance.evidenceIds.length === 1 ? "" : "s"} · ${provenance.sourceCategories.join(", ") || "source unknown"}`)}</small>
@@ -14568,6 +14692,7 @@ function renderSceneExplorer() {
                   : ""}
                 <button type="button" class="copy-button" data-toggle-scene-section-visibility-id="${escapeAttribute(entry.id)}">${escapeHtml(sectionState?.visibilityButtonLabel ?? "Hide Section")}</button>
                 <button type="button" class="copy-button" data-toggle-scene-section-lock-id="${escapeAttribute(entry.id)}">${escapeHtml(sectionState?.lockButtonLabel ?? "Lock Section")}</button>
+                <button type="button" class="copy-button" data-toggle-scene-section-isolation-id="${escapeAttribute(entry.id)}">${escapeHtml(sectionState?.isolationButtonLabel ?? "Solo Section")}</button>
                 <button type="button" class="copy-button" data-scale-scene-section-up-id="${escapeAttribute(entry.id)}">Scale Section Up</button>
                 <button type="button" class="copy-button" data-scale-scene-section-down-id="${escapeAttribute(entry.id)}">Scale Section Down</button>
                 <button type="button" class="copy-button" data-restore-scene-section-defaults-id="${escapeAttribute(entry.id)}">Restore Section Defaults</button>
@@ -14594,6 +14719,17 @@ function renderSceneExplorer() {
       </div>
     </div>
   ` : "";
+  const sectionIsolationBanner = isolatedSceneSection ? `
+    <div class="tree-row isolate-banner">
+      <strong>Solo Section View</strong>
+      <span>${escapeHtml(isolatedSceneSection.label)} is isolated for this session only. Saved object visibility and layer rules are unchanged.</span>
+      <div class="layer-actions">
+        <button class="layer-toggle" type="button" data-toggle-scene-section-isolation-id="${escapeAttribute(isolatedSceneSection.id)}" ${state.canvasDrag ? "disabled" : ""}>
+          Exit Solo Section
+        </button>
+      </div>
+    </div>
+  ` : "";
   const isolationBanner = isolatedLayer ? `
     <div class="tree-row isolate-banner">
       <strong>Solo Layer View</strong>
@@ -14606,7 +14742,9 @@ function renderSceneExplorer() {
     </div>
   ` : "";
   const layerMarkup = displayedLayers.map((layer) => {
-    const objects = getLayerObjectsInOrder(layer.id, editorData).filter((object) => !isDonorSceneKitContainer(object));
+    const objects = getLayerObjectsInOrder(layer.id, editorData)
+      .filter((object) => !isDonorSceneKitContainer(object))
+      .filter((object) => !renderableSectionObjectIds || renderableSectionObjectIds.has(object.id));
     const objectMarkup = objects.length > 0
       ? objects.map((object, index) => {
         const donorAsset = getDonorAssetForObject(object);
@@ -14666,9 +14804,11 @@ function renderSceneExplorer() {
         <span>${sceneSectionEntries.filter((entry) => entry.runtimeContext?.preferredWorkbenchEntry || entry.runtimeContext?.preferredReference).length} runtime-linked section${sceneSectionEntries.filter((entry) => entry.runtimeContext?.preferredWorkbenchEntry || entry.runtimeContext?.preferredReference).length === 1 ? "" : "s"}</span>
         <span>${state.dirty ? "unsaved changes" : "saved"}</span>
         <span>${isolatedLayer ? `solo ${isolatedLayer.displayName}` : "no solo layer"}</span>
+        <span>${isolatedSceneSection ? `solo ${isolatedSceneSection.label}` : "no solo section"}</span>
       </div>
     </div>
     ${sceneSectionBanner}
+    ${sectionIsolationBanner}
     ${isolationBanner}
     ${layerMarkup}
   `;
@@ -15880,6 +16020,7 @@ function renderEditorCanvas() {
 
   const sortedLayers = sortLayers(editorData.layers);
   const renderableLayerIds = new Set(getRenderableLayerIds(editorData));
+  const renderableSectionObjectIds = getRenderableSceneSectionObjectIds(editorData);
   const objectOrderById = new Map();
   sortedLayers.forEach((layer) => {
     getLayerObjectsInOrder(layer.id, editorData).forEach((object, index) => {
@@ -15887,7 +16028,10 @@ function renderEditorCanvas() {
     });
   });
 
-  const objectMarkup = editorData.objects.filter((object) => renderableLayerIds.has(object.layerId)).map((object) => {
+  const objectMarkup = editorData.objects
+    .filter((object) => renderableLayerIds.has(object.layerId))
+    .filter((object) => !renderableSectionObjectIds || renderableSectionObjectIds.has(object.id))
+    .map((object) => {
     const layer = getLayerById(object.layerId);
     const visible = object.visible;
     const locked = object.locked || layer?.locked;
@@ -15957,6 +16101,9 @@ function renderEditorCanvas() {
   const isolationLabel = isLayerIsolationActive()
     ? `Solo ${getIsolatedLayer()?.displayName ?? "layer"}`
     : "No solo layer";
+  const sectionIsolationLabel = isSceneSectionIsolationActive()
+    ? `Solo ${getSceneSectionEntryById(getIsolatedSceneSectionId())?.label ?? "section"}`
+    : "No solo section";
   const view = getViewportState();
   const panLabel = `Pan ${Math.round(view.panX)}, ${Math.round(view.panY)}`;
   const viewLabel = `View ${Math.round(view.zoom * 100)}%`;
@@ -16011,6 +16158,7 @@ function renderEditorCanvas() {
       <span>Donor import target: ${escapeHtml(getDonorImportTargetLayerLabel())}</span>
       <span>${snapLabel}</span>
       <span>${isolationLabel}</span>
+      <span>${sectionIsolationLabel}</span>
       <span>Space+drag or middle mouse pan</span>
     </div>
     <div class="${viewportClassNames}" tabindex="0" aria-label="Project editor canvas" data-donor-drop-zone="1" style="${viewportInlineStyle}">
@@ -16548,6 +16696,7 @@ function renderInspector() {
             ${sceneKitContext.sectionId ? `<button type="button" class="copy-button" data-center-scene-section-id="${escapeAttribute(sceneKitContext.sectionId)}">Center Section</button>` : ""}
             ${sceneKitContext.sectionId ? `<button type="button" class="copy-button" data-toggle-scene-section-visibility-id="${escapeAttribute(sceneKitContext.sectionId)}">${escapeHtml(sceneSectionState?.visibilityButtonLabel ?? "Hide Section")}</button>` : ""}
             ${sceneKitContext.sectionId ? `<button type="button" class="copy-button" data-toggle-scene-section-lock-id="${escapeAttribute(sceneKitContext.sectionId)}">${escapeHtml(sceneSectionState?.lockButtonLabel ?? "Lock Section")}</button>` : ""}
+            ${sceneKitContext.sectionId ? `<button type="button" class="copy-button" data-toggle-scene-section-isolation-id="${escapeAttribute(sceneKitContext.sectionId)}">${escapeHtml(sceneSectionState?.isolationButtonLabel ?? "Solo Section")}</button>` : ""}
             ${sceneKitContext.sectionId ? `<button type="button" class="copy-button" data-scale-scene-section-up-id="${escapeAttribute(sceneKitContext.sectionId)}">Scale Section Up</button>` : ""}
             ${sceneKitContext.sectionId ? `<button type="button" class="copy-button" data-scale-scene-section-down-id="${escapeAttribute(sceneKitContext.sectionId)}">Scale Section Down</button>` : ""}
             ${sceneKitContext.sectionId ? `<button type="button" class="copy-button" data-restore-scene-section-defaults-id="${escapeAttribute(sceneKitContext.sectionId)}">Restore Section Defaults</button>` : ""}
@@ -16576,6 +16725,7 @@ function renderInspector() {
           ${sceneSectionState?.visibilityStatusLabel ? `<span>${escapeHtml(sceneSectionState.visibilityStatusLabel)}</span>` : ""}
           ${sceneSectionState?.lockStatusLabel ? `<span>${escapeHtml(sceneSectionState.lockStatusLabel)}</span>` : ""}
           ${sceneSectionState?.scaleStatusLabel ? `<span>${escapeHtml(sceneSectionState.scaleStatusLabel)}</span>` : ""}
+          ${sceneSectionState?.isolationStatusLabel ? `<span>${escapeHtml(sceneSectionState.isolationStatusLabel)}</span>` : ""}
           ${sceneSectionRuntimeContext?.statusLabel ? `<span>${escapeHtml(sceneSectionRuntimeContext.statusLabel)}</span>` : ""}
           ${sceneSectionOverrideCandidate?.eligible ? `<span>override-ready</span>` : sceneSectionOverrideCandidate?.activeOverride ? `<span>override-active</span>` : ""}
           ${sceneSectionProvenance?.sourceCategories?.map((entry) => `<span>${escapeHtml(entry)}</span>`).join("") ?? ""}
@@ -17172,7 +17322,7 @@ function renderRuntimeInspector() {
             ? `${selectedSceneSectionState.visibilityStatusLabel} · ${selectedSceneSectionState.lockStatusLabel} · ${selectedSceneSectionState.scaleStatusLabel}`
             : "Select one imported scene section member in Compose")}</strong>
           <small>${escapeHtml(selectedSceneSectionState
-            ? `${selectedSceneSectionState.visibilityButtonLabel}, ${selectedSceneSectionState.lockButtonLabel}, and grouped section scaling now work at section level.`
+            ? `${selectedSceneSectionState.visibilityButtonLabel}, ${selectedSceneSectionState.lockButtonLabel}, ${selectedSceneSectionState.isolationButtonLabel}, and grouped section scaling now work at section level.`
             : "Section-level visibility and lock state appear here when the current Compose selection belongs to an imported scene section.")}</small>
         </div>
       </div>
@@ -17189,6 +17339,7 @@ function renderRuntimeInspector() {
             <button type="button" class="copy-button" data-center-scene-section-id="${escapeAttribute(selectedSceneKitContext.sectionId)}">Center Section</button>
             <button type="button" class="copy-button" data-toggle-scene-section-visibility-id="${escapeAttribute(selectedSceneKitContext.sectionId)}">${escapeHtml(selectedSceneSectionState?.visibilityButtonLabel ?? "Hide Section")}</button>
             <button type="button" class="copy-button" data-toggle-scene-section-lock-id="${escapeAttribute(selectedSceneKitContext.sectionId)}">${escapeHtml(selectedSceneSectionState?.lockButtonLabel ?? "Lock Section")}</button>
+            <button type="button" class="copy-button" data-toggle-scene-section-isolation-id="${escapeAttribute(selectedSceneKitContext.sectionId)}">${escapeHtml(selectedSceneSectionState?.isolationButtonLabel ?? "Solo Section")}</button>
             <button type="button" class="copy-button" data-scale-scene-section-up-id="${escapeAttribute(selectedSceneKitContext.sectionId)}">Scale Section Up</button>
             <button type="button" class="copy-button" data-scale-scene-section-down-id="${escapeAttribute(selectedSceneKitContext.sectionId)}">Scale Section Down</button>
             <button type="button" class="copy-button" data-restore-scene-section-defaults-id="${escapeAttribute(selectedSceneKitContext.sectionId)}">Restore Section Defaults</button>
@@ -17397,6 +17548,7 @@ function renderRuntimeInspector() {
 
 function renderAll() {
   enforceIsolationSelection();
+  enforceSceneSectionIsolationSelection();
   renderWorkflowPanels();
   renderOnboardingCard();
   renderProjectBrowser();
@@ -17677,6 +17829,10 @@ window.render_game_to_text = () => JSON.stringify({
     : [],
   layerIsolation: {
     activeLayerId: getIsolatedLayerId(),
+    sessionOnly: true
+  },
+  sceneSectionIsolation: {
+    activeSectionId: getIsolatedSceneSectionId(),
     sessionOnly: true
   },
   editorObjectPositions: Array.isArray(state.editorData?.objects)
