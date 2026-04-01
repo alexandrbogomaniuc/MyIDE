@@ -48,10 +48,17 @@ Recommended rule:
    - `raw/discovered/discovered-urls.json`
    - `reports/DONOR_INTAKE_REPORT.md`
    - `evidence/local_only/harvest/asset-manifest.json`
+   - `evidence/local_only/harvest/entry-points.json`
+   - `evidence/local_only/harvest/url-inventory.json`
    - `evidence/local_only/harvest/package-manifest.json`
    - `evidence/local_only/harvest/package-graph.json`
+   - `evidence/local_only/harvest/runtime-candidates.json`
+   - `evidence/local_only/harvest/bundle-asset-map.json`
+   - `evidence/local_only/harvest/atlas-manifests.json`
+   - `evidence/local_only/harvest/blocker-summary.md`
+   - `evidence/local_only/harvest/scan-summary.json`
    - downloaded bounded recursive static assets under `evidence/local_only/harvest/files/`
-5. The donor panel now surfaces the harvest manifest, donor-package manifest, and donor-package graph summary so you can see how many referenced URLs, bounded asset families, graph nodes, graph edges, and unresolved entries were captured.
+5. The donor panel now surfaces the donor scan summary too, so you can see scan state, runtime candidate count, atlas metadata count, bundle-map status, mirror status, blocker summary, and the next operator action without opening raw JSON first.
 6. Downloaded package-graph images now join the donor asset palette automatically, grouped by harvested runtime/package scene kit, so you can drag one image at a time or use **Import Scene Kit To Compose** for a whole captured family of editable donor-backed objects instead of keeping them stuck in read-only capture files.
 7. Imported scene sections now show their strongest grounded runtime link too. Use **Open Runtime Group** from the Scene Sections banner or the selected-object inspector when you want one grouped Compose section to jump back into the Runtime workbench.
 8. When a scene section has a grounded runtime-backed static candidate, the same grouped section now shows **Create Override** / **Clear Override** actions so you can keep the override flow attached to that higher-level imported game part instead of hunting in the flat runtime asset list first.
@@ -70,7 +77,9 @@ Recommended rule:
 21. Deep donor-scan result for `project_001`:
    - strong partial local runtime package: yes
    - full standalone local donor runtime package: no
+   - atlas/frame metadata present locally: yes
    - atlas/frame import from current local files: no
+   - current atlas/frame blocker: referenced page images and deeper runtime payloads are still missing locally
    - next best source-discovery path: chase the bundle-discovered runtime metadata family `img/spines/*.json`, `img/coins/coin.json`, `img/ui/logo.png`, and translation roots into the local donor/runtime boundary
 
 ## 3. Runtime Mode Is The Primary Workflow
@@ -169,8 +178,8 @@ Current hard limits:
 - pause, resume, and step only work if the embedded runtime exposes a stable ticker-like hook; if it does not, the shell shows the blocker instead of faking the control
 - only `project_001` is supported in this slice
 - only static donor image files are supported
-- atlas/frame donor import is blocked in this build because no local atlas text or sprite-sheet metadata source exists for `project_001` yet
-- the deep donor scan now proves likely runtime metadata paths exist in `bundle.js`, but the referenced local files are still missing, so atlas/frame import remains blocked by source material rather than parser/UI code
+- atlas/frame donor import is blocked in this build because the required atlas page images and deeper runtime payloads are still missing locally for `project_001`
+- the deep donor scan now proves local atlas/frame metadata exists and bundle-discovered runtime metadata paths are grounded, so atlas/frame import is blocked by missing payloads rather than parser/UI code
 - no animation import
 - no audio/video import
 - no raw donor file mutation

@@ -1,0 +1,129 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://myide.local/schemas/donor-scan.schema.json",
+  "title": "Donor Scan Summary",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schemaVersion",
+    "donorId",
+    "donorName",
+    "generatedAt",
+    "scanState",
+    "runtimeCandidateCount",
+    "atlasManifestCount",
+    "bundleAssetMapStatus",
+    "mirrorCandidateStatus",
+    "fullLocalRuntimePackage",
+    "partialLocalRuntimePackage",
+    "nextOperatorAction",
+    "blockerHighlights"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "string"
+    },
+    "donorId": {
+      "type": "string"
+    },
+    "donorName": {
+      "type": "string"
+    },
+    "generatedAt": {
+      "type": "string"
+    },
+    "scanState": {
+      "type": "string",
+      "enum": ["scanned", "blocked", "skipped"]
+    },
+    "launchUrl": {
+      "type": ["string", "null"]
+    },
+    "resolvedLaunchUrl": {
+      "type": ["string", "null"]
+    },
+    "sourceHost": {
+      "type": ["string", "null"]
+    },
+    "entryPointsPath": {
+      "type": "string"
+    },
+    "urlInventoryPath": {
+      "type": "string"
+    },
+    "runtimeCandidatesPath": {
+      "type": "string"
+    },
+    "bundleAssetMapPath": {
+      "type": "string"
+    },
+    "atlasManifestsPath": {
+      "type": "string"
+    },
+    "blockerSummaryPath": {
+      "type": "string"
+    },
+    "countsByCategory": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer"
+      }
+    },
+    "downloadedCountsByCategory": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer"
+      }
+    },
+    "entryPointCount": {
+      "type": "integer"
+    },
+    "urlInventoryCount": {
+      "type": "integer"
+    },
+    "runtimeCandidateCount": {
+      "type": "integer"
+    },
+    "atlasManifestCount": {
+      "type": "integer"
+    },
+    "atlasFrameManifestCount": {
+      "type": "integer"
+    },
+    "atlasMissingPageCount": {
+      "type": "integer"
+    },
+    "bundleAssetMapStatus": {
+      "type": "string",
+      "enum": ["mapped", "blocked", "skipped"]
+    },
+    "bundleReferenceCount": {
+      "type": "integer"
+    },
+    "mirrorCandidateStatus": {
+      "type": "string",
+      "enum": ["strong-partial", "weak-partial", "blocked"]
+    },
+    "mirrorCandidateCount": {
+      "type": "integer"
+    },
+    "fullLocalRuntimePackage": {
+      "type": "boolean"
+    },
+    "partialLocalRuntimePackage": {
+      "type": "boolean"
+    },
+    "unresolvedRuntimeDependencyCount": {
+      "type": "integer"
+    },
+    "nextOperatorAction": {
+      "type": "string"
+    },
+    "blockerHighlights": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

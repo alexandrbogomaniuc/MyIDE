@@ -115,6 +115,8 @@ async function main(): Promise<void> {
     console.log("Snapshot: unavailable");
     console.log("Note: no existing runtime request snapshot was found. Open the app with `npm run dev` and use `Use Debug Host`, or run `npm run runtime:harvest:smoke:project_001` if you want an automated request-backed refresh.");
   }
+  console.log(`Runtime metadata entries: ${mirrorResult.status.entries.filter((entry) => entry.kind === "runtime-metadata").length}`);
+  console.log(`Translation payload entries: ${mirrorResult.status.entries.filter((entry) => entry.kind === "translation-payload").length}`);
   console.log(`Mirror launch URL: ${mirrorResult.status.launchUrl ?? "unavailable"}`);
   console.log(`Mirror entries: ${mirrorResult.status.entryCount}`);
   console.log(`Manifest: ${mirrorResult.status.manifestRepoRelativePath}`);

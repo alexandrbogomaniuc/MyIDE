@@ -4,7 +4,7 @@ import { readRuntimeResourceMapSnapshot } from "./runtimeResourceMap";
 
 export interface LocalRuntimeMirrorEntry {
   sourceUrl: string;
-  kind: "launch-script" | "runtime-loader" | "runtime-bundle" | "static-image" | "support-script";
+  kind: "launch-script" | "runtime-loader" | "runtime-bundle" | "static-image" | "support-script" | "runtime-metadata" | "translation-payload";
   repoRelativePath: string;
   fileType: string;
 }
@@ -68,7 +68,8 @@ const supportedHosts = new Set([
   "rs-cdn.shared.bgaming-system.com",
   "lobby.bgaming-network.com",
   "drops-fe.bgaming-network.com",
-  "www.googletagmanager.com"
+  "www.googletagmanager.com",
+  "translations.bgaming-network.com"
 ]);
 
 function assertSupportedProject(projectId: string): void {
@@ -146,7 +147,8 @@ function sanitizeFileComponent(value: string): string {
 function getMirrorEntryFilePath(projectId: string, sourceUrl: string): string {
   const { filesRoot } = getLocalRuntimeMirrorPaths(projectId);
   const parsed = new URL(sourceUrl);
-  const extension = path.extname(parsed.pathname) || ".bin";
+  const fileType = getFileType(sourceUrl);
+  const extension = path.extname(parsed.pathname) || (fileType === "json" ? ".json" : ".bin");
   const baseName = sanitizeFileComponent(path.basename(parsed.pathname, extension) || parsed.hostname);
   const querySuffix = parsed.search
     ? `--q${sanitizeFileComponent(parsed.search.replace(/^\?/, ""))}`
@@ -232,6 +234,9 @@ function normalizeHostCandidate(sourceUrl: string): string | null {
 }
 
 function classifyMirrorEntry(sourceUrl: string): LocalRuntimeMirrorEntry["kind"] {
+  if (sourceUrl.startsWith("https://translations.bgaming-network.com/")) {
+    return "translation-payload";
+  }
   if (sourceUrl.includes("/wrapper.js") || sourceUrl.includes("/lobby-bundle.js") || sourceUrl.includes("/replays.js")) {
     return "support-script";
   }
@@ -241,6 +246,9 @@ function classifyMirrorEntry(sourceUrl: string): LocalRuntimeMirrorEntry["kind"]
   if (sourceUrl.includes("/bundle.js")) {
     return "runtime-bundle";
   }
+  if (/\.(json|atlas|plist|xml|fnt|skel)$/i.test(sourceUrl)) {
+    return "runtime-metadata";
+  }
   if (/\.(png|webp|jpg|jpeg|svg|gif)$/i.test(sourceUrl)) {
     return "static-image";
   }
@@ -248,7 +256,11 @@ function classifyMirrorEntry(sourceUrl: string): LocalRuntimeMirrorEntry["kind"]
 }
 
 function getFileType(sourceUrl: string): string {
-  const extension = path.extname(new URL(sourceUrl).pathname).replace(/^\./, "").toLowerCase();
+  const parsed = new URL(sourceUrl);
+  if (parsed.hostname === "translations.bgaming-network.com" && path.extname(parsed.pathname).length === 0) {
+    return "json";
+  }
+  const extension = path.extname(parsed.pathname).replace(/^\./, "").toLowerCase();
   return extension || "file";
 }
 
@@ -442,7 +454,7 @@ function extractResourceVersion(loaderText: string): string | null {
   return match?.[1]?.trim() ?? null;
 }
 
-function extractStaticAssetCandidates(bundleText: string, resourceVersion: string): string[] {
+function extractBundleRuntimeCandidates(bundleText: string, resourceVersion: string): string[] {
   const urls = new Set<string>();
   const prefix = `https://cdn.bgaming-network.com/html/MysteryGarden/v${resourceVersion}/`;
   for (const match of bundleText.matchAll(/preloader-assets\/[A-Za-z0-9._-]+/g)) {
@@ -451,8 +463,98 @@ function extractStaticAssetCandidates(bundleText: string, resourceVersion: strin
   for (const match of bundleText.matchAll(/img\/ui\/[A-Za-z0-9_./-]+\.(?:png|webp|jpg|jpeg|svg)/g)) {
     urls.add(`${prefix}${match[0]}`);
   }
+  for (const match of bundleText.matchAll(/img\/spines\/[A-Za-z0-9_./-]+\.json/g)) {
+    urls.add(`${prefix}${match[0]}`);
+  }
+  for (const match of bundleText.matchAll(/img\/coins\/[A-Za-z0-9_./-]+\.json/g)) {
+    urls.add(`${prefix}${match[0]}`);
+  }
+  for (const match of bundleText.matchAll(/https:\/\/translations\.bgaming-network\.com\/[A-Za-z0-9._/-]+/g)) {
+    urls.add(match[0]);
+  }
   urls.add(`${prefix}preloader-assets/logo-lights.png`);
-  return Array.from(urls).slice(0, 24);
+  return Array.from(urls).slice(0, 160);
+}
+
+function resolveRelativeAssetUrl(sourceUrl: string, candidate: string): string | null {
+  const trimmed = candidate.trim();
+  if (trimmed.length === 0) {
+    return null;
+  }
+  try {
+    return new URL(trimmed, sourceUrl).toString();
+  } catch {
+    return null;
+  }
+}
+
+function extractAtlasPageCandidates(atlasText: string, sourceUrl: string): string[] {
+  const urls = new Set<string>();
+  const lines = atlasText.split(/\r?\n/);
+  let expectingPage = true;
+  for (const rawLine of lines) {
+    const trimmed = rawLine.trim();
+    if (trimmed.length === 0) {
+      expectingPage = true;
+      continue;
+    }
+    if (!expectingPage) {
+      continue;
+    }
+    if (trimmed.includes(":")) {
+      expectingPage = false;
+      continue;
+    }
+    if (!/\.(png|webp|jpg|jpeg|svg)$/i.test(trimmed)) {
+      expectingPage = false;
+      continue;
+    }
+    const resolved = resolveRelativeAssetUrl(sourceUrl, trimmed);
+    if (resolved) {
+      urls.add(resolved);
+    }
+    expectingPage = false;
+  }
+  return Array.from(urls);
+}
+
+async function discoverNestedMirrorCandidates(entry: LocalRuntimeMirrorEntry): Promise<string[]> {
+  const filePath = path.join(workspaceRoot, entry.repoRelativePath);
+  let text: string;
+  try {
+    text = await fs.readFile(filePath, "utf8");
+  } catch {
+    return [];
+  }
+
+  const urls = new Set<string>();
+  if (entry.fileType === "json") {
+    try {
+      const parsed = JSON.parse(text) as Record<string, unknown>;
+      const meta = typeof parsed.meta === "object" && parsed.meta ? parsed.meta as Record<string, unknown> : null;
+      if (typeof meta?.image === "string") {
+        const resolved = resolveRelativeAssetUrl(entry.sourceUrl, meta.image);
+        if (resolved) {
+          urls.add(resolved);
+        }
+      }
+    } catch {
+      // Ignore JSON parsing failures and fall through to path-based heuristics.
+    }
+
+    if (/\/img\/spines\/[^/]+\.json$/i.test(new URL(entry.sourceUrl).pathname)) {
+      const atlasUrl = entry.sourceUrl.replace(/\.json$/i, ".atlas");
+      urls.add(atlasUrl);
+    }
+  }
+
+  if (entry.fileType === "atlas") {
+    for (const candidate of extractAtlasPageCandidates(text, entry.sourceUrl)) {
+      urls.add(candidate);
+    }
+  }
+
+  return Array.from(urls).filter((candidate) => Boolean(normalizeHostCandidate(candidate)));
 }
 
 async function writeMirrorEntry(projectId: string, sourceUrl: string): Promise<LocalRuntimeMirrorEntry> {
@@ -508,7 +610,7 @@ export async function captureLocalRuntimeMirror(projectId: string): Promise<Capt
 
   const bundleUrl = `https://cdn.bgaming-network.com/html/MysteryGarden/v${resourceVersion}/bundle.js`;
   const bundleFetch = await fetchRemoteText(bundleUrl);
-  const staticUrls = extractStaticAssetCandidates(bundleFetch.text, resourceVersion);
+  const runtimeCandidateUrls = extractBundleRuntimeCandidates(bundleFetch.text, resourceVersion);
   const manifestBeforeCapture = await readManifest(projectId);
   const observedRuntimeRequestUrls = await collectObservedRuntimeRequestUrls(projectId);
 
@@ -516,17 +618,33 @@ export async function captureLocalRuntimeMirror(projectId: string): Promise<Capt
     ...scriptUrls,
     loaderUrl,
     bundleUrl,
-    ...staticUrls,
+    ...runtimeCandidateUrls,
     ...observedRuntimeRequestUrls,
     ...(manifestBeforeCapture?.entries ?? []).map((entry) => entry.sourceUrl)
   ])).filter((entry) => Boolean(normalizeHostCandidate(entry)));
 
   const entries: LocalRuntimeMirrorEntry[] = [];
   const warnings: string[] = [];
-  for (const sourceUrl of candidateUrls) {
+  const queue = [...candidateUrls];
+  const queued = new Set(queue);
+  const processed = new Set<string>();
+  while (queue.length > 0) {
+    const sourceUrl = queue.shift();
+    if (!sourceUrl || processed.has(sourceUrl)) {
+      continue;
+    }
+    processed.add(sourceUrl);
     const result = await writeMirrorEntryIfAvailable(projectId, sourceUrl);
     if (result.entry) {
       entries.push(result.entry);
+      const nestedCandidates = await discoverNestedMirrorCandidates(result.entry);
+      for (const nestedCandidate of nestedCandidates) {
+        if (processed.has(nestedCandidate) || queued.has(nestedCandidate)) {
+          continue;
+        }
+        queued.add(nestedCandidate);
+        queue.push(nestedCandidate);
+      }
     }
     if (result.warning) {
       warnings.push(result.warning);
@@ -546,6 +664,7 @@ export async function captureLocalRuntimeMirror(projectId: string): Promise<Capt
       "Partial local runtime mirror captured from the strongest grounded live Mystery Garden donor runtime entry.",
       "Launch HTML still refreshes from the public donor demo entry at runtime so a current launch token and live APIs/websocket URLs remain valid.",
       "Mirrored files are local-only and gitignored; raw donor files remain untouched.",
+      `Bundle-derived runtime candidate hunt contributed ${runtimeCandidateUrls.length} direct URL candidate${runtimeCandidateUrls.length === 1 ? "" : "s"}, including deeper runtime metadata paths when present.`,
       observedRuntimeRequestUrls.length > 0
         ? `Observed runtime request snapshot contributed ${observedRuntimeRequestUrls.length} grounded launch/runtime candidate URL${observedRuntimeRequestUrls.length === 1 ? "" : "s"} to this mirror refresh.`
         : "No observed runtime request snapshot was available, so this refresh used bundle/loader-derived candidates only.",

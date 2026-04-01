@@ -100,6 +100,38 @@
       "type": "integer",
       "minimum": 0
     },
+    "scanStatus": {
+      "type": "string",
+      "enum": ["unknown", "scanned", "blocked", "skipped"]
+    },
+    "scanSummaryPath": {
+      "type": "string",
+      "minLength": 1
+    },
+    "blockerSummaryPath": {
+      "type": "string",
+      "minLength": 1
+    },
+    "runtimeCandidateCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "atlasManifestCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "bundleAssetMapStatus": {
+      "type": "string",
+      "enum": ["mapped", "blocked", "skipped"]
+    },
+    "mirrorCandidateStatus": {
+      "type": "string",
+      "enum": ["strong-partial", "weak-partial", "blocked"]
+    },
+    "nextOperatorAction": {
+      "type": "string",
+      "minLength": 1
+    },
     "notes": {
       "type": "string"
     }

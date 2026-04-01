@@ -50,6 +50,7 @@ function startFixtureServer(): Promise<{ server: http.Server; port: number }> {
         response.end([
           "window.assetUrl = '/audio/ambient.ogg';",
           "window.configUrl = '/config/game.json';",
+          "window.atlasUrl = '/atlases/ui.atlas';",
           "console.log('smoke bundle');"
         ].join("\n"));
         return;
@@ -83,15 +84,56 @@ function startFixtureServer(): Promise<{ server: http.Server; port: number }> {
         response.writeHead(200, { "content-type": "application/json; charset=utf-8" });
         response.end(JSON.stringify({
           sheet: "/img/symbols.png",
-          spine: "/spines/stick.json"
+          spine: "/spines/stick.json",
+          spriteSheet: "/sprites/pack.json"
         }));
+        return;
+      }
+
+      if (request.url === "/atlases/ui.atlas") {
+        response.writeHead(200, { "content-type": "text/plain; charset=utf-8" });
+        response.end([
+          "ui.png",
+          "size: 128,128",
+          "format: RGBA8888",
+          "filter: Linear,Linear",
+          "repeat: none",
+          "",
+          "button_idle",
+          "bounds: 0,0,64,64",
+          "",
+          "button_hover",
+          "bounds: 64,0,64,64"
+        ].join("\n"));
+        return;
+      }
+
+      if (request.url === "/atlases/ui.png") {
+        response.writeHead(200, { "content-type": "image/png" });
+        response.end(Buffer.from("89504e470d0a1a0a", "hex"));
         return;
       }
 
       if (request.url === "/spines/stick.json") {
         response.writeHead(200, { "content-type": "application/json; charset=utf-8" });
         response.end(JSON.stringify({
+          skeleton: { spine: "4.1.0" },
+          animations: { idle: {} },
+          images: "./images/stick/",
           note: "bounded recursive smoke fixture"
+        }));
+        return;
+      }
+
+      if (request.url === "/sprites/pack.json") {
+        response.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+        response.end(JSON.stringify({
+          frames: {
+            logo: { frame: { x: 0, y: 0, w: 32, h: 32 } }
+          },
+          meta: {
+            image: "/img/symbols.png"
+          }
         }));
         return;
       }
@@ -203,11 +245,57 @@ async function main(): Promise<void> {
       "package graph should preserve recursive parent-child provenance"
     );
 
+    const entryPoints = JSON.parse(await fs.readFile(path.join(donorRoot, "evidence", "local_only", "harvest", "entry-points.json"), "utf8")) as {
+      entryPointCount?: number;
+      entryPoints?: Array<{ url?: string }>;
+    };
+    assert.ok((entryPoints.entryPointCount ?? 0) >= 4, "donor scan should write entry-point counts");
+    assert.ok(Array.isArray(entryPoints.entryPoints) && entryPoints.entryPoints.some((entry) => entry.url?.includes("/bundle.js")), "donor scan should keep bundle.js as an entry point");
+
+    const bundleAssetMap = JSON.parse(await fs.readFile(path.join(donorRoot, "evidence", "local_only", "harvest", "bundle-asset-map.json"), "utf8")) as {
+      status?: string;
+      referenceCount?: number;
+      countsByCategory?: Record<string, number>;
+    };
+    assert.equal(bundleAssetMap.status, "mapped", "donor scan should map bundle asset references");
+    assert.ok((bundleAssetMap.referenceCount ?? 0) >= 3, "bundle asset map should expose grounded bundle references");
+    assert.ok((bundleAssetMap.countsByCategory?.json ?? 0) >= 1, "bundle asset map should classify runtime metadata references");
+
+    const atlasManifests = JSON.parse(await fs.readFile(path.join(donorRoot, "evidence", "local_only", "harvest", "atlas-manifests.json"), "utf8")) as {
+      atlasTextCount?: number;
+      spriteSheetJsonCount?: number;
+      spineJsonCount?: number;
+      manifests?: Array<{ kind?: string }>;
+    };
+    assert.ok((atlasManifests.atlasTextCount ?? 0) >= 1, "atlas scan should discover atlas text files");
+    assert.ok((atlasManifests.spriteSheetJsonCount ?? 0) >= 1, "atlas scan should discover sprite-sheet json");
+    assert.ok((atlasManifests.spineJsonCount ?? 0) >= 1, "atlas scan should discover spine json");
+    assert.ok(Array.isArray(atlasManifests.manifests) && atlasManifests.manifests.some((entry) => entry.kind === "atlas-text"), "atlas manifest list should preserve atlas entries");
+
+    const scanSummary = JSON.parse(await fs.readFile(path.join(donorRoot, "evidence", "local_only", "harvest", "scan-summary.json"), "utf8")) as {
+      scanState?: string;
+      runtimeCandidateCount?: number;
+      atlasManifestCount?: number;
+      bundleAssetMapStatus?: string;
+      mirrorCandidateStatus?: string;
+      nextOperatorAction?: string;
+    };
+    assert.equal(scanSummary.scanState, "scanned", "donor scan summary should mark the scan as scanned");
+    assert.ok((scanSummary.runtimeCandidateCount ?? 0) >= 4, "donor scan summary should expose runtime candidate counts");
+    assert.ok((scanSummary.atlasManifestCount ?? 0) >= 3, "donor scan summary should expose atlas metadata counts");
+    assert.equal(scanSummary.bundleAssetMapStatus, "mapped", "donor scan summary should surface bundle map status");
+    assert.equal(typeof scanSummary.mirrorCandidateStatus, "string", "donor scan summary should surface mirror candidate status");
+    assert.equal(typeof scanSummary.nextOperatorAction, "string", "donor scan summary should recommend the next operator action");
+
+    const blockerSummary = await fs.readFile(path.join(donorRoot, "evidence", "local_only", "harvest", "blocker-summary.md"), "utf8");
+    assert.match(blockerSummary, /Next operator step/, "blocker summary should explain the next operator step");
+
     const report = await fs.readFile(path.join(donorRoot, "reports", "DONOR_INTAKE_REPORT.md"), "utf8");
     assert.match(report, /Discovered URL count:/, "intake report should summarize discovered URL counts");
     assert.match(report, /Harvested assets:/, "intake report should summarize harvested asset counts");
     assert.match(report, /Package manifest path:/, "intake report should summarize donor package manifest output");
     assert.match(report, /Package graph path:/, "intake report should summarize donor package graph output");
+    assert.match(report, /Scan summary path:/, "intake report should summarize donor scan output");
 
     console.log("PASS smoke:donor-intake");
     console.log(`Created donor intake pack: ${path.relative(workspaceRoot, donorRoot)}`);

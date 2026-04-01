@@ -147,6 +147,21 @@ export interface RuntimeLaunchStatus {
   notes: string[];
 }
 
+export interface DonorScanStatus {
+  donorId: string;
+  donorName: string;
+  scanState: string;
+  scanSummaryPath: string;
+  blockerSummaryPath: string | null;
+  runtimeCandidateCount: number;
+  atlasManifestCount: number;
+  bundleAssetMapStatus: string;
+  mirrorCandidateStatus: string;
+  nextOperatorAction: string | null;
+  blockerHighlights: string[];
+  blockerSummaryMarkdown: string | null;
+}
+
 export interface ProjectSliceBundle {
   workspace: WorkspaceSliceBundle;
   selectedProjectId: string;
@@ -170,6 +185,7 @@ export interface ProjectSliceBundle {
   runtimeMirror: LocalRuntimeMirrorStatus | null;
   runtimeResourceMap: RuntimeResourceMapStatus | null;
   runtimeOverrides: RuntimeAssetOverrideStatus | null;
+  donorScan: DonorScanStatus | null;
 }
 
 const workspaceRoot = path.resolve(__dirname, "../../..");
@@ -771,6 +787,46 @@ async function loadDonorAssetCatalog(selectedProject: WorkspaceProjectSummary | 
   };
 }
 
+async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | null): Promise<DonorScanStatus | null> {
+  const donor = selectedProject?.donor ?? null;
+  const donorId = donor?.donorId;
+  if (!donorId) {
+    return null;
+  }
+
+  const scanSummaryPath = donor.scanSummaryPath
+    ?? `10_donors/${donorId}/evidence/local_only/harvest/scan-summary.json`;
+  const blockerSummaryPath = donor.blockerSummaryPath
+    ?? `10_donors/${donorId}/evidence/local_only/harvest/blocker-summary.md`;
+  const [scanSummary, blockerSummaryMarkdown] = await Promise.all([
+    readOptionalJsonFile(path.join(workspaceRoot, scanSummaryPath)) as Promise<JsonObject | null>,
+    readOptionalTextFile(path.join(workspaceRoot, blockerSummaryPath))
+  ]);
+
+  if (!scanSummary) {
+    return null;
+  }
+
+  const blockerHighlights = Array.isArray(scanSummary.blockerHighlights)
+    ? scanSummary.blockerHighlights.filter((value): value is string => typeof value === "string")
+    : [];
+
+  return {
+    donorId,
+    donorName: donor?.donorName ?? donorId,
+    scanState: typeof scanSummary.scanState === "string" ? scanSummary.scanState : (donor.scanStatus ?? "unknown"),
+    scanSummaryPath,
+    blockerSummaryPath: blockerSummaryMarkdown ? blockerSummaryPath : null,
+    runtimeCandidateCount: typeof scanSummary.runtimeCandidateCount === "number" ? scanSummary.runtimeCandidateCount : (donor.runtimeCandidateCount ?? 0),
+    atlasManifestCount: typeof scanSummary.atlasManifestCount === "number" ? scanSummary.atlasManifestCount : (donor.atlasManifestCount ?? 0),
+    bundleAssetMapStatus: typeof scanSummary.bundleAssetMapStatus === "string" ? scanSummary.bundleAssetMapStatus : (donor.bundleAssetMapStatus ?? "unknown"),
+    mirrorCandidateStatus: typeof scanSummary.mirrorCandidateStatus === "string" ? scanSummary.mirrorCandidateStatus : (donor.mirrorCandidateStatus ?? "unknown"),
+    nextOperatorAction: typeof scanSummary.nextOperatorAction === "string" ? scanSummary.nextOperatorAction : (donor.nextOperatorAction ?? null),
+    blockerHighlights,
+    blockerSummaryMarkdown
+  };
+}
+
 function extractBacktickValues(raw: string): string[] {
   return [...raw.matchAll(/`([^`]+)`/g)]
     .map((match) => match[1]?.trim() ?? "")
@@ -1022,6 +1078,7 @@ export async function loadProjectSlice(requestedProjectId?: string): Promise<Pro
   const selectedProject = workspace.projects.find((entry) => entry.projectId === selectedProjectId) ?? null;
   const evidenceCatalog = await loadDonorEvidenceCatalog(importArtifact);
   const donorAssetCatalog = await loadDonorAssetCatalog(selectedProject, selectedProjectId);
+  const donorScan = await loadDonorScanStatus(selectedProject);
   const runtimeMirror = selectedProjectId === "project_001"
     ? await buildLocalRuntimeMirrorStatus(selectedProjectId)
     : null;
@@ -1067,6 +1124,7 @@ export async function loadProjectSlice(requestedProjectId?: string): Promise<Pro
     runtimeLaunch,
     runtimeMirror,
     runtimeResourceMap,
-    runtimeOverrides
+    runtimeOverrides,
+    donorScan
   };
 }

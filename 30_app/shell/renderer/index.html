@@ -56,7 +56,7 @@
               <h2>Donor Assets & Evidence</h2>
               <span>Read-only source + bounded import</span>
             </div>
-            <p class="context-hint">This panel surfaces donor capture, report, importer provenance, and a bounded donor image asset palette for the selected project. Supported local donor images can be dragged from here into empty canvas space to create on the chosen target layer, or dropped directly onto an editable scene object to replace it while keeping its layout. Raw donor files still stay read-only.</p>
+            <p class="context-hint">This panel now also shows the first-class donor scan summary for the selected donor/project: runtime candidates, atlas/frame metadata, bundle asset-map status, mirror viability, blocker summary, and the next operator step. Supported local donor images can still be dragged from here into empty canvas space to create on the chosen target layer, or dropped directly onto an editable scene object to replace it while keeping its layout. Raw donor files still stay read-only.</p>
             <div id="evidence-browser" class="browser-stack" aria-live="polite"></div>
           </article>
 
@@ -108,7 +108,7 @@
               <label class="form-field">
                 <span>Donor Launch URL</span>
                 <input id="field-donor-launch-url" name="donorLaunchUrl" type="url" placeholder="https://demo.example.com/play/Game/FUN?server=demo" />
-                <small class="form-help">Optional but recommended. When present, MyIDE captures the donor launch HTML and first discovered URLs into <code>10_donors/&lt;donorId&gt;</code>.</small>
+                <small class="form-help">Optional but recommended. When present, MyIDE captures the donor launch HTML, performs a bounded recursive harvest, and writes a donor scan summary under <code>10_donors/&lt;donorId&gt;/evidence/local_only/harvest/</code>.</small>
               </label>
               <label class="form-field">
                 <span>Target / Resulting Game</span>

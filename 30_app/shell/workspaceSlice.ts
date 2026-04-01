@@ -51,6 +51,14 @@ export interface WorkspaceProjectSummary {
     packageGraphNodeCount?: number;
     packageGraphEdgeCount?: number;
     packageUnresolvedCount?: number;
+    scanStatus?: string;
+    scanSummaryPath?: string;
+    blockerSummaryPath?: string;
+    runtimeCandidateCount?: number;
+    atlasManifestCount?: number;
+    bundleAssetMapStatus?: string;
+    mirrorCandidateStatus?: string;
+    nextOperatorAction?: string;
     notes: string;
   };
   targetGame: {
@@ -368,6 +376,14 @@ function normalizeProjectMeta(entry: JsonObject, index: number): WorkspaceProjec
       packageGraphNodeCount: asOptionalNumber(donor.packageGraphNodeCount),
       packageGraphEdgeCount: asOptionalNumber(donor.packageGraphEdgeCount),
       packageUnresolvedCount: asOptionalNumber(donor.packageUnresolvedCount),
+      scanStatus: asOptionalString(donor.scanStatus),
+      scanSummaryPath: asOptionalString(donor.scanSummaryPath),
+      blockerSummaryPath: asOptionalString(donor.blockerSummaryPath),
+      runtimeCandidateCount: asOptionalNumber(donor.runtimeCandidateCount),
+      atlasManifestCount: asOptionalNumber(donor.atlasManifestCount),
+      bundleAssetMapStatus: asOptionalString(donor.bundleAssetMapStatus),
+      mirrorCandidateStatus: asOptionalString(donor.mirrorCandidateStatus),
+      nextOperatorAction: asOptionalString(donor.nextOperatorAction),
       notes: asString(donor.notes, "")
     },
     targetGame: {

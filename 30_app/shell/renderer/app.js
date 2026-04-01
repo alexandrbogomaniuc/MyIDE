@@ -10081,6 +10081,7 @@ function getSelectedProjectEvidenceSummary() {
   const importAssetEntries = collectImportAssetEvidenceEntries(importProject);
   const evidenceCatalog = getDonorEvidenceCatalog();
   const donorAssetCatalog = getDonorAssetCatalog();
+  const donorScan = state.bundle?.donorScan ?? null;
 
   return {
     donorName: selectedProject.donor?.donorName ?? "Unknown donor",
@@ -10115,6 +10116,15 @@ function getSelectedProjectEvidenceSummary() {
     donorPackageGraphNodeCount: typeof selectedProject.donor?.packageGraphNodeCount === "number" ? selectedProject.donor.packageGraphNodeCount : 0,
     donorPackageGraphEdgeCount: typeof selectedProject.donor?.packageGraphEdgeCount === "number" ? selectedProject.donor.packageGraphEdgeCount : 0,
     donorPackageUnresolvedCount: typeof selectedProject.donor?.packageUnresolvedCount === "number" ? selectedProject.donor.packageUnresolvedCount : 0,
+    donorScanState: typeof donorScan?.scanState === "string" ? donorScan.scanState : (typeof selectedProject.donor?.scanStatus === "string" ? selectedProject.donor.scanStatus : null),
+    donorScanSummaryPath: typeof donorScan?.scanSummaryPath === "string" ? donorScan.scanSummaryPath : (typeof selectedProject.donor?.scanSummaryPath === "string" ? selectedProject.donor.scanSummaryPath : null),
+    donorBlockerSummaryPath: typeof donorScan?.blockerSummaryPath === "string" ? donorScan.blockerSummaryPath : (typeof selectedProject.donor?.blockerSummaryPath === "string" ? selectedProject.donor.blockerSummaryPath : null),
+    donorRuntimeCandidateCount: typeof donorScan?.runtimeCandidateCount === "number" ? donorScan.runtimeCandidateCount : (typeof selectedProject.donor?.runtimeCandidateCount === "number" ? selectedProject.donor.runtimeCandidateCount : 0),
+    donorAtlasManifestCount: typeof donorScan?.atlasManifestCount === "number" ? donorScan.atlasManifestCount : (typeof selectedProject.donor?.atlasManifestCount === "number" ? selectedProject.donor.atlasManifestCount : 0),
+    donorBundleAssetMapStatus: typeof donorScan?.bundleAssetMapStatus === "string" ? donorScan.bundleAssetMapStatus : (typeof selectedProject.donor?.bundleAssetMapStatus === "string" ? selectedProject.donor.bundleAssetMapStatus : null),
+    donorMirrorCandidateStatus: typeof donorScan?.mirrorCandidateStatus === "string" ? donorScan.mirrorCandidateStatus : (typeof selectedProject.donor?.mirrorCandidateStatus === "string" ? selectedProject.donor.mirrorCandidateStatus : null),
+    donorNextOperatorAction: typeof donorScan?.nextOperatorAction === "string" ? donorScan.nextOperatorAction : (typeof selectedProject.donor?.nextOperatorAction === "string" ? selectedProject.donor.nextOperatorAction : null),
+    donorBlockerHighlights: Array.isArray(donorScan?.blockerHighlights) ? donorScan.blockerHighlights : [],
     donorNotes: typeof selectedProject.donor?.notes === "string" ? selectedProject.donor.notes : null,
     evidenceCatalog,
     donorAssetCatalog
@@ -14543,6 +14553,12 @@ function renderEvidenceBrowser() {
     `Package Graph Nodes: ${summary.donorPackageGraphNodeCount}`,
     `Package Graph Edges: ${summary.donorPackageGraphEdgeCount}`,
     `Package Unresolved Entries: ${summary.donorPackageUnresolvedCount}`,
+    `Scan Status: ${summary.donorScanState || "unknown"}`,
+    `Runtime Candidates: ${summary.donorRuntimeCandidateCount}`,
+    `Atlas Metadata Count: ${summary.donorAtlasManifestCount}`,
+    `Bundle Asset Map Status: ${summary.donorBundleAssetMapStatus || "unknown"}`,
+    `Mirror Candidate Status: ${summary.donorMirrorCandidateStatus || "unknown"}`,
+    `Next Operator Action: ${summary.donorNextOperatorAction || "not recorded"}`,
     `Evidence Root: ${summary.evidenceRoot}`,
     `Donor Asset Count: ${donorAssetCount}`,
     `Capture Sessions: ${summary.captureSessions.join(", ") || "none"}`,
@@ -14565,6 +14581,10 @@ function renderEvidenceBrowser() {
         <span>${summary.donorHarvestedAssetCount} harvested assets</span>
         <span>${summary.donorPackageFamilyCount} package families</span>
         <span>${summary.donorPackageGraphNodeCount} package graph nodes</span>
+        <span>${summary.donorRuntimeCandidateCount} runtime candidates</span>
+        <span>${summary.donorAtlasManifestCount} atlas metadata</span>
+        <span>${summary.donorBundleAssetMapStatus || "unknown"} bundle map</span>
+        <span>${summary.donorMirrorCandidateStatus || "unknown"} mirror status</span>
         <span>${summary.donorFailedAssetCount} harvest failures</span>
         <span>${summary.captureSessions.length} capture sessions</span>
         <span>${summary.donorEvidenceRefs.length} donor evidence refs</span>
@@ -14654,6 +14674,28 @@ function renderEvidenceBrowser() {
           <div class="evidence-actions">
             ${summary.donorPackageManifestPath ? renderCopyButton(summary.donorPackageManifestPath, "donor package manifest path", "Copy Package Manifest Path") : ""}
             ${summary.donorPackageGraphPath ? renderCopyButton(summary.donorPackageGraphPath, "donor package graph path", "Copy Package Graph Path") : ""}
+          </div>
+        </div>
+        <div class="detail-card">
+          <span>Donor Scan</span>
+          <strong>${summary.donorScanState ? escapeHtml(summary.donorScanState) : "unknown"}</strong>
+          <small>${summary.donorNextOperatorAction
+            ? escapeHtml(summary.donorNextOperatorAction)
+            : "Run the donor scan to see runtime candidates, atlas metadata, bundle asset-map status, and the next operator step."}</small>
+          <div class="chip-row">
+            <span>${summary.donorRuntimeCandidateCount} runtime candidates</span>
+            <span>${summary.donorAtlasManifestCount} atlas metadata</span>
+            <span>${summary.donorBundleAssetMapStatus ? escapeHtml(summary.donorBundleAssetMapStatus) : "unknown"} bundle map</span>
+            <span>${summary.donorMirrorCandidateStatus ? escapeHtml(summary.donorMirrorCandidateStatus) : "unknown"} mirror status</span>
+          </div>
+          ${summary.donorBlockerHighlights.length > 0 ? `
+            <div class="detail-list">
+              ${summary.donorBlockerHighlights.slice(0, 3).map((entry) => `<small>${escapeHtml(entry)}</small>`).join("")}
+            </div>
+          ` : ""}
+          <div class="evidence-actions">
+            ${summary.donorScanSummaryPath ? renderCopyButton(summary.donorScanSummaryPath, "donor scan summary path", "Copy Scan Summary Path") : ""}
+            ${summary.donorBlockerSummaryPath ? renderCopyButton(summary.donorBlockerSummaryPath, "donor blocker summary path", "Copy Blocker Summary Path") : ""}
           </div>
         </div>
       </div>
@@ -15005,6 +15047,7 @@ function renderProjectSummary() {
     ? `${evidenceRefs.length} indexed evidence refs`
     : "No evidence refs indexed yet.";
   const runtimeLaunch = getRuntimeLaunchInfo();
+  const donorScan = state.bundle?.donorScan ?? null;
   const vabsStatusMarkup = renderVabsStatusSummary();
 
   const lifecycleChips = lifecycleStageOrder.map((stageId) => {
@@ -15045,6 +15088,13 @@ function renderProjectSummary() {
         <small>${runtimeLaunch?.entryUrl
           ? `Runtime Mode launches the recorded public donor runtime URL inside the shell. Compose Mode still edits <code>internal/scene.json</code>, <code>layers.json</code>, and <code>objects.json</code> as the bounded secondary workflow.`
           : "No grounded donor runtime entry is available in this build, so the shell falls back to the bounded internal scene workflow."}</small>
+      </div>
+      <div class="detail-card">
+        <span>Donor Scan</span>
+        <strong>${donorScan?.scanState ? escapeHtml(donorScan.scanState) : "unknown"}</strong>
+        <small>${donorScan?.nextOperatorAction
+          ? escapeHtml(donorScan.nextOperatorAction)
+          : "Run donor scan to surface runtime candidates, atlas metadata, bundle asset-map status, and the next operator action."}</small>
       </div>
     </div>
     <div class="tree-row scope-summary">

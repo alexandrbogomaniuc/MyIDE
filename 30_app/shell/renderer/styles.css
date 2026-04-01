@@ -162,6 +162,18 @@ select {
   gap: 10px;
 }
 
+.detail-list {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.detail-list small {
+  display: block;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
 .browser-toolbar {
   display: grid;
   gap: 10px;

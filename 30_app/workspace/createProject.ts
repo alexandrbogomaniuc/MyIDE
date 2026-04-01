@@ -115,6 +115,14 @@ export interface ProjectMetaLike {
     packageGraphNodeCount?: number;
     packageGraphEdgeCount?: number;
     packageUnresolvedCount?: number;
+    scanStatus?: "unknown" | "scanned" | "blocked" | "skipped";
+    scanSummaryPath?: string;
+    blockerSummaryPath?: string;
+    runtimeCandidateCount?: number;
+    atlasManifestCount?: number;
+    bundleAssetMapStatus?: "mapped" | "blocked" | "skipped";
+    mirrorCandidateStatus?: "strong-partial" | "weak-partial" | "blocked";
+    nextOperatorAction?: string;
     notes?: string;
   };
   targetGame: {
@@ -402,6 +410,14 @@ function normalizeDonor(value: unknown, relativeProjectRoot: string, projectName
     packageGraphNodeCount: typeof donor.packageGraphNodeCount === "number" ? donor.packageGraphNodeCount : undefined,
     packageGraphEdgeCount: typeof donor.packageGraphEdgeCount === "number" ? donor.packageGraphEdgeCount : undefined,
     packageUnresolvedCount: typeof donor.packageUnresolvedCount === "number" ? donor.packageUnresolvedCount : undefined,
+    scanStatus: (optionalString(donor.scanStatus) as ProjectMetaLike["donor"]["scanStatus"] | undefined) ?? "unknown",
+    scanSummaryPath: optionalString(donor.scanSummaryPath),
+    blockerSummaryPath: optionalString(donor.blockerSummaryPath),
+    runtimeCandidateCount: typeof donor.runtimeCandidateCount === "number" ? donor.runtimeCandidateCount : undefined,
+    atlasManifestCount: typeof donor.atlasManifestCount === "number" ? donor.atlasManifestCount : undefined,
+    bundleAssetMapStatus: (optionalString(donor.bundleAssetMapStatus) as ProjectMetaLike["donor"]["bundleAssetMapStatus"] | undefined) ?? undefined,
+    mirrorCandidateStatus: (optionalString(donor.mirrorCandidateStatus) as ProjectMetaLike["donor"]["mirrorCandidateStatus"] | undefined) ?? undefined,
+    nextOperatorAction: optionalString(donor.nextOperatorAction),
     notes: optionalString(donor.notes) ?? `${projectName} scaffold only. Replace with evidence-backed donor references before validation.`
   };
 }
@@ -666,9 +682,12 @@ export function buildProjectMetaFromInput(input: ShellCreateProjectInput): Proje
       packageStatus: donorLaunchUrl ? (harvestDonorAssets ? "unknown" : "skipped") : "unknown",
       packageManifestPath: donorLaunchUrl && harvestDonorAssets ? `10_donors/${donorId}/evidence/local_only/harvest/package-manifest.json` : undefined,
       packageGraphPath: donorLaunchUrl && harvestDonorAssets ? `10_donors/${donorId}/evidence/local_only/harvest/package-graph.json` : undefined,
+      scanStatus: donorLaunchUrl ? (harvestDonorAssets ? "unknown" : "skipped") : "unknown",
+      scanSummaryPath: donorLaunchUrl && harvestDonorAssets ? `10_donors/${donorId}/evidence/local_only/harvest/scan-summary.json` : undefined,
+      blockerSummaryPath: donorLaunchUrl && harvestDonorAssets ? `10_donors/${donorId}/evidence/local_only/harvest/blocker-summary.md` : undefined,
       notes: donorLaunchUrl
         ? (harvestDonorAssets
-          ? "Shell-created donor reference with launch capture plus bounded recursive donor harvest queued. Replace scaffold claims with evidence-backed donor materials before validation."
+          ? "Shell-created donor reference with launch capture plus bounded recursive donor harvest and donor scan queued. Replace scaffold claims with evidence-backed donor materials before validation."
           : "Shell-created donor reference with a first launch URL queued for intake capture. Replace scaffold claims with evidence-backed donor materials before validation.")
         : "Shell-created donor reference only. Add a donor launch URL or evidence-backed donor materials before validation."
     },
@@ -737,6 +756,14 @@ export async function createProjectFromInput(input: ShellCreateProjectInput, ove
   meta.donor.packageGraphNodeCount = donorIntake.packageGraphNodeCount;
   meta.donor.packageGraphEdgeCount = donorIntake.packageGraphEdgeCount;
   meta.donor.packageUnresolvedCount = donorIntake.packageUnresolvedCount;
+  meta.donor.scanStatus = donorIntake.scanStatus ?? "unknown";
+  meta.donor.scanSummaryPath = donorIntake.scanSummaryPath ? path.relative(workspaceRoot, donorIntake.scanSummaryPath).replace(/\\/g, "/") : undefined;
+  meta.donor.blockerSummaryPath = donorIntake.blockerSummaryPath ? path.relative(workspaceRoot, donorIntake.blockerSummaryPath).replace(/\\/g, "/") : undefined;
+  meta.donor.runtimeCandidateCount = donorIntake.runtimeCandidateCount;
+  meta.donor.atlasManifestCount = donorIntake.atlasManifestCount;
+  meta.donor.bundleAssetMapStatus = donorIntake.bundleAssetMapStatus;
+  meta.donor.mirrorCandidateStatus = donorIntake.mirrorCandidateStatus;
+  meta.donor.nextOperatorAction = donorIntake.nextOperatorAction;
   meta.donor.status = donorIntake.status === "blocked"
     ? "blocked"
     : donorIntake.status === "captured"
@@ -752,6 +779,9 @@ export async function createProjectFromInput(input: ShellCreateProjectInput, ove
     }
     if ((donorIntake.packageGraphNodeCount ?? 0) > 0) {
       meta.notes.provenFacts.push(`Donor intake mapped a bounded donor package graph with ${donorIntake.packageGraphNodeCount} nodes, ${donorIntake.packageGraphEdgeCount ?? 0} edges, and ${donorIntake.packageUnresolvedCount ?? 0} unresolved entries.`);
+    }
+    if ((donorIntake.runtimeCandidateCount ?? 0) > 0) {
+      meta.notes.provenFacts.push(`Donor scan recorded ${donorIntake.runtimeCandidateCount} runtime candidates and ${donorIntake.atlasManifestCount ?? 0} atlas/frame metadata entries.`);
     }
   }
   if (donorIntake.status === "blocked" && donorIntake.error) {

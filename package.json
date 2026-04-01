@@ -14,6 +14,8 @@
     "manual:bug-bundle": "npm run build && node dist/tools/manual/createBugBundle.js",
     "manual:reset:project_001": "npm run build && node dist/tools/manual/resetProject001.js",
     "donor:intake:url": "npm run build && node dist/tools/donor-intake/bootstrapFromUrl.js",
+    "donor-scan:url": "npm run build && node dist/tools/donor-scan/scanDonorUrl.js",
+    "donor-scan:verify": "npm run build && node dist/tools/donor-scan/verifyDonorScan.js",
     "runtime:mirror:project_001": "npm run build && node dist/tools/runtime/mirrorProjectRuntime.js project_001",
     "runtime:harvest:project_001": "npm run build && node dist/tools/runtime/harvestRuntimeRequests.js project_001",
     "runtime:harvest:smoke:project_001": "npm run build && node dist/tools/runtime/harvestRuntimeRequests.js project_001 --refresh-with-smoke",

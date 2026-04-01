@@ -1,0 +1,490 @@
+import { promises as fs } from "node:fs";
+import path from "node:path";
+import { buildAssetClassificationSummary } from "./classifyAssets";
+import { discoverAtlasMetadata } from "./discoverAtlasMetadata";
+import { discoverRuntimeCandidates } from "./discoverRuntimeCandidates";
+import { extractBundleAssetMap } from "./extractBundleAssetMap";
+import {
+  type DiscoveredDonorUrl,
+  type DonorUrlCategory,
+  type HarvestManifestFile,
+  type HarvestedDonorAssetEntry,
+  type DonorScanPaths,
+  type DonorScanResult,
+  buildDonorScanPaths,
+  readOptionalJsonFile,
+  toRepoRelativePath,
+  writeJsonFile,
+  workspaceRoot
+} from "./shared";
+import { writeBlockerSummary } from "./writeBlockerSummary";
+
+interface RunDonorScanOptions {
+  donorId: string;
+  donorName: string;
+  launchUrl?: string;
+  resolvedLaunchUrl?: string;
+  sourceHost?: string;
+}
+
+interface RuntimeMirrorManifestEntry {
+  sourceUrl?: string;
+  kind?: string;
+  repoRelativePath?: string;
+  fileType?: string;
+}
+
+interface RuntimeMirrorManifestFile {
+  schemaVersion?: string;
+  projectId?: string;
+  mode?: string;
+  generatedAtUtc?: string;
+  publicEntryUrl?: string;
+  resourceVersion?: string;
+  notes?: string[];
+  entries?: RuntimeMirrorManifestEntry[];
+}
+
+interface RuntimeRequestLogEntry {
+  canonicalSourceUrl?: string;
+  requestCategory?: string;
+  fileType?: string | null;
+}
+
+interface RuntimeRequestLogFile {
+  generatedAtUtc?: string;
+  entries?: RuntimeRequestLogEntry[];
+}
+
+function sortDiscoveredUrls(entries: readonly DiscoveredDonorUrl[]): DiscoveredDonorUrl[] {
+  return [...entries].sort((left, right) => {
+    const leftDepth = left.depth ?? 0;
+    const rightDepth = right.depth ?? 0;
+    if (leftDepth !== rightDepth) {
+      return leftDepth - rightDepth;
+    }
+    if (left.category !== right.category) {
+      return left.category.localeCompare(right.category);
+    }
+    return left.url.localeCompare(right.url);
+  });
+}
+
+function mapRuntimeMirrorCategory(sourceUrl: string, fileType?: string | null, kind?: string | null): DonorUrlCategory {
+  const normalizedType = (fileType ?? "").toLowerCase();
+  if (kind === "static-image" || ["png", "jpg", "jpeg", "gif", "svg", "webp"].includes(normalizedType)) {
+    return "image";
+  }
+  if (["ogg", "mp3", "wav", "m4a"].includes(normalizedType)) {
+    return "audio";
+  }
+  if (["woff", "woff2", "ttf", "otf", "fnt"].includes(normalizedType)) {
+    return "font";
+  }
+  if (kind?.includes("script") || normalizedType === "js") {
+    return "script";
+  }
+  if (normalizedType === "css") {
+    return "style";
+  }
+  if (normalizedType === "json" || normalizedType === "atlas" || normalizedType === "plist" || normalizedType === "xml" || normalizedType === "skel") {
+    return "json";
+  }
+  if (/\/api\//i.test(sourceUrl)) {
+    return "api";
+  }
+  if (/\.html?(?:$|\?)/i.test(sourceUrl)) {
+    return "html";
+  }
+  return "other";
+}
+
+function buildPackageFamilyKey(urlString: string, category: DonorUrlCategory): string {
+  try {
+    const parsed = new URL(urlString);
+    const segments = parsed.pathname.split("/").filter(Boolean);
+    const suffix = segments.slice(0, Math.min(2, segments.length)).join("/") || "(root)";
+    return `${category}:${suffix}`;
+  } catch {
+    return `${category}:(invalid-url)`;
+  }
+}
+
+async function synthesizeHarvestFromRuntimeMirror(
+  donorId: string,
+  donorName: string,
+  paths: DonorScanPaths
+): Promise<HarvestManifestFile | null> {
+  const projectsRoot = path.join(workspaceRoot, "40_projects");
+  const projectDirs = await fs.readdir(projectsRoot, { withFileTypes: true });
+
+  for (const dirent of projectDirs) {
+    if (!dirent.isDirectory()) {
+      continue;
+    }
+    const projectRoot = path.join(projectsRoot, dirent.name);
+    const projectMeta = await readOptionalJsonFile<Record<string, unknown>>(path.join(projectRoot, "project.meta.json"));
+    const donor = projectMeta && typeof projectMeta.donor === "object" && projectMeta.donor !== null
+      ? projectMeta.donor as Record<string, unknown>
+      : null;
+    if (!donor || donor.donorId !== donorId) {
+      continue;
+    }
+
+    const runtimeMirrorManifestPath = path.join(projectRoot, "runtime", "local-mirror", "manifest.json");
+    const runtimeRequestLogPath = path.join(projectRoot, "runtime", "local-mirror", "request-log.latest.json");
+    const runtimeMirrorManifest = await readOptionalJsonFile<RuntimeMirrorManifestFile>(runtimeMirrorManifestPath);
+    if (!runtimeMirrorManifest) {
+      continue;
+    }
+
+    const requestLog = await readOptionalJsonFile<RuntimeRequestLogFile>(runtimeRequestLogPath);
+    const discoveredMap = new Map<string, DiscoveredDonorUrl>();
+    const entries: HarvestedDonorAssetEntry[] = [];
+
+    if (typeof runtimeMirrorManifest.publicEntryUrl === "string" && runtimeMirrorManifest.publicEntryUrl.length > 0) {
+      discoveredMap.set(runtimeMirrorManifest.publicEntryUrl, {
+        url: runtimeMirrorManifest.publicEntryUrl,
+        category: "html",
+        source: "launch-url",
+        depth: 0
+      });
+    }
+
+    for (const manifestEntry of Array.isArray(runtimeMirrorManifest.entries) ? runtimeMirrorManifest.entries : []) {
+      if (typeof manifestEntry.sourceUrl !== "string" || typeof manifestEntry.repoRelativePath !== "string") {
+        continue;
+      }
+      const category = mapRuntimeMirrorCategory(manifestEntry.sourceUrl, manifestEntry.fileType, manifestEntry.kind);
+      if (!discoveredMap.has(manifestEntry.sourceUrl)) {
+        discoveredMap.set(manifestEntry.sourceUrl, {
+          url: manifestEntry.sourceUrl,
+          category,
+          source: "html-inline",
+          depth: 1
+        });
+      }
+      entries.push({
+        sourceUrl: manifestEntry.sourceUrl,
+        resolvedUrl: manifestEntry.sourceUrl,
+        category,
+        discoverySource: "html-inline",
+        depth: 1,
+        status: "downloaded",
+        localPath: manifestEntry.repoRelativePath,
+        contentType: manifestEntry.fileType ? `synthetic/${manifestEntry.fileType}` : undefined
+      });
+    }
+
+    for (const requestEntry of Array.isArray(requestLog?.entries) ? requestLog?.entries : []) {
+      if (typeof requestEntry.canonicalSourceUrl !== "string" || discoveredMap.has(requestEntry.canonicalSourceUrl)) {
+        continue;
+      }
+      discoveredMap.set(requestEntry.canonicalSourceUrl, {
+        url: requestEntry.canonicalSourceUrl,
+        category: mapRuntimeMirrorCategory(requestEntry.canonicalSourceUrl, requestEntry.fileType, requestEntry.requestCategory),
+        source: "html-inline",
+        depth: 1
+      });
+    }
+
+    const discoveredUrls = sortDiscoveredUrls([...discoveredMap.values()]);
+    const harvestManifest: HarvestManifestFile = {
+      schemaVersion: "0.1.0",
+      donorId,
+      donorName,
+      capturedAt: runtimeMirrorManifest.generatedAtUtc ?? new Date().toISOString(),
+      discoveredUrlCount: discoveredUrls.length,
+      recursiveDiscoveredUrlCount: 0,
+      recursiveHarvestDepthLimit: 0,
+      attemptedAssetCount: entries.length,
+      harvestedAssetCount: entries.length,
+      skippedAssetCount: 0,
+      failedAssetCount: 0,
+      discoveredUrls,
+      entries
+    };
+    await writeJsonFile(paths.assetManifestPath, harvestManifest);
+
+    const familyMap = new Map<string, { category: DonorUrlCategory; discoveredUrlCount: number; downloadedAssetCount: number; sampleUrl: string }>();
+    const hostMap = new Map<string, { discoveredUrlCount: number; downloadedAssetCount: number; failedAssetCount: number }>();
+    for (const discoveredUrl of discoveredUrls) {
+      let host = "(invalid-url)";
+      try {
+        host = new URL(discoveredUrl.url).host || "(no-host)";
+      } catch {
+        // keep invalid marker
+      }
+      const hostEntry = hostMap.get(host) ?? { discoveredUrlCount: 0, downloadedAssetCount: 0, failedAssetCount: 0 };
+      hostEntry.discoveredUrlCount += 1;
+      if (entries.some((entry) => entry.sourceUrl === discoveredUrl.url)) {
+        hostEntry.downloadedAssetCount += 1;
+      }
+      hostMap.set(host, hostEntry);
+
+      const familyKey = buildPackageFamilyKey(discoveredUrl.url, discoveredUrl.category);
+      const familyEntry = familyMap.get(familyKey) ?? {
+        category: discoveredUrl.category,
+        discoveredUrlCount: 0,
+        downloadedAssetCount: 0,
+        sampleUrl: discoveredUrl.url
+      };
+      familyEntry.discoveredUrlCount += 1;
+      if (entries.some((entry) => entry.sourceUrl === discoveredUrl.url)) {
+        familyEntry.downloadedAssetCount += 1;
+      }
+      familyMap.set(familyKey, familyEntry);
+    }
+
+    await writeJsonFile(paths.packageManifestPath, {
+      schemaVersion: "0.1.0",
+      donorId,
+      donorName,
+      packageStatus: entries.length > 0 ? "packaged" : "blocked",
+      generatedAt: new Date().toISOString(),
+      launchUrl: runtimeMirrorManifest.publicEntryUrl ?? null,
+      resolvedLaunchUrl: runtimeMirrorManifest.publicEntryUrl ?? null,
+      discoveredUrlCount: discoveredUrls.length,
+      downloadedAssetCount: entries.length,
+      failedAssetCount: 0,
+      skippedAssetCount: 0,
+      downloadedByCategory: Object.fromEntries(
+        Object.entries(entries.reduce<Record<string, number>>((counts, entry) => {
+          counts[entry.category] = (counts[entry.category] ?? 0) + 1;
+          return counts;
+        }, {})).sort(([left], [right]) => left.localeCompare(right))
+      ),
+      entryPoints: {
+        scripts: discoveredUrls.filter((entry) => entry.category === "script").map((entry) => entry.url).slice(0, 20),
+        styles: discoveredUrls.filter((entry) => entry.category === "style").map((entry) => entry.url).slice(0, 20),
+        json: discoveredUrls.filter((entry) => entry.category === "json").map((entry) => entry.url).slice(0, 20)
+      },
+      hosts: [...hostMap.entries()].sort(([left], [right]) => left.localeCompare(right)).map(([host, stats]) => ({ host, ...stats })),
+      assetFamilies: [...familyMap.entries()].sort(([left], [right]) => left.localeCompare(right)).map(([familyKey, stats]) => ({ familyKey, ...stats })),
+      packageGraphPath: toRepoRelativePath(paths.packageGraphPath),
+      packageGraphNodeCount: discoveredUrls.length,
+      packageGraphEdgeCount: 0,
+      packageUnresolvedCount: discoveredUrls.length - entries.length,
+      unresolvedEntries: discoveredUrls.filter((entry) => !entries.some((candidate) => candidate.sourceUrl === entry.url)).map((entry) => ({
+        sourceUrl: entry.url,
+        category: entry.category,
+        status: "inventory-only",
+        depth: entry.depth,
+        discoveredFromUrl: entry.discoveredFromUrl
+      }))
+    });
+
+    await writeJsonFile(paths.packageGraphPath, {
+      schemaVersion: "0.1.0",
+      donorId,
+      donorName,
+      packageStatus: entries.length > 0 ? "packaged" : "blocked",
+      generatedAt: new Date().toISOString(),
+      launchUrl: runtimeMirrorManifest.publicEntryUrl ?? null,
+      resolvedLaunchUrl: runtimeMirrorManifest.publicEntryUrl ?? null,
+      nodeCount: discoveredUrls.length,
+      edgeCount: 0,
+      unresolvedNodeCount: discoveredUrls.length - entries.length,
+      rootNodeCount: discoveredUrls.filter((entry) => (entry.depth ?? 0) === 0).length,
+      nodes: discoveredUrls.map((entry) => {
+        const downloadedEntry = entries.find((candidate) => candidate.sourceUrl === entry.url);
+        return {
+          url: entry.url,
+          category: entry.category,
+          discoverySource: entry.source,
+          depth: entry.depth ?? 0,
+          discoveredFromUrl: entry.discoveredFromUrl,
+          host: (() => {
+            try {
+              return new URL(entry.url).host || "(no-host)";
+            } catch {
+              return "(invalid-url)";
+            }
+          })(),
+          downloadStatus: downloadedEntry ? "downloaded" : "inventory-only",
+          localPath: downloadedEntry?.localPath,
+          contentType: downloadedEntry?.contentType,
+          sizeBytes: downloadedEntry?.sizeBytes,
+          sha256: downloadedEntry?.sha256,
+          outboundReferenceCount: 0,
+          inboundReferenceCount: 0
+        };
+      }),
+      edges: []
+    });
+
+    return harvestManifest;
+  }
+
+  return null;
+}
+
+export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorScanResult> {
+  const paths = buildDonorScanPaths(options.donorId);
+  const harvestManifest = await readOptionalJsonFile<HarvestManifestFile>(paths.assetManifestPath)
+    ?? await synthesizeHarvestFromRuntimeMirror(options.donorId, options.donorName, paths);
+  if (!harvestManifest) {
+    const skippedSummary = {
+      schemaVersion: "0.1.0",
+      donorId: options.donorId,
+      donorName: options.donorName,
+      generatedAt: new Date().toISOString(),
+      scanState: "skipped",
+      launchUrl: options.launchUrl ?? null,
+      resolvedLaunchUrl: options.resolvedLaunchUrl ?? null,
+      sourceHost: options.sourceHost ?? null,
+      entryPointsPath: toRepoRelativePath(paths.entryPointsPath),
+      urlInventoryPath: toRepoRelativePath(paths.urlInventoryPath),
+      runtimeCandidatesPath: toRepoRelativePath(paths.runtimeCandidatesPath),
+      bundleAssetMapPath: toRepoRelativePath(paths.bundleAssetMapPath),
+      atlasManifestsPath: toRepoRelativePath(paths.atlasManifestsPath),
+      blockerSummaryPath: toRepoRelativePath(paths.blockerSummaryPath),
+      nextOperatorAction: "Run donor URL intake or provide a harvested donor package before scanning.",
+      blockerHighlights: ["No harvested donor asset manifest exists yet."],
+      runtimeCandidateCount: 0,
+      atlasManifestCount: 0,
+      bundleAssetMapStatus: "skipped",
+      mirrorCandidateStatus: "blocked",
+      fullLocalRuntimePackage: false,
+      partialLocalRuntimePackage: false,
+      entryPointCount: 0,
+      urlInventoryCount: 0,
+      bundleReferenceCount: 0,
+      mirrorCandidateCount: 0
+    };
+    await writeJsonFile(paths.scanSummaryPath, skippedSummary);
+    return {
+      status: "skipped",
+      donorId: options.donorId,
+      donorName: options.donorName,
+      entryPointsPath: paths.entryPointsPath,
+      urlInventoryPath: paths.urlInventoryPath,
+      runtimeCandidatesPath: paths.runtimeCandidatesPath,
+      bundleAssetMapPath: paths.bundleAssetMapPath,
+      atlasManifestsPath: paths.atlasManifestsPath,
+      blockerSummaryPath: paths.blockerSummaryPath,
+      scanSummaryPath: paths.scanSummaryPath,
+      runtimeCandidateCount: 0,
+      atlasManifestCount: 0,
+      bundleAssetMapStatus: "skipped",
+      mirrorCandidateStatus: "blocked",
+      nextOperatorAction: "Run donor URL intake or provide a harvested donor package before scanning.",
+      blockerHighlights: ["No harvested donor asset manifest exists yet."]
+    };
+  }
+
+  const assetSummary = buildAssetClassificationSummary(harvestManifest);
+  const bundleAssetMap = await extractBundleAssetMap({
+    donorId: options.donorId,
+    donorName: options.donorName,
+    harvestManifest
+  });
+  const atlasManifestFile = await discoverAtlasMetadata({
+    donorId: options.donorId,
+    donorName: options.donorName,
+    harvestManifest
+  });
+  const runtimeCandidates = discoverRuntimeCandidates({
+    donorId: options.donorId,
+    donorName: options.donorName,
+    assetSummary,
+    bundleAssetMap,
+    atlasManifestFile
+  });
+
+  await writeJsonFile(paths.entryPointsPath, {
+    schemaVersion: "0.1.0",
+    donorId: options.donorId,
+    donorName: options.donorName,
+    generatedAt: new Date().toISOString(),
+    entryPointCount: assetSummary.entryPoints.length,
+    entryPoints: assetSummary.entryPoints
+  });
+
+  await writeJsonFile(paths.urlInventoryPath, {
+    schemaVersion: "0.1.0",
+    donorId: options.donorId,
+    donorName: options.donorName,
+    generatedAt: new Date().toISOString(),
+    discoveredCount: assetSummary.discoveredCount,
+    downloadedCount: assetSummary.downloadedCount,
+    failedCount: assetSummary.failedCount,
+    skippedCount: assetSummary.skippedCount,
+    inventoryOnlyCount: assetSummary.inventoryOnlyCount,
+    countsByCategory: assetSummary.countsByCategory,
+    downloadedCountsByCategory: assetSummary.downloadedCountsByCategory,
+    inventory: assetSummary.urlInventory
+  });
+
+  await writeJsonFile(paths.bundleAssetMapPath, bundleAssetMap);
+  await writeJsonFile(paths.atlasManifestsPath, atlasManifestFile);
+  await writeJsonFile(paths.runtimeCandidatesPath, runtimeCandidates);
+
+  const blockerSummary = await writeBlockerSummary({
+    donorId: options.donorId,
+    donorName: options.donorName,
+    assetSummary,
+    runtimeCandidates,
+    bundleAssetMap,
+    atlasManifestFile,
+    paths
+  });
+
+  const status: DonorScanResult["status"] = runtimeCandidates.entryPointCount > 0
+    ? "scanned"
+    : "blocked";
+
+  const scanSummary = {
+    schemaVersion: "0.1.0",
+    donorId: options.donorId,
+    donorName: options.donorName,
+    generatedAt: new Date().toISOString(),
+    scanState: status,
+    launchUrl: options.launchUrl ?? null,
+    resolvedLaunchUrl: options.resolvedLaunchUrl ?? null,
+    sourceHost: options.sourceHost ?? null,
+    entryPointsPath: toRepoRelativePath(paths.entryPointsPath),
+    urlInventoryPath: toRepoRelativePath(paths.urlInventoryPath),
+    runtimeCandidatesPath: toRepoRelativePath(paths.runtimeCandidatesPath),
+    bundleAssetMapPath: toRepoRelativePath(paths.bundleAssetMapPath),
+    atlasManifestsPath: toRepoRelativePath(paths.atlasManifestsPath),
+    blockerSummaryPath: toRepoRelativePath(paths.blockerSummaryPath),
+    countsByCategory: assetSummary.countsByCategory,
+    downloadedCountsByCategory: assetSummary.downloadedCountsByCategory,
+    entryPointCount: assetSummary.entryPoints.length,
+    urlInventoryCount: assetSummary.urlInventory.length,
+    runtimeCandidateCount: runtimeCandidates.runtimeCandidateCount,
+    atlasManifestCount: atlasManifestFile.manifests.length,
+    atlasFrameManifestCount: atlasManifestFile.frameManifestCount,
+    atlasMissingPageCount: atlasManifestFile.missingPageCount,
+    bundleAssetMapStatus: bundleAssetMap.status,
+    bundleReferenceCount: bundleAssetMap.referenceCount,
+    mirrorCandidateStatus: runtimeCandidates.mirrorCandidateStatus,
+    mirrorCandidateCount: runtimeCandidates.mirrorCandidateCount,
+    fullLocalRuntimePackage: runtimeCandidates.fullLocalRuntimePackage,
+    partialLocalRuntimePackage: runtimeCandidates.partialLocalRuntimePackage,
+    unresolvedRuntimeDependencyCount: runtimeCandidates.unresolvedDependencyCount,
+    blockerHighlights: blockerSummary.blockerHighlights,
+    nextOperatorAction: blockerSummary.nextOperatorAction
+  };
+  await writeJsonFile(paths.scanSummaryPath, scanSummary);
+
+  return {
+    status,
+    donorId: options.donorId,
+    donorName: options.donorName,
+    entryPointsPath: paths.entryPointsPath,
+    urlInventoryPath: paths.urlInventoryPath,
+    runtimeCandidatesPath: paths.runtimeCandidatesPath,
+    bundleAssetMapPath: paths.bundleAssetMapPath,
+    atlasManifestsPath: paths.atlasManifestsPath,
+    blockerSummaryPath: paths.blockerSummaryPath,
+    scanSummaryPath: paths.scanSummaryPath,
+    runtimeCandidateCount: runtimeCandidates.runtimeCandidateCount,
+    atlasManifestCount: atlasManifestFile.manifests.length,
+    bundleAssetMapStatus: bundleAssetMap.status,
+    mirrorCandidateStatus: runtimeCandidates.mirrorCandidateStatus,
+    nextOperatorAction: blockerSummary.nextOperatorAction,
+    blockerHighlights: blockerSummary.blockerHighlights
+  };
+}

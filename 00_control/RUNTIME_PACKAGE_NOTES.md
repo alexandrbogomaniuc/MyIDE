@@ -27,8 +27,8 @@
 - no local donor `index.html`
 - no full standalone local donor launch HTML package under the donor/runtime boundary
 - no local donor launch token/API/websocket stack independent of upstream
-- no locally captured runtime asset root for `img/spines/*.json`, `img/coins/coin.json`, `img/ui/logo.png`, translations, or font/runtime support files
 - no grounded local donor asset root that can be launched as the real Mystery Garden runtime package without fallback
+- no complete local copy of the atlas page-image/runtime payload set referenced by the captured metadata
 
 ## What now exists
 - `40_projects/project_001/runtime/local-mirror/manifest.json`
@@ -38,14 +38,9 @@
   - `http://127.0.0.1:38901/runtime/project_001/launch`
 - bounded local mirror asset host:
   - `http://127.0.0.1:38901/runtime/project_001/assets/...`
-- grounded mirrored runtime files:
-  - `33` JavaScript files
-  - `9` PNG files
-  - `3` GIF files
-  - `1` JPG file
-  - `1` BIN file
-- grounded local mirror host coverage from the latest safe `manifest.json` refresh (`47` entries total):
-  - `cdn.bgaming-network.com`: `39`
+- grounded mirrored runtime files now also include captured runtime metadata families such as `.atlas`, Spine JSON, `coin.json`, and translation payloads
+- grounded local mirror host coverage from the latest safe `manifest.json` refresh (`82` entries total):
+  - `cdn.bgaming-network.com`: `73`
   - `boost2.bgaming-network.com`: `2`
   - `rs-cdn.shared.bgaming-system.com`: `2`
   - `drops-fe.bgaming-network.com`: `1`
@@ -66,6 +61,10 @@
 - Source availability is still the blocker for a **full local donor runtime package**.
 - Runtime Mode can now honestly prefer the bounded local mirror, but it still cannot honestly claim a full captured local donor package until one real local donor HTML package plus the runtime asset families named in `bundle.js` are captured into the donor/runtime boundary.
 - The deepest grounded runtime asset hints now come from `bundle.js`, not local asset files:
+  - local donor/runtime metadata now exists for the same family too, including:
+    - `img/spines/*.json`
+    - `.atlas` companions for those Spine families
+    - `img/coins/coin.json`
   - `img/spines/Start_page.json`
   - `img/spines/bird.json`
   - `img/spines/antisipation.json`
@@ -85,7 +84,14 @@
   - `img/coins/coin.json`
   - `img/ui/logo.png`
   - `https://translations.bgaming-network.com/MysteryGarden`
-- Those references mean local runtime package work is still the next best path, while atlas/frame import remains blocked until the referenced runtime metadata files are actually captured locally.
+- Atlas/frame blocker status is now narrower:
+  - atlas/frame metadata exists locally
+  - `16` atlas-text files exist locally
+  - `16` Spine JSON files exist locally
+  - `1` sprite-sheet JSON file exists locally
+  - `17` frame manifests exist locally
+  - `31` referenced page images are still missing
+- Those results mean local runtime package work is still the next best path, while atlas/frame import remains blocked until the referenced atlas page images and deeper runtime payloads are captured locally.
 
 ## Current bounded workaround
 - The shell now supports one bounded project-local static override slice on top of the local mirror/runtime boundary.

@@ -1,6 +1,8 @@
 import { createHash } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { runDonorScan } from "../../tools/donor-scan/runDonorScan";
+import type { BundleAssetMapStatus, DonorScanState, MirrorCandidateStatus } from "../../tools/donor-scan/shared";
 
 export interface BootstrapDonorIntakeOptions {
   donorId: string;
@@ -44,6 +46,14 @@ export interface DonorIntakeResult {
   packageGraphNodeCount?: number;
   packageGraphEdgeCount?: number;
   packageUnresolvedCount?: number;
+  scanStatus?: DonorScanState;
+  scanSummaryPath?: string;
+  blockerSummaryPath?: string;
+  runtimeCandidateCount?: number;
+  atlasManifestCount?: number;
+  bundleAssetMapStatus?: BundleAssetMapStatus;
+  mirrorCandidateStatus?: MirrorCandidateStatus;
+  nextOperatorAction?: string;
   error?: string;
 }
 
@@ -256,6 +266,9 @@ function classifyUrl(candidate: URL): DiscoveredDonorUrl["category"] {
     return "font";
   }
   if (pathname.endsWith(".json")) {
+    return "json";
+  }
+  if (pathname.endsWith(".atlas") || pathname.endsWith(".plist") || pathname.endsWith(".xml") || pathname.endsWith(".skel") || pathname.endsWith(".fnt")) {
     return "json";
   }
   if (pathname.includes("/api/")) {
@@ -876,6 +889,16 @@ function buildIntakeReport(result: DonorIntakeResult, donorName: string): string
     lines.push(`- Package graph edges: ${result.packageGraphEdgeCount ?? 0}`);
     lines.push(`- Package unresolved entries: ${result.packageUnresolvedCount ?? 0}`);
   }
+  if (result.scanStatus) {
+    lines.push(`- Scan status: \`${result.scanStatus}\``);
+    lines.push(`- Scan summary path: \`${result.scanSummaryPath ? path.relative(workspaceRoot, result.scanSummaryPath) : "not captured"}\``);
+    lines.push(`- Blocker summary path: \`${result.blockerSummaryPath ? path.relative(workspaceRoot, result.blockerSummaryPath) : "not captured"}\``);
+    lines.push(`- Runtime candidate count: ${result.runtimeCandidateCount ?? 0}`);
+    lines.push(`- Atlas metadata count: ${result.atlasManifestCount ?? 0}`);
+    lines.push(`- Bundle asset-map status: \`${result.bundleAssetMapStatus ?? "unknown"}\``);
+    lines.push(`- Mirror candidate status: \`${result.mirrorCandidateStatus ?? "unknown"}\``);
+    lines.push(`- Next operator action: ${result.nextOperatorAction ?? "not recorded"}`);
+  }
 
   if (result.error) {
     lines.push(`- Error: ${result.error}`);
@@ -896,7 +919,7 @@ function buildIntakeReport(result: DonorIntakeResult, donorName: string): string
     "## Next steps",
     "",
     "- Verify the donor launch URL and add capture sessions under `evidence/capture_sessions/`.",
-    "- Review the harvested asset manifest plus package graph under `evidence/local_only/harvest/` and decide which missing assets still require deeper runtime-aware capture.",
+    "- Review the donor scan summary under `evidence/local_only/harvest/` to see runtime candidates, atlas metadata, bundle asset-map status, and the next operator action.",
     "- Promote grounded findings into donor reports before claiming runtime parity.",
     "- Keep raw donor bootstrap files read-only once captured."
   );
@@ -939,6 +962,13 @@ export async function bootstrapDonorIntake(options: BootstrapDonorIntakeOptions)
     packageGraphNodeCount: 0,
     packageGraphEdgeCount: 0,
     packageUnresolvedCount: 0,
+    scanStatus: donorLaunchUrl && harvestAssets ? "blocked" : "skipped",
+    scanSummaryPath: donorLaunchUrl && harvestAssets ? path.join(paths.localOnlyHarvestRoot, "scan-summary.json") : undefined,
+    blockerSummaryPath: donorLaunchUrl && harvestAssets ? path.join(paths.localOnlyHarvestRoot, "blocker-summary.md") : undefined,
+    runtimeCandidateCount: 0,
+    atlasManifestCount: 0,
+    bundleAssetMapStatus: donorLaunchUrl && harvestAssets ? "blocked" : "skipped",
+    mirrorCandidateStatus: donorLaunchUrl && harvestAssets ? "blocked" : "blocked",
     attemptedAssetCount: 0,
     harvestedAssetCount: 0,
     skippedAssetCount: 0,
@@ -1005,6 +1035,21 @@ export async function bootstrapDonorIntake(options: BootstrapDonorIntakeOptions)
       result.packageGraphNodeCount = packageResult.packageGraphNodeCount;
       result.packageGraphEdgeCount = packageResult.packageGraphEdgeCount;
       result.packageUnresolvedCount = packageResult.packageUnresolvedCount;
+      const scanResult = await runDonorScan({
+        donorId,
+        donorName,
+        launchUrl: sanitizeStoredUrl(donorLaunchUrl),
+        resolvedLaunchUrl,
+        sourceHost: result.sourceHost
+      });
+      result.scanStatus = scanResult.status;
+      result.scanSummaryPath = scanResult.scanSummaryPath;
+      result.blockerSummaryPath = scanResult.blockerSummaryPath;
+      result.runtimeCandidateCount = scanResult.runtimeCandidateCount;
+      result.atlasManifestCount = scanResult.atlasManifestCount;
+      result.bundleAssetMapStatus = scanResult.bundleAssetMapStatus;
+      result.mirrorCandidateStatus = scanResult.mirrorCandidateStatus;
+      result.nextOperatorAction = scanResult.nextOperatorAction;
       result.attemptedAssetCount = harvestResult.attemptedAssetCount;
       result.harvestedAssetCount = harvestResult.harvestedAssetCount;
       result.skippedAssetCount = harvestResult.skippedAssetCount;
@@ -1012,6 +1057,7 @@ export async function bootstrapDonorIntake(options: BootstrapDonorIntakeOptions)
     } else {
       result.harvestStatus = "skipped";
       result.packageStatus = "skipped";
+      result.scanStatus = "skipped";
     }
 
     await Promise.all([
