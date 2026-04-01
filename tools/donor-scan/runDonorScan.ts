@@ -9,6 +9,7 @@ import { extractBundleAssetMap } from "./extractBundleAssetMap";
 import { summarizeCaptureTargetFamilies } from "./summarizeCaptureTargetFamilies";
 import { summarizeCaptureBlockerFamilies } from "./summarizeCaptureBlockerFamilies";
 import { summarizeCaptureFamilySourceProfiles } from "./summarizeCaptureFamilySourceProfiles";
+import { summarizeCaptureFamilyActions } from "./summarizeCaptureFamilyActions";
 import {
   type CaptureRunFile,
   type DiscoveredDonorUrl,
@@ -422,6 +423,8 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
       topCaptureFamilyNames: [],
       familySourceProfileCount: 0,
       topFamilySourceProfileNames: [],
+      familyActionCount: 0,
+      topFamilyActionNames: [],
       nextCaptureTargetCount: 0,
       rawPayloadBlockedCaptureTargetCount: 0,
       rawPayloadBlockedFamilyCount: 0,
@@ -461,6 +464,8 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
       topCaptureFamilyNames: [],
       familySourceProfileCount: 0,
       topFamilySourceProfileNames: [],
+      familyActionCount: 0,
+      topFamilyActionNames: [],
       nextCaptureTargetCount: 0,
       rawPayloadBlockedCaptureTargetCount: 0,
       rawPayloadBlockedFamilyCount: 0,
@@ -558,10 +563,26 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
     harvestManifest
   });
   await writeJsonFile(paths.captureFamilySourceProfilesPath, captureFamilySourceProfiles);
+  const captureFamilyActions = summarizeCaptureFamilyActions({
+    donorId: options.donorId,
+    donorName: options.donorName,
+    captureFamilySourceProfiles
+  });
+  await writeJsonFile(paths.captureFamilyActionsPath, captureFamilyActions);
   const prioritizedFamilySourceProfiles = captureFamilySourceProfiles.families.filter((family) =>
     family.blockedTargetCount > 0
     || family.atlasManifestKinds.length > 0
     || family.sameFamilyVariantAssetCount > 0
+    || family.localSameFamilyBundleReferenceCount > 0
+    || family.localSameFamilyVariantAssetCount > 0
+    || family.localRelatedBundleAssetCount > 0
+    || family.localRelatedVariantAssetCount > 0
+    || family.targetCount >= 3
+  );
+  const prioritizedFamilyActions = captureFamilyActions.families.filter((family) =>
+    family.priority === "high"
+    || family.localSourceAssetCount > 0
+    || family.blockedTargetCount > 0
     || family.targetCount >= 3
   );
   const rawPayloadBlockedFamilies = captureBlockerFamilies.families
@@ -578,6 +599,7 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
     captureTargetFamilies,
     captureBlockerFamilies,
     captureFamilySourceProfiles,
+    captureFamilyActions,
     captureRun,
     paths
   });
@@ -620,6 +642,10 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
       .map((family) => family.familyName),
     familySourceProfileCount: captureFamilySourceProfiles.familyCount,
     topFamilySourceProfileNames: prioritizedFamilySourceProfiles
+      .slice(0, 8)
+      .map((family) => family.familyName),
+    familyActionCount: captureFamilyActions.actionCount,
+    topFamilyActionNames: prioritizedFamilyActions
       .slice(0, 8)
       .map((family) => family.familyName),
     rawPayloadBlockedCaptureTargetCount: nextCaptureTargets.targets.filter((target) => target.blockerClass === "raw-payload-blocked").length,
@@ -682,6 +708,10 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
       .map((family) => family.familyName),
     familySourceProfileCount: captureFamilySourceProfiles.familyCount,
     topFamilySourceProfileNames: prioritizedFamilySourceProfiles
+      .slice(0, 8)
+      .map((family) => family.familyName),
+    familyActionCount: captureFamilyActions.actionCount,
+    topFamilyActionNames: prioritizedFamilyActions
       .slice(0, 8)
       .map((family) => family.familyName),
     rawPayloadBlockedCaptureTargetCount: nextCaptureTargets.targets.filter((target) => target.blockerClass === "raw-payload-blocked").length,

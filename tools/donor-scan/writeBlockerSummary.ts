@@ -1,5 +1,5 @@
 import type { AssetClassificationSummary } from "./classifyAssets";
-import type { AtlasManifestFile, BundleAssetMapFile, CaptureBlockerFamiliesFile, CaptureFamilySourceProfilesFile, CaptureRunFile, CaptureTargetFamiliesFile, DonorScanPaths, NextCaptureTargetsFile, RuntimeCandidatesFile } from "./shared";
+import type { AtlasManifestFile, BundleAssetMapFile, CaptureBlockerFamiliesFile, CaptureFamilyActionsFile, CaptureFamilySourceProfilesFile, CaptureRunFile, CaptureTargetFamiliesFile, DonorScanPaths, NextCaptureTargetsFile, RuntimeCandidatesFile } from "./shared";
 import { toRepoRelativePath, writeTextFile } from "./shared";
 
 interface WriteBlockerSummaryOptions {
@@ -13,6 +13,7 @@ interface WriteBlockerSummaryOptions {
   captureTargetFamilies: CaptureTargetFamiliesFile;
   captureBlockerFamilies: CaptureBlockerFamiliesFile;
   captureFamilySourceProfiles: CaptureFamilySourceProfilesFile;
+  captureFamilyActions: CaptureFamilyActionsFile;
   captureRun: CaptureRunFile | null;
   paths: DonorScanPaths;
 }
@@ -57,6 +58,8 @@ export async function writeBlockerSummary(options: WriteBlockerSummaryOptions): 
   const rawPayloadBlockedTargets = options.nextCaptureTargets.targets.filter((target) => target.blockerClass === "raw-payload-blocked");
   const rawPayloadBlockedFamilies = options.captureBlockerFamilies.families.filter((family) => family.blockerClass === "raw-payload-blocked");
   const untriedTargets = options.nextCaptureTargets.targets.filter((target) => target.recentCaptureStatus !== "blocked");
+  const topFamilyActions = options.captureFamilyActions.families.slice(0, 5);
+  const useLocalSourceFamilies = options.captureFamilyActions.families.filter((family) => family.actionClass === "use-local-sources");
   if (recentlyBlockedTargets.length > 0) {
     blockerHighlights.push(`${recentlyBlockedTargets.length} ranked capture targets were already retried in the latest guided capture run and still failed on every grounded URL attempt.`);
   }
@@ -66,10 +69,15 @@ export async function writeBlockerSummary(options: WriteBlockerSummaryOptions): 
   if (rawPayloadBlockedFamilies.length > 0) {
     blockerHighlights.push(`${rawPayloadBlockedFamilies.length} blocker families are now explicit in donor scan, led by ${rawPayloadBlockedFamilies.slice(0, 4).map((family) => `\`${family.familyName}\``).join(", ")}.`);
   }
+  if (useLocalSourceFamilies.length > 0) {
+    blockerHighlights.push(`${useLocalSourceFamilies.length} donor families already have grounded local source assets captured, led by ${useLocalSourceFamilies.slice(0, 4).map((family) => `\`${family.familyName}\``).join(", ")}.`);
+  }
 
   let nextOperatorAction = "Review the donor scan summary and decide whether deeper runtime capture is still needed.";
   if (!options.runtimeCandidates.partialLocalRuntimePackage) {
     nextOperatorAction = "Capture a grounded launch HTML plus runtime bundles so the donor scan has a real local runtime entry surface.";
+  } else if (useLocalSourceFamilies.length > 0) {
+    nextOperatorAction = "Use the highest-priority donor families that already have grounded local source assets for deeper source discovery or reconstruction before adding more URL heuristics.";
   } else if (
     rawPayloadBlockedTargets.length >= Math.min(5, Math.max(1, options.nextCaptureTargets.targets.length))
     && untriedTargets.slice(0, 5).every((target) => target.captureStrategy !== "preferred-alternates")
@@ -141,6 +149,16 @@ export async function writeBlockerSummary(options: WriteBlockerSummaryOptions): 
           )
         ]
       : []),
+    ...(topFamilyActions.length > 0
+      ? [
+          "",
+          "## Family Action Queue",
+          "",
+          ...topFamilyActions.map((family) =>
+            `- \`${family.familyName}\` — action: \`${family.actionClass}\`, priority: \`${family.priority}\`, local sources: ${family.localSourceAssetCount}, targets: ${family.targetCount}${family.sampleEvidence ? `, sample: ${family.sampleEvidence}` : ""}. Next: ${family.nextStep}`
+          )
+        ]
+      : []),
     "",
     "## Backing artifacts",
     "",
@@ -153,6 +171,7 @@ export async function writeBlockerSummary(options: WriteBlockerSummaryOptions): 
     `- Capture target families: \`${toRepoRelativePath(options.paths.captureTargetFamiliesPath)}\``,
     `- Capture blocker families: \`${toRepoRelativePath(options.paths.captureBlockerFamiliesPath)}\``,
     `- Family source profiles: \`${toRepoRelativePath(options.paths.captureFamilySourceProfilesPath)}\``,
+    `- Family action queue: \`${toRepoRelativePath(options.paths.captureFamilyActionsPath)}\``,
     `- Latest capture run: \`${toRepoRelativePath(options.paths.captureRunPath)}\``,
     `- Existing asset manifest: \`${toRepoRelativePath(options.paths.assetManifestPath)}\``,
     `- Existing package graph: \`${toRepoRelativePath(options.paths.packageGraphPath)}\``

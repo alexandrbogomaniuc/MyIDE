@@ -15251,6 +15251,7 @@ function renderProjectSummary() {
           <span>${typeof donorScan?.recentlyBlockedCaptureTargetCount === "number" ? donorScan.recentlyBlockedCaptureTargetCount : 0} recently blocked</span>
           <span>${typeof donorScan?.captureFamilyCount === "number" ? donorScan.captureFamilyCount : 0} capture families</span>
           <span>${typeof donorScan?.familySourceProfileCount === "number" ? donorScan.familySourceProfileCount : 0} source profiles</span>
+          <span>${typeof donorScan?.familyActionCount === "number" ? donorScan.familyActionCount : 0} family actions</span>
           <span>${typeof donorScan?.rawPayloadBlockedCaptureTargetCount === "number" ? donorScan.rawPayloadBlockedCaptureTargetCount : 0} raw-payload blocked</span>
           <span>${typeof donorScan?.rawPayloadBlockedFamilyCount === "number" ? donorScan.rawPayloadBlockedFamilyCount : 0} blocker families</span>
           <span>${typeof donorScan?.nextCaptureTargetCount === "number" ? donorScan.nextCaptureTargetCount : 0} next capture targets</span>
@@ -15315,6 +15316,28 @@ function renderProjectSummary() {
                   ? `<small>evidence · ${escapeHtml(evidenceLabel)} · <code>${escapeHtml(evidenceValue)}</code>${family.rawPayloadBlockedReason ? ` · ${escapeHtml(family.rawPayloadBlockedReason)}` : ""}</small>`
                   : "";
               })()}
+            `).join("")}
+          </div>
+        ` : ""}
+        ${Array.isArray(donorScan?.topFamilyActions) && donorScan.topFamilyActions.length > 0 ? `
+          <div class="detail-list">
+            <small><strong>Family action queue</strong></small>
+            ${donorScan.topFamilyActions.map((family) => `
+              <small><strong>${escapeHtml(family.familyName)}</strong> · ${escapeHtml(family.actionClass)} · ${escapeHtml(family.priority)} priority · ${escapeHtml(family.reason)}</small>
+              ${family.sampleEvidence ? `<small>evidence · <code>${escapeHtml(family.sampleEvidence)}</code></small>` : ""}
+              <small>${escapeHtml(family.nextStep)}</small>
+              ${family.actionClass === "capture-family-sources" ? `
+                <div class="evidence-actions">
+                  <button
+                    type="button"
+                    class="copy-button"
+                    data-donor-scan-action="capture-next"
+                    data-donor-scan-capture-mode="family-sources"
+                    data-donor-scan-capture-limit="10"
+                    data-donor-scan-capture-family="${escapeAttribute(family.familyName)}"
+                  >Capture ${escapeHtml(family.familyName)} sources</button>
+                </div>
+              ` : ""}
             `).join("")}
           </div>
         ` : ""}

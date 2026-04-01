@@ -55,6 +55,7 @@ Key files:
 - `capture-target-families.json`
 - `capture-blocker-families.json`
 - `capture-family-source-profiles.json`
+- `capture-family-actions.json`
 - `next-capture-run.json`
 - `package-graph.json`
 - `blocker-summary.md`
@@ -84,6 +85,8 @@ When a ranked image target has exhausted only raw/direct grounded URLs and donor
 `capture-blocker-families.json` groups only the blocker-class targets into reusable source families such as `coin`, `big_win`, or `bird`, with target counts, sample URLs, capture strategies, and location prefixes. That makes the next operator step more practical: review blocker families, not just one long flat list of failed URLs.
 
 `capture-family-source-profiles.json` turns those families into source-discovery dossiers. Each family now records its source state (`local-pages-complete`, `partial-local-pages`, `variant-backed`, `bundle-evidence-only`, or `raw-only`) plus exact evidence previews such as atlas manifest sources, local page paths, missing page URLs, same-family bundle references, same-family variant assets, newly captured local source assets, and the top untried or blocked target URLs. Use it when you need to answer “what source material do we actually have for this family?” before adding another capture rule.
+
+`capture-family-actions.json` turns those dossiers into an operator queue. It maps meaningful families into reusable action lanes such as `use-local-sources`, `capture-family-sources`, `capture-missing-pages`, `review-bundle-evidence`, or `source-discovery-required`, then records a grounded reason, next step, and one sample evidence path or URL.
 
 `donor-scan:capture-family-sources` is the next step after that dossier. It does not invent new URLs. Instead, it turns the grounded family evidence back into a family-specific source-material queue, prioritizes optimized variant-backed and bundle-backed family assets before raw atlas-page retries, and refreshes donor scan after the run.
 

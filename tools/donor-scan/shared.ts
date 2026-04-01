@@ -146,6 +146,7 @@ export interface DonorScanPaths {
   captureTargetFamiliesPath: string;
   captureBlockerFamiliesPath: string;
   captureFamilySourceProfilesPath: string;
+  captureFamilyActionsPath: string;
   captureRunPath: string;
   blockerSummaryPath: string;
   scanSummaryPath: string;
@@ -340,6 +341,8 @@ export interface DonorScanResult {
   topCaptureFamilyNames: string[];
   familySourceProfileCount: number;
   topFamilySourceProfileNames: string[];
+  familyActionCount: number;
+  topFamilyActionNames: string[];
   rawPayloadBlockedCaptureTargetCount: number;
   rawPayloadBlockedFamilyCount: number;
   rawPayloadBlockedFamilyNames: string[];
@@ -475,6 +478,38 @@ export interface CaptureFamilySourceProfilesFile {
   families: CaptureFamilySourceProfileRecord[];
 }
 
+export type CaptureFamilyActionClass =
+  | "use-local-sources"
+  | "capture-family-sources"
+  | "capture-missing-pages"
+  | "review-bundle-evidence"
+  | "source-discovery-required";
+
+export interface CaptureFamilyActionRecord {
+  familyName: string;
+  actionClass: CaptureFamilyActionClass;
+  priority: "high" | "medium" | "low";
+  targetCount: number;
+  blockedTargetCount: number;
+  localSourceAssetCount: number;
+  localPageCount: number;
+  atlasPageRefCount: number;
+  sameFamilyVariantAssetCount: number;
+  sameFamilyBundleReferenceCount: number;
+  reason: string;
+  nextStep: string;
+  sampleEvidence: string | null;
+}
+
+export interface CaptureFamilyActionsFile {
+  schemaVersion: string;
+  donorId: string;
+  donorName: string;
+  generatedAt: string;
+  actionCount: number;
+  families: CaptureFamilyActionRecord[];
+}
+
 export type CaptureRunStatus = "captured" | "partial" | "blocked" | "skipped";
 export type CaptureRunMode = "ranked-targets" | "family-sources";
 
@@ -567,6 +602,7 @@ export function buildDonorScanPaths(donorId: string): DonorScanPaths {
     captureTargetFamiliesPath: path.join(harvestRoot, "capture-target-families.json"),
     captureBlockerFamiliesPath: path.join(harvestRoot, "capture-blocker-families.json"),
     captureFamilySourceProfilesPath: path.join(harvestRoot, "capture-family-source-profiles.json"),
+    captureFamilyActionsPath: path.join(harvestRoot, "capture-family-actions.json"),
     captureRunPath: path.join(harvestRoot, "next-capture-run.json"),
     blockerSummaryPath: path.join(harvestRoot, "blocker-summary.md"),
     scanSummaryPath: path.join(harvestRoot, "scan-summary.json")
