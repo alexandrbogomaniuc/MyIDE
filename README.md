@@ -44,6 +44,7 @@ MyIDE is a universal local-first IDE for multiple game projects over time, with 
 - Compose now surfaces imported donor scene kits as named scene sections in the scene explorer, so grouped donor-backed parts can be selected and edited as one higher-level working set instead of disappearing into a flat object list.
 - Those named scene sections now carry their strongest grounded runtime link too, so you can move from one imported section into the Runtime workbench through **Open Runtime Group** instead of losing runtime context at the editor boundary.
 - Those runtime-linked scene sections now also surface grouped override readiness, so one imported game-part section can show whether it already has a grounded static override candidate and can trigger **Create Override** or **Clear Override** without dropping back to the flat runtime asset list first.
+- Those same scene sections now surface reconstruction-kit provenance inside both Compose and Runtime, including donor asset counts, evidence-ref counts, source categories, capture sessions, and copyable grouped provenance summaries.
 - Those harvested package-graph image nodes can now appear in the shell donor asset palette as importable editable-image candidates, so new donor-URL projects are no longer limited to the older hand-indexed donor image set.
 
 ## Public Repo Exclusions
