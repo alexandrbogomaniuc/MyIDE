@@ -163,20 +163,51 @@ async function main(): Promise<void> {
     const packageManifest = JSON.parse(await fs.readFile(path.join(donorRoot, "evidence", "local_only", "harvest", "package-manifest.json"), "utf8")) as {
       packageStatus?: string;
       discoveredUrlCount?: number;
+      packageGraphNodeCount?: number;
+      packageGraphEdgeCount?: number;
+      packageUnresolvedCount?: number;
+      packageGraphPath?: string;
       downloadedByCategory?: Record<string, number>;
       assetFamilies?: Array<{ familyKey?: string }>;
       entryPoints?: { scripts?: string[]; styles?: string[]; json?: string[] };
     };
     assert.equal(packageManifest.packageStatus, "packaged", "package manifest should record a packaged donor slice");
     assert.ok((packageManifest.discoveredUrlCount ?? 0) >= 8, "package manifest should summarize discovered URL counts");
+    assert.ok((packageManifest.packageGraphNodeCount ?? 0) >= 8, "package manifest should summarize graph node counts");
+    assert.ok((packageManifest.packageGraphEdgeCount ?? 0) >= 3, "package manifest should summarize graph edge counts");
+    assert.ok(typeof packageManifest.packageGraphPath === "string" && packageManifest.packageGraphPath.includes("package-graph.json"), "package manifest should point at the package graph artifact");
     assert.ok((packageManifest.downloadedByCategory?.script ?? 0) >= 1, "package manifest should summarize downloaded scripts");
     assert.ok(Array.isArray(packageManifest.assetFamilies) && packageManifest.assetFamilies.some((entry) => typeof entry.familyKey === "string" && entry.familyKey.includes("config")), "package manifest should expose bounded asset family grouping");
     assert.ok(Array.isArray(packageManifest.entryPoints?.json) && packageManifest.entryPoints?.json.some((url) => typeof url === "string" && url.includes("/config/game.json")), "package manifest should record recursive JSON entry points");
+
+    const packageGraph = JSON.parse(await fs.readFile(path.join(donorRoot, "evidence", "local_only", "harvest", "package-graph.json"), "utf8")) as {
+      nodeCount?: number;
+      edgeCount?: number;
+      unresolvedNodeCount?: number;
+      nodes?: Array<{ url?: string; localPath?: string; outboundReferenceCount?: number; downloadStatus?: string }>;
+      edges?: Array<{ fromUrl?: string; toUrl?: string }>;
+    };
+    assert.ok((packageGraph.nodeCount ?? 0) >= 8, "package graph should record donor package nodes");
+    assert.ok((packageGraph.edgeCount ?? 0) >= 3, "package graph should record donor package edges");
+    assert.ok((packageGraph.unresolvedNodeCount ?? 0) >= 1, "package graph should surface unresolved or inventory-only nodes");
+    assert.ok(
+      Array.isArray(packageGraph.nodes) && packageGraph.nodes.some((node) => node.url?.includes("/bundle.js") && typeof node.localPath === "string"),
+      "package graph should include the downloaded bundle.js node"
+    );
+    assert.ok(
+      Array.isArray(packageGraph.nodes) && packageGraph.nodes.some((node) => node.url?.includes("/config/game.json") && (node.outboundReferenceCount ?? 0) >= 1),
+      "package graph should include recursive nodes with outbound references"
+    );
+    assert.ok(
+      Array.isArray(packageGraph.edges) && packageGraph.edges.some((edge) => edge.fromUrl?.includes("/config/game.json") && edge.toUrl?.includes("/img/symbols.png")),
+      "package graph should preserve recursive parent-child provenance"
+    );
 
     const report = await fs.readFile(path.join(donorRoot, "reports", "DONOR_INTAKE_REPORT.md"), "utf8");
     assert.match(report, /Discovered URL count:/, "intake report should summarize discovered URL counts");
     assert.match(report, /Harvested assets:/, "intake report should summarize harvested asset counts");
     assert.match(report, /Package manifest path:/, "intake report should summarize donor package manifest output");
+    assert.match(report, /Package graph path:/, "intake report should summarize donor package graph output");
 
     console.log("PASS smoke:donor-intake");
     console.log(`Created donor intake pack: ${path.relative(workspaceRoot, donorRoot)}`);

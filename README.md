@@ -38,6 +38,7 @@ MyIDE is a universal local-first IDE for multiple game projects over time, with 
 - Sanitized donor reports with evidence IDs.
 - Project metadata that explains donor -> internal model -> target/resulting game relationships.
 - Standard project folder templates and lifecycle docs for adding new projects by folder.
+- Donor URL intake now writes a bounded donor-package graph under `10_donors/<donorId>/evidence/local_only/harvest/package-graph.json` so the captured donor surface is summarized as nodes, edges, and unresolved entries instead of only flat download counts.
 
 ## Public Repo Exclusions
 - Raw donor downloads and runtime payload bodies.

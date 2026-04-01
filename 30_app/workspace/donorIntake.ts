@@ -38,8 +38,12 @@ export interface DonorIntakeResult {
   failedAssetCount?: number;
   packageStatus?: "packaged" | "blocked" | "skipped";
   packageManifestPath?: string;
+  packageGraphPath?: string;
   packageFamilyCount?: number;
   packageReferencedUrlCount?: number;
+  packageGraphNodeCount?: number;
+  packageGraphEdgeCount?: number;
+  packageUnresolvedCount?: number;
   error?: string;
 }
 
@@ -69,6 +73,30 @@ interface DonorAssetHarvestResult {
   failedAssetCount: number;
 }
 
+interface DonorPackageGraphNode {
+  url: string;
+  category: DiscoveredDonorUrl["category"];
+  discoverySource: DiscoveredDonorUrl["source"];
+  depth: number;
+  discoveredFromUrl?: string;
+  host: string;
+  downloadStatus: HarvestedDonorAssetEntry["status"] | "inventory-only";
+  localPath?: string;
+  contentType?: string;
+  sizeBytes?: number;
+  sha256?: string;
+  outboundReferenceCount: number;
+  inboundReferenceCount: number;
+}
+
+interface DonorPackageGraphEdge {
+  fromUrl: string;
+  toUrl: string;
+  discoverySource: DiscoveredDonorUrl["source"];
+  depth: number;
+  category: DiscoveredDonorUrl["category"];
+}
+
 const workspaceRoot = path.resolve(__dirname, "../../..");
 const sensitiveQueryKeyPattern = /(token|sid|session|signature|sig|key|auth|password|secret|hash)/i;
 const recursiveHarvestDepthLimit = 2;
@@ -96,7 +124,8 @@ function buildDonorPaths(donorId: string) {
     bootstrapHtmlPath: path.join(donorRoot, "raw", "bootstrap", "launch.html"),
     discoveredUrlsPath: path.join(donorRoot, "raw", "discovered", "discovered-urls.json"),
     harvestManifestPath: path.join(donorRoot, "evidence", "local_only", "harvest", "asset-manifest.json"),
-    packageManifestPath: path.join(donorRoot, "evidence", "local_only", "harvest", "package-manifest.json")
+    packageManifestPath: path.join(donorRoot, "evidence", "local_only", "harvest", "package-manifest.json"),
+    packageGraphPath: path.join(donorRoot, "evidence", "local_only", "harvest", "package-graph.json")
   };
 }
 
@@ -384,8 +413,12 @@ async function writeDonorPackageManifest(
 ): Promise<{
   status: "packaged" | "blocked" | "skipped";
   packageManifestPath: string;
+  packageGraphPath: string;
   packageFamilyCount: number;
   packageReferencedUrlCount: number;
+  packageGraphNodeCount: number;
+  packageGraphEdgeCount: number;
+  packageUnresolvedCount: number;
 }> {
   const hostStats = new Map<string, { discoveredUrlCount: number; downloadedAssetCount: number; failedAssetCount: number }>();
   const familyStats = new Map<string, { category: DiscoveredDonorUrl["category"]; discoveredUrlCount: number; downloadedAssetCount: number; sampleUrl: string }>();
@@ -450,6 +483,64 @@ async function writeDonorPackageManifest(
   const familySummary = [...familyStats.entries()]
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([familyKey, stats]) => ({ familyKey, ...stats }));
+  const graphEntryMap = new Map(entries.map((entry) => [entry.sourceUrl, entry]));
+  const graphEdges = discoveredUrls
+    .filter((entry) => typeof entry.discoveredFromUrl === "string" && entry.discoveredFromUrl.length > 0)
+    .map((entry) => ({
+      fromUrl: entry.discoveredFromUrl as string,
+      toUrl: entry.url,
+      discoverySource: entry.source,
+      depth: entry.depth ?? 0,
+      category: entry.category
+    }))
+    .sort((left, right) => {
+      if (left.fromUrl === right.fromUrl) {
+        return left.toUrl.localeCompare(right.toUrl);
+      }
+      return left.fromUrl.localeCompare(right.fromUrl);
+    });
+  const outboundReferenceCounts = new Map<string, number>();
+  const inboundReferenceCounts = new Map<string, number>();
+  for (const edge of graphEdges) {
+    outboundReferenceCounts.set(edge.fromUrl, (outboundReferenceCounts.get(edge.fromUrl) ?? 0) + 1);
+    inboundReferenceCounts.set(edge.toUrl, (inboundReferenceCounts.get(edge.toUrl) ?? 0) + 1);
+  }
+  const graphNodes: DonorPackageGraphNode[] = discoveredUrls.map((discoveredUrl) => {
+    const graphEntry = graphEntryMap.get(discoveredUrl.url);
+    let host = "(invalid-url)";
+    try {
+      host = new URL(discoveredUrl.url).host || "(no-host)";
+    } catch {
+      // keep invalid marker
+    }
+    return {
+      url: discoveredUrl.url,
+      category: discoveredUrl.category,
+      discoverySource: discoveredUrl.source,
+      depth: discoveredUrl.depth ?? 0,
+      discoveredFromUrl: discoveredUrl.discoveredFromUrl,
+      host,
+      downloadStatus: graphEntry?.status ?? "inventory-only",
+      localPath: graphEntry?.localPath,
+      contentType: graphEntry?.contentType,
+      sizeBytes: graphEntry?.sizeBytes,
+      sha256: graphEntry?.sha256,
+      outboundReferenceCount: outboundReferenceCounts.get(discoveredUrl.url) ?? 0,
+      inboundReferenceCount: inboundReferenceCounts.get(discoveredUrl.url) ?? 0
+    };
+  });
+  const unresolvedEntries = entries
+    .filter((entry) => entry.status !== "downloaded")
+    .map((entry) => ({
+      sourceUrl: entry.sourceUrl,
+      resolvedUrl: entry.resolvedUrl,
+      category: entry.category,
+      status: entry.status,
+      reason: entry.reason,
+      depth: entry.depth,
+      discoveredFromUrl: entry.discoveredFromUrl
+    }))
+    .slice(0, 50);
 
   await writeFileConditionally(paths.packageManifestPath, `${JSON.stringify({
     schemaVersion: "0.1.0",
@@ -473,25 +564,37 @@ async function writeDonorPackageManifest(
     },
     hosts: hostSummary,
     assetFamilies: familySummary,
-    unresolvedEntries: entries
-      .filter((entry) => entry.status !== "downloaded")
-      .map((entry) => ({
-        sourceUrl: entry.sourceUrl,
-        resolvedUrl: entry.resolvedUrl,
-        category: entry.category,
-        status: entry.status,
-        reason: entry.reason,
-        depth: entry.depth,
-        discoveredFromUrl: entry.discoveredFromUrl
-      }))
-      .slice(0, 50)
+    packageGraphPath: path.relative(workspaceRoot, paths.packageGraphPath).replace(/\\/g, "/"),
+    packageGraphNodeCount: graphNodes.length,
+    packageGraphEdgeCount: graphEdges.length,
+    packageUnresolvedCount: unresolvedEntries.length,
+    unresolvedEntries
+  }, null, 2)}\n`, overwrite);
+  await writeFileConditionally(paths.packageGraphPath, `${JSON.stringify({
+    schemaVersion: "0.1.0",
+    donorId,
+    donorName,
+    packageStatus,
+    generatedAt: new Date().toISOString(),
+    launchUrl,
+    resolvedLaunchUrl,
+    nodeCount: graphNodes.length,
+    edgeCount: graphEdges.length,
+    unresolvedNodeCount: unresolvedEntries.length,
+    rootNodeCount: graphNodes.filter((node) => node.depth === 0).length,
+    nodes: graphNodes,
+    edges: graphEdges
   }, null, 2)}\n`, overwrite);
 
   return {
     status: packageStatus,
     packageManifestPath: paths.packageManifestPath,
+    packageGraphPath: paths.packageGraphPath,
     packageFamilyCount: familySummary.length,
-    packageReferencedUrlCount: discoveredUrls.length
+    packageReferencedUrlCount: discoveredUrls.length,
+    packageGraphNodeCount: graphNodes.length,
+    packageGraphEdgeCount: graphEdges.length,
+    packageUnresolvedCount: unresolvedEntries.length
   };
 }
 
@@ -766,8 +869,12 @@ function buildIntakeReport(result: DonorIntakeResult, donorName: string): string
   if (result.packageStatus) {
     lines.push(`- Package status: \`${result.packageStatus}\``);
     lines.push(`- Package manifest path: \`${result.packageManifestPath ? path.relative(workspaceRoot, result.packageManifestPath) : "not captured"}\``);
+    lines.push(`- Package graph path: \`${result.packageGraphPath ? path.relative(workspaceRoot, result.packageGraphPath) : "not captured"}\``);
     lines.push(`- Package families: ${result.packageFamilyCount ?? 0}`);
     lines.push(`- Package referenced URLs: ${result.packageReferencedUrlCount ?? 0}`);
+    lines.push(`- Package graph nodes: ${result.packageGraphNodeCount ?? 0}`);
+    lines.push(`- Package graph edges: ${result.packageGraphEdgeCount ?? 0}`);
+    lines.push(`- Package unresolved entries: ${result.packageUnresolvedCount ?? 0}`);
   }
 
   if (result.error) {
@@ -789,7 +896,7 @@ function buildIntakeReport(result: DonorIntakeResult, donorName: string): string
     "## Next steps",
     "",
     "- Verify the donor launch URL and add capture sessions under `evidence/capture_sessions/`.",
-    "- Review the harvested asset manifest under `evidence/local_only/harvest/` and decide which missing assets still require deeper runtime-aware capture.",
+    "- Review the harvested asset manifest plus package graph under `evidence/local_only/harvest/` and decide which missing assets still require deeper runtime-aware capture.",
     "- Promote grounded findings into donor reports before claiming runtime parity.",
     "- Keep raw donor bootstrap files read-only once captured."
   );
@@ -826,8 +933,12 @@ export async function bootstrapDonorIntake(options: BootstrapDonorIntakeOptions)
     harvestManifestPath: donorLaunchUrl && harvestAssets ? paths.harvestManifestPath : undefined,
     packageStatus: donorLaunchUrl && harvestAssets ? "blocked" : "skipped",
     packageManifestPath: donorLaunchUrl && harvestAssets ? paths.packageManifestPath : undefined,
+    packageGraphPath: donorLaunchUrl && harvestAssets ? paths.packageGraphPath : undefined,
     packageFamilyCount: 0,
     packageReferencedUrlCount: 0,
+    packageGraphNodeCount: 0,
+    packageGraphEdgeCount: 0,
+    packageUnresolvedCount: 0,
     attemptedAssetCount: 0,
     harvestedAssetCount: 0,
     skippedAssetCount: 0,
@@ -888,8 +999,12 @@ export async function bootstrapDonorIntake(options: BootstrapDonorIntakeOptions)
       result.harvestManifestPath = harvestResult.manifestPath;
       result.packageStatus = packageResult.status;
       result.packageManifestPath = packageResult.packageManifestPath;
+      result.packageGraphPath = packageResult.packageGraphPath;
       result.packageFamilyCount = packageResult.packageFamilyCount;
       result.packageReferencedUrlCount = packageResult.packageReferencedUrlCount;
+      result.packageGraphNodeCount = packageResult.packageGraphNodeCount;
+      result.packageGraphEdgeCount = packageResult.packageGraphEdgeCount;
+      result.packageUnresolvedCount = packageResult.packageUnresolvedCount;
       result.attemptedAssetCount = harvestResult.attemptedAssetCount;
       result.harvestedAssetCount = harvestResult.harvestedAssetCount;
       result.skippedAssetCount = harvestResult.skippedAssetCount;

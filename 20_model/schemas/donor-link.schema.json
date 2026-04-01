@@ -76,11 +76,27 @@
       "type": "string",
       "minLength": 1
     },
+    "packageGraphPath": {
+      "type": "string",
+      "minLength": 1
+    },
     "packageFamilyCount": {
       "type": "integer",
       "minimum": 0
     },
     "packageReferencedUrlCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "packageGraphNodeCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "packageGraphEdgeCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "packageUnresolvedCount": {
       "type": "integer",
       "minimum": 0
     },

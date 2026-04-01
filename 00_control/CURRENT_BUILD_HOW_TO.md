@@ -49,8 +49,9 @@ Recommended rule:
    - `reports/DONOR_INTAKE_REPORT.md`
    - `evidence/local_only/harvest/asset-manifest.json`
    - `evidence/local_only/harvest/package-manifest.json`
+   - `evidence/local_only/harvest/package-graph.json`
    - downloaded bounded recursive static assets under `evidence/local_only/harvest/files/`
-5. The donor panel now surfaces both the harvest manifest and the donor-package manifest so you can see how many referenced URLs and bounded asset families were captured.
+5. The donor panel now surfaces the harvest manifest, donor-package manifest, and donor-package graph summary so you can see how many referenced URLs, bounded asset families, graph nodes, graph edges, and unresolved entries were captured.
 6. This is still only a bounded donor-package slice. It does not yet recurse through the full runtime package or expose full game logic as editable objects.
 
 ## 3. Runtime Mode Is The Primary Workflow

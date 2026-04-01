@@ -9585,8 +9585,12 @@ function getSelectedProjectEvidenceSummary() {
     donorFailedAssetCount: typeof selectedProject.donor?.failedAssetCount === "number" ? selectedProject.donor.failedAssetCount : 0,
     donorPackageStatus: typeof selectedProject.donor?.packageStatus === "string" ? selectedProject.donor.packageStatus : null,
     donorPackageManifestPath: typeof selectedProject.donor?.packageManifestPath === "string" ? selectedProject.donor.packageManifestPath : null,
+    donorPackageGraphPath: typeof selectedProject.donor?.packageGraphPath === "string" ? selectedProject.donor.packageGraphPath : null,
     donorPackageFamilyCount: typeof selectedProject.donor?.packageFamilyCount === "number" ? selectedProject.donor.packageFamilyCount : 0,
     donorPackageReferencedUrlCount: typeof selectedProject.donor?.packageReferencedUrlCount === "number" ? selectedProject.donor.packageReferencedUrlCount : 0,
+    donorPackageGraphNodeCount: typeof selectedProject.donor?.packageGraphNodeCount === "number" ? selectedProject.donor.packageGraphNodeCount : 0,
+    donorPackageGraphEdgeCount: typeof selectedProject.donor?.packageGraphEdgeCount === "number" ? selectedProject.donor.packageGraphEdgeCount : 0,
+    donorPackageUnresolvedCount: typeof selectedProject.donor?.packageUnresolvedCount === "number" ? selectedProject.donor.packageUnresolvedCount : 0,
     donorNotes: typeof selectedProject.donor?.notes === "string" ? selectedProject.donor.notes : null,
     evidenceCatalog,
     donorAssetCatalog
@@ -12053,7 +12057,7 @@ async function handleCreateProject(event) {
   }
 
   setCreateProjectStatus(donorLaunchUrl
-    ? `Creating ${displayName}, scaffolding donor pack ${donorReference}, capturing the first donor launch page, and harvesting directly discovered donor assets ...`
+    ? `Creating ${displayName}, scaffolding donor pack ${donorReference}, capturing the donor launch page, harvesting bounded recursive donor assets, and mapping a first donor package graph ...`
     : `Creating ${displayName} under 40_projects/${slug} and scaffolding donor pack ${donorReference} ...`);
 
   try {
@@ -12079,7 +12083,7 @@ async function handleCreateProject(event) {
     pushLog(`Created project scaffold ${created.projectId} at ${created.projectRoot}.`);
     const donorIntake = created.donorIntake;
     const donorIntakeSummary = donorIntake?.status === "captured"
-      ? ` Donor intake captured ${donorIntake.discoveredUrlCount} bounded donor URLs into ${donorIntake.donorRoot.replace(/^.*10_donors\//, "10_donors/")}.${typeof donorIntake.harvestedAssetCount === "number" ? ` Harvested ${donorIntake.harvestedAssetCount} bounded static assets${typeof donorIntake.failedAssetCount === "number" ? ` with ${donorIntake.failedAssetCount} failures` : ""}.` : ""}${typeof donorIntake.packageFamilyCount === "number" ? ` Packaged ${donorIntake.packageFamilyCount} bounded asset families across ${donorIntake.packageReferencedUrlCount ?? 0} referenced URLs.` : ""}`
+      ? ` Donor intake captured ${donorIntake.discoveredUrlCount} bounded donor URLs into ${donorIntake.donorRoot.replace(/^.*10_donors\//, "10_donors/")}.${typeof donorIntake.harvestedAssetCount === "number" ? ` Harvested ${donorIntake.harvestedAssetCount} bounded static assets${typeof donorIntake.failedAssetCount === "number" ? ` with ${donorIntake.failedAssetCount} failures` : ""}.` : ""}${typeof donorIntake.packageFamilyCount === "number" ? ` Packaged ${donorIntake.packageFamilyCount} bounded asset families across ${donorIntake.packageReferencedUrlCount ?? 0} referenced URLs.` : ""}${typeof donorIntake.packageGraphNodeCount === "number" ? ` Mapped a donor package graph with ${donorIntake.packageGraphNodeCount} nodes, ${donorIntake.packageGraphEdgeCount ?? 0} edges, and ${donorIntake.packageUnresolvedCount ?? 0} unresolved entries.` : ""}`
       : donorIntake?.status === "blocked"
         ? ` Donor intake was blocked: ${donorIntake.error ?? "unknown error"}.`
         : donorLaunchUrl
@@ -12669,6 +12673,9 @@ function renderEvidenceBrowser() {
     `Package Status: ${summary.donorPackageStatus || "unknown"}`,
     `Package Families: ${summary.donorPackageFamilyCount}`,
     `Package Referenced URLs: ${summary.donorPackageReferencedUrlCount}`,
+    `Package Graph Nodes: ${summary.donorPackageGraphNodeCount}`,
+    `Package Graph Edges: ${summary.donorPackageGraphEdgeCount}`,
+    `Package Unresolved Entries: ${summary.donorPackageUnresolvedCount}`,
     `Evidence Root: ${summary.evidenceRoot}`,
     `Donor Asset Count: ${donorAssetCount}`,
     `Capture Sessions: ${summary.captureSessions.join(", ") || "none"}`,
@@ -12690,6 +12697,7 @@ function renderEvidenceBrowser() {
         <span>${donorAssetCount} donor image assets</span>
         <span>${summary.donorHarvestedAssetCount} harvested assets</span>
         <span>${summary.donorPackageFamilyCount} package families</span>
+        <span>${summary.donorPackageGraphNodeCount} package graph nodes</span>
         <span>${summary.donorFailedAssetCount} harvest failures</span>
         <span>${summary.captureSessions.length} capture sessions</span>
         <span>${summary.donorEvidenceRefs.length} donor evidence refs</span>
@@ -12768,13 +12776,17 @@ function renderEvidenceBrowser() {
         <div class="detail-card">
           <span>Donor Package</span>
           <strong>${summary.donorPackageStatus ? escapeHtml(summary.donorPackageStatus) : "unknown"}</strong>
-          <small>${summary.donorPackageReferencedUrlCount} referenced URLs grouped into ${summary.donorPackageFamilyCount} bounded asset families.</small>
+          <small>${summary.donorPackageReferencedUrlCount} referenced URLs grouped into ${summary.donorPackageFamilyCount} bounded asset families, then traced into a ${summary.donorPackageGraphNodeCount}-node / ${summary.donorPackageGraphEdgeCount}-edge package graph.</small>
           <div class="chip-row">
             <span>${summary.donorPackageFamilyCount} families</span>
             <span>${summary.donorPackageReferencedUrlCount} referenced URLs</span>
+            <span>${summary.donorPackageGraphNodeCount} nodes</span>
+            <span>${summary.donorPackageGraphEdgeCount} edges</span>
+            <span>${summary.donorPackageUnresolvedCount} unresolved</span>
           </div>
           <div class="evidence-actions">
             ${summary.donorPackageManifestPath ? renderCopyButton(summary.donorPackageManifestPath, "donor package manifest path", "Copy Package Manifest Path") : ""}
+            ${summary.donorPackageGraphPath ? renderCopyButton(summary.donorPackageGraphPath, "donor package graph path", "Copy Package Graph Path") : ""}
           </div>
         </div>
       </div>

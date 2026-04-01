@@ -109,8 +109,12 @@ export interface ProjectMetaLike {
     failedAssetCount?: number;
     packageStatus?: "unknown" | "packaged" | "blocked" | "skipped";
     packageManifestPath?: string;
+    packageGraphPath?: string;
     packageFamilyCount?: number;
     packageReferencedUrlCount?: number;
+    packageGraphNodeCount?: number;
+    packageGraphEdgeCount?: number;
+    packageUnresolvedCount?: number;
     notes?: string;
   };
   targetGame: {
@@ -392,8 +396,12 @@ function normalizeDonor(value: unknown, relativeProjectRoot: string, projectName
     failedAssetCount: typeof donor.failedAssetCount === "number" ? donor.failedAssetCount : undefined,
     packageStatus: (optionalString(donor.packageStatus) as ProjectMetaLike["donor"]["packageStatus"] | undefined) ?? "unknown",
     packageManifestPath: optionalString(donor.packageManifestPath),
+    packageGraphPath: optionalString(donor.packageGraphPath),
     packageFamilyCount: typeof donor.packageFamilyCount === "number" ? donor.packageFamilyCount : undefined,
     packageReferencedUrlCount: typeof donor.packageReferencedUrlCount === "number" ? donor.packageReferencedUrlCount : undefined,
+    packageGraphNodeCount: typeof donor.packageGraphNodeCount === "number" ? donor.packageGraphNodeCount : undefined,
+    packageGraphEdgeCount: typeof donor.packageGraphEdgeCount === "number" ? donor.packageGraphEdgeCount : undefined,
+    packageUnresolvedCount: typeof donor.packageUnresolvedCount === "number" ? donor.packageUnresolvedCount : undefined,
     notes: optionalString(donor.notes) ?? `${projectName} scaffold only. Replace with evidence-backed donor references before validation.`
   };
 }
@@ -657,6 +665,7 @@ export function buildProjectMetaFromInput(input: ShellCreateProjectInput): Proje
       harvestManifestPath: donorLaunchUrl && harvestDonorAssets ? `10_donors/${donorId}/evidence/local_only/harvest/asset-manifest.json` : undefined,
       packageStatus: donorLaunchUrl ? (harvestDonorAssets ? "unknown" : "skipped") : "unknown",
       packageManifestPath: donorLaunchUrl && harvestDonorAssets ? `10_donors/${donorId}/evidence/local_only/harvest/package-manifest.json` : undefined,
+      packageGraphPath: donorLaunchUrl && harvestDonorAssets ? `10_donors/${donorId}/evidence/local_only/harvest/package-graph.json` : undefined,
       notes: donorLaunchUrl
         ? (harvestDonorAssets
           ? "Shell-created donor reference with launch capture plus bounded recursive donor harvest queued. Replace scaffold claims with evidence-backed donor materials before validation."
@@ -722,8 +731,12 @@ export async function createProjectFromInput(input: ShellCreateProjectInput, ove
   meta.donor.failedAssetCount = donorIntake.failedAssetCount;
   meta.donor.packageStatus = donorIntake.packageStatus ?? "unknown";
   meta.donor.packageManifestPath = donorIntake.packageManifestPath ? path.relative(workspaceRoot, donorIntake.packageManifestPath).replace(/\\/g, "/") : undefined;
+  meta.donor.packageGraphPath = donorIntake.packageGraphPath ? path.relative(workspaceRoot, donorIntake.packageGraphPath).replace(/\\/g, "/") : undefined;
   meta.donor.packageFamilyCount = donorIntake.packageFamilyCount;
   meta.donor.packageReferencedUrlCount = donorIntake.packageReferencedUrlCount;
+  meta.donor.packageGraphNodeCount = donorIntake.packageGraphNodeCount;
+  meta.donor.packageGraphEdgeCount = donorIntake.packageGraphEdgeCount;
+  meta.donor.packageUnresolvedCount = donorIntake.packageUnresolvedCount;
   meta.donor.status = donorIntake.status === "blocked"
     ? "blocked"
     : donorIntake.status === "captured"
@@ -736,6 +749,9 @@ export async function createProjectFromInput(input: ShellCreateProjectInput, ove
     }
     if ((donorIntake.packageFamilyCount ?? 0) > 0) {
       meta.notes.provenFacts.push(`Donor intake generated a bounded package manifest spanning ${donorIntake.packageFamilyCount} asset families and ${donorIntake.packageReferencedUrlCount ?? 0} referenced URLs.`);
+    }
+    if ((donorIntake.packageGraphNodeCount ?? 0) > 0) {
+      meta.notes.provenFacts.push(`Donor intake mapped a bounded donor package graph with ${donorIntake.packageGraphNodeCount} nodes, ${donorIntake.packageGraphEdgeCount ?? 0} edges, and ${donorIntake.packageUnresolvedCount ?? 0} unresolved entries.`);
     }
   }
   if (donorIntake.status === "blocked" && donorIntake.error) {
