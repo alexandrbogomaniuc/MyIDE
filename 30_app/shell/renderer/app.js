@@ -10270,7 +10270,7 @@ function renderDonorAssetCards(items, evidenceObjectIndex = new Map()) {
     const searchQuery = String(state.donorAssetUi?.searchQuery ?? "").trim();
     return searchQuery
       ? `<p class="muted-copy">No donor asset matches <code>${escapeHtml(searchQuery)}</code>.</p>`
-      : `<p class="muted-copy">No usable donor image assets are available for this project on this machine yet.</p>`;
+      : `<p class="muted-copy">No usable donor or harvested runtime/package image assets are available for this project on this machine yet.</p>`;
   }
 
   const replaceableSelectedObject = getReplaceableSelectedObject();
@@ -12798,10 +12798,10 @@ function renderEvidenceBrowser() {
           <strong>Local donor image composition</strong>
           <span>${donorAssetCatalog?.blocker
             ? escapeHtml(donorAssetCatalog.blocker)
-            : "Drag one supported donor image asset onto the Editor Canvas to create an editable donor-backed scene object on the chosen target layer, or replace the selected editable scene object while keeping its layout. Raw donor files remain read-only."}</span>
+            : "Drag one supported donor image or harvested runtime/package image onto the Editor Canvas to create an editable donor-backed scene object on the chosen target layer, or replace the selected editable scene object while keeping its layout. Raw donor files remain read-only."}</span>
           <div class="chip-row">
             <span>${donorAssetCatalog?.localIndexExists ? "using cached local index" : "using live local scan"}</span>
-            <span>${donorAssetCount} usable donor images</span>
+            <span>${donorAssetCount} usable editable image assets</span>
             <span>supported: png, webp, jpg, jpeg, svg</span>
           </div>
         </div>

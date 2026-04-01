@@ -1,12 +1,13 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { loadWorkspaceSlice, type WorkspaceSliceBundle } from "./workspaceSlice";
+import { loadWorkspaceSlice, type WorkspaceProjectSummary, type WorkspaceSliceBundle } from "./workspaceSlice";
 import {
   buildProjectDonorAssetIndex,
   readProjectDonorAssetIndex,
   type DonorAssetIndex,
-  type IndexedDonorAsset
+  type IndexedDonorAsset,
+  type SupportedDonorAssetType
 } from "../../tools/donor-assets/shared";
 import {
   buildPreviewSceneFromEditableProject,
@@ -83,6 +84,24 @@ export interface DonorAssetCatalog {
   countsBySourceCategory: Record<string, number>;
   blocker: string | null;
   assets: DonorAssetItem[];
+}
+
+interface HarvestedPackageGraphNode {
+  url?: string;
+  category?: string;
+  discoverySource?: string;
+  depth?: number;
+  discoveredFromUrl?: string;
+  downloadStatus?: string;
+  localPath?: string;
+  contentType?: string;
+  sizeBytes?: number;
+}
+
+interface HarvestedPackageGraphFile {
+  nodeCount?: number;
+  edgeCount?: number;
+  nodes?: HarvestedPackageGraphNode[];
 }
 
 export interface RuntimeLaunchStatus {
@@ -392,41 +411,123 @@ async function loadDonorEvidenceCatalog(importArtifact: JsonObject | null): Prom
   };
 }
 
-async function loadDonorAssetCatalog(selectedProjectId: string): Promise<DonorAssetCatalog | null> {
-  if (selectedProjectId !== "project_001") {
-    return null;
+function getSupportedDonorAssetTypeForPath(filePath: string): SupportedDonorAssetType | null {
+  const extension = path.extname(filePath).replace(/^\./, "").toLowerCase();
+  if (["png", "webp", "jpg", "jpeg", "svg"].includes(extension)) {
+    return extension as SupportedDonorAssetType;
   }
 
-  let index = await readProjectDonorAssetIndex(selectedProjectId);
-  const localIndexExists = Boolean(index);
+  return null;
+}
 
-  if (!index) {
+function toPackageGraphAssetId(projectId: string, localPath: string, sourceUrl: string | null): string {
+  const raw = `${projectId}::${localPath}::${sourceUrl ?? "no-source-url"}`;
+  const hash = Buffer.from(raw).toString("base64url").slice(0, 18).toLowerCase();
+  return `donor.asset.graph-${hash}`;
+}
+
+function buildPackageGraphTitle(localPath: string, sourceUrl: string | null): string {
+  const filename = path.basename(localPath);
+  const stem = path.basename(filename, path.extname(filename));
+  const normalizedStem = stem
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\w/g, (character) => character.toUpperCase());
+
+  if (sourceUrl) {
     try {
-      index = await buildProjectDonorAssetIndex(selectedProjectId);
+      const parsed = new URL(sourceUrl);
+      const pathLabel = parsed.pathname.split("/").filter(Boolean).slice(-2).join(" / ");
+      if (pathLabel) {
+        return `${normalizedStem} (${pathLabel})`;
+      }
     } catch {
-      index = null;
+      // Keep the filename-derived title.
     }
   }
 
-  if (!index) {
-    return {
-      projectId: selectedProjectId,
-      donorId: "donor_001_mystery_garden",
-      donorName: "Mystery Garden",
-      sourceMode: "local-donor-images",
-      sourceInventoryPath: "10_donors/donor_001_mystery_garden/evidence/HASHES.csv",
-      indexPath: "40_projects/project_001/donor-assets/local-index.json",
-      localIndexExists: false,
-      assetCount: 0,
-      availableFileTypes: [],
-      countsByFileType: {},
-      countsBySourceCategory: {},
-      blocker: "No local donor asset index is available yet. Run npm run donor-assets:index:project_001 on this machine first.",
-      assets: []
-    };
+  return normalizedStem || filename;
+}
+
+async function loadPackageGraphAssets(
+  selectedProject: WorkspaceProjectSummary | null,
+  selectedProjectId: string
+): Promise<DonorAssetItem[]> {
+  const donor = selectedProject?.donor ?? null;
+  const donorId = donor?.donorId ?? "donor_unknown";
+  const donorName = donor?.donorName ?? selectedProjectId;
+  const packageGraphPath = donor?.packageGraphPath ?? null;
+  if (!packageGraphPath) {
+    return [];
   }
 
-  const assets = index.assets.map((asset) => {
+  const packageGraph = await readOptionalJsonFile(path.join(workspaceRoot, packageGraphPath)) as HarvestedPackageGraphFile | null;
+  const nodes = Array.isArray(packageGraph?.nodes) ? packageGraph.nodes : [];
+  const assets: DonorAssetItem[] = [];
+  const seenLocalPaths = new Set<string>();
+
+  for (const node of nodes) {
+    if (node?.downloadStatus !== "downloaded" || typeof node.localPath !== "string" || typeof node.url !== "string") {
+      continue;
+    }
+    const fileType = getSupportedDonorAssetTypeForPath(node.localPath);
+    if (!fileType || seenLocalPaths.has(node.localPath)) {
+      continue;
+    }
+
+    const absolutePath = path.join(workspaceRoot, node.localPath);
+    try {
+      await fs.access(absolutePath);
+    } catch {
+      continue;
+    }
+
+    seenLocalPaths.add(node.localPath);
+    const filename = path.basename(node.localPath);
+    const discoveredFrom = typeof node.discoveredFromUrl === "string" ? node.discoveredFromUrl : null;
+    const sourceUrl = typeof node.url === "string" ? node.url : null;
+    assets.push({
+      assetId: toPackageGraphAssetId(selectedProjectId, node.localPath, sourceUrl),
+      evidenceId: `package-graph:${filename}`,
+      captureSessionId: "donor-package-graph",
+      donorId,
+      donorName,
+      title: buildPackageGraphTitle(node.localPath, sourceUrl),
+      filename,
+      fileType,
+      sourceCategory: "harvested runtime/package image",
+      sourceUrl,
+      notes: discoveredFrom
+        ? `Harvested via donor package graph from ${discoveredFrom}.`
+        : "Harvested via donor package graph.",
+      repoRelativePath: node.localPath,
+      donorRelativePath: node.localPath,
+      localExists: true,
+      previewAvailable: true,
+      width: null,
+      height: null,
+      absolutePath,
+      previewUrl: pathToFileURL(absolutePath).href,
+      previewLabel: discoveredFrom ? "harvested runtime image" : "harvested package image"
+    });
+  }
+
+  return assets.sort((left, right) => left.filename.localeCompare(right.filename));
+}
+
+async function loadDonorAssetCatalog(selectedProject: WorkspaceProjectSummary | null, selectedProjectId: string): Promise<DonorAssetCatalog | null> {
+  let index: DonorAssetIndex | null = null;
+  if (selectedProjectId === "project_001") {
+    index = await readProjectDonorAssetIndex(selectedProjectId);
+    if (!index) {
+      try {
+        index = await buildProjectDonorAssetIndex(selectedProjectId);
+      } catch {
+        index = null;
+      }
+    }
+  }
+  const localIndexExists = Boolean(index);
+  const indexedAssets = index ? index.assets.map((asset) => {
     const absolutePath = path.join(workspaceRoot, asset.repoRelativePath);
     return {
       ...asset,
@@ -436,7 +537,16 @@ async function loadDonorAssetCatalog(selectedProjectId: string): Promise<DonorAs
         ? "drag to import"
         : "local file missing"
     };
+  }) : [];
+  const packageGraphAssets = await loadPackageGraphAssets(selectedProject, selectedProjectId);
+  const assetMap = new Map<string, DonorAssetItem>();
+  [...indexedAssets, ...packageGraphAssets].forEach((asset) => {
+    const dedupeKey = asset.repoRelativePath || asset.assetId;
+    if (!assetMap.has(dedupeKey)) {
+      assetMap.set(dedupeKey, asset);
+    }
   });
+  const assets = [...assetMap.values()].sort((left, right) => left.assetId.localeCompare(right.assetId));
   const countsByFileType = assets.reduce<Record<string, number>>((counts, asset) => {
     counts[asset.fileType] = (counts[asset.fileType] ?? 0) + 1;
     return counts;
@@ -462,12 +572,12 @@ async function loadDonorAssetCatalog(selectedProjectId: string): Promise<DonorAs
   }) as IndexedDonorAsset["fileType"][];
 
   return {
-    projectId: index.projectId,
-    donorId: index.donorId,
-    donorName: index.donorName,
-    sourceMode: index.sourceMode,
-    sourceInventoryPath: index.sourceInventoryPath,
-    indexPath: index.indexPath,
+    projectId: index?.projectId ?? selectedProjectId,
+    donorId: index?.donorId ?? selectedProject?.donor?.donorId ?? "donor_unknown",
+    donorName: index?.donorName ?? selectedProject?.donor?.donorName ?? selectedProjectId,
+    sourceMode: index?.sourceMode ?? "local-donor-images",
+    sourceInventoryPath: index?.sourceInventoryPath ?? selectedProject?.donor?.packageGraphPath ?? "",
+    indexPath: index?.indexPath ?? "",
     localIndexExists,
     assetCount: assets.length,
     availableFileTypes,
@@ -475,7 +585,9 @@ async function loadDonorAssetCatalog(selectedProjectId: string): Promise<DonorAs
     countsBySourceCategory,
     blocker: assets.length > 0
       ? null
-      : "No usable local donor image assets are available for this project on this machine.",
+      : selectedProjectId === "project_001"
+        ? "No usable local donor image assets are available for this project on this machine."
+        : "No harvested donor/runtime image assets are available for this project yet. Start from a donor launch URL first.",
     assets
   };
 }
@@ -730,7 +842,7 @@ export async function loadProjectSlice(requestedProjectId?: string): Promise<Pro
   const selectedProjectId = resolveSelectedProjectId(workspace, requestedProjectId);
   const selectedProject = workspace.projects.find((entry) => entry.projectId === selectedProjectId) ?? null;
   const evidenceCatalog = await loadDonorEvidenceCatalog(importArtifact);
-  const donorAssetCatalog = await loadDonorAssetCatalog(selectedProjectId);
+  const donorAssetCatalog = await loadDonorAssetCatalog(selectedProject, selectedProjectId);
   const runtimeMirror = selectedProjectId === "project_001"
     ? await buildLocalRuntimeMirrorStatus(selectedProjectId)
     : null;

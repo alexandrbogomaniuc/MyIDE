@@ -52,6 +52,7 @@ Recommended rule:
    - `evidence/local_only/harvest/package-graph.json`
    - downloaded bounded recursive static assets under `evidence/local_only/harvest/files/`
 5. The donor panel now surfaces the harvest manifest, donor-package manifest, and donor-package graph summary so you can see how many referenced URLs, bounded asset families, graph nodes, graph edges, and unresolved entries were captured.
+6. Downloaded package-graph images now join the donor asset palette automatically, so you can drag those harvested runtime/package images into Compose as editable donor-backed objects instead of keeping them stuck in read-only capture files.
 6. This is still only a bounded donor-package slice. It does not yet recurse through the full runtime package or expose full game logic as editable objects.
 
 ## 3. Runtime Mode Is The Primary Workflow

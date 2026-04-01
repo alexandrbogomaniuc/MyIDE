@@ -17,6 +17,7 @@ Electron desktop shell for MyIDE.
 - Show a workspace/project browser driven from the discovered project bundle.
 - Create a new project scaffold from the shell through a bounded local IPC bridge.
 - The shell new-project flow can now take an optional donor launch URL, scaffold a shared donor pack under `10_donors/<donorId>/`, capture the donor launch HTML in sanitized form, write a bounded discovered URL inventory, harvest bounded recursive static assets into the local-only donor pack, and generate both a donor-package manifest plus a donor-package graph before any replay/import claims are made.
+- The donor asset palette can now merge hand-indexed donor images with downloaded donor-package-graph image nodes, so freshly harvested donor/runtime package images can be imported into Compose as editable donor-backed objects.
 - Support a simple workspace rescan so newly added project folders can appear after discovery refreshes the derived registry.
 - Show the selected project's donor, target/resulting game, lifecycle stage summary, phase, verification status, folder path, and notes.
 - Split the main workbench into a runtime-first `Runtime` mode and a bounded secondary `Compose` mode for `project_001`.

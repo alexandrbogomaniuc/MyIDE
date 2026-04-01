@@ -37,6 +37,20 @@ export interface WorkspaceProjectSummary {
     captureSessions: readonly string[];
     evidenceRefs: readonly string[];
     status: string;
+    launchUrl?: string;
+    sourceHost?: string;
+    harvestStatus?: string;
+    harvestManifestPath?: string;
+    harvestedAssetCount?: number;
+    failedAssetCount?: number;
+    packageStatus?: string;
+    packageManifestPath?: string;
+    packageGraphPath?: string;
+    packageFamilyCount?: number;
+    packageReferencedUrlCount?: number;
+    packageGraphNodeCount?: number;
+    packageGraphEdgeCount?: number;
+    packageUnresolvedCount?: number;
     notes: string;
   };
   targetGame: {
@@ -120,6 +134,10 @@ function asString(value: JsonValue | undefined, fallback: string): string {
 
 function asOptionalString(value: JsonValue | undefined): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function asOptionalNumber(value: JsonValue | undefined): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
 function toStringArray(value: JsonValue | undefined): readonly string[] {
@@ -336,6 +354,20 @@ function normalizeProjectMeta(entry: JsonObject, index: number): WorkspaceProjec
       captureSessions: toStringArray(donor.captureSessions),
       evidenceRefs: toStringArray(donor.evidenceRefs),
       status: asString(donor.status, "unknown"),
+      launchUrl: asOptionalString(donor.launchUrl),
+      sourceHost: asOptionalString(donor.sourceHost),
+      harvestStatus: asOptionalString(donor.harvestStatus),
+      harvestManifestPath: asOptionalString(donor.harvestManifestPath),
+      harvestedAssetCount: asOptionalNumber(donor.harvestedAssetCount),
+      failedAssetCount: asOptionalNumber(donor.failedAssetCount),
+      packageStatus: asOptionalString(donor.packageStatus),
+      packageManifestPath: asOptionalString(donor.packageManifestPath),
+      packageGraphPath: asOptionalString(donor.packageGraphPath),
+      packageFamilyCount: asOptionalNumber(donor.packageFamilyCount),
+      packageReferencedUrlCount: asOptionalNumber(donor.packageReferencedUrlCount),
+      packageGraphNodeCount: asOptionalNumber(donor.packageGraphNodeCount),
+      packageGraphEdgeCount: asOptionalNumber(donor.packageGraphEdgeCount),
+      packageUnresolvedCount: asOptionalNumber(donor.packageUnresolvedCount),
       notes: asString(donor.notes, "")
     },
     targetGame: {

@@ -6,6 +6,7 @@ import type { ValidateFunction } from "ajv";
 import { createProjectFromInput } from "../../30_app/workspace/createProject";
 import { buildDerivedRegistry, discoverProjectMetas, readJsonObject, registryPath } from "../../30_app/workspace/discoverProjects";
 import { loadWorkspaceSlice } from "../../30_app/shell/workspaceSlice";
+import { loadProjectSlice } from "../../30_app/shell/projectSlice";
 
 type JsonValue = null | boolean | number | string | JsonObject | JsonValue[];
 type JsonObject = { [key: string]: JsonValue };
@@ -160,6 +161,18 @@ async function main(): Promise<void> {
     assert(
       workspace.projects.some((project) => project.projectId === created.projectId),
       "workspace bundle must include the smoke project after rescan"
+    );
+
+    const createdProjectSlice = await loadProjectSlice(created.projectId);
+    assert.equal(createdProjectSlice.selectedProjectId, created.projectId, "project slice should load the created project");
+    assert(
+      (createdProjectSlice.donorAssetCatalog?.assetCount ?? 0) >= 1,
+      "created project slice should expose harvested donor/runtime image assets as editable donor asset cards"
+    );
+    assert(
+      Array.isArray(createdProjectSlice.donorAssetCatalog?.assets)
+        && createdProjectSlice.donorAssetCatalog.assets.some((asset) => asset.sourceCategory === "harvested runtime/package image"),
+      "created project slice should include harvested runtime/package image sources in the donor asset catalog"
     );
 
     assert(
