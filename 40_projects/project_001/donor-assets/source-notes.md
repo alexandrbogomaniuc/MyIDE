@@ -13,8 +13,9 @@ Atlas/frame reality check for `DONOR-ATLAS-A`:
 - searched `10_donors/donor_001_mystery_garden/evidence/local_only/`, `evidence/`, `raw/`, and `reports/`
 - found loose donor image files plus supporting donor JSON/articles only
 - found `0` local atlas text files, `0` local sprite-sheet JSON manifests, `0` local plist frame manifests, and `0` paired local atlas sheet sources with grounded frame metadata
-- current atlas/frame donor import blocker is therefore source availability, not parser code
-- next atlas/frame run should start only after one real local atlas/json sprite-sheet source is captured into the donor evidence boundary
+- deep donor scan also found bundle-discovered runtime metadata references for `img/spines/*.json`, `img/coins/coin.json`, and `img/ui/logo.png`, but not the referenced local files
+- current atlas/frame donor import blocker is therefore still source availability, not parser code
+- next atlas/frame run should start only after one real local atlas/json sprite-sheet source or one real captured `img/spines/*.json` runtime metadata file lands inside the donor/runtime boundary
 
 Current stronger bounded proof assets:
 - `10_donors/donor_001_mystery_garden/evidence/local_only/capture_sessions/MG-CS-20260320-LIVE-A/downloads/MG-EV-20260320-LIVE-A-002__runtime_base_idle_after_start.png`

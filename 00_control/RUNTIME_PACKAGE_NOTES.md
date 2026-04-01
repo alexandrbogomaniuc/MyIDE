@@ -1,8 +1,10 @@
 # Runtime Package Notes
 
 ## Current grounded result
-- `project_001` still does **not** currently have a full captured local donor runtime package or a standalone local HTML runtime entry.
-- The shell now does have a bounded **partial local runtime mirror** for the strongest grounded Mystery Garden launch path on this machine.
+- `FULL_LOCAL_RUNTIME_PACKAGE = no`
+- `PARTIAL_LOCAL_RUNTIME_PACKAGE = yes`
+- `project_001` still does **not** currently have a full captured standalone local donor runtime package or a standalone local donor HTML entry that can run without upstream launch/token state.
+- The shell does have a strong bounded **partial local runtime mirror** for the strongest grounded Mystery Garden launch path on this machine.
 - Runtime Mode now prefers that local mirror when it is available.
 
 ## Checked local candidates
@@ -16,12 +18,17 @@
 - `10_donors/donor_001_mystery_garden/evidence/capture_sessions/MG-CS-20260320-LIVE-A/MG-EV-20260320-LIVE-A-006__runtime_observation_notes.md`
 - `40_projects/project_001/runtime/mock-game-state.json`
 - `40_projects/project_001/runtime/mock-last-action.json`
+- `40_projects/project_001/runtime/local-mirror/manifest.json`
+- `40_projects/project_001/runtime/local-mirror/request-log.latest.json`
+- `40_projects/project_001/runtime/local-mirror/files/cdn.bgaming-network.com/bundle.js`
+- `40_projects/project_001/runtime/local-mirror/files/cdn.bgaming-network.com/loader--q1774630728.js`
 
 ## What is missing
 - no local donor `index.html`
-- no captured local runtime JS bundle
-- no grounded local static host path for the donor runtime package
-- no local donor asset root that can be launched as the real Mystery Garden runtime package
+- no full standalone local donor launch HTML package under the donor/runtime boundary
+- no local donor launch token/API/websocket stack independent of upstream
+- no locally captured runtime asset root for `img/spines/*.json`, `img/coins/coin.json`, `img/ui/logo.png`, translations, or font/runtime support files
+- no grounded local donor asset root that can be launched as the real Mystery Garden runtime package without fallback
 
 ## What now exists
 - `40_projects/project_001/runtime/local-mirror/manifest.json`
@@ -31,6 +38,20 @@
   - `http://127.0.0.1:38901/runtime/project_001/launch`
 - bounded local mirror asset host:
   - `http://127.0.0.1:38901/runtime/project_001/assets/...`
+- grounded mirrored runtime files:
+  - `33` JavaScript files
+  - `9` PNG files
+  - `3` GIF files
+  - `1` JPG file
+  - `1` BIN file
+- grounded local mirror host coverage from `manifest.json` (`46` entries total):
+  - `cdn.bgaming-network.com`: `38`
+  - `boost2.bgaming-network.com`: `2`
+  - `rs-cdn.shared.bgaming-system.com`: `2`
+  - `drops-fe.bgaming-network.com`: `1`
+  - `lobby.bgaming-network.com`: `1`
+  - `replays.bgaming-network.com`: `1`
+  - `www.googletagmanager.com`: `1`
 - bounded runtime resource map in the shell for the current launch/reload cycle:
   - requested runtime URL
   - matched local mirror file path when grounded
@@ -43,7 +64,28 @@
 
 ## Exact blocker
 - Source availability is still the blocker for a **full local donor runtime package**.
-- Runtime Mode can now honestly prefer the bounded local mirror, but it still cannot honestly claim a full captured local donor package until one real local donor HTML/JS package or entry point is captured into the donor/runtime boundary.
+- Runtime Mode can now honestly prefer the bounded local mirror, but it still cannot honestly claim a full captured local donor package until one real local donor HTML package plus the runtime asset families named in `bundle.js` are captured into the donor/runtime boundary.
+- The deepest grounded runtime asset hints now come from `bundle.js`, not local asset files:
+  - `img/spines/Start_page.json`
+  - `img/spines/bird.json`
+  - `img/spines/antisipation.json`
+  - `img/spines/big_win.json`
+  - `img/spines/key.json`
+  - `img/spines/FS_popups.json`
+  - `img/spines/stick.json`
+  - `img/spines/h1.json`
+  - `img/spines/h2.json`
+  - `img/spines/h3.json`
+  - `img/spines/m1.json`
+  - `img/spines/m2.json`
+  - `img/spines/m3.json`
+  - `img/spines/m4.json`
+  - `img/spines/scatter.json`
+  - `img/spines/wild.json`
+  - `img/coins/coin.json`
+  - `img/ui/logo.png`
+  - `https://translations.bgaming-network.com/MysteryGarden`
+- Those references mean local runtime package work is still the next best path, while atlas/frame import remains blocked until the referenced runtime metadata files are actually captured locally.
 
 ## Current bounded workaround
 - The shell now supports one bounded project-local static override slice on top of the local mirror/runtime boundary.

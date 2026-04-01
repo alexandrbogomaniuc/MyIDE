@@ -35,6 +35,10 @@ Local-first helper for the bounded `project_001` Mystery Garden runtime mirror s
 ## Honest limit
 - This tool captures the strongest grounded local mirror we can support today.
 - It does **not** create or claim a full standalone local donor runtime package.
+- The deep donor scan now makes that boundary explicit:
+  - strong partial local runtime package: yes
+  - full standalone local donor runtime package: no
+  - next best source-discovery lane: bundle-discovered runtime metadata under `img/spines/*.json`, `img/coins/coin.json`, `img/ui/logo.png`, and translations
 - The strongest current proof now leaves no unresolved upstream bootstrap/static dependency in the current launch/start/spin cycle, the embedded runtime tap proves a real local `bundle.js` request inside Runtime Mode, and direct local launch inspection proves the bounded mirror can serve local `bundle.js` plus local preloader images.
 - The repo now includes a bounded dedicated Runtime Debug Host path that loads the same local mirror in a separate BrowserWindow and is the official runtime-trace workflow for `project_001`.
 - `runtime:harvest:project_001` is now the safe maintenance command: it refreshes the local mirror without launching Electron smoke windows and reports any already-captured request map.

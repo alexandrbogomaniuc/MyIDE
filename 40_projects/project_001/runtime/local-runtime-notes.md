@@ -4,6 +4,9 @@
 - A bounded partial local Mystery Garden runtime mirror now exists under `40_projects/project_001/runtime/local-mirror/`.
 - Runtime Mode prefers that mirror when it is available on this machine.
 - This is still **not** a full captured local donor runtime package.
+- Hard answers from the deep donor scan:
+  - `FULL_LOCAL_RUNTIME_PACKAGE = no`
+  - `PARTIAL_LOCAL_RUNTIME_PACKAGE = yes`
 
 ## What the mirror includes
 - grounded live launch HTML refresh through the local shell mirror server
@@ -11,11 +14,17 @@
 - grounded mirrored `bundle.js`
 - bounded mirrored static preloader/runtime image files
 - grounded mirrored third-party runtime/bootstrap scripts observed during the latest harvest, including `replays.js`, `gtag/js`, and two `rs-cdn.shared.bgaming-system.com` plugin scripts
+- concrete bundle-discovered runtime asset references for:
+  - `img/spines/*.json`
+  - `img/coins/coin.json`
+  - `img/ui/logo.png`
+  - `https://translations.bgaming-network.com/MysteryGarden`
 
 ## What the mirror does not prove yet
 - a full standalone local donor runtime package
 - a local donor launch token/API/websocket stack independent of the live upstream
-- a confirmed reload-time hit for the current mirrored static override candidate, even though the shell now records a bounded request map for the current launch/reload cycle
+- local copies of the bundle-discovered runtime metadata files above
+- a confirmed request-backed static image inside the embedded runtime cycle, even though the shell now records a bounded request map for the current launch/reload cycle
 
 ## Current local launch path
 - `http://127.0.0.1:38901/runtime/project_001/launch`
@@ -25,6 +34,7 @@
 - No unresolved upstream bootstrap/static dependency remains in the current bounded launch/start/spin cycle.
 - Direct local launch inspection shows the bounded mirror can serve local `bundle.js` plus local preloader images such as `logo-lights.png`, `split.png`, and `a.png`.
 - The embedded Electron Runtime Mode proof now exposes a request-backed local `bundle.js` hit in the runtime partition, but it still does not expose a request-backed static image in the current bounded cycle, so the strongest current image candidate remains mirror-manifest-backed and cannot prove an override hit yet.
+- The deep donor scan now makes the next blocker concrete instead of vague: the local mirror already proves a strong partial package, so the next runtime-package hunt should target the bundle-discovered `img/spines/*.json`, `img/coins/coin.json`, `img/ui/logo.png`, and translation payload roots.
 - The strongest previously verified embedded guest-preload introspection bridge proved `frameCount=0`, `accessibleFrameCount=0`, `canvasCount=0`, and resource window labels only at `top`, so there was no hidden same-origin child frame or accessible canvas surface in that bounded embedded slice.
 - The repo now includes a bounded dedicated Runtime Debug Host path that loads the same local mirror in a separate BrowserWindow and is the stronger runtime-trace workflow for this project.
 - The dedicated debug-host smoke now proves a request-backed local static image candidate plus a bounded project-local override hit after reload.

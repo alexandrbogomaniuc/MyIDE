@@ -67,6 +67,11 @@ Recommended rule:
 18. Scene sections now also expose a session-only **Solo Section** view, so one imported grouped game-part kit can temporarily take over the viewport and scene explorer without changing saved visibility or layer rules.
 19. Scene sections now also expose **Send Section Backward** and **Bring Section Forward**, so one imported grouped game-part kit can move through the layer stack as a bounded grouped section instead of reordering child objects one by one.
 20. This is still only a bounded donor-package slice. It does not yet recurse through the full runtime package or expose full game logic as editable objects.
+21. Deep donor-scan result for `project_001`:
+   - strong partial local runtime package: yes
+   - full standalone local donor runtime package: no
+   - atlas/frame import from current local files: no
+   - next best source-discovery path: chase the bundle-discovered runtime metadata family `img/spines/*.json`, `img/coins/coin.json`, `img/ui/logo.png`, and translation roots into the local donor/runtime boundary
 
 ## 3. Runtime Mode Is The Primary Workflow
 1. `project_001` now opens into **Runtime** mode when the grounded donor runtime entry is available.
@@ -165,6 +170,7 @@ Current hard limits:
 - only `project_001` is supported in this slice
 - only static donor image files are supported
 - atlas/frame donor import is blocked in this build because no local atlas text or sprite-sheet metadata source exists for `project_001` yet
+- the deep donor scan now proves likely runtime metadata paths exist in `bundle.js`, but the referenced local files are still missing, so atlas/frame import remains blocked by source material rather than parser/UI code
 - no animation import
 - no audio/video import
 - no raw donor file mutation

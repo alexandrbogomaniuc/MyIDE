@@ -133,7 +133,8 @@ Use this when testing the current local MyIDE build by hand.
   - pause/resume/step only work when the embedded donor runtime exposes a stable ticker-like hook; otherwise the shell reports that blocker plainly
   - only `project_001` is supported
   - only supported local donor image files are importable
-  - atlas/frame donor import is blocked on this machine because no local atlas text or sprite-sheet metadata source exists for `project_001` yet
+- atlas/frame donor import is blocked on this machine because no local atlas text or sprite-sheet metadata source exists for `project_001` yet
+- the deep donor scan now proves likely runtime metadata paths exist in `bundle.js`, but the referenced local files are still missing, so atlas/frame import remains blocked by missing source material
   - no animation import, audio/video import, or generic donor format pipeline
   - imported objects are internal scene objects with donor linkage, not editable raw donor assets
 
