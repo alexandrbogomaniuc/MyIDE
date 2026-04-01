@@ -51,6 +51,7 @@ MyIDE is a universal local-first IDE for multiple game projects over time, with 
 - Those same scene sections now also support **Center Section** and **Restore Suggested Layer**, so one grouped game-part kit can be repositioned or moved back to its inferred scene-kit layer without breaking the preserved section structure.
 - Those same scene sections now also support **Reset Section Layout**, so one grouped game-part kit can be repacked into its inferred scene-kit layout around the current section anchor instead of dragging each child object back into place by hand.
 - Those same scene sections now also support grouped **Hide/Show Section** and **Lock/Unlock Section**, so one imported game-part kit can be hidden, revealed, frozen, or reopened for editing without toggling every child object separately.
+- Those same scene sections now also support grouped **Scale Section Up** and **Scale Section Down**, so one imported game-part kit can be resized as a bounded section-level unit around its current center instead of scaling every child object separately.
 - Those harvested package-graph image nodes can now appear in the shell donor asset palette as importable editable-image candidates, so new donor-URL projects are no longer limited to the older hand-indexed donor image set.
 
 ## Public Repo Exclusions
