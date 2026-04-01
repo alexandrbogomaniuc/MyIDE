@@ -471,6 +471,7 @@ export interface CaptureFamilySourceProfilesFile {
 }
 
 export type CaptureRunStatus = "captured" | "partial" | "blocked" | "skipped";
+export type CaptureRunMode = "ranked-targets" | "family-sources";
 
 export interface CaptureRunTargetResult {
   rank: number;
@@ -493,9 +494,11 @@ export interface CaptureRunFile {
   donorName: string;
   generatedAt: string;
   status: CaptureRunStatus;
+  requestedMode: CaptureRunMode;
   requestedLimit: number;
   requestedFamily: string | null;
   familyTargetCountBefore: number | null;
+  familySourceCandidateCountBefore: number | null;
   targetCountBefore: number;
   targetCountAfter: number;
   attemptedCount: number;

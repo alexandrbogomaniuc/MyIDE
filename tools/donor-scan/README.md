@@ -32,6 +32,8 @@ and answers early:
   - Attempt the top ranked missing donor/runtime files from `next-capture-targets.json`, rewrite grounded placeholder-style URLs when possible, try the strongest grounded alternates first when bundle-image-variant or request-backed hints exist, refresh donor scan, and write a machine-readable capture run summary.
 - `npm run donor-scan:capture-family -- --donor-id donor_XXX --family big_win --limit 10`
   - Run the same guided capture runner, but constrain it to one ranked capture family from `capture-target-families.json` so operators can attack `big_win`, `bird`, `coin`, and other grouped blocker families directly.
+- `npm run donor-scan:capture-family-sources -- --donor-id donor_XXX --family big_win --limit 10`
+  - Build a grounded family-source queue from `capture-family-source-profiles.json`, bundle image variants, bundle references, atlas missing pages, and still-open family targets, then capture those family-specific source-material candidates directly.
 
 ## Outputs
 
@@ -82,6 +84,8 @@ When a ranked image target has exhausted only raw/direct grounded URLs and donor
 `capture-blocker-families.json` groups only the blocker-class targets into reusable source families such as `coin`, `big_win`, or `bird`, with target counts, sample URLs, capture strategies, and location prefixes. That makes the next operator step more practical: review blocker families, not just one long flat list of failed URLs.
 
 `capture-family-source-profiles.json` turns those families into source-discovery dossiers. Each family now records its source state (`local-pages-complete`, `partial-local-pages`, `variant-backed`, `bundle-evidence-only`, or `raw-only`) plus exact evidence previews such as atlas manifest sources, local page paths, missing page URLs, same-family bundle references, same-family variant assets, and the top untried or blocked target URLs. Use it when you need to answer “what source material do we actually have for this family?” before adding another capture rule.
+
+`donor-scan:capture-family-sources` is the next step after that dossier. It does not invent new URLs. Instead, it turns the grounded family evidence back into a family-specific source-material queue, prioritizes optimized variant-backed and bundle-backed family assets before raw atlas-page retries, and refreshes donor scan after the run.
 
 That reopened-target behavior is already proven on the live Mystery Garden donor: once donor scan started surfacing optimized variant URLs from bundle-backed sibling image families, guided capture successfully downloaded atlas-adjacent payloads such as `h1`, `h2`, `stick`, and `wild` from those newly grounded URLs.
 

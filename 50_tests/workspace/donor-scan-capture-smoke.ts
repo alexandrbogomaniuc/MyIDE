@@ -31,7 +31,13 @@ function startFixtureServer(): Promise<{ server: http.Server; port: number }> {
       }
       if (request.url === "/bundle.js") {
         response.writeHead(200, { "content-type": "application/javascript; charset=utf-8" });
-        response.end("window.preloadLogo = '_resourcesPath_preloader-assets/logo.png'; window.atlasUrl = '/atlases/ui.atlas';");
+        response.end([
+          "window.preloadLogo = '_resourcesPath_preloader-assets/logo.png';",
+          "window.atlasUrl = '/atlases/ui.atlas';",
+          "window.bundleMeta = {images:{\"ui/ui-card.png\":{e:\".png_80_80.webp\"}}};",
+          "var at={resourcesPath:'http://" + (request.headers.host ?? "127.0.0.1") + "/'},s={images:window.bundleMeta.images};",
+          "var yt=t=>t?at.resourcesPath+\"img/\"+t:null;at._textureNameToPath=yt,at.getImageMetadata=t=>s.images[t]||{};"
+        ].join("\n"));
         return;
       }
       if (request.url === "/preloader-assets/logo.png") {
@@ -56,6 +62,11 @@ function startFixtureServer(): Promise<{ server: http.Server; port: number }> {
         return;
       }
       if (request.url === "/atlases/ui.png") {
+        response.writeHead(200, { "content-type": "image/png" });
+        response.end(Buffer.from("89504e470d0a1a0a", "hex"));
+        return;
+      }
+      if (request.url === "/img/ui/ui-card.png_80_80.webp") {
         response.writeHead(200, { "content-type": "image/png" });
         response.end(Buffer.from("89504e470d0a1a0a", "hex"));
         return;
@@ -185,6 +196,33 @@ async function main(): Promise<void> {
     assert.ok((refreshedSummary.rawPayloadBlockedFamilyCount ?? 0) >= 1, "scan summary should surface raw-payload-blocked family counts after a raw-root-only dead end");
     assert.ok(Array.isArray(refreshedSummary.rawPayloadBlockedFamilyNames), "scan summary should surface raw-payload-blocked family names");
 
+    const familySourceCapture = await captureNextTargets({
+      donorId,
+      family: "ui",
+      limit: 1,
+      mode: "family-sources"
+    });
+    assert.ok(["captured", "partial"].includes(familySourceCapture.status), "family source capture should run successfully for a grounded bundle-related source");
+    assert.equal(familySourceCapture.requestedMode, "family-sources", "family source capture should record the requested mode");
+    assert.equal(familySourceCapture.requestedFamily, "ui", "family source capture should record the requested family");
+    assert.ok((familySourceCapture.familySourceCandidateCountBefore ?? 0) >= 1, "family source capture should report grounded family source candidates");
+    assert.ok(familySourceCapture.downloadedCount >= 1, "family source capture should download at least one grounded family source asset");
+
+    const familySourceRun = JSON.parse(await fs.readFile(captureRunPath, "utf8")) as {
+      requestedMode?: string;
+      requestedFamily?: string | null;
+      familySourceCandidateCountBefore?: number | null;
+      results?: Array<{ downloadedFromUrl?: string | null; status?: string }>;
+    };
+    assert.equal(familySourceRun.requestedMode, "family-sources", "capture summary should record family-sources mode");
+    assert.equal(familySourceRun.requestedFamily, "ui", "capture summary should keep the family in family-sources mode");
+    assert.ok((familySourceRun.familySourceCandidateCountBefore ?? 0) >= 1, "capture summary should record grounded family source candidate counts");
+    assert.ok(
+      Array.isArray(familySourceRun.results)
+        && familySourceRun.results.some((entry) => entry.status === "downloaded" && typeof entry.downloadedFromUrl === "string" && entry.downloadedFromUrl.includes("/img/ui/ui-card.png_80_80.webp")),
+      "family source capture should download grounded variant-backed family evidence outside the flat ranked queue"
+    );
+
     const expandedTargetQueue = buildNextCaptureTargets({
       donorId: "donor_expanded_queue_smoke",
       donorName: "Expanded Queue Smoke",
@@ -309,9 +347,11 @@ async function main(): Promise<void> {
         donorName: "Expanded Queue Smoke",
         generatedAt: new Date().toISOString(),
         status: "blocked",
+        requestedMode: "ranked-targets",
         requestedLimit: 1,
         requestedFamily: null,
         familyTargetCountBefore: null,
+        familySourceCandidateCountBefore: null,
         attemptedCount: 1,
         downloadedCount: 0,
         failedCount: 1,

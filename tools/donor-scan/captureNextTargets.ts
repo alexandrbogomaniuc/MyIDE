@@ -3,9 +3,13 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { runDonorScan } from "./runDonorScan";
 import {
+  type AtlasManifestFile,
+  type CaptureFamilySourceProfileRecord,
+  type CaptureFamilySourceProfilesFile,
   buildAlternateCaptureHints,
   type BundleAssetMapFile,
   type CaptureRunFile,
+  type CaptureRunMode,
   type CaptureRunStatus,
   type DiscoveredDonorUrl,
   type DonorPackageManifestFile,
@@ -14,6 +18,8 @@ import {
   type HarvestedDonorAssetEntry,
   type NextCaptureTargetRecord,
   type NextCaptureTargetsFile,
+  type RequestBackedStaticHintFile,
+  type ReferenceConfidence,
   buildDonorScanPaths,
   readOptionalJsonFile,
   isPreferredAlternateCaptureSource,
@@ -27,6 +33,7 @@ interface CaptureNextTargetsOptions {
   donorId: string;
   limit?: number;
   family?: string;
+  mode?: CaptureRunMode;
 }
 
 interface CaptureNextTargetsResult {
@@ -34,8 +41,10 @@ interface CaptureNextTargetsResult {
   donorName: string;
   status: CaptureRunStatus;
   captureRunPath: string;
+  requestedMode: CaptureRunMode;
   requestedFamily: string | null;
   familyTargetCountBefore: number | null;
+  familySourceCandidateCountBefore: number | null;
   attemptedCount: number;
   downloadedCount: number;
   failedCount: number;
@@ -148,6 +157,239 @@ function mapTargetCategory(category: string, urlString: string): DonorUrlCategor
   return "other";
 }
 
+function readUrlRelativePath(urlString: string): string {
+  try {
+    const parsed = new URL(urlString);
+    return parsed.pathname.replace(/^\/+/, "");
+  } catch {
+    return urlString;
+  }
+}
+
+function tokenizeFamily(raw: string): string[] {
+  return raw
+    .toLowerCase()
+    .split(/[^a-z0-9]+/g)
+    .map((token) => token.trim())
+    .filter((token) => token.length > 1 && !/^\d+$/.test(token));
+}
+
+function hasTokenOverlap(left: readonly string[], right: readonly string[]): boolean {
+  if (left.length === 0 || right.length === 0) {
+    return false;
+  }
+  const rightSet = new Set(right);
+  return left.some((token) => rightSet.has(token));
+}
+
+function isDownloadedHarvestUrl(urlString: string, harvestManifest: HarvestManifestFile): boolean {
+  const entries = Array.isArray(harvestManifest.entries) ? harvestManifest.entries : [];
+  return entries.some((entry) =>
+    entry.status === "downloaded"
+    && (entry.sourceUrl === urlString || entry.resolvedUrl === urlString)
+  );
+}
+
+function buildSyntheticCaptureTarget(options: {
+  url: string;
+  rank: number;
+  familyName: string;
+  sourceLabel: string;
+  reason: string;
+  kind: NextCaptureTargetRecord["kind"];
+  priority: NextCaptureTargetRecord["priority"];
+  confidence: ReferenceConfidence;
+  bundleAssetMap: BundleAssetMapFile | null;
+  requestBackedStaticHints: RequestBackedStaticHintFile | null;
+}): NextCaptureTargetRecord {
+  const category = mapTargetCategory(options.kind, options.url);
+  return {
+    rank: options.rank,
+    url: options.url,
+    host: (() => {
+      try {
+        return new URL(options.url).host;
+      } catch {
+        return "";
+      }
+    })(),
+    relativePath: readUrlRelativePath(options.url),
+    kind: options.kind,
+    category,
+    priority: options.priority,
+    confidence: options.confidence,
+    score: Math.max(1, 1000 - options.rank),
+    sourceCount: 1,
+    sourceLabels: [options.sourceLabel, `family-source:${options.familyName}`],
+    reason: options.reason,
+    blockers: [],
+    alternateCaptureHints: buildAlternateCaptureHints({
+      url: options.url,
+      kind: options.kind,
+      category,
+      bundleAssetMap: options.bundleAssetMap,
+      requestBackedStaticHints: options.requestBackedStaticHints
+    }),
+    captureStrategy: "direct-only",
+    recentCaptureStatus: "untried",
+    recentCaptureAttemptCount: 0,
+    recentCaptureFailureReason: null,
+    blockerClass: null
+  };
+}
+
+function buildFamilySourceTargets(options: {
+  familyName: string;
+  familyProfiles: CaptureFamilySourceProfilesFile | null;
+  nextCaptureTargets: NextCaptureTargetsFile;
+  bundleAssetMap: BundleAssetMapFile | null;
+  atlasManifestFile: AtlasManifestFile | null;
+  requestBackedStaticHints: RequestBackedStaticHintFile | null;
+  harvestManifest: HarvestManifestFile;
+}): NextCaptureTargetRecord[] {
+  const normalizedFamily = options.familyName.trim().toLowerCase();
+  const familyTokens = tokenizeFamily(normalizedFamily);
+  const familyProfile = options.familyProfiles?.families.find((profile) => profile.familyName.toLowerCase() === normalizedFamily) ?? null;
+  const candidates = new Map<string, NextCaptureTargetRecord>();
+
+  const addCandidate = (
+    url: string,
+    sourceLabel: string,
+    reason: string,
+    kind: NextCaptureTargetRecord["kind"],
+    priority: NextCaptureTargetRecord["priority"],
+    confidence: ReferenceConfidence
+  ): void => {
+    if (!url || isDownloadedHarvestUrl(url, options.harvestManifest) || candidates.has(url)) {
+      return;
+    }
+    const rank = candidates.size + 1;
+    candidates.set(url, buildSyntheticCaptureTarget({
+      url,
+      rank,
+      familyName: options.familyName,
+      sourceLabel,
+      reason,
+      kind,
+      priority,
+      confidence,
+      bundleAssetMap: options.bundleAssetMap,
+      requestBackedStaticHints: options.requestBackedStaticHints
+    }));
+  };
+
+  if (options.bundleAssetMap) {
+    for (const imageVariant of options.bundleAssetMap.imageVariants) {
+      for (const variantUrl of imageVariant.variantUrls) {
+        const derivedFamily = deriveFamilyName(variantUrl.url).toLowerCase();
+        const variantTokens = tokenizeFamily(derivedFamily);
+        const logicalFamily = deriveFamilyName(imageVariant.logicalPath).toLowerCase();
+        const logicalTokens = tokenizeFamily(logicalFamily);
+        if (derivedFamily === normalizedFamily || logicalFamily === normalizedFamily) {
+          addCandidate(
+            variantUrl.url,
+            "family-source:same-family-variant",
+            "Family source capture uses a same-family optimized variant URL grounded by the donor bundle.",
+            "bundle-asset",
+            "high",
+            "confirmed"
+          );
+          continue;
+        }
+        if (hasTokenOverlap(familyTokens, variantTokens) || hasTokenOverlap(familyTokens, logicalTokens)) {
+          addCandidate(
+            variantUrl.url,
+            "family-source:related-variant",
+            "Family source capture uses a token-overlap optimized variant URL grounded by the donor bundle.",
+            "bundle-asset",
+            "medium",
+            "likely"
+          );
+        }
+      }
+    }
+
+    for (const reference of options.bundleAssetMap.references) {
+      if (!reference.resolvedUrl || reference.category !== "image") {
+        continue;
+      }
+      const derivedFamily = deriveFamilyName(reference.resolvedUrl).toLowerCase();
+      const referenceTokens = tokenizeFamily(derivedFamily);
+      if (derivedFamily === normalizedFamily) {
+        addCandidate(
+          reference.resolvedUrl,
+          "family-source:same-family-bundle-reference",
+          "Family source capture uses a same-family bundle-backed image reference.",
+          "bundle-asset",
+          "medium",
+          reference.confidence
+        );
+        continue;
+      }
+      if (hasTokenOverlap(familyTokens, referenceTokens)) {
+        addCandidate(
+          reference.resolvedUrl,
+          "family-source:related-bundle-reference",
+          "Family source capture uses a token-overlap bundle-backed image reference.",
+          "bundle-asset",
+          "medium",
+          reference.confidence
+        );
+      }
+    }
+  }
+
+  if (options.atlasManifestFile) {
+    for (const manifest of options.atlasManifestFile.manifests) {
+      if (deriveFamilyName(manifest.sourceUrl).toLowerCase() !== normalizedFamily) {
+        continue;
+      }
+      for (const missingPageUrl of manifest.missingPageUrls) {
+        addCandidate(
+          missingPageUrl,
+          "family-source:atlas-missing-page",
+            "Family source capture retries the atlas page image recorded as missing for this family.",
+            "atlas-page",
+            "medium",
+            "likely"
+          );
+      }
+    }
+  }
+
+  for (const target of options.nextCaptureTargets.targets) {
+    if (deriveFamilyName(target.url).toLowerCase() !== normalizedFamily || target.recentCaptureStatus === "blocked") {
+      continue;
+    }
+    addCandidate(
+      target.url,
+      "family-source:ranked-target",
+      "Family source capture includes the family's still-open ranked donor-scan target.",
+      target.kind,
+      target.priority,
+      target.confidence
+    );
+  }
+
+  if (familyProfile) {
+    for (const url of familyProfile.topBlockedTargetUrls) {
+      if (!url || candidates.has(url)) {
+        continue;
+      }
+      addCandidate(
+        url,
+        "family-source:blocked-target",
+        "Family source capture includes a family blocker URL so deeper source discovery can be retried deliberately.",
+        "atlas-page",
+        "medium",
+        "provisional"
+      );
+    }
+  }
+
+  return [...candidates.values()];
+}
+
 function mapTargetSource(target: NextCaptureTargetRecord): DiscoveredDonorUrl["source"] {
   if (target.kind === "bundle-asset" || target.kind === "runtime-script") {
     return "harvest-script";
@@ -247,15 +489,19 @@ export async function captureNextTargets(options: CaptureNextTargetsOptions): Pr
   }
 
   const limit = clampCaptureLimit(options.limit);
+  const requestedMode: CaptureRunMode = options.mode === "family-sources" ? "family-sources" : "ranked-targets";
   const requestedFamily = typeof options.family === "string" && options.family.trim().length > 0
     ? options.family.trim()
     : null;
   const paths = buildDonorScanPaths(donorId);
-  const [nextCaptureTargets, harvestManifest, scanSummary, packageManifest] = await Promise.all([
+  const [nextCaptureTargets, harvestManifest, scanSummary, packageManifest, familyProfiles, atlasManifestFile, requestBackedStaticHints] = await Promise.all([
     readOptionalJsonFile<NextCaptureTargetsFile>(paths.nextCaptureTargetsPath),
     readOptionalJsonFile<HarvestManifestFile>(paths.assetManifestPath),
     readOptionalJsonFile<Record<string, unknown>>(paths.scanSummaryPath),
-    readOptionalJsonFile<DonorPackageManifestFile>(paths.packageManifestPath)
+    readOptionalJsonFile<DonorPackageManifestFile>(paths.packageManifestPath),
+    readOptionalJsonFile<CaptureFamilySourceProfilesFile>(paths.captureFamilySourceProfilesPath),
+    readOptionalJsonFile<AtlasManifestFile>(paths.atlasManifestsPath),
+    readOptionalJsonFile<RequestBackedStaticHintFile>(paths.requestBackedStaticHintsPath)
   ]);
 
   if (!nextCaptureTargets || !harvestManifest) {
@@ -268,14 +514,29 @@ export async function captureNextTargets(options: CaptureNextTargetsOptions): Pr
   const allQueuedTargets = Array.isArray(nextCaptureTargets.targets) ? nextCaptureTargets.targets : [];
   const familyFilteredTargets = requestedFamily
     ? allQueuedTargets.filter((target) => deriveFamilyName(target.url).toLowerCase() === requestedFamily.toLowerCase())
-    : allQueuedTargets;
+    : [];
+  const familySourceTargets = requestedFamily && requestedMode === "family-sources"
+    ? buildFamilySourceTargets({
+      familyName: requestedFamily,
+      familyProfiles,
+      nextCaptureTargets,
+      bundleAssetMap,
+      atlasManifestFile,
+      requestBackedStaticHints,
+      harvestManifest
+    })
+    : [];
 
-  if (requestedFamily && familyFilteredTargets.length === 0) {
+  if (requestedFamily && requestedMode === "ranked-targets" && familyFilteredTargets.length === 0) {
     throw new Error(`No ranked capture targets matched family "${requestedFamily}".`);
   }
+  if (requestedFamily && requestedMode === "family-sources" && familySourceTargets.length === 0) {
+    throw new Error(`No grounded family source candidates matched family "${requestedFamily}".`);
+  }
 
-  const queuedTargets = familyFilteredTargets.slice(0, limit);
-  const familyTargetCountBefore = requestedFamily ? familyFilteredTargets.length : null;
+  const queuedTargets = (requestedMode === "family-sources" ? familySourceTargets : (requestedFamily ? familyFilteredTargets : allQueuedTargets)).slice(0, limit);
+  const familyTargetCountBefore = requestedFamily && requestedMode === "ranked-targets" ? familyFilteredTargets.length : null;
+  const familySourceCandidateCountBefore = requestedFamily && requestedMode === "family-sources" ? familySourceTargets.length : null;
   const discoveredUrlMap = new Map<string, DiscoveredDonorUrl>();
   for (const discovered of Array.isArray(harvestManifest.discoveredUrls) ? harvestManifest.discoveredUrls : []) {
     if (typeof discovered?.url !== "string" || discovered.url.length === 0) {
@@ -451,9 +712,11 @@ export async function captureNextTargets(options: CaptureNextTargetsOptions): Pr
     donorName,
     generatedAt: new Date().toISOString(),
     status,
+    requestedMode,
     requestedLimit: limit,
     requestedFamily,
     familyTargetCountBefore,
+    familySourceCandidateCountBefore,
     targetCountBefore: nextCaptureTargets.targetCount,
     targetCountAfter: nextCaptureTargets.targetCount,
     attemptedCount,
@@ -485,8 +748,10 @@ export async function captureNextTargets(options: CaptureNextTargetsOptions): Pr
     donorName,
     status,
     captureRunPath: paths.captureRunPath,
+    requestedMode,
     requestedFamily,
     familyTargetCountBefore,
+    familySourceCandidateCountBefore,
     attemptedCount,
     downloadedCount,
     failedCount,
@@ -501,6 +766,7 @@ function parseArgs(argv: readonly string[]): CaptureNextTargetsOptions {
   let donorId = "";
   let limit: number | undefined;
   let family: string | undefined;
+  let mode: CaptureRunMode | undefined;
 
   for (let index = 0; index < argv.length; index += 1) {
     const token = argv[index];
@@ -518,6 +784,11 @@ function parseArgs(argv: readonly string[]): CaptureNextTargetsOptions {
     if (token === "--family" && next) {
       family = next;
       index += 1;
+      continue;
+    }
+    if (token === "--mode" && next) {
+      mode = next === "family-sources" ? "family-sources" : "ranked-targets";
+      index += 1;
     }
   }
 
@@ -525,16 +796,21 @@ function parseArgs(argv: readonly string[]): CaptureNextTargetsOptions {
     throw new Error("Missing required --donor-id argument.");
   }
 
-  return { donorId, limit, family };
+  return { donorId, limit, family, mode };
 }
 
 async function main(): Promise<void> {
   const result = await captureNextTargets(parseArgs(process.argv.slice(2)));
   console.log("PASS donor-scan:capture-next");
   console.log(`Donor: ${result.donorId}`);
+  console.log(`Mode: ${result.requestedMode}`);
   if (result.requestedFamily) {
     console.log(`Family: ${result.requestedFamily}`);
-    console.log(`Family targets before: ${result.familyTargetCountBefore ?? 0}`);
+    if (result.requestedMode === "family-sources") {
+      console.log(`Family source candidates before: ${result.familySourceCandidateCountBefore ?? 0}`);
+    } else {
+      console.log(`Family targets before: ${result.familyTargetCountBefore ?? 0}`);
+    }
   }
   console.log(`Status: ${result.status}`);
   console.log(`Attempted: ${result.attemptedCount}`);

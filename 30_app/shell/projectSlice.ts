@@ -179,6 +179,7 @@ export interface DonorScanStatus {
   rawPayloadBlockedFamilyNames: string[];
   nextCaptureTargetCount: number;
   captureRunStatus: string | null;
+  captureRunMode: string | null;
   captureRunRequestedFamily: string | null;
   captureAttemptedCount: number;
   captureDownloadedCount: number;
@@ -991,6 +992,7 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
       : [],
     nextCaptureTargetCount: typeof scanSummary.nextCaptureTargetCount === "number" ? scanSummary.nextCaptureTargetCount : (donor.nextCaptureTargetCount ?? nextCaptureTargets.length),
     captureRunStatus: typeof captureRunSummary?.status === "string" ? captureRunSummary.status : null,
+    captureRunMode: typeof captureRunSummary?.requestedMode === "string" ? captureRunSummary.requestedMode : null,
     captureRunRequestedFamily: typeof captureRunSummary?.requestedFamily === "string" ? captureRunSummary.requestedFamily : null,
     captureAttemptedCount: typeof captureRunSummary?.attemptedCount === "number" ? captureRunSummary.attemptedCount : 0,
     captureDownloadedCount: typeof captureRunSummary?.downloadedCount === "number" ? captureRunSummary.downloadedCount : 0,

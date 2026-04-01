@@ -3139,7 +3139,7 @@ async function openRuntimeDebugHostWindow() {
   setPreviewStatus(`Opened Runtime Debug Host on ${runtimeSourceLabel}. Candidate ${candidatePath} recorded ${hitCount} override hit${hitCount === 1 ? "" : "s"} after reload.`);
 }
 
-async function runDonorScanCapture(limit = 5, family = null) {
+async function runDonorScanCapture(limit = 5, family = null, mode = "ranked-targets") {
   const api = window.myideApi;
   const selectedProject = getSelectedProject();
   const donorId = typeof selectedProject?.donor?.donorId === "string" ? selectedProject.donor.donorId : "";
@@ -3149,13 +3149,16 @@ async function runDonorScanCapture(limit = 5, family = null) {
   }
 
   const familyLabel = typeof family === "string" && family.trim().length > 0 ? family.trim() : null;
+  const requestedMode = mode === "family-sources" ? "family-sources" : "ranked-targets";
   setPreviewStatus(
-    familyLabel
-      ? `Running guided donor capture for family ${familyLabel} across up to ${limit} ranked target${limit === 1 ? "" : "s"}...`
-      : `Running guided donor capture for the top ${limit} ranked missing target${limit === 1 ? "" : "s"}...`
+    requestedMode === "family-sources"
+      ? `Running donor family source capture${familyLabel ? ` for ${familyLabel}` : ""} across up to ${limit} grounded source candidate${limit === 1 ? "" : "s"}...`
+      : familyLabel
+        ? `Running guided donor capture for family ${familyLabel} across up to ${limit} ranked target${limit === 1 ? "" : "s"}...`
+        : `Running guided donor capture for the top ${limit} ranked missing target${limit === 1 ? "" : "s"}...`
   );
   try {
-    const result = await api.runDonorScanCapture(donorId, limit, familyLabel ?? undefined);
+    const result = await api.runDonorScanCapture(donorId, limit, familyLabel ?? undefined, requestedMode);
     await reloadWorkspace(false, state.selectedProjectId);
 
     const status = typeof result?.status === "string" ? result.status : "blocked";
@@ -3163,19 +3166,22 @@ async function runDonorScanCapture(limit = 5, family = null) {
     const downloadedCount = Number(result?.downloadedCount ?? 0);
     const failedCount = Number(result?.failedCount ?? 0);
     const targetCountAfter = Number(result?.targetCountAfter ?? 0);
+    const resultMode = typeof result?.requestedMode === "string" ? result.requestedMode : requestedMode;
     const requestedFamily = typeof result?.requestedFamily === "string" ? result.requestedFamily : familyLabel;
     const familyTargetCountBefore = Number(result?.familyTargetCountBefore ?? 0);
+    const familySourceCandidateCountBefore = Number(result?.familySourceCandidateCountBefore ?? 0);
     const nextOperatorAction = typeof result?.nextOperatorAction === "string" ? result.nextOperatorAction : "Review the refreshed donor scan summary.";
 
     setPreviewStatus(
-      `${requestedFamily ? `Family ${requestedFamily}: ` : ""}guided donor capture ${status}. Downloaded ${downloadedCount} of ${attemptedCount} attempted target${attemptedCount === 1 ? "" : "s"}`
+      `${requestedFamily ? `Family ${requestedFamily}: ` : ""}${resultMode === "family-sources" ? "family source capture" : "guided donor capture"} ${status}. Downloaded ${downloadedCount} of ${attemptedCount} attempted ${resultMode === "family-sources" ? "source candidate" : "target"}${attemptedCount === 1 ? "" : "s"}`
       + `${failedCount > 0 ? ` with ${failedCount} failure${failedCount === 1 ? "" : "s"}` : ""}. `
-      + `${requestedFamily && familyTargetCountBefore > 0 ? `${familyTargetCountBefore} target${familyTargetCountBefore === 1 ? "" : "s"} matched that family before the run. ` : ""}`
+      + `${requestedFamily && resultMode === "family-sources" && familySourceCandidateCountBefore > 0 ? `${familySourceCandidateCountBefore} grounded source candidate${familySourceCandidateCountBefore === 1 ? "" : "s"} matched that family before the run. ` : ""}`
+      + `${requestedFamily && resultMode !== "family-sources" && familyTargetCountBefore > 0 ? `${familyTargetCountBefore} target${familyTargetCountBefore === 1 ? "" : "s"} matched that family before the run. ` : ""}`
       + `${targetCountAfter} ranked target${targetCountAfter === 1 ? "" : "s"} remain. ${nextOperatorAction}`
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    setPreviewStatus(`${familyLabel ? `Family ${familyLabel}: ` : ""}guided donor capture failed: ${message}`);
+    setPreviewStatus(`${familyLabel ? `Family ${familyLabel}: ` : ""}${requestedMode === "family-sources" ? "family source capture" : "guided donor capture"} failed: ${message}`);
   }
 }
 
@@ -10182,6 +10188,7 @@ function getSelectedProjectEvidenceSummary() {
     donorNextCaptureTargets: Array.isArray(donorScan?.nextCaptureTargets) ? donorScan.nextCaptureTargets : [],
     donorCaptureRunPath: typeof donorScan?.captureRunPath === "string" ? donorScan.captureRunPath : null,
     donorCaptureRunStatus: typeof donorScan?.captureRunStatus === "string" ? donorScan.captureRunStatus : null,
+    donorCaptureRunMode: typeof donorScan?.captureRunMode === "string" ? donorScan.captureRunMode : null,
     donorCaptureAttemptedCount: typeof donorScan?.captureAttemptedCount === "number" ? donorScan.captureAttemptedCount : 0,
     donorCaptureDownloadedCount: typeof donorScan?.captureDownloadedCount === "number" ? donorScan.captureDownloadedCount : 0,
     donorCaptureFailedCount: typeof donorScan?.captureFailedCount === "number" ? donorScan.captureFailedCount : 0,
@@ -11650,7 +11657,10 @@ function handleNavigationClick(event) {
         && donorScanActionButton.dataset.donorScanCaptureFamily.trim().length > 0
         ? donorScanActionButton.dataset.donorScanCaptureFamily.trim()
         : null;
-      void runDonorScanCapture(Number.isFinite(limit) ? limit : 5, family);
+      const mode = donorScanActionButton.dataset.donorScanCaptureMode === "family-sources"
+        ? "family-sources"
+        : "ranked-targets";
+      void runDonorScanCapture(Number.isFinite(limit) ? limit : 5, family, mode);
       return true;
     }
   }
@@ -15244,7 +15254,7 @@ function renderProjectSummary() {
           <span>${typeof donorScan?.rawPayloadBlockedCaptureTargetCount === "number" ? donorScan.rawPayloadBlockedCaptureTargetCount : 0} raw-payload blocked</span>
           <span>${typeof donorScan?.rawPayloadBlockedFamilyCount === "number" ? donorScan.rawPayloadBlockedFamilyCount : 0} blocker families</span>
           <span>${typeof donorScan?.nextCaptureTargetCount === "number" ? donorScan.nextCaptureTargetCount : 0} next capture targets</span>
-          <span>${typeof donorScan?.captureRunStatus === "string" ? escapeHtml(donorScan.captureRunStatus) : "idle"} guided capture${typeof donorScan?.captureRunRequestedFamily === "string" && donorScan.captureRunRequestedFamily.length > 0 ? ` (${escapeHtml(donorScan.captureRunRequestedFamily)})` : ""}</span>
+          <span>${typeof donorScan?.captureRunStatus === "string" ? escapeHtml(donorScan.captureRunStatus) : "idle"} ${donorScan?.captureRunMode === "family-sources" ? "family source capture" : "guided capture"}${typeof donorScan?.captureRunRequestedFamily === "string" && donorScan.captureRunRequestedFamily.length > 0 ? ` (${escapeHtml(donorScan.captureRunRequestedFamily)})` : ""}</span>
           <span>${typeof donorScan?.captureDownloadedCount === "number" ? donorScan.captureDownloadedCount : 0} downloaded last run</span>
         </div>
         ${Array.isArray(donorScan?.topCaptureFamilies) && donorScan.topCaptureFamilies.length > 0 ? `
@@ -15268,6 +15278,16 @@ function renderProjectSummary() {
             <small><strong>Family source discovery</strong></small>
             ${donorScan.topFamilySourceProfiles.map((family) => `
               <small><strong>${escapeHtml(family.familyName)}</strong> · ${escapeHtml(family.sourceState)} · atlas ${escapeHtml(String(family.localPageCount))}/${escapeHtml(String(family.atlasPageRefCount))} local pages · ${escapeHtml(String(family.sameFamilyBundleReferenceCount))} same-family bundle ref${family.sameFamilyBundleReferenceCount === 1 ? "" : "s"} · ${escapeHtml(String(family.sameFamilyVariantAssetCount))} same-family variant asset${family.sameFamilyVariantAssetCount === 1 ? "" : "s"} · ${escapeHtml(family.nextStep)}</small>
+              <div class="evidence-actions">
+                <button
+                  type="button"
+                  class="copy-button"
+                  data-donor-scan-action="capture-next"
+                  data-donor-scan-capture-mode="family-sources"
+                  data-donor-scan-capture-limit="10"
+                  data-donor-scan-capture-family="${escapeAttribute(family.familyName)}"
+                >Capture ${escapeHtml(family.familyName)} sources</button>
+              </div>
               ${(() => {
                 const evidenceValue = family.sampleMissingPageUrl
                   ?? family.sampleBlockedTargetUrl

@@ -17,6 +17,7 @@
     "donor-scan:url": "npm run build && node dist/tools/donor-scan/scanDonorUrl.js",
     "donor-scan:capture-next": "npm run build && node dist/tools/donor-scan/captureNextTargets.js",
     "donor-scan:capture-family": "npm run build && node dist/tools/donor-scan/captureNextTargets.js",
+    "donor-scan:capture-family-sources": "npm run build && node dist/tools/donor-scan/captureNextTargets.js --mode family-sources",
     "donor-scan:verify": "npm run build && node dist/tools/donor-scan/verifyDonorScan.js",
     "runtime:mirror:project_001": "npm run build && node dist/tools/runtime/mirrorProjectRuntime.js project_001",
     "runtime:harvest:project_001": "npm run build && node dist/tools/runtime/harvestRuntimeRequests.js project_001",

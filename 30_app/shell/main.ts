@@ -2106,11 +2106,12 @@ ipcMain.handle("myide:open-runtime-debug-host", async () => {
     closeWhenDone: false
   });
 });
-ipcMain.handle("myide:run-donor-scan-capture", async (_event, donorId: string, limit?: number, family?: string) => {
+ipcMain.handle("myide:run-donor-scan-capture", async (_event, donorId: string, limit?: number, family?: string, mode?: string) => {
   return captureNextTargets({
     donorId,
     limit: typeof limit === "number" ? limit : undefined,
-    family: typeof family === "string" ? family : undefined
+    family: typeof family === "string" ? family : undefined,
+    mode: mode === "family-sources" ? "family-sources" : "ranked-targets"
   });
 });
 ipcMain.handle("myide:get-runtime-override-status", async (_event, projectId: string) => {
