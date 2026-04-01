@@ -3,7 +3,7 @@ import { promises as fs } from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import { bootstrapDonorIntake } from "../../30_app/workspace/donorIntake";
-import { captureNextTargets } from "../../tools/donor-scan/captureNextTargets";
+import { buildCaptureAttemptUrls, captureNextTargets } from "../../tools/donor-scan/captureNextTargets";
 import { buildNextCaptureTargets } from "../../tools/donor-scan/buildNextCaptureTargets";
 
 const workspaceRoot = path.resolve(__dirname, "../../..");
@@ -329,6 +329,88 @@ async function main(): Promise<void> {
         && expandedTarget.alternateCaptureHints.some((hint) => hint.url.includes("/img/symbols/spin_3.png_80_80.webp"))
         && expandedTarget.alternateCaptureHints.some((hint) => hint.url.includes("/img/symbols/spin_3.f.png_80_90.png")),
       "new grounded variant URLs should re-open a previously blocked atlas-page target instead of leaving it stuck as blocked"
+    );
+    assert.ok(expandedTarget, "expanded queue smoke should keep the spin_3 atlas page target");
+    const orderedAttempts = buildCaptureAttemptUrls(expandedTarget!, {
+      schemaVersion: "0.1.0",
+      donorId: "donor_expanded_queue_smoke",
+      donorName: "Expanded Queue Smoke",
+      generatedAt: new Date().toISOString(),
+      status: "mapped",
+      bundleCount: 1,
+      referenceCount: 1,
+      countsByCategory: { image: 1 },
+      countsByConfidence: { confirmed: 1, likely: 0, provisional: 0 },
+      imageVariantStatus: "mapped",
+      imageVariantEntryCount: 1,
+      imageVariantSuffixCount: 2,
+      imageVariantUrlBuilderStatus: "mapped",
+      imageVariantUrlCount: 2,
+      imageVariantFieldCounts: { e: 1, f_e: 1 },
+      translationPayloadStatus: "skipped",
+      translationPayloadCount: 0,
+      translationLocaleHintCount: 0,
+      bundles: [
+        {
+          sourceUrl: "https://fixture.example.test/bundle.js",
+          localPath: "10_donors/donor_expanded_queue_smoke/raw/bootstrap/bundle.js",
+          referenceCount: 1
+        }
+      ],
+      references: [
+        {
+          bundleSourceUrl: "https://fixture.example.test/bundle.js",
+          bundleLocalPath: "10_donors/donor_expanded_queue_smoke/raw/bootstrap/bundle.js",
+          referenceText: "symbols/spin_3.png",
+          resolvedUrl: "https://fixture.example.test/symbols/spin_3.png",
+          category: "image",
+          confidence: "confirmed",
+          localStatus: "inventory-only",
+          localPath: null
+        }
+      ],
+      imageVariants: [
+        {
+          bundleSourceUrl: "https://fixture.example.test/bundle.js",
+          bundleLocalPath: "10_donors/donor_expanded_queue_smoke/raw/bootstrap/bundle.js",
+          logicalPath: "symbols/spin_3.png",
+          resolvedUrl: "https://fixture.example.test/symbols/spin_3.png",
+          requestBaseUrl: "https://fixture.example.test/img/symbols/spin_3.png",
+          confidence: "confirmed",
+          localStatus: "inventory-only",
+          localPath: null,
+          variantKeys: ["e", "f_e"],
+          variants: {
+            e: ".png_80_80.webp",
+            f_e: ".f.png_80_90.png"
+          },
+          variantUrls: [
+            {
+              key: "e",
+              url: "https://fixture.example.test/img/symbols/spin_3.png_80_80.webp",
+              note: "Primary optimized request URL proven by the bundle images table."
+            },
+            {
+              key: "f_e",
+              url: "https://fixture.example.test/img/symbols/spin_3.f.png_80_90.png",
+              note: "Fallback optimized request URL proven by the bundle images table."
+            }
+          ],
+          variantCount: 2,
+          note: "Smoke proof"
+        }
+      ],
+      translationPayloads: []
+    });
+    assert.equal(
+      orderedAttempts[0],
+      "https://fixture.example.test/img/symbols/spin_3.png_80_80.webp",
+      "guided capture should try grounded optimized variant URLs before the raw atlas-page URL when stronger bundle-image-variant hints exist"
+    );
+    assert.equal(
+      orderedAttempts[1],
+      "https://fixture.example.test/img/symbols/spin_3.f.png_80_90.png",
+      "guided capture should keep the stronger bundle-image-variant fallbacks ahead of weaker raw-root aliases"
     );
 
     console.log("PASS smoke:donor-scan-capture");

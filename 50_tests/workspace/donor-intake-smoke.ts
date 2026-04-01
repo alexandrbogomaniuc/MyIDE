@@ -408,7 +408,7 @@ async function main(): Promise<void> {
 
     const nextCaptureTargets = JSON.parse(await fs.readFile(path.join(donorRoot, "evidence", "local_only", "harvest", "next-capture-targets.json"), "utf8")) as {
       targetCount?: number;
-      targets?: Array<{ relativePath?: string; priority?: string; kind?: string; alternateCaptureHints?: Array<{ url?: string }> }>;
+      targets?: Array<{ relativePath?: string; priority?: string; kind?: string; alternateCaptureHints?: Array<{ url?: string; source?: string }> }>;
     };
     assert.ok((nextCaptureTargets.targetCount ?? 0) >= 1, "donor scan should write next capture targets");
     assert.ok(Array.isArray(nextCaptureTargets.targets) && nextCaptureTargets.targets.some((target) => typeof target.relativePath === "string" && target.relativePath.length > 0), "next capture targets should keep a relative path");
@@ -433,6 +433,17 @@ async function main(): Promise<void> {
           && target.alternateCaptureHints.some((hint) => typeof hint.url === "string" && hint.url.includes("/img/spines/spin_1.f.png_80_90.png"))
         ),
       "next capture targets should expose grounded optimized variant URLs when the bundle proves the image request-path rule"
+    );
+    assert.ok(
+      Array.isArray(nextCaptureTargets.targets)
+        && nextCaptureTargets.targets.some((target) =>
+          typeof target.relativePath === "string"
+          && target.relativePath.includes("img/spines/spin_1.png")
+          && Array.isArray(target.alternateCaptureHints)
+          && typeof target.alternateCaptureHints[0]?.source === "string"
+          && target.alternateCaptureHints[0].source.startsWith("bundle-image-variant:")
+        ),
+      "next capture targets should order grounded bundle-image-variant alternates ahead of weaker rooted-path hints"
     );
     assert.ok(
       Array.isArray(nextCaptureTargets.targets)

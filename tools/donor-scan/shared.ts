@@ -659,7 +659,67 @@ export function buildAlternateCaptureHints(options: {
       dedupedHints.set(hint.url, hint);
     }
   }
-  return [...dedupedHints.values()];
+  return [...dedupedHints.values()].sort((left, right) => compareAlternateCaptureHints(left, right));
+}
+
+function compareAlternateCaptureHints(
+  left: AlternateCaptureHintRecord,
+  right: AlternateCaptureHintRecord
+): number {
+  const priority = (hint: AlternateCaptureHintRecord): number => {
+    if (hint.source.startsWith("request-log:")) {
+      return 0;
+    }
+    if (hint.source.startsWith("bundle-image-variant:")) {
+      return 1;
+    }
+    if (hint.source === "placeholder-rewrite") {
+      return 2;
+    }
+    if (hint.source.startsWith("family-alias:")) {
+      return 3;
+    }
+    if (hint.source.startsWith("bundle-reference:")) {
+      return 4;
+    }
+    return 5;
+  };
+  const confidenceRank = (confidence: ReferenceConfidence): number => {
+    switch (confidence) {
+      case "confirmed":
+        return 0;
+      case "likely":
+        return 1;
+      default:
+        return 2;
+    }
+  };
+
+  const priorityDelta = priority(left) - priority(right);
+  if (priorityDelta !== 0) {
+    return priorityDelta;
+  }
+  const variantKeyRank = (hint: AlternateCaptureHintRecord): number => {
+    if (!hint.source.startsWith("bundle-image-variant:")) {
+      return 9;
+    }
+    if (hint.source.endsWith(":e")) {
+      return 0;
+    }
+    if (hint.source.endsWith(":f_e")) {
+      return 1;
+    }
+    return 2;
+  };
+  const variantDelta = variantKeyRank(left) - variantKeyRank(right);
+  if (variantDelta !== 0) {
+    return variantDelta;
+  }
+  const confidenceDelta = confidenceRank(left.confidence) - confidenceRank(right.confidence);
+  if (confidenceDelta !== 0) {
+    return confidenceDelta;
+  }
+  return left.url.localeCompare(right.url);
 }
 
 export function collectReferenceCandidates(rawText: string): string[] {

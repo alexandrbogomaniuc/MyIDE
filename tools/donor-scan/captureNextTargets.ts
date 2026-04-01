@@ -161,26 +161,37 @@ function clampCaptureLimit(value: number | undefined): number {
   return Math.min(50, Math.max(1, Math.floor(value ?? 10)));
 }
 
-function buildCaptureAttemptUrls(
+export function buildCaptureAttemptUrls(
   target: NextCaptureTargetRecord,
   bundleAssetMap: BundleAssetMapFile | null
 ): string[] {
-  const urls: string[] = [target.url];
   const targetHints = Array.isArray((target as { alternateCaptureHints?: unknown }).alternateCaptureHints)
-    ? (target as { alternateCaptureHints?: Array<{ url?: unknown }> }).alternateCaptureHints ?? []
+    ? (target as { alternateCaptureHints?: Array<{ url?: unknown; source?: unknown }> }).alternateCaptureHints ?? []
     : buildAlternateCaptureHints({
       url: target.url,
       kind: target.kind,
       category: target.category,
       bundleAssetMap
     });
-  for (const hint of targetHints) {
-    if (typeof hint?.url === "string" && hint.url.length > 0) {
-      urls.push(hint.url);
-    }
-  }
+  const preferredHintUrls = targetHints
+    .filter((hint) => typeof hint?.url === "string" && hint.url.length > 0 && isPreferredCaptureAlternate(hint.source))
+    .map((hint) => hint.url as string);
+  const remainingHintUrls = targetHints
+    .filter((hint) => typeof hint?.url === "string" && hint.url.length > 0 && !isPreferredCaptureAlternate(hint.source))
+    .map((hint) => hint.url as string);
+
+  const urls = preferredHintUrls.length > 0
+    ? [...preferredHintUrls, target.url, ...remainingHintUrls]
+    : [target.url, ...remainingHintUrls];
 
   return uniqueStrings(urls);
+}
+
+function isPreferredCaptureAlternate(source: unknown): boolean {
+  if (typeof source !== "string") {
+    return false;
+  }
+  return source.startsWith("request-log:") || source.startsWith("bundle-image-variant:");
 }
 
 function readLaunchContext(scanSummary: Record<string, unknown> | null, packageManifest: DonorPackageManifestFile | null): {
