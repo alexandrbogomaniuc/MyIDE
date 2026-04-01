@@ -58,11 +58,11 @@ Key files:
 - ordinary resolved references extracted from bundle text
 - structured `images:{...}` table metadata when a bundle exposes per-image variant suffix fields such as `e` and `f_e`
 
-Those bundle image variants are recorded as evidence only. Donor scan does not fabricate final optimized URLs from those suffix tokens unless loader/runtime code later proves the exact URL construction.
+Those bundle image variants are recorded as evidence first. When loader/runtime code later proves the exact URL construction too, donor scan upgrades the same records with grounded `requestBaseUrl` and `variantUrls` entries, reports `bundleImageVariantUrlBuilderStatus` / `bundleImageVariantUrlCount` in `scan-summary.json`, and lets ranked capture targets reuse those exact optimized image URLs instead of only suffix-token evidence.
 
 `request-backed-static-hints.json` is an optional supporting donor-scan artifact. When live runtime harvest evidence exists, donor scan normalizes exact request-backed static alternates there first and then reuses them in ranked capture targets.
 
-`next-capture-targets.json` is the first actionable operator output. It ranks the missing runtime files the IDE should try to capture next, using atlas missing-page refs, unresolved runtime candidates, and missing bundle references. It now also carries grounded `alternateCaptureHints` so the scan can expose placeholder rewrites, bundle-backed rooted path variants, request-backed static alternates, and image-family rooted path substitutions before any capture run starts. Atlas-page targets also keep atlas page order, so unsuffixed base pages are tried before later suffix pages when the metadata already proves that order.
+`next-capture-targets.json` is the first actionable operator output. It ranks the missing runtime files the IDE should try to capture next, using atlas missing-page refs, unresolved runtime candidates, and missing bundle references. It now also carries grounded `alternateCaptureHints` so the scan can expose placeholder rewrites, bundle-backed rooted path variants, request-backed static alternates, image-family rooted path substitutions, and exact optimized bundle image URLs when the donor bundle proves the request-base rule. Atlas-page targets also keep atlas page order, so unsuffixed base pages are tried before later suffix pages when the metadata already proves that order.
 
 `next-capture-run.json` records what the guided capture runner attempted, which exact URLs were tried, which URL actually downloaded when a fallback worked, what failed, and how many ranked targets still remain after donor scan was refreshed.
 
@@ -95,3 +95,4 @@ Current grounded result:
 - atlas/frame metadata present locally: yes
 - atlas/frame import feasible right now: no, because referenced page images and deeper runtime payloads are still missing
 - bundle image variant metadata present locally: yes, with `233` logical image entries and `385` suffix tokens currently extracted from `bundle.js`
+- bundle image request-base rule present locally: yes, with `385` grounded optimized variant URLs now derived from the same `bundle.js`

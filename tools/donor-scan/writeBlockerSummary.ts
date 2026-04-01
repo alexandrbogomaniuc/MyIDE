@@ -39,6 +39,9 @@ export async function writeBlockerSummary(options: WriteBlockerSummaryOptions): 
   } else if (options.bundleAssetMap.referenceCount === 0) {
     blockerHighlights.push("Bundle asset-map extraction completed, but it did not find grounded asset references yet.");
   }
+  if (options.bundleAssetMap.imageVariantStatus === "mapped" && options.bundleAssetMap.imageVariantUrlBuilderStatus === "mapped") {
+    blockerHighlights.push(`Bundle image metadata already proves ${options.bundleAssetMap.imageVariantUrlCount} grounded optimized image URLs, so the next capture lane can try real variant URLs instead of raw suffix tokens.`);
+  }
 
   if (blockerHighlights.length === 0) {
     blockerHighlights.push("No major donor-scan blockers were detected in the bounded harvested surface.");
@@ -74,6 +77,7 @@ export async function writeBlockerSummary(options: WriteBlockerSummaryOptions): 
     `- Atlas metadata count: ${options.atlasManifestFile.manifests.length}`,
     `- Bundle asset-map status: \`${options.bundleAssetMap.status}\``,
     `- Bundle image variants: \`${options.bundleAssetMap.imageVariantStatus}\` (${options.bundleAssetMap.imageVariantEntryCount} logical entries / ${options.bundleAssetMap.imageVariantSuffixCount} suffix tokens)`,
+    `- Bundle image URL rule: \`${options.bundleAssetMap.imageVariantUrlBuilderStatus}\` (${options.bundleAssetMap.imageVariantUrlCount} grounded variant URLs)`,
     `- Mirror candidate status: \`${options.runtimeCandidates.mirrorCandidateStatus}\``,
     `- Next capture targets: ${options.nextCaptureTargets.targetCount}`,
     "",

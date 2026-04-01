@@ -10152,6 +10152,8 @@ function getSelectedProjectEvidenceSummary() {
     donorBundleImageVariantStatus: typeof donorScan?.bundleImageVariantStatus === "string" ? donorScan.bundleImageVariantStatus : "unknown",
     donorBundleImageVariantCount: typeof donorScan?.bundleImageVariantCount === "number" ? donorScan.bundleImageVariantCount : 0,
     donorBundleImageVariantSuffixCount: typeof donorScan?.bundleImageVariantSuffixCount === "number" ? donorScan.bundleImageVariantSuffixCount : 0,
+    donorBundleImageVariantUrlBuilderStatus: typeof donorScan?.bundleImageVariantUrlBuilderStatus === "string" ? donorScan.bundleImageVariantUrlBuilderStatus : (typeof selectedProject.donor?.bundleImageVariantUrlBuilderStatus === "string" ? selectedProject.donor.bundleImageVariantUrlBuilderStatus : "unknown"),
+    donorBundleImageVariantUrlCount: typeof donorScan?.bundleImageVariantUrlCount === "number" ? donorScan.bundleImageVariantUrlCount : (typeof selectedProject.donor?.bundleImageVariantUrlCount === "number" ? selectedProject.donor.bundleImageVariantUrlCount : 0),
     donorMirrorCandidateStatus: typeof donorScan?.mirrorCandidateStatus === "string" ? donorScan.mirrorCandidateStatus : (typeof selectedProject.donor?.mirrorCandidateStatus === "string" ? selectedProject.donor.mirrorCandidateStatus : null),
     donorRequestBackedStaticHintCount: typeof donorScan?.requestBackedStaticHintCount === "number" ? donorScan.requestBackedStaticHintCount : 0,
     donorRecentlyBlockedCaptureTargetCount: typeof donorScan?.recentlyBlockedCaptureTargetCount === "number" ? donorScan.recentlyBlockedCaptureTargetCount : 0,
@@ -15191,6 +15193,8 @@ function renderProjectSummary() {
         <div class="chip-row">
           <span>${typeof donorScan?.bundleImageVariantCount === "number" ? donorScan.bundleImageVariantCount : 0} bundle image entries</span>
           <span>${typeof donorScan?.bundleImageVariantSuffixCount === "number" ? donorScan.bundleImageVariantSuffixCount : 0} variant suffixes</span>
+          <span>${typeof donorScan?.bundleImageVariantUrlCount === "number" ? donorScan.bundleImageVariantUrlCount : 0} grounded variant URLs</span>
+          <span>bundle image URL rule: ${typeof donorScan?.bundleImageVariantUrlBuilderStatus === "string" ? escapeHtml(donorScan.bundleImageVariantUrlBuilderStatus) : "unknown"}</span>
           <span>${typeof donorScan?.requestBackedStaticHintCount === "number" ? donorScan.requestBackedStaticHintCount : 0} request-backed alternates</span>
           <span>${typeof donorScan?.recentlyBlockedCaptureTargetCount === "number" ? donorScan.recentlyBlockedCaptureTargetCount : 0} recently blocked</span>
           <span>${typeof donorScan?.nextCaptureTargetCount === "number" ? donorScan.nextCaptureTargetCount : 0} next capture targets</span>

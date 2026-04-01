@@ -162,11 +162,17 @@ export interface BundleImageVariantRecord {
   bundleLocalPath: string;
   logicalPath: string;
   resolvedUrl: string | null;
+  requestBaseUrl: string | null;
   confidence: ReferenceConfidence;
   localStatus: "downloaded" | "inventory-only" | "missing";
   localPath: string | null;
   variantKeys: string[];
   variants: Record<string, string>;
+  variantUrls: Array<{
+    key: string;
+    url: string;
+    note: string;
+  }>;
   variantCount: number;
   note: string;
 }
@@ -182,6 +188,8 @@ export interface BundleAssetMapFile {
   imageVariantStatus: BundleAssetMapStatus;
   imageVariantEntryCount: number;
   imageVariantSuffixCount: number;
+  imageVariantUrlBuilderStatus: BundleAssetMapStatus;
+  imageVariantUrlCount: number;
   imageVariantFieldCounts: Record<string, number>;
   countsByConfidence: Record<ReferenceConfidence, number>;
   countsByCategory: Record<string, number>;
@@ -301,6 +309,8 @@ export interface DonorScanResult {
   bundleImageVariantStatus: BundleAssetMapStatus;
   bundleImageVariantCount: number;
   bundleImageVariantSuffixCount: number;
+  bundleImageVariantUrlBuilderStatus: BundleAssetMapStatus;
+  bundleImageVariantUrlCount: number;
   mirrorCandidateStatus: MirrorCandidateStatus;
   nextCaptureTargetCount: number;
   nextOperatorAction: string;
@@ -561,6 +571,23 @@ export function buildAlternateCaptureHints(options: {
   }
 
   if (options.bundleAssetMap && targetHost && targetBasename) {
+    for (const imageVariant of options.bundleAssetMap.imageVariants) {
+      if (!imageVariant.requestBaseUrl || imageVariant.requestBaseUrl !== normalizedTargetUrl) {
+        continue;
+      }
+      for (const variantUrl of imageVariant.variantUrls) {
+        if (variantUrl.url === normalizedTargetUrl) {
+          continue;
+        }
+        hints.push({
+          url: variantUrl.url,
+          source: `bundle-image-variant:${imageVariant.bundleLocalPath}:${variantUrl.key}`,
+          confidence: "confirmed",
+          note: variantUrl.note
+        });
+      }
+    }
+
     for (const reference of options.bundleAssetMap.references) {
       if (!reference.resolvedUrl || reference.resolvedUrl === options.url) {
         continue;

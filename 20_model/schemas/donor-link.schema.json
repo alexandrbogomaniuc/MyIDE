@@ -128,6 +128,14 @@
       "type": "string",
       "enum": ["mapped", "blocked", "skipped"]
     },
+    "bundleImageVariantUrlBuilderStatus": {
+      "type": "string",
+      "enum": ["mapped", "blocked", "skipped"]
+    },
+    "bundleImageVariantUrlCount": {
+      "type": "integer",
+      "minimum": 0
+    },
     "mirrorCandidateStatus": {
       "type": "string",
       "enum": ["strong-partial", "weak-partial", "blocked"]

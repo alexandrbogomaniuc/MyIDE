@@ -16,6 +16,8 @@
     "bundleImageVariantStatus",
     "bundleImageVariantCount",
     "bundleImageVariantSuffixCount",
+    "bundleImageVariantUrlBuilderStatus",
+    "bundleImageVariantUrlCount",
     "mirrorCandidateStatus",
     "fullLocalRuntimePackage",
     "partialLocalRuntimePackage",
@@ -108,6 +110,13 @@
       "type": "integer"
     },
     "bundleImageVariantSuffixCount": {
+      "type": "integer"
+    },
+    "bundleImageVariantUrlBuilderStatus": {
+      "type": "string",
+      "enum": ["mapped", "blocked", "skipped"]
+    },
+    "bundleImageVariantUrlCount": {
       "type": "integer"
     },
     "bundleReferenceCount": {

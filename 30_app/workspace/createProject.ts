@@ -122,6 +122,8 @@ export interface ProjectMetaLike {
     runtimeCandidateCount?: number;
     atlasManifestCount?: number;
     bundleAssetMapStatus?: "mapped" | "blocked" | "skipped";
+    bundleImageVariantUrlBuilderStatus?: "mapped" | "blocked" | "skipped";
+    bundleImageVariantUrlCount?: number;
     mirrorCandidateStatus?: "strong-partial" | "weak-partial" | "blocked";
     nextCaptureTargetCount?: number;
     nextOperatorAction?: string;
@@ -419,6 +421,8 @@ function normalizeDonor(value: unknown, relativeProjectRoot: string, projectName
     runtimeCandidateCount: typeof donor.runtimeCandidateCount === "number" ? donor.runtimeCandidateCount : undefined,
     atlasManifestCount: typeof donor.atlasManifestCount === "number" ? donor.atlasManifestCount : undefined,
     bundleAssetMapStatus: (optionalString(donor.bundleAssetMapStatus) as ProjectMetaLike["donor"]["bundleAssetMapStatus"] | undefined) ?? undefined,
+    bundleImageVariantUrlBuilderStatus: (optionalString(donor.bundleImageVariantUrlBuilderStatus) as ProjectMetaLike["donor"]["bundleImageVariantUrlBuilderStatus"] | undefined) ?? undefined,
+    bundleImageVariantUrlCount: typeof donor.bundleImageVariantUrlCount === "number" ? donor.bundleImageVariantUrlCount : undefined,
     mirrorCandidateStatus: (optionalString(donor.mirrorCandidateStatus) as ProjectMetaLike["donor"]["mirrorCandidateStatus"] | undefined) ?? undefined,
     nextCaptureTargetCount: typeof donor.nextCaptureTargetCount === "number" ? donor.nextCaptureTargetCount : undefined,
     nextOperatorAction: optionalString(donor.nextOperatorAction),
@@ -768,6 +772,8 @@ export async function createProjectFromInput(input: ShellCreateProjectInput, ove
   meta.donor.runtimeCandidateCount = donorIntake.runtimeCandidateCount;
   meta.donor.atlasManifestCount = donorIntake.atlasManifestCount;
   meta.donor.bundleAssetMapStatus = donorIntake.bundleAssetMapStatus;
+  meta.donor.bundleImageVariantUrlBuilderStatus = donorIntake.bundleImageVariantUrlBuilderStatus;
+  meta.donor.bundleImageVariantUrlCount = donorIntake.bundleImageVariantUrlCount;
   meta.donor.mirrorCandidateStatus = donorIntake.mirrorCandidateStatus;
   meta.donor.nextCaptureTargetCount = donorIntake.nextCaptureTargetCount;
   meta.donor.nextOperatorAction = donorIntake.nextOperatorAction;

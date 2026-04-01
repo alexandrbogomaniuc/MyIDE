@@ -53,6 +53,8 @@ function startFixtureServer(): Promise<{ server: http.Server; port: number }> {
           "window.configUrl = '/config/game.json';",
           "window.atlasUrl = '/atlases/ui.atlas';",
           "window.bundleMeta = {images:{\"spines/spin_1.png\":{e:\".png_80_80.webp\",f_e:\".f.png_80_90.png\"},\"spines/spin_2.png\":{e:\".png_80_80.webp\"},\"requested/request_1.png\":{e:\".png_80_90.png\"}}};",
+          "var at={resourcesPath:'https://fixture.example.test/'},s={images:window.bundleMeta.images};",
+          "var yt=t=>t?at.resourcesPath+\"img/\"+t:null;at._textureNameToPath=yt,at.getImageMetadata=t=>s.images[t]||{};",
           "window.altSpin1 = '/spines/spin_1.png';",
           "window.altSpin2 = '/spines/spin_2.png';",
           "console.log('smoke bundle');"
@@ -298,8 +300,15 @@ async function main(): Promise<void> {
       imageVariantStatus?: string;
       imageVariantEntryCount?: number;
       imageVariantSuffixCount?: number;
+      imageVariantUrlBuilderStatus?: string;
+      imageVariantUrlCount?: number;
       imageVariantFieldCounts?: Record<string, number>;
-      imageVariants?: Array<{ logicalPath?: string; variants?: Record<string, string> }>;
+      imageVariants?: Array<{
+        logicalPath?: string;
+        requestBaseUrl?: string | null;
+        variants?: Record<string, string>;
+        variantUrls?: Array<{ key?: string; url?: string }>;
+      }>;
       countsByCategory?: Record<string, number>;
     };
     assert.equal(bundleAssetMap.status, "mapped", "donor scan should map bundle asset references");
@@ -308,6 +317,8 @@ async function main(): Promise<void> {
     assert.equal(bundleAssetMap.imageVariantStatus, "mapped", "bundle asset map should expose bundle image variant metadata when the bundle carries an images table");
     assert.ok((bundleAssetMap.imageVariantEntryCount ?? 0) >= 3, "bundle asset map should count logical image entries from the bundle images table");
     assert.ok((bundleAssetMap.imageVariantSuffixCount ?? 0) >= 4, "bundle asset map should count extracted variant suffix tokens");
+    assert.equal(bundleAssetMap.imageVariantUrlBuilderStatus, "mapped", "bundle asset map should prove the bundle image request-path builder when the bundle exposes it");
+    assert.ok((bundleAssetMap.imageVariantUrlCount ?? 0) >= 4, "bundle asset map should generate grounded optimized variant URLs once the request-path builder is proven");
     assert.ok((bundleAssetMap.imageVariantFieldCounts?.e ?? 0) >= 3, "bundle asset map should count primary variant suffix fields");
     assert.ok((bundleAssetMap.imageVariantFieldCounts?.f_e ?? 0) >= 1, "bundle asset map should count fallback variant suffix fields");
     assert.ok(
@@ -317,6 +328,17 @@ async function main(): Promise<void> {
           && entry.variants?.f_e === ".f.png_80_90.png"
         ),
       "bundle asset map should preserve per-image variant metadata without guessing final URLs"
+    );
+    assert.ok(
+      Array.isArray(bundleAssetMap.imageVariants)
+        && bundleAssetMap.imageVariants.some((entry) =>
+          entry.logicalPath?.includes("spines/spin_1.png")
+          && entry.requestBaseUrl?.includes("/img/spines/spin_1.png")
+          && Array.isArray(entry.variantUrls)
+          && entry.variantUrls.some((variant) => variant.key === "e" && variant.url?.includes("/img/spines/spin_1.png_80_80.webp"))
+          && entry.variantUrls.some((variant) => variant.key === "f_e" && variant.url?.includes("/img/spines/spin_1.f.png_80_90.png"))
+        ),
+      "bundle asset map should generate grounded optimized variant URLs when the bundle proves the image request-path rule"
     );
 
     const atlasManifests = JSON.parse(await fs.readFile(path.join(donorRoot, "evidence", "local_only", "harvest", "atlas-manifests.json"), "utf8")) as {
@@ -338,6 +360,8 @@ async function main(): Promise<void> {
       bundleImageVariantStatus?: string;
       bundleImageVariantCount?: number;
       bundleImageVariantSuffixCount?: number;
+      bundleImageVariantUrlBuilderStatus?: string;
+      bundleImageVariantUrlCount?: number;
       mirrorCandidateStatus?: string;
       nextCaptureTargetCount?: number;
       nextOperatorAction?: string;
@@ -349,6 +373,8 @@ async function main(): Promise<void> {
     assert.equal(scanSummary.bundleImageVariantStatus, "mapped", "donor scan summary should surface bundle image variant status");
     assert.ok((scanSummary.bundleImageVariantCount ?? 0) >= 3, "donor scan summary should surface bundle image variant counts");
     assert.ok((scanSummary.bundleImageVariantSuffixCount ?? 0) >= 4, "donor scan summary should surface bundle image variant suffix counts");
+    assert.equal(scanSummary.bundleImageVariantUrlBuilderStatus, "mapped", "donor scan summary should surface bundle image URL builder status");
+    assert.ok((scanSummary.bundleImageVariantUrlCount ?? 0) >= 4, "donor scan summary should surface grounded bundle image variant URL counts");
     assert.equal(typeof scanSummary.mirrorCandidateStatus, "string", "donor scan summary should surface mirror candidate status");
     assert.ok((scanSummary.nextCaptureTargetCount ?? 0) >= 1, "donor scan summary should expose next capture target counts");
     assert.equal(typeof scanSummary.nextOperatorAction, "string", "donor scan summary should recommend the next operator action");
@@ -369,6 +395,17 @@ async function main(): Promise<void> {
           && target.alternateCaptureHints.some((hint) => typeof hint.url === "string" && hint.url.includes("/spines/spin_3.png"))
         ),
       "next capture targets should derive family-alias alternates from grounded same-basename path substitutions"
+    );
+    assert.ok(
+      Array.isArray(nextCaptureTargets.targets)
+        && nextCaptureTargets.targets.some((target) =>
+          typeof target.relativePath === "string"
+          && target.relativePath.includes("img/spines/spin_1.png")
+          && Array.isArray(target.alternateCaptureHints)
+          && target.alternateCaptureHints.some((hint) => typeof hint.url === "string" && hint.url.includes("/img/spines/spin_1.png_80_80.webp"))
+          && target.alternateCaptureHints.some((hint) => typeof hint.url === "string" && hint.url.includes("/img/spines/spin_1.f.png_80_90.png"))
+        ),
+      "next capture targets should expose grounded optimized variant URLs when the bundle proves the image request-path rule"
     );
 
     const runtimeRequestLogPath = path.join(donorRoot, "evidence", "local_only", "harvest", "runtime-request-log.json");
