@@ -150,6 +150,7 @@ export interface DonorScanPaths {
   familyActionRunPath: string;
   familyActionWorksetsRoot: string;
   familyReconstructionBundlesRoot: string;
+  familyReconstructionProfilesPath: string;
   captureRunPath: string;
   blockerSummaryPath: string;
   scanSummaryPath: string;
@@ -346,6 +347,8 @@ export interface DonorScanResult {
   topFamilySourceProfileNames: string[];
   familyActionCount: number;
   topFamilyActionNames: string[];
+  familyReconstructionProfileCount: number;
+  topFamilyReconstructionProfileNames: string[];
   rawPayloadBlockedCaptureTargetCount: number;
   rawPayloadBlockedFamilyCount: number;
   rawPayloadBlockedFamilyNames: string[];
@@ -645,6 +648,51 @@ export interface FamilyReconstructionBundleFile {
   familyActionsPath: string;
 }
 
+export type FamilyReconstructionProfileState =
+  | "ready-for-spine-atlas-reconstruction"
+  | "ready-for-atlas-frame-import"
+  | "ready-for-image-reconstruction"
+  | "needs-manual-source-review";
+
+export interface FamilyReconstructionProfileRecord {
+  familyName: string;
+  actionClass: CaptureFamilyActionClass;
+  readiness: FamilyReconstructionBundleFile["readiness"];
+  profileState: FamilyReconstructionProfileState;
+  localSourceCount: number;
+  exactLocalSourceCount: number;
+  relatedLocalSourceCount: number;
+  localSourceKinds: FamilyReconstructionLocalSourceRecord["sourceKind"][];
+  atlasFileCount: number;
+  atlasPageCount: number;
+  atlasRegionCount: number;
+  atlasPageNames: string[];
+  atlasRegionPreview: string[];
+  spineJsonCount: number;
+  spineVersion: string | null;
+  spineBoneCount: number;
+  spineSlotCount: number;
+  spineSkinCount: number;
+  spineAnimationCount: number;
+  spineAnimationNames: string[];
+  frameManifestCount: number;
+  frameCount: number;
+  looseImageCount: number;
+  sampleLocalSourcePath: string | null;
+  worksetPath: string | null;
+  reconstructionBundlePath: string;
+  nextReconstructionStep: string;
+}
+
+export interface FamilyReconstructionProfilesFile {
+  schemaVersion: string;
+  donorId: string;
+  donorName: string;
+  generatedAt: string;
+  familyCount: number;
+  families: FamilyReconstructionProfileRecord[];
+}
+
 export interface FamilyActionRunFile {
   schemaVersion: string;
   donorId: string;
@@ -728,6 +776,7 @@ export function buildDonorScanPaths(donorId: string): DonorScanPaths {
     familyActionRunPath: path.join(harvestRoot, "family-action-run.json"),
     familyActionWorksetsRoot: path.join(harvestRoot, "family-action-worksets"),
     familyReconstructionBundlesRoot: path.join(harvestRoot, "family-reconstruction-bundles"),
+    familyReconstructionProfilesPath: path.join(harvestRoot, "family-reconstruction-profiles.json"),
     captureRunPath: path.join(harvestRoot, "next-capture-run.json"),
     blockerSummaryPath: path.join(harvestRoot, "blocker-summary.md"),
     scanSummaryPath: path.join(harvestRoot, "scan-summary.json")

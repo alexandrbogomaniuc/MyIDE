@@ -15314,6 +15314,7 @@ function renderProjectSummary() {
           <span>${typeof donorScan?.captureFamilyCount === "number" ? donorScan.captureFamilyCount : 0} capture families</span>
           <span>${typeof donorScan?.familySourceProfileCount === "number" ? donorScan.familySourceProfileCount : 0} source profiles</span>
           <span>${typeof donorScan?.familyActionCount === "number" ? donorScan.familyActionCount : 0} family actions</span>
+          <span>${typeof donorScan?.familyReconstructionProfileCount === "number" ? donorScan.familyReconstructionProfileCount : 0} reconstruction profiles</span>
           <span>${typeof donorScan?.rawPayloadBlockedCaptureTargetCount === "number" ? donorScan.rawPayloadBlockedCaptureTargetCount : 0} raw-payload blocked</span>
           <span>${typeof donorScan?.rawPayloadBlockedFamilyCount === "number" ? donorScan.rawPayloadBlockedFamilyCount : 0} blocker families</span>
           <span>${typeof donorScan?.nextCaptureTargetCount === "number" ? donorScan.nextCaptureTargetCount : 0} next capture targets</span>
@@ -15411,6 +15412,16 @@ function renderProjectSummary() {
                         : `Prepare ${family.familyName} workset`
                 )}</button>
               </div>
+            `).join("")}
+          </div>
+        ` : ""}
+        ${Array.isArray(donorScan?.topFamilyReconstructionProfiles) && donorScan.topFamilyReconstructionProfiles.length > 0 ? `
+          <div class="detail-list">
+            <small><strong>Reconstruction-ready families</strong></small>
+            ${donorScan.topFamilyReconstructionProfiles.map((family) => `
+              <small><strong>${escapeHtml(family.familyName)}</strong> · ${escapeHtml(family.profileState)} · ${escapeHtml(family.readiness)} · ${escapeHtml(String(family.exactLocalSourceCount))} exact local source${family.exactLocalSourceCount === 1 ? "" : "s"}${family.relatedLocalSourceCount > 0 ? ` · ${escapeHtml(String(family.relatedLocalSourceCount))} related local source${family.relatedLocalSourceCount === 1 ? "" : "s"}` : ""}${family.atlasPageCount > 0 ? ` · ${escapeHtml(String(family.atlasPageCount))} atlas page${family.atlasPageCount === 1 ? "" : "s"}` : ""}${family.atlasRegionCount > 0 ? ` · ${escapeHtml(String(family.atlasRegionCount))} atlas region${family.atlasRegionCount === 1 ? "" : "s"}` : ""}${family.spineAnimationCount > 0 ? ` · ${escapeHtml(String(family.spineAnimationCount))} animation${family.spineAnimationCount === 1 ? "" : "s"}` : ""}${family.looseImageCount > 0 ? ` · ${escapeHtml(String(family.looseImageCount))} loose image${family.looseImageCount === 1 ? "" : "s"}` : ""}</small>
+              <small>${escapeHtml(family.nextReconstructionStep)}</small>
+              <small>bundle · <code>${escapeHtml(family.reconstructionBundlePath)}</code>${family.sampleLocalSourcePath ? ` · local source <code>${escapeHtml(family.sampleLocalSourcePath)}</code>` : ""}</small>
             `).join("")}
           </div>
         ` : ""}

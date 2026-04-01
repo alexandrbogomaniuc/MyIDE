@@ -61,6 +61,7 @@ Key files:
 - `family-action-run.json`
 - `family-action-worksets/<family>.json`
 - `family-reconstruction-bundles/<family>.json` for `use-local-sources` families
+- `family-reconstruction-profiles.json`
 - `next-capture-run.json`
 - `package-graph.json`
 - `blocker-summary.md`
@@ -99,6 +100,15 @@ When a ranked image target has exhausted only raw/direct grounded URLs and donor
 - `use-local-sources`, `review-bundle-evidence`, and `source-discovery-required` write a prepared family workset instead of pretending the next step is another URL retry
 
 `family-action-run.json` records the last executed family action, and `family-action-worksets/<family>.json` records the grounded evidence bundle for prepared families. When the family action class is `use-local-sources`, donor scan now also writes `family-reconstruction-bundles/<family>.json`, which normalizes the exact grounded local source files, atlas pages, bundle references, open targets, and next operator step for deeper reconstruction work. Use those reconstruction bundles when a family already has enough local source material to leave the URL-hunt lane.
+
+`family-reconstruction-profiles.json` is the next generic step after those bundles. It parses the prepared family reconstruction bundles and tells the IDE whether a donor family is now ready for:
+
+- Spine + atlas reconstruction
+- atlas/frame import
+- image-level reconstruction
+- or manual source review
+
+The file stays grounded: it only summarizes local sources donor scan already captured and normalized.
 
 `donor-scan:capture-family-sources` is the next step after that dossier. It does not invent new URLs. Instead, it turns the grounded family evidence back into a family-specific source-material queue, prioritizes optimized variant-backed and bundle-backed family assets before raw atlas-page retries, and refreshes donor scan after the run.
 

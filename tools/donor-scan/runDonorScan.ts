@@ -10,6 +10,7 @@ import { summarizeCaptureTargetFamilies } from "./summarizeCaptureTargetFamilies
 import { summarizeCaptureBlockerFamilies } from "./summarizeCaptureBlockerFamilies";
 import { summarizeCaptureFamilySourceProfiles } from "./summarizeCaptureFamilySourceProfiles";
 import { summarizeCaptureFamilyActions } from "./summarizeCaptureFamilyActions";
+import { summarizeFamilyReconstructionProfiles } from "./summarizeFamilyReconstructionProfiles";
 import {
   type CaptureRunFile,
   type DiscoveredDonorUrl,
@@ -425,6 +426,8 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
       topFamilySourceProfileNames: [],
       familyActionCount: 0,
       topFamilyActionNames: [],
+      familyReconstructionProfileCount: 0,
+      topFamilyReconstructionProfileNames: [],
       nextCaptureTargetCount: 0,
       rawPayloadBlockedCaptureTargetCount: 0,
       rawPayloadBlockedFamilyCount: 0,
@@ -466,6 +469,8 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
       topFamilySourceProfileNames: [],
       familyActionCount: 0,
       topFamilyActionNames: [],
+      familyReconstructionProfileCount: 0,
+      topFamilyReconstructionProfileNames: [],
       nextCaptureTargetCount: 0,
       rawPayloadBlockedCaptureTargetCount: 0,
       rawPayloadBlockedFamilyCount: 0,
@@ -569,6 +574,12 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
     captureFamilySourceProfiles
   });
   await writeJsonFile(paths.captureFamilyActionsPath, captureFamilyActions);
+  const familyReconstructionProfiles = await summarizeFamilyReconstructionProfiles({
+    donorId: options.donorId,
+    donorName: options.donorName,
+    bundlesRoot: paths.familyReconstructionBundlesRoot
+  });
+  await writeJsonFile(paths.familyReconstructionProfilesPath, familyReconstructionProfiles);
   const prioritizedFamilySourceProfiles = captureFamilySourceProfiles.families.filter((family) =>
     family.blockedTargetCount > 0
     || family.atlasManifestKinds.length > 0
@@ -584,6 +595,11 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
     || family.localSourceAssetCount > 0
     || family.blockedTargetCount > 0
     || family.targetCount >= 3
+  );
+  const prioritizedFamilyReconstructionProfiles = familyReconstructionProfiles.families.filter((family) =>
+    family.profileState !== "needs-manual-source-review"
+    || family.exactLocalSourceCount > 0
+    || family.localSourceCount > 0
   );
   const rawPayloadBlockedFamilies = captureBlockerFamilies.families
     .filter((family) => family.blockerClass === "raw-payload-blocked");
@@ -646,6 +662,10 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
       .map((family) => family.familyName),
     familyActionCount: captureFamilyActions.actionCount,
     topFamilyActionNames: prioritizedFamilyActions
+      .slice(0, 8)
+      .map((family) => family.familyName),
+    familyReconstructionProfileCount: familyReconstructionProfiles.familyCount,
+    topFamilyReconstructionProfileNames: prioritizedFamilyReconstructionProfiles
       .slice(0, 8)
       .map((family) => family.familyName),
     rawPayloadBlockedCaptureTargetCount: nextCaptureTargets.targets.filter((target) => target.blockerClass === "raw-payload-blocked").length,
@@ -712,6 +732,10 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
       .map((family) => family.familyName),
     familyActionCount: captureFamilyActions.actionCount,
     topFamilyActionNames: prioritizedFamilyActions
+      .slice(0, 8)
+      .map((family) => family.familyName),
+    familyReconstructionProfileCount: familyReconstructionProfiles.familyCount,
+    topFamilyReconstructionProfileNames: prioritizedFamilyReconstructionProfiles
       .slice(0, 8)
       .map((family) => family.familyName),
     rawPayloadBlockedCaptureTargetCount: nextCaptureTargets.targets.filter((target) => target.blockerClass === "raw-payload-blocked").length,

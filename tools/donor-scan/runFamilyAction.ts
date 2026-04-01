@@ -1,6 +1,7 @@
 import path from "node:path";
 import { buildFamilyReconstructionBundle } from "./buildFamilyReconstructionBundle";
 import { captureNextTargets } from "./captureNextTargets";
+import { summarizeFamilyReconstructionProfiles } from "./summarizeFamilyReconstructionProfiles";
 import {
   type BundleAssetMapFile,
   type CaptureFamilyActionClass,
@@ -285,6 +286,12 @@ export async function runFamilyAction(options: RunFamilyActionOptions): Promise<
     : null;
   if (reconstructionBundle && reconstructionBundlePath) {
     await writeJsonFile(reconstructionBundlePath, reconstructionBundle);
+    const familyReconstructionProfiles = await summarizeFamilyReconstructionProfiles({
+      donorId,
+      donorName: captureFamilyActions.donorName,
+      bundlesRoot: paths.familyReconstructionBundlesRoot
+    });
+    await writeJsonFile(paths.familyReconstructionProfilesPath, familyReconstructionProfiles);
   }
 
   const nextOperatorAction = `${familyAction.familyName}: ${familyAction.nextStep}`;

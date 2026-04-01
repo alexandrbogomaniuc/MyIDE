@@ -41,6 +41,7 @@ async function main(): Promise<void> {
     paths.nextCaptureTargetsPath,
     paths.captureFamilySourceProfilesPath,
     paths.captureFamilyActionsPath,
+    paths.familyReconstructionProfilesPath,
     paths.blockerSummaryPath,
     paths.scanSummaryPath
   ];
@@ -70,6 +71,8 @@ async function main(): Promise<void> {
     topFamilySourceProfileNames?: string[];
     familyActionCount?: number;
     topFamilyActionNames?: string[];
+    familyReconstructionProfileCount?: number;
+    topFamilyReconstructionProfileNames?: string[];
     rawPayloadBlockedCaptureTargetCount?: number;
     rawPayloadBlockedFamilyCount?: number;
     rawPayloadBlockedFamilyNames?: string[];
@@ -96,6 +99,8 @@ async function main(): Promise<void> {
   assert.ok(Array.isArray(scanSummary.topFamilySourceProfileNames), "scan summary should record top family source profile names");
   assert.ok(typeof scanSummary.familyActionCount === "number", "scan summary should record family action counts");
   assert.ok(Array.isArray(scanSummary.topFamilyActionNames), "scan summary should record top family action names");
+  assert.ok(typeof scanSummary.familyReconstructionProfileCount === "number", "scan summary should record family reconstruction profile counts");
+  assert.ok(Array.isArray(scanSummary.topFamilyReconstructionProfileNames), "scan summary should record top family reconstruction profile names");
   assert.ok(typeof scanSummary.rawPayloadBlockedCaptureTargetCount === "number", "scan summary should record raw-payload-blocked target counts");
   assert.ok(typeof scanSummary.rawPayloadBlockedFamilyCount === "number", "scan summary should record raw-payload-blocked family counts");
   assert.ok(Array.isArray(scanSummary.rawPayloadBlockedFamilyNames), "scan summary should record raw-payload-blocked family names");
@@ -117,6 +122,7 @@ async function main(): Promise<void> {
   console.log(`Capture families: ${scanSummary.captureFamilyCount} (${scanSummary.topCaptureFamilyNames.join(", ")})`);
   console.log(`Family source profiles: ${scanSummary.familySourceProfileCount} (${scanSummary.topFamilySourceProfileNames.join(", ")})`);
   console.log(`Family action queue: ${scanSummary.familyActionCount} (${scanSummary.topFamilyActionNames.join(", ")})`);
+  console.log(`Family reconstruction profiles: ${scanSummary.familyReconstructionProfileCount} (${scanSummary.topFamilyReconstructionProfileNames.join(", ")})`);
   console.log(`Raw-payload-blocked targets: ${scanSummary.rawPayloadBlockedCaptureTargetCount}`);
   console.log(`Raw-payload-blocked families: ${scanSummary.rawPayloadBlockedFamilyCount} (${scanSummary.rawPayloadBlockedFamilyNames.join(", ")})`);
   console.log(`Next capture targets: ${scanSummary.nextCaptureTargetCount}`);

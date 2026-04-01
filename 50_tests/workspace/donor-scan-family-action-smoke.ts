@@ -169,6 +169,27 @@ async function main(): Promise<void> {
     assert.ok((reconstructionBundle.exactLocalSourceCount ?? 0) >= 1, "reconstruction bundle should count exact local sources");
     assert.equal(reconstructionBundle.worksetPath, familyActionRun.worksetPath ?? null, "reconstruction bundle should link back to the prepared workset");
 
+    const reconstructionProfilesPath = path.join(donorRoot, "evidence", "local_only", "harvest", "family-reconstruction-profiles.json");
+    const reconstructionProfiles = JSON.parse(await fs.readFile(reconstructionProfilesPath, "utf8")) as {
+      familyCount?: number;
+      families?: Array<{
+        familyName?: string;
+        profileState?: string;
+        readiness?: string;
+        reconstructionBundlePath?: string;
+        sampleLocalSourcePath?: string | null;
+      }>;
+    };
+    assert.ok((reconstructionProfiles.familyCount ?? 0) >= 1, "reconstruction profile summary should count prepared families");
+    const uiProfile = Array.isArray(reconstructionProfiles.families)
+      ? reconstructionProfiles.families.find((family) => family?.familyName === "ui")
+      : null;
+    assert.ok(uiProfile, "reconstruction profile summary should include the prepared family");
+    assert.equal(uiProfile?.readiness, "ready-with-local-sources", "reconstruction profile should preserve reconstruction readiness");
+    assert.equal(uiProfile?.reconstructionBundlePath, familyActionRun.reconstructionBundlePath ?? null, "reconstruction profile should point at the reconstruction bundle");
+    assert.ok(typeof uiProfile?.profileState === "string" && uiProfile.profileState.length > 0, "reconstruction profile should summarize local reconstruction state");
+    assert.ok(typeof uiProfile?.sampleLocalSourcePath === "string" && uiProfile.sampleLocalSourcePath.length > 0, "reconstruction profile should expose a sample local source path");
+
     console.log("PASS donor-scan:family-action");
     console.log(`Donor: ${donorId}`);
     console.log(`Prepared workset: ${familyActionRun.worksetPath}`);
