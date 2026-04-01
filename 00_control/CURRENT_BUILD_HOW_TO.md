@@ -56,7 +56,8 @@ Recommended rule:
 7. Imported scene sections now show their strongest grounded runtime link too. Use **Open Runtime Group** from the Scene Sections banner or the selected-object inspector when you want one grouped Compose section to jump back into the Runtime workbench.
 8. When a scene section has a grounded runtime-backed static candidate, the same grouped section now shows **Create Override** / **Clear Override** actions so you can keep the override flow attached to that higher-level imported game part instead of hunting in the flat runtime asset list first.
 9. Scene sections now also expose reconstruction-kit provenance. In the Scene Sections banner, selected-object inspector, and Runtime workbench you can now read donor asset counts, evidence-ref counts, source categories, capture sessions, and copy a grouped provenance summary for the current imported game-part section.
-10. This is still only a bounded donor-package slice. It does not yet recurse through the full runtime package or expose full game logic as editable objects.
+10. Scene sections now also expose section-level working controls. Use **Frame Section** to center one imported game-part section in Compose and **Show Section Evidence** to jump the whole grouped section back into donor evidence instead of chasing one asset at a time.
+11. This is still only a bounded donor-package slice. It does not yet recurse through the full runtime package or expose full game logic as editable objects.
 
 ## 3. Runtime Mode Is The Primary Workflow
 1. `project_001` now opens into **Runtime** mode when the grounded donor runtime entry is available.

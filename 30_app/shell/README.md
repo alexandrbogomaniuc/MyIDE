@@ -23,6 +23,7 @@ Electron desktop shell for MyIDE.
 - Those named scene sections now expose the strongest grounded runtime link for that grouped donor-backed part, including **Open Runtime Group** actions that switch the Runtime workbench to the best matching runtime source when one exists.
 - Those runtime-linked scene sections now also expose grouped override state, so the scene explorer and selected-object inspector can show whether a whole imported section has an eligible grouped override candidate or an already-active override.
 - Those same scene sections now expose grouped reconstruction provenance in both Compose and Runtime, so the inspector can show donor asset counts, evidence refs, source categories, capture sessions, and copyable grouped provenance summaries for the selected imported game-part section.
+- Those same scene sections now expose section-level working controls too, including **Frame Section** to center the grouped part in Compose and **Show Section Evidence** to jump the whole imported section back into donor evidence.
 - Support a simple workspace rescan so newly added project folders can appear after discovery refreshes the derived registry.
 - Show the selected project's donor, target/resulting game, lifecycle stage summary, phase, verification status, folder path, and notes.
 - Split the main workbench into a runtime-first `Runtime` mode and a bounded secondary `Compose` mode for `project_001`.

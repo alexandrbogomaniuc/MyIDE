@@ -10399,6 +10399,123 @@ function focusSceneObjectGroupInWorkflow(objectIds, {
   );
 }
 
+function getObjectBounds(object) {
+  if (!object) {
+    return null;
+  }
+
+  const extent = getObjectExtent(object);
+  const x = Number.isFinite(object.x) ? object.x : 0;
+  const y = Number.isFinite(object.y) ? object.y : 0;
+  return {
+    x,
+    y,
+    width: Math.max(1, extent.width),
+    height: Math.max(1, extent.height)
+  };
+}
+
+function getObjectGroupBounds(objects) {
+  const normalizedObjects = Array.isArray(objects) ? objects.filter(Boolean) : [];
+  if (normalizedObjects.length === 0) {
+    return null;
+  }
+
+  let minX = Number.POSITIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+
+  for (const object of normalizedObjects) {
+    const bounds = getObjectBounds(object);
+    if (!bounds) {
+      continue;
+    }
+    minX = Math.min(minX, bounds.x);
+    minY = Math.min(minY, bounds.y);
+    maxX = Math.max(maxX, bounds.x + bounds.width);
+    maxY = Math.max(maxY, bounds.y + bounds.height);
+  }
+
+  if (!Number.isFinite(minX) || !Number.isFinite(minY) || !Number.isFinite(maxX) || !Number.isFinite(maxY)) {
+    return null;
+  }
+
+  return {
+    x: minX,
+    y: minY,
+    width: Math.max(1, maxX - minX),
+    height: Math.max(1, maxY - minY)
+  };
+}
+
+function frameSceneObjectGroupInWorkflow(objectIds, {
+  statusMessage = null,
+  label = "scene section"
+} = {}) {
+  const normalizedIds = uniqueStrings(Array.isArray(objectIds) ? objectIds : [])
+    .filter((objectId) => Boolean(getEditableObjectById(objectId)));
+  const objects = normalizedIds.map((objectId) => getEditableObjectById(objectId)).filter(Boolean);
+  const bounds = getObjectGroupBounds(objects);
+  if (normalizedIds.length === 0 || !bounds) {
+    setPreviewStatus(`Could not frame that ${label} because no editable scene objects were found.`);
+    return;
+  }
+
+  setWorkbenchMode("scene", { silent: true });
+  state.workflowUi.activePanel = "compose";
+  setSelectedObjectIds(normalizedIds, normalizedIds[0]);
+
+  const tools = getViewportTools();
+  const viewportSize = getCanvasViewportSize();
+  const availableWidth = Math.max(120, viewportSize.width - 144);
+  const availableHeight = Math.max(120, viewportSize.height - 144);
+  const fitZoom = Math.min(availableWidth / bounds.width, availableHeight / bounds.height);
+  const zoom = tools.sanitizeViewZoom(
+    Math.max(tools.MIN_VIEW_ZOOM, Math.min(tools.MAX_VIEW_ZOOM, fitZoom)),
+    getViewportState().zoom
+  );
+  const panX = Math.round((viewportSize.width - bounds.width * zoom) / 2 - bounds.x * zoom);
+  const panY = Math.round((viewportSize.height - bounds.height * zoom) / 2 - bounds.y * zoom);
+  applyViewportState({ zoom, panX, panY }, { render: false });
+  renderAll();
+
+  window.requestAnimationFrame(() => {
+    const row = elements.sceneExplorer?.querySelector(`[data-object-id="${normalizedIds[0]}"]`);
+    if (row instanceof HTMLElement) {
+      row.scrollIntoView({
+        block: "nearest",
+        behavior: "smooth"
+      });
+    }
+  });
+
+  setPreviewStatus(
+    statusMessage
+      ?? `Framed ${normalizedIds.length} editable object${normalizedIds.length === 1 ? "" : "s"} for the current ${label}. View state is session-only.`
+  );
+}
+
+function focusSceneSectionEvidence(sectionId) {
+  const sectionEntry = getSceneSectionEntryById(sectionId);
+  if (!sectionEntry) {
+    setPreviewStatus("Could not find that scene section in the current internal scene.");
+    return;
+  }
+
+  const evidenceIds = sectionEntry.provenance?.evidenceIds ?? [];
+  const visibleEvidenceId = evidenceIds.find((entry) => Boolean(getEvidenceItemById(entry))) ?? evidenceIds[0] ?? null;
+  if (!visibleEvidenceId) {
+    setPreviewStatus(`Scene section ${sectionEntry.label} does not have any grounded donor evidence refs yet.`);
+    return;
+  }
+
+  focusEvidenceItem(visibleEvidenceId, {
+    selectedObjectOnly: false,
+    statusMessage: `Showing donor evidence for scene section ${sectionEntry.label}. ${evidenceIds.length} grounded evidence ref${evidenceIds.length === 1 ? "" : "s"} are linked to this reconstruction kit.`
+  });
+}
+
 function openSceneSectionRuntimeContext(sectionId) {
   const sectionEntry = getSceneSectionEntryById(sectionId);
   if (!sectionEntry) {
@@ -10572,6 +10689,26 @@ function handleNavigationClick(event) {
         ? `Selected ${sectionEntry.count} editable object${sectionEntry.count === 1 ? "" : "s"} in scene section ${sectionEntry.label}.${sectionEntry.runtimeContext?.preferredWorkbenchEntry ? ` Runtime-linked source: ${sectionEntry.runtimeContext.preferredWorkbenchEntry.relativePath ?? sectionEntry.runtimeContext.preferredWorkbenchEntry.sourceUrl}.` : sectionEntry.runtimeContext?.preferredReference ? ` Supporting runtime evidence: ${sectionEntry.runtimeContext.preferredReference.label}.` : ""}`
         : null
     });
+    return true;
+  }
+
+  const frameSceneSectionButton = target.closest("[data-frame-scene-section-id]");
+  if (frameSceneSectionButton instanceof HTMLElement && frameSceneSectionButton.dataset.frameSceneSectionId) {
+    event.preventDefault();
+    const sectionEntry = getSceneSectionEntryById(frameSceneSectionButton.dataset.frameSceneSectionId);
+    frameSceneObjectGroupInWorkflow(sectionEntry?.memberObjectIds ?? [], {
+      label: "scene section",
+      statusMessage: sectionEntry
+        ? `Framed scene section ${sectionEntry.label} in Compose Mode. ${sectionEntry.count} editable object${sectionEntry.count === 1 ? "" : "s"} remain selected. View state is session-only.`
+        : null
+    });
+    return true;
+  }
+
+  const focusSceneSectionEvidenceButton = target.closest("[data-focus-scene-section-evidence-id]");
+  if (focusSceneSectionEvidenceButton instanceof HTMLElement && focusSceneSectionEvidenceButton.dataset.focusSceneSectionEvidenceId) {
+    event.preventDefault();
+    focusSceneSectionEvidence(focusSceneSectionEvidenceButton.dataset.focusSceneSectionEvidenceId);
     return true;
   }
 
@@ -13626,6 +13763,10 @@ function renderSceneExplorer() {
                 ${runtimeContext?.evidenceItem
                   ? `<button type="button" class="copy-button" data-focus-donor-evidence-id="${escapeAttribute(runtimeContext.evidenceItem.evidenceId)}">Focus Evidence</button>`
                   : ""}
+                <button type="button" class="copy-button" data-frame-scene-section-id="${escapeAttribute(entry.id)}">Frame Section</button>
+                ${provenance?.evidenceIds?.length
+                  ? `<button type="button" class="copy-button" data-focus-scene-section-evidence-id="${escapeAttribute(entry.id)}">Show Section Evidence</button>`
+                  : ""}
                 ${provenance?.primaryGroupKey
                   ? `<button type="button" class="copy-button" data-focus-donor-asset-group-key="${escapeAttribute(provenance.primaryGroupKey)}">Show Scene Kit</button>`
                   : ""}
@@ -15541,7 +15682,9 @@ function renderInspector() {
           <div class="evidence-actions">
             <button type="button" class="copy-button" data-focus-donor-asset-group-key="${escapeAttribute(sceneKitContext.groupKey)}">Show Scene Kit In Palette</button>
             ${sceneKitContext.sectionId ? `<button type="button" class="copy-button" data-focus-scene-section-id="${escapeAttribute(sceneKitContext.sectionId)}">Select Scene Section</button>` : ""}
+            ${sceneKitContext.sectionId ? `<button type="button" class="copy-button" data-frame-scene-section-id="${escapeAttribute(sceneKitContext.sectionId)}">Frame Section</button>` : ""}
             ${sceneKitContext.sectionId && (sceneSectionRuntimeContext?.preferredWorkbenchEntry || sceneSectionRuntimeContext?.preferredReference) ? `<button type="button" class="copy-button" data-open-scene-section-runtime-id="${escapeAttribute(sceneKitContext.sectionId)}">Open Runtime Group</button>` : ""}
+            ${sceneKitContext.sectionId && sceneSectionProvenance?.evidenceIds?.length ? `<button type="button" class="copy-button" data-focus-scene-section-evidence-id="${escapeAttribute(sceneKitContext.sectionId)}">Show Section Evidence</button>` : ""}
             ${sceneKitContext.sectionId && sceneSectionOverrideCandidate?.eligible ? `<button type="button" class="copy-button" data-create-scene-section-override-id="${escapeAttribute(sceneKitContext.sectionId)}">Create Override</button>` : ""}
             ${sceneKitContext.sectionId && sceneSectionOverrideCandidate?.activeOverride ? `<button type="button" class="copy-button" data-clear-scene-section-override-id="${escapeAttribute(sceneKitContext.sectionId)}">Clear Override</button>` : ""}
             <button type="button" class="copy-button" data-focus-scene-object-ids="${escapeAttribute(JSON.stringify(sceneKitContext.memberObjects.map((entry) => entry.id)))}">Select This Scene Kit</button>
@@ -16132,6 +16275,20 @@ function renderRuntimeInspector() {
             : "The runtime workbench can only summarize grouped donor provenance when the current Compose selection belongs to one imported scene section.")}</small>
         </div>
       </div>
+      ${selectedSceneKitContext?.sectionId ? `
+        <div class="tree-row">
+          <strong>Selected Section Controls</strong>
+          <span>${escapeHtml(selectedSceneSectionProvenance
+            ? "Treat the selected imported scene section like one working game-part kit: frame it in Compose, jump to donor evidence, or move back into the runtime group."
+            : "Select one imported scene section member in Compose to unlock grouped game-part controls.")}</span>
+          <div class="evidence-actions">
+            <button type="button" class="copy-button" data-focus-scene-section-id="${escapeAttribute(selectedSceneKitContext.sectionId)}">Select Section</button>
+            <button type="button" class="copy-button" data-frame-scene-section-id="${escapeAttribute(selectedSceneKitContext.sectionId)}">Frame Section</button>
+            ${selectedSceneSectionProvenance?.evidenceIds?.length ? `<button type="button" class="copy-button" data-focus-scene-section-evidence-id="${escapeAttribute(selectedSceneKitContext.sectionId)}">Show Section Evidence</button>` : ""}
+            ${selectedSceneSectionRuntimeContext?.preferredWorkbenchEntry || selectedSceneSectionRuntimeContext?.preferredReference ? `<button type="button" class="copy-button" data-open-scene-section-runtime-id="${escapeAttribute(selectedSceneKitContext.sectionId)}">Open Runtime Group</button>` : ""}
+          </div>
+        </div>
+      ` : ""}
     `
   );
 
