@@ -38,6 +38,10 @@ import {
   resetRuntimeResourceMap
 } from "../runtime/runtimeResourceMap";
 import {
+  saveRuntimePageProof,
+  type SaveRuntimePageProofInput
+} from "../runtime/runtimePageProofs";
+import {
   preferUpstreamRuntimeDebugCandidate,
   buildRuntimeDebugCenterPickScript,
   buildRuntimeDebugPrimeAssetRequestScript,
@@ -2271,6 +2275,9 @@ ipcMain.handle("myide:save-project-editor", async (_event, projectId: string, da
 });
 ipcMain.handle("myide:get-runtime-resource-map", async (_event, projectId: string) => {
   return buildRuntimeResourceMapStatus(projectId);
+});
+ipcMain.handle("myide:save-runtime-page-proof", async (_event, projectId: string, proof: SaveRuntimePageProofInput) => {
+  return saveRuntimePageProof(projectId, proof);
 });
 ipcMain.handle("myide:reset-runtime-resource-map", async (_event, projectId: string) => {
   runtimeAssetOverrideHits.clear();

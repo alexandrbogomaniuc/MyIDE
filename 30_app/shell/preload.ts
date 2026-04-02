@@ -151,6 +151,7 @@ contextBridge.exposeInMainWorld("myideApi", {
   loadProjectSlice: (selectedProjectId?: string): Promise<ProjectSliceBundle> => ipcRenderer.invoke("myide:load-project-slice", selectedProjectId),
   createProject: (input: ShellCreateProjectInput): Promise<ShellCreateProjectResult> => ipcRenderer.invoke("myide:create-project", input),
   getRuntimeResourceMap: (projectId: string): Promise<unknown> => ipcRenderer.invoke("myide:get-runtime-resource-map", projectId),
+  saveRuntimePageProof: (projectId: string, proof: Record<string, unknown>): Promise<unknown> => ipcRenderer.invoke("myide:save-runtime-page-proof", projectId, proof),
   resetRuntimeResourceMap: (projectId: string): Promise<unknown> => ipcRenderer.invoke("myide:reset-runtime-resource-map", projectId),
   setRuntimeRequestStage: (stage: string): Promise<unknown> => ipcRenderer.invoke("myide:set-runtime-request-stage", stage),
   clearRuntimeCache: (): Promise<unknown> => ipcRenderer.invoke("myide:clear-runtime-cache"),

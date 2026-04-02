@@ -36,6 +36,9 @@ interface LiveDonorImportPayload {
   taskKitPageRuntimePromotedToDirectLink?: boolean;
   taskKitPageRuntimePromotedSourceUrl?: string | null;
   taskKitTaskRuntimeOpenUsesPageProof?: boolean;
+  taskKitPageRuntimePersistedAfterReload?: boolean;
+  taskKitPageRuntimePersistedSourceUrl?: string | null;
+  taskKitTaskRuntimeOpenUsesPersistedPageProof?: boolean;
   importedAssetCount?: number | null;
   importedFileTypes?: string[];
   importModes?: string[];
@@ -474,6 +477,21 @@ async function main(): Promise<void> {
       payload.taskKitTaskRuntimeOpenUsesPageProof,
       true,
       "Renderer did not make task-level Open Runtime reuse the promoted page-aware runtime proof."
+    );
+    assert.equal(
+      payload.taskKitPageRuntimePersistedAfterReload,
+      true,
+      "Renderer did not keep the page-aware runtime proof after workspace reload."
+    );
+    assert.ok(
+      typeof payload.taskKitPageRuntimePersistedSourceUrl === "string"
+        && /big_win|big-win/i.test(payload.taskKitPageRuntimePersistedSourceUrl),
+      `Renderer did not keep a big_win-family source on the persisted page runtime proof. Saw ${payload.taskKitPageRuntimePersistedSourceUrl ?? "<missing>"}.`
+    );
+    assert.equal(
+      payload.taskKitTaskRuntimeOpenUsesPersistedPageProof,
+      true,
+      "Renderer did not make task-level Open Runtime reuse the persisted page-aware runtime proof after reload."
     );
     assert.equal(payload.replacementPersistVerified, true, "Renderer did not preserve the donor-backed replacement layout/layer after reload.");
     assert.equal(payload.replacementLinkageVerified, true, "Renderer did not preserve donor linkage for the donor-backed replacement after reload.");

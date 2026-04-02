@@ -38,6 +38,10 @@ import {
   buildRuntimeResourceMapStatus,
   type RuntimeResourceMapStatus
 } from "../runtime/runtimeResourceMap";
+import {
+  buildRuntimePageProofStatus,
+  type RuntimePageProofStatus
+} from "../runtime/runtimePageProofs";
 import { buildProjectVabsStatus, type ProjectVabsStatus } from "./vabsStatus";
 import { toRepoRelativePath } from "../../tools/donor-scan/shared";
 
@@ -1125,6 +1129,7 @@ export interface ProjectSliceBundle {
   runtimeLaunch: RuntimeLaunchStatus | null;
   runtimeMirror: LocalRuntimeMirrorStatus | null;
   runtimeResourceMap: RuntimeResourceMapStatus | null;
+  runtimePageProofs: RuntimePageProofStatus | null;
   runtimeOverrides: RuntimeAssetOverrideStatus | null;
   donorScan: DonorScanStatus | null;
   investigation: InvestigationStatusSummary | null;
@@ -3766,6 +3771,9 @@ export async function loadProjectSlice(requestedProjectId?: string): Promise<Pro
   const runtimeResourceMap = selectedProjectId === "project_001"
     ? buildRuntimeResourceMapStatus(selectedProjectId)
     : null;
+  const runtimePageProofs = selectedProjectId === "project_001"
+    ? await buildRuntimePageProofStatus(selectedProjectId)
+    : null;
   const runtimeOverrides = selectedProjectId === "project_001"
     ? await buildRuntimeAssetOverrideStatus(selectedProjectId)
     : null;
@@ -3805,6 +3813,7 @@ export async function loadProjectSlice(requestedProjectId?: string): Promise<Pro
     runtimeLaunch,
     runtimeMirror,
     runtimeResourceMap,
+    runtimePageProofs,
     runtimeOverrides,
     donorScan,
     investigation,
