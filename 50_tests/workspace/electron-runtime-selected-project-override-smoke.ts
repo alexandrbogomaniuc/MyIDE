@@ -431,8 +431,8 @@ async function main(): Promise<void> {
 
     assert.equal(payload.status, "pass", `Selected-project runtime override smoke payload reported failure: ${payload.error ?? "<no error>"}\n${output}`);
     assert.equal(payload.projectId, projectId, `Selected-project runtime override smoke did not load ${projectId}.`);
-    assert.equal(payload.runtimeLaunchBlocked, true, "Selected-project runtime override smoke should keep launch blocked.");
-    assert.equal(payload.runtimeLaunchEntryUrl, null, "Selected-project runtime override smoke should not fake an embedded launch URL.");
+    assert.equal(payload.runtimeLaunchBlocked, true, "Selected-project runtime override smoke should keep launch blocked without a grounded mirror manifest.");
+    assert.equal(payload.runtimeLaunchEntryUrl, null, "Selected-project runtime override smoke should not expose an embedded launch URL without a grounded mirror manifest.");
     assert.equal(payload.donorAssetCount, 1, "Selected-project runtime override smoke should surface the seeded task-kit donor asset.");
     assert.equal(payload.taskId, taskId, "Selected-project runtime override smoke reported the wrong task id.");
     assert.equal(payload.pageName, pageName, "Selected-project runtime override smoke reported the wrong page name.");

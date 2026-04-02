@@ -860,7 +860,7 @@ export async function buildLocalRuntimeLaunchHtml(projectId: string): Promise<{
   finalUrl: string;
   publicEntryUrl: string;
 }> {
-  assertProjectSupportsLiveRuntimeCapture(projectId);
+  assertValidProjectId(projectId);
   const status = await buildLocalRuntimeMirrorStatus(projectId);
   const publicEntryUrl = status.publicEntryUrl;
   if (!publicEntryUrl) {

@@ -559,8 +559,8 @@ async function main(): Promise<void> {
 
     assert.equal(payload.status, "pass", `Selected-project harvest upstream fallback smoke payload reported failure: ${payload.error ?? "<no error>"}\n${output}`);
     assert.equal(payload.projectId, projectId, `Selected-project harvest upstream fallback smoke did not load ${projectId}.`);
-    assert.equal(payload.runtimeLaunchBlocked, true, "Selected-project harvest upstream fallback smoke should keep launch blocked.");
-    assert.equal(payload.runtimeLaunchEntryUrl, null, "Selected-project harvest upstream fallback smoke should not fake an embedded launch URL.");
+    assert.equal(payload.runtimeLaunchBlocked, true, "Selected-project harvest upstream fallback smoke should keep launch blocked without a grounded mirror manifest.");
+    assert.equal(payload.runtimeLaunchEntryUrl, null, "Selected-project harvest upstream fallback smoke should not expose an embedded launch URL without a grounded mirror manifest.");
     assert.equal(payload.harvestActionVisible, true, "Selected-project harvest upstream fallback smoke should expose the harvest action with request-log-only evidence.");
     assert.equal(payload.preHarvestRuntimeWorkbenchEntryKind, "resource-map", "Selected-project harvest upstream fallback smoke should start from request-log/resource-map evidence.");
     assert.equal(payload.harvestSucceeded, true, "Selected-project harvest upstream fallback smoke should refresh request-backed runtime evidence.");

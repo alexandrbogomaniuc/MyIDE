@@ -205,7 +205,7 @@ async function main(): Promise<void> {
         projectId,
         mode: "partial-local-runtime-mirror",
         generatedAtUtc: new Date().toISOString(),
-        publicEntryUrl: "https://example.invalid/runtime/launch",
+        publicEntryUrl: "https://demo.bgaming-network.com/play/MysteryGarden/FUN?server=demo",
         resourceVersion: "project-002-route-smoke",
         notes: [
           "Smoke manifest for selected-project live runtime route verification."
@@ -293,7 +293,8 @@ async function main(): Promise<void> {
     assert.equal(payload.projectId, projectId, "Selected-project route smoke reported the wrong project id.");
     assert.equal(payload.assetStatus, 200, "Selected-project asset route did not return 200.");
     assert.equal(payload.proxyStatus, 200, "Selected-project proxy route did not return 200.");
-    assert.equal(payload.launchStatus, 503, "Selected-project launch route should stay blocked.");
+    assert.equal(payload.launchStatus, 200, "Selected-project launch route should return 200 when a grounded local mirror is indexed.");
+    assert.match(String(payload.launchBodySnippet ?? ""), /myide-runtime-source/, "Selected-project launch route did not emit the local-mirror launch HTML marker.");
     assert.equal(payload.matchedProjectRequestSource, "project-local-override", "Selected-project runtime route should honor the project-local override.");
     assert.equal(payload.project001ContainsSeedSource, false, "Selected-project runtime route polluted project_001 resource tracking.");
     assert.match(String(payload.assetBodySnippet ?? ""), /project_002_override_placeholder/, "Asset route did not serve the selected-project override content.");

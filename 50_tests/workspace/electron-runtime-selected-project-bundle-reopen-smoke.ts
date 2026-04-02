@@ -392,8 +392,8 @@ async function main(): Promise<void> {
 
     assert.equal(payload.status, "pass", `Selected-project bundle reopen smoke payload reported failure: ${payload.error ?? "<no error>"}\n${output}`);
     assert.equal(payload.projectId, projectId, `Selected-project bundle reopen smoke did not load ${projectId}.`);
-    assert.equal(payload.runtimeLaunchBlocked, true, "Selected-project bundle reopen smoke should keep launch blocked.");
-    assert.equal(payload.runtimeLaunchEntryUrl, null, "Selected-project bundle reopen smoke should not fake an embedded launch URL.");
+    assert.equal(payload.runtimeLaunchBlocked, true, "Selected-project bundle reopen smoke should keep launch blocked for a partial mirror.");
+    assert.equal(payload.runtimeLaunchEntryUrl, null, "Selected-project bundle reopen smoke should not expose an embedded launch URL without a full mirror.");
     assert.equal(payload.pageRuntimeProofLoaded, false, "Selected-project bundle reopen smoke should not rely on a persisted page proof.");
     assert.equal(payload.runtimeWorkbenchHasPageProofEntry, false, "Selected-project bundle reopen smoke should not surface a page-proof runtime entry.");
     assert.equal(payload.taskRuntimeEntryKind, "local-mirror", "Selected-project bundle reopen smoke should report the exact local-mirror runtime trace.");

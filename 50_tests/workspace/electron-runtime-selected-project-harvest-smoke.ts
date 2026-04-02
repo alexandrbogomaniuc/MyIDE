@@ -293,6 +293,7 @@ async function main(): Promise<void> {
   const sourceRuntimeBundlePath = path.join(reportsRoot, "selected-project-runtime-harvest", "big-win.bundle.js");
   const sourceRuntimeImagePath = path.join(reportsRoot, "selected-project-runtime-harvest", "big-win-ribbon.png");
   const mirrorManifestPath = path.join(runtimeRoot, "local-mirror", "manifest.json");
+  const mirrorLoaderPath = path.join(runtimeRoot, "local-mirror", "files", "cdn.bgaming-network.com", "loader.js");
   const mirrorBundlePath = path.join(runtimeRoot, "local-mirror", "files", "example.invalid", "big-win.bundle.js");
   const mirrorImagePath = path.join(runtimeRoot, "local-mirror", "files", "example.invalid", "big-win-ribbon.png");
   const requestLogPath = path.join(runtimeRoot, "local-mirror", "request-log.latest.json");
@@ -301,6 +302,7 @@ async function main(): Promise<void> {
   const repoSourceBundlePath = path.relative(workspaceRoot, sourceBundlePath).replace(/\\/g, "/");
   const repoSourceRuntimeBundlePath = path.relative(workspaceRoot, sourceRuntimeBundlePath).replace(/\\/g, "/");
   const repoSourceRuntimeImagePath = path.relative(workspaceRoot, sourceRuntimeImagePath).replace(/\\/g, "/");
+  const repoMirrorLoaderPath = path.relative(workspaceRoot, mirrorLoaderPath).replace(/\\/g, "/");
   const repoMirrorBundlePath = path.relative(workspaceRoot, mirrorBundlePath).replace(/\\/g, "/");
   const repoMirrorImagePath = path.relative(workspaceRoot, mirrorImagePath).replace(/\\/g, "/");
   const baselineStatus = await captureGitStatus(workspaceRoot);
@@ -309,6 +311,7 @@ async function main(): Promise<void> {
   const originalSourceRuntimeBundleRaw = await readOptionalUtf8(sourceRuntimeBundlePath);
   const originalSourceRuntimeImageRaw = await readOptionalBuffer(sourceRuntimeImagePath);
   const originalMirrorManifestRaw = await readOptionalUtf8(mirrorManifestPath);
+  const originalMirrorLoaderRaw = await readOptionalUtf8(mirrorLoaderPath);
   const originalMirrorBundleRaw = await readOptionalUtf8(mirrorBundlePath);
   const originalMirrorImageRaw = await readOptionalBuffer(mirrorImagePath);
   const originalRequestLogRaw = await readOptionalUtf8(requestLogPath);
@@ -335,6 +338,7 @@ async function main(): Promise<void> {
   try {
     await fs.mkdir(path.dirname(sourceRuntimeBundlePath), { recursive: true });
     await fs.mkdir(path.dirname(mirrorManifestPath), { recursive: true });
+    await fs.mkdir(path.dirname(mirrorLoaderPath), { recursive: true });
     await fs.mkdir(path.dirname(mirrorBundlePath), { recursive: true });
     await fs.mkdir(path.dirname(mirrorImagePath), { recursive: true });
 
@@ -342,6 +346,7 @@ async function main(): Promise<void> {
     const png1x1 = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+k6X8AAAAASUVORK5CYII=", "base64");
     await fs.writeFile(sourceRuntimeBundlePath, "console.log('project_002_runtime_harvest_source_placeholder');\n", "utf8");
     await fs.writeFile(sourceRuntimeImagePath, png1x1);
+    await fs.writeFile(mirrorLoaderPath, "console.log('project_002_runtime_harvest_loader_placeholder');\n", "utf8");
     await fs.writeFile(mirrorBundlePath, "console.log('project_002_runtime_harvest_bundle_placeholder');\n", "utf8");
     await fs.writeFile(mirrorImagePath, png1x1);
 
@@ -363,7 +368,7 @@ async function main(): Promise<void> {
             affectedSlotNames: ["smoke.slot.big_win_bundle"],
             affectedAttachmentNames: ["smoke.attachment.big_win_bundle"],
             regionNames: ["big-win-bundle"],
-            nextFitApplyStep: "Harvest request-backed runtime evidence and keep the selected-project runtime workbench on that bundle trace while launch stays blocked."
+            nextFitApplyStep: "Harvest request-backed runtime evidence and keep the selected-project runtime workbench on that bundle trace while Debug Host stays project_001-only."
           },
           {
             pageName: "big_win_image",
@@ -427,7 +432,7 @@ async function main(): Promise<void> {
             sourceArtifactState: "ready",
             sourceArtifactPath: repoSourceBundlePath,
             supportingArtifactPaths: [repoSourceRuntimeBundlePath, repoMirrorBundlePath],
-            rationale: "Smoke-seeded modification task proving selected-project runtime harvest can upgrade grounded local-mirror bundle and static-image evidence into fresh request-backed runtime workbench traces, then use the harvested static image for a bounded project-local override while live launch stays blocked.",
+            rationale: "Smoke-seeded modification task proving selected-project runtime harvest can upgrade grounded local-mirror bundle and static-image evidence into fresh request-backed runtime workbench traces, then use the harvested static image for a bounded project-local override while embedded launch stays project-aware and Debug Host remains project_001-only.",
             nextAction: "Harvest Runtime requests, verify the task reopens on the harvested bundle trace, and create/clear the bounded override from the harvested static image.",
             canOpenCompose: true,
             canOpenRuntime: true
@@ -444,12 +449,18 @@ async function main(): Promise<void> {
         projectId,
         mode: "partial-local-runtime-mirror",
         generatedAtUtc: generatedAt,
-        publicEntryUrl: "https://example.invalid/runtime/launch",
+        publicEntryUrl: "https://demo.bgaming-network.com/play/MysteryGarden/FUN?server=demo",
         resourceVersion: "project-002-harvest-smoke",
         notes: [
           "Smoke manifest for selected-project request-backed runtime harvest verification."
         ],
         entries: [
+          {
+            sourceUrl: "https://cdn.bgaming-network.com/html/MysteryGarden/v0.0.15_53dc164/loader.js",
+            kind: "runtime-loader",
+            repoRelativePath: repoMirrorLoaderPath,
+            fileType: "js"
+          },
           {
             sourceUrl: runtimeSourceUrl,
             kind: "runtime-bundle",
@@ -495,8 +506,8 @@ async function main(): Promise<void> {
 
     assert.equal(payload.status, "pass", `Selected-project harvest smoke payload reported failure: ${payload.error ?? "<no error>"}\n${output}`);
     assert.equal(payload.projectId, projectId, `Selected-project harvest smoke did not load ${projectId}.`);
-    assert.equal(payload.runtimeLaunchBlocked, true, "Selected-project harvest smoke should keep launch blocked.");
-    assert.equal(payload.runtimeLaunchEntryUrl, null, "Selected-project harvest smoke should not fake an embedded launch URL.");
+    assert.equal(payload.runtimeLaunchBlocked, false, "Selected-project harvest smoke should expose an indexed embedded launch path.");
+    assert.match(String(payload.runtimeLaunchEntryUrl ?? ""), /\/runtime\/project_002\/launch$/, "Selected-project harvest smoke should expose the selected-project embedded launch URL.");
     assert.equal(payload.harvestActionVisible, true, "Selected-project harvest smoke should expose the bounded harvest action.");
     assert.equal(payload.harvestSucceeded, true, "Selected-project harvest smoke should record fresh request-backed runtime evidence.");
     assert((payload.harvestedEntryCount ?? 0) >= 2, "Selected-project harvest smoke should record both the bundle and static-image runtime entries.");
@@ -527,8 +538,8 @@ async function main(): Promise<void> {
     assert((payload.overrideProofStaticAssetHitCount ?? 0) >= 2, "Selected-project harvest smoke should increase the static-image hit count after override proof harvest.");
     assert(payload.previewStatusAfterOverrideProofHarvest?.includes("override-backed hit"), "Selected-project harvest smoke should mention override-backed hits after re-harvest.");
     assert.equal(payload.runtimeOverrideCleared, true, "Selected-project harvest smoke did not clear the bounded override.");
-    assert(payload.previewStatusAfterCreate?.includes("Embedded launch stays blocked"), "Selected-project harvest smoke create status should mention blocked embedded launch.");
-    assert(!payload.previewStatusAfterCreate?.includes("Reloading the embedded runtime now"), "Selected-project harvest smoke create status should not claim a blocked embedded runtime reload.");
+    assert(payload.previewStatusAfterCreate?.includes("Launch or reopen the embedded runtime when you want to confirm reload-time hits for this source."), "Selected-project harvest smoke create status should mention the indexed embedded launch follow-up.");
+    assert(!payload.previewStatusAfterCreate?.includes("Reloading the embedded runtime now"), "Selected-project harvest smoke create status should not claim the embedded runtime already reloaded.");
     assert.equal(payload.runtimeDebugHostActionVisible, false, "Selected-project harvest smoke should not expose the runtime Debug Host action for project_002.");
     assert.equal(payload.runtimeSourceDebugHostActionVisible, false, "Selected-project harvest smoke should not expose source-level Debug Host actions for project_002.");
     assert.equal(payload.runtimeStatusHeading, "Selected-project runtime surface", "Selected-project harvest smoke should keep the runtime status heading project-aware.");
@@ -545,6 +556,7 @@ async function main(): Promise<void> {
     await restoreOptionalUtf8(sourceRuntimeBundlePath, originalSourceRuntimeBundleRaw);
     await restoreOptionalBuffer(sourceRuntimeImagePath, originalSourceRuntimeImageRaw);
     await restoreOptionalUtf8(mirrorManifestPath, originalMirrorManifestRaw);
+    await restoreOptionalUtf8(mirrorLoaderPath, originalMirrorLoaderRaw);
     await restoreOptionalUtf8(mirrorBundlePath, originalMirrorBundleRaw);
     await restoreOptionalBuffer(mirrorImagePath, originalMirrorImageRaw);
     await restoreOptionalUtf8(requestLogPath, originalRequestLogRaw);
@@ -554,6 +566,7 @@ async function main(): Promise<void> {
 
     await cleanupEmptyDirectory(path.join(reportsRoot, "selected-project-runtime-harvest"));
     await cleanupEmptyDirectory(path.join(runtimeRoot, "local-mirror", "files", "example.invalid"));
+    await cleanupEmptyDirectory(path.join(runtimeRoot, "local-mirror", "files", "cdn.bgaming-network.com"));
     await cleanupEmptyDirectory(path.join(runtimeRoot, "local-mirror", "files"));
     await cleanupEmptyDirectory(path.join(runtimeRoot, "local-mirror"));
     await cleanupEmptyDirectory(path.join(workspaceRoot, "40_projects", projectId, "overrides", "runtime-assets"));

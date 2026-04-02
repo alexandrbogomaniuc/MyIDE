@@ -1921,18 +1921,6 @@ async function handleRuntimeMirrorRequest(request: IncomingMessage, response: Se
   const runtimeMirrorStatus = getRuntimeLocalMirrorStatus(projectId);
 
   if (route.route === "launch") {
-    if (projectId !== "project_001") {
-      sendRuntimeMirrorResponse(
-        response,
-        503,
-        { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" },
-        runtimeMirrorStatus?.available
-          ? "A project-local runtime mirror is indexed for this project, but integrated Runtime Mode launch is still only grounded for the validated project."
-          : runtimeMirrorStatus?.blocker ?? "Local runtime mirror is not available."
-      );
-      return;
-    }
-
     if (!runtimeMirrorStatus?.available) {
       sendRuntimeMirrorResponse(
         response,
@@ -2246,7 +2234,8 @@ async function runRuntimeSelectedProjectRouteSmoke(): Promise<void> {
         mirrorStatus.available
         && assetResponse.ok
         && proxyResponse.ok
-        && launchResponse.status === 503
+        && launchResponse.ok
+        && /\/runtime\/project_002\/(?:mirror\?source=|assets\/)/.test(launchBody)
         && assetBody.includes("project_002_override_placeholder")
         && proxyBody.includes("project_002_override_placeholder")
         && Boolean(matchedProjectEntry)
@@ -2265,7 +2254,7 @@ async function runRuntimeSelectedProjectRouteSmoke(): Promise<void> {
       proxyBodySnippet: proxyBody.slice(0, 120),
       launchUrl,
       launchStatus: launchResponse.status,
-      launchBodySnippet: launchBody.slice(0, 160),
+      launchBodySnippet: launchBody.slice(0, 240),
       projectResourceMapEntryCount: projectResourceMap.entryCount,
       matchedProjectRequestSource: matchedProjectEntry?.requestSource ?? null,
       matchedProjectLatestRequestUrl: matchedProjectEntry?.latestRequestUrl ?? null,
@@ -2273,7 +2262,7 @@ async function runRuntimeSelectedProjectRouteSmoke(): Promise<void> {
     };
 
     if (payload.status !== "pass") {
-      payload.error = "Selected-project runtime route smoke did not stay project-aware.";
+      payload.error = "Selected-project runtime route smoke did not stay project-aware through asset, proxy, and launch routes.";
     }
 
     console.log(`MYIDE_RUNTIME_SELECTED_PROJECT_ROUTE_RESULT:${JSON.stringify(payload)}`);

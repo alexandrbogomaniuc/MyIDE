@@ -498,8 +498,8 @@ async function main(): Promise<void> {
 
     assert.equal(payload.status, "pass", `Selected-project harvest page-proof fallback smoke payload reported failure: ${payload.error ?? "<no error>"}\n${output}`);
     assert.equal(payload.projectId, projectId, `Selected-project harvest page-proof fallback smoke did not load ${projectId}.`);
-    assert.equal(payload.runtimeLaunchBlocked, true, "Selected-project harvest page-proof fallback smoke should keep launch blocked.");
-    assert.equal(payload.runtimeLaunchEntryUrl, null, "Selected-project harvest page-proof fallback smoke should not fake an embedded launch URL.");
+    assert.equal(payload.runtimeLaunchBlocked, true, "Selected-project harvest page-proof fallback smoke should keep launch blocked without a grounded mirror manifest.");
+    assert.equal(payload.runtimeLaunchEntryUrl, null, "Selected-project harvest page-proof fallback smoke should not expose an embedded launch URL without a grounded mirror manifest.");
     assert.equal(payload.harvestActionVisible, true, "Selected-project harvest page-proof fallback smoke should expose the harvest action without a mirror manifest or request log.");
     assert.equal(payload.preHarvestRuntimeWorkbenchEntryKind, "page-runtime-proof", "Selected-project harvest page-proof fallback smoke should start from persisted page-proof runtime evidence.");
     assert.equal(payload.harvestSucceeded, true, "Selected-project harvest page-proof fallback smoke should refresh request-backed runtime evidence.");

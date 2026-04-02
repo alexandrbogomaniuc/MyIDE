@@ -91,7 +91,7 @@ async function main(): Promise<void> {
         projectId,
         mode: "partial-local-runtime-mirror",
         generatedAtUtc: new Date().toISOString(),
-        publicEntryUrl: "https://example.invalid/runtime/launch",
+        publicEntryUrl: "https://demo.bgaming-network.com/play/MysteryGarden/FUN?server=demo",
         resourceVersion: "project-002-smoke",
         notes: [
           "Smoke manifest for selected-project runtime status hydration."
@@ -207,12 +207,12 @@ async function main(): Promise<void> {
     assert(projectSlice.runtimeMirror, "Project slice should surface runtime mirror status for non-project_001 projects.");
     assert(projectSlice.runtimeResourceMap, "Project slice should surface runtime resource map status for non-project_001 projects.");
     assert(projectSlice.runtimeOverrides, "Project slice should surface runtime override status for non-project_001 projects.");
-    assert(projectSlice.runtimeLaunch, "Project slice should surface a blocked runtime launch status instead of null for non-project_001 projects.");
+    assert(projectSlice.runtimeLaunch, "Project slice should surface a runtime launch status for non-project_001 projects.");
     assert.equal(projectSlice.runtimeMirror.projectId, projectId, "Project slice runtime mirror should belong to the selected project.");
     assert.equal(projectSlice.runtimeResourceMap.projectId, projectId, "Project slice runtime resource map should belong to the selected project.");
     assert.equal(projectSlice.runtimeOverrides.projectId, projectId, "Project slice runtime overrides should belong to the selected project.");
-    assert.equal(projectSlice.runtimeLaunch.availability, "blocked", "Selected project runtime launch should stay blocked when only the status layer is generalized.");
-    assert.equal(projectSlice.runtimeLaunch.entryUrl, null, "Selected project runtime launch should not fake a launch URL.");
+    assert.equal(projectSlice.runtimeLaunch.availability, "local-mirror", "Selected project runtime launch should use the grounded local mirror when one is indexed.");
+    assert.match(String(projectSlice.runtimeLaunch.entryUrl ?? ""), /\/runtime\/project_002\/launch$/, "Selected project runtime launch should expose the selected-project mirror launch URL.");
     assert.equal(projectSlice.runtimeLaunch.localRuntimePackageAvailable, true, "Selected project runtime launch should still acknowledge the project-local mirror.");
     assert(
       projectSlice.runtimeLaunch.sourcePaths.includes(mirrorManifestRepoRelativePath),

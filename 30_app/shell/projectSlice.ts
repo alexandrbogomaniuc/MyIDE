@@ -3249,6 +3249,35 @@ async function buildRuntimeLaunchStatus(
     : [];
 
   if (selectedProjectId !== "project_001") {
+    if (runtimeMirror?.available && runtimeMirror.launchUrl) {
+      return {
+        projectId: selectedProjectId,
+        availability: "local-mirror",
+        launchSurface: "integrated-local-runtime",
+        localRuntimePackageAvailable: true,
+        blocker: "The dedicated Runtime Debug Host is still validated only for project_001, but this selected project can launch the grounded project-local runtime mirror in Runtime Mode.",
+        entryUrl: runtimeMirror.launchUrl,
+        resolvedRuntimeHost: runtimeMirror.publicEntryUrl ?? null,
+        runtimeSourceLabel: "Local mirror",
+        captureSessionId: null,
+        evidenceIds: [],
+        sourcePaths: runtimeMirrorSourcePaths,
+        availableActions: [],
+        roundId: null,
+        currencyCode: null,
+        wrapperVersion: null,
+        buildVersion: null,
+        gameVersion: null,
+        pixiVersion: null,
+        spineVersion: null,
+        observedAssetGroups: [],
+        notes: [
+          "Runtime Mode can launch this selected project through its grounded project-local runtime mirror.",
+          "The dedicated Runtime Debug Host still remains validated only for project_001, so the selected-project runtime workbench stays the primary source/override surface."
+        ]
+      };
+    }
+
     return {
       projectId: selectedProjectId,
       availability: "blocked",
