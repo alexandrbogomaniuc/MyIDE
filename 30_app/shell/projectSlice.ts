@@ -20,6 +20,7 @@ import {
   buildRuntimeAssetOverrideStatus,
   type RuntimeAssetOverrideStatus
 } from "../workspace/donorOverride";
+import { readProjectModificationHandoff } from "../workspace/modificationHandoff";
 import {
   buildLocalRuntimeMirrorStatus,
   type LocalRuntimeMirrorStatus
@@ -29,6 +30,7 @@ import {
   type RuntimeResourceMapStatus
 } from "../runtime/runtimeResourceMap";
 import { buildProjectVabsStatus, type ProjectVabsStatus } from "./vabsStatus";
+import { toRepoRelativePath } from "../../tools/donor-scan/shared";
 
 type JsonValue = null | boolean | number | string | JsonObject | JsonValue[];
 type JsonObject = { [key: string]: JsonValue | undefined };
@@ -1032,6 +1034,33 @@ export interface InvestigationStatusSummary {
   }>;
 }
 
+export interface ModificationHandoffSummary {
+  projectId: string;
+  donorId: string;
+  donorName: string;
+  generatedAt: string | null;
+  currentStage: string;
+  recommendedStage: string;
+  handoffState: string;
+  sourceQueuePath: string | null;
+  reportPath: string;
+  queueItemCount: number;
+  readyTaskCount: number;
+  blockedTaskCount: number;
+  nextOperatorAction: string;
+  topTasks: Array<{
+    taskId: string;
+    displayName: string;
+    familyName: string;
+    sectionKey: string | null;
+    taskStatus: string;
+    sourceArtifactKind: string;
+    sourceArtifactPath: string | null;
+    preferredWorkflowPanel: string;
+    nextAction: string;
+  }>;
+}
+
 export interface ProjectSliceBundle {
   workspace: WorkspaceSliceBundle;
   selectedProjectId: string;
@@ -1057,6 +1086,7 @@ export interface ProjectSliceBundle {
   runtimeOverrides: RuntimeAssetOverrideStatus | null;
   donorScan: DonorScanStatus | null;
   investigation: InvestigationStatusSummary | null;
+  modificationHandoff: ModificationHandoffSummary | null;
 }
 
 const workspaceRoot = path.resolve(__dirname, "../../..");
@@ -3262,6 +3292,52 @@ async function loadInvestigationStatus(selectedProject: WorkspaceProjectSummary 
   };
 }
 
+async function loadModificationHandoffStatus(selectedProject: WorkspaceProjectSummary | null): Promise<ModificationHandoffSummary | null> {
+  if (!selectedProject) {
+    return null;
+  }
+
+  const reportPath = path.join(workspaceRoot, selectedProject.keyPaths.reportsRoot ?? selectedProject.keyPaths.projectRoot, "modification-handoff.json");
+  const handoff = await readProjectModificationHandoff(selectedProject.projectId);
+  if (!handoff) {
+    return null;
+  }
+
+  const topTasks = Array.isArray(handoff.tasks)
+    ? handoff.tasks
+      .map((task) => ({
+        taskId: typeof task.taskId === "string" ? task.taskId : "",
+        displayName: typeof task.displayName === "string" ? task.displayName : "",
+        familyName: typeof task.familyName === "string" ? task.familyName : "",
+        sectionKey: typeof task.sectionKey === "string" ? task.sectionKey : null,
+        taskStatus: typeof task.taskStatus === "string" ? task.taskStatus : "unknown",
+        sourceArtifactKind: typeof task.sourceArtifactKind === "string" ? task.sourceArtifactKind : "queue-source",
+        sourceArtifactPath: typeof task.sourceArtifactPath === "string" ? task.sourceArtifactPath : null,
+        preferredWorkflowPanel: typeof task.preferredWorkflowPanel === "string" ? task.preferredWorkflowPanel : "compose",
+        nextAction: typeof task.nextAction === "string" ? task.nextAction : "Open Modification / Compose and continue from the strongest prepared artifact."
+      }))
+      .filter((task) => task.taskId.length > 0)
+      .slice(0, 8)
+    : [];
+
+  return {
+    projectId: typeof handoff.projectId === "string" ? handoff.projectId : selectedProject.projectId,
+    donorId: typeof handoff.donorId === "string" ? handoff.donorId : selectedProject.donor.donorId,
+    donorName: typeof handoff.donorName === "string" ? handoff.donorName : selectedProject.donor.donorName,
+    generatedAt: typeof handoff.generatedAt === "string" ? handoff.generatedAt : null,
+    currentStage: typeof handoff.currentStage === "string" ? handoff.currentStage : selectedProject.lifecycle.currentStage,
+    recommendedStage: typeof handoff.recommendedStage === "string" ? handoff.recommendedStage : "investigation",
+    handoffState: typeof handoff.handoffState === "string" ? handoff.handoffState : "blocked",
+    sourceQueuePath: typeof handoff.sourceQueuePath === "string" ? handoff.sourceQueuePath : null,
+    reportPath: toRepoRelativePath(reportPath),
+    queueItemCount: typeof handoff.queueItemCount === "number" ? handoff.queueItemCount : 0,
+    readyTaskCount: typeof handoff.readyTaskCount === "number" ? handoff.readyTaskCount : 0,
+    blockedTaskCount: typeof handoff.blockedTaskCount === "number" ? handoff.blockedTaskCount : 0,
+    nextOperatorAction: typeof handoff.nextOperatorAction === "string" ? handoff.nextOperatorAction : "Prepare the modification handoff and continue in Compose or Runtime.",
+    topTasks
+  };
+}
+
 function assertPreviewAssetsStayInternal(project: JsonObject): void {
   const assets = getObjectArray(project.assets);
 
@@ -3327,6 +3403,7 @@ export async function loadProjectSlice(requestedProjectId?: string): Promise<Pro
     ? await buildRuntimeAssetOverrideStatus(selectedProjectId)
     : null;
   const editableProject = await loadSelectedEditableProject(workspace, selectedProjectId);
+  const modificationHandoff = await loadModificationHandoffStatus(selectedProject);
   const vabs = selectedProject
     ? await buildProjectVabsStatus({
       workspaceRoot,
@@ -3363,6 +3440,7 @@ export async function loadProjectSlice(requestedProjectId?: string): Promise<Pro
     runtimeResourceMap,
     runtimeOverrides,
     donorScan,
-    investigation
+    investigation,
+    modificationHandoff
   };
 }

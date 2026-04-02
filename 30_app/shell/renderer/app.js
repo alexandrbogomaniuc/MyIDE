@@ -3321,19 +3321,66 @@ async function runDonorPromotionQueue() {
   setPreviewStatus("Promoting ready investigation families and sections into the modification queue...");
   try {
     const result = await api.runDonorPromotionQueue(donorId, donorName);
-    await reloadWorkspace(false, state.selectedProjectId);
     const promotedCount = Number(result?.promotedCount ?? 0);
     const queueItemCount = Number(result?.queueItemCount ?? 0);
     const nextOperatorAction = typeof result?.nextOperatorAction === "string"
       ? result.nextOperatorAction
       : "Open Modification / Compose and continue from the queued donor families.";
+    let handoffMessage = "";
+    if (
+      queueItemCount > 0
+      && selectedProject?.projectId
+      && typeof api.prepareProjectModificationHandoff === "function"
+    ) {
+      try {
+        const handoff = await api.prepareProjectModificationHandoff(selectedProject.projectId);
+        const readyTaskCount = Number(handoff?.readyTaskCount ?? 0);
+        const blockedTaskCount = Number(handoff?.blockedTaskCount ?? 0);
+        handoffMessage = ` Modification board prepared with ${readyTaskCount} ready task${readyTaskCount === 1 ? "" : "s"}`
+          + `${blockedTaskCount > 0 ? ` and ${blockedTaskCount} blocked item${blockedTaskCount === 1 ? "" : "s"}` : ""}.`;
+      } catch (handoffError) {
+        const handoffMessageText = handoffError instanceof Error ? handoffError.message : String(handoffError);
+        handoffMessage = ` Promotion succeeded, but preparing the project modification board failed: ${handoffMessageText}`;
+      }
+    }
+    await reloadWorkspace(false, state.selectedProjectId);
     setPreviewStatus(
       `Promotion queue updated. Added ${promotedCount} item${promotedCount === 1 ? "" : "s"}; `
-      + `${queueItemCount} queued for Modification. ${nextOperatorAction}`
+      + `${queueItemCount} queued for Modification. ${nextOperatorAction}${handoffMessage}`
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     setPreviewStatus(`Investigation promotion failed: ${message}`);
+  }
+}
+
+async function prepareProjectModificationBoard() {
+  const api = window.myideApi;
+  const selectedProject = getSelectedProject();
+  const projectId = typeof selectedProject?.projectId === "string" ? selectedProject.projectId : "";
+  if (!api || typeof api.prepareProjectModificationHandoff !== "function" || !projectId) {
+    setPreviewStatus("Project modification handoff is not available in this renderer session.");
+    return;
+  }
+
+  setPreviewStatus("Preparing the project modification board from the promoted donor queue...");
+  try {
+    const result = await api.prepareProjectModificationHandoff(projectId);
+    await reloadWorkspace(false, projectId);
+    const readyTaskCount = Number(result?.readyTaskCount ?? 0);
+    const blockedTaskCount = Number(result?.blockedTaskCount ?? 0);
+    const nextOperatorAction = typeof result?.nextOperatorAction === "string"
+      ? result.nextOperatorAction
+      : "Open Compose or Runtime and continue from the strongest prepared artifact.";
+    setPreviewStatus(
+      `Modification board prepared for ${projectId}. `
+      + `${readyTaskCount} ready task${readyTaskCount === 1 ? "" : "s"}`
+      + `${blockedTaskCount > 0 ? `, ${blockedTaskCount} blocked` : ""}. `
+      + `${nextOperatorAction}`
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    setPreviewStatus(`Project modification handoff failed: ${message}`);
   }
 }
 
@@ -9009,6 +9056,10 @@ function getSelectedProjectVabsStatus() {
   return state.bundle?.vabs ?? null;
 }
 
+function getProjectModificationHandoff() {
+  return state.bundle?.modificationHandoff ?? null;
+}
+
 function getSelectedObject() {
   if (!state.editorData || !Array.isArray(state.editorData.objects)) {
     return null;
@@ -11943,6 +11994,18 @@ function handleNavigationClick(event) {
         ? donorScanActionButton.dataset.donorScanSectionKey.trim()
         : "";
       void runDonorScanSectionAction(sectionKey);
+      return true;
+    }
+  }
+
+  const projectModificationActionButton = target.closest("[data-project-modification-action]");
+  if (projectModificationActionButton instanceof HTMLElement && projectModificationActionButton.dataset.projectModificationAction) {
+    if (projectModificationActionButton instanceof HTMLButtonElement && projectModificationActionButton.disabled) {
+      return true;
+    }
+    event.preventDefault();
+    if (projectModificationActionButton.dataset.projectModificationAction === "prepare-handoff") {
+      void prepareProjectModificationBoard();
       return true;
     }
   }
@@ -15448,6 +15511,7 @@ function renderInvestigationPanel() {
   const selectedProject = getSelectedProject();
   const investigation = state.bundle?.investigation ?? null;
   const donorScan = state.bundle?.donorScan ?? null;
+  const modificationHandoff = getProjectModificationHandoff();
   const runtimeResourceMap = state.bundle?.runtimeResourceMap ?? null;
   if (!selectedProject) {
     elements.investigationBrowser.innerHTML = `<div class="tree-row"><strong>No Project</strong><span>Select a project to review investigation coverage.</span></div>`;
@@ -15480,6 +15544,7 @@ function renderInvestigationPanel() {
   const nextTargets = Array.isArray(investigation.topScenarioTargets) ? investigation.topScenarioTargets : [];
   const readyCandidates = Array.isArray(investigation.topReadyCandidates) ? investigation.topReadyCandidates : [];
   const modificationQueue = Array.isArray(investigation.topModificationQueue) ? investigation.topModificationQueue : [];
+  const handoffTopTasks = Array.isArray(modificationHandoff?.topTasks) ? modificationHandoff.topTasks : [];
   const recommendedProfile = investigation.nextCaptureProfile
     ? getInvestigationProfileDefinition(investigation.nextCaptureProfile)
     : null;
@@ -15664,6 +15729,13 @@ function renderInvestigationPanel() {
               data-donor-scan-action="run-promotion-queue"
             >Promote Ready Families</button>
           ` : ""}
+          ${(investigation.promotion?.queuedItemCount ?? 0) > 0 ? `
+            <button
+              type="button"
+              class="copy-button"
+              data-project-modification-action="prepare-handoff"
+            >Prepare Modification Board</button>
+          ` : ""}
           ${canMoveToModification ? `
             <button
               type="button"
@@ -15675,8 +15747,11 @@ function renderInvestigationPanel() {
           ` : ""}
           ${investigation.promotion?.readyCandidatesPath ? renderCopyButton(investigation.promotion.readyCandidatesPath, "ready promotion candidates path", "Copy Ready Path") : ""}
           ${investigation.promotion?.modificationQueuePath ? renderCopyButton(investigation.promotion.modificationQueuePath, "modification queue path", "Copy Queue Path") : ""}
+          ${modificationHandoff?.reportPath ? renderCopyButton(modificationHandoff.reportPath, "project modification handoff path", "Copy Handoff Path") : ""}
         </div>
-        <small>${investigation.nextManualAction ? escapeHtml(investigation.nextManualAction) : "Blocked families stay in Investigation until more runtime evidence or source material is captured."}</small>
+        <small>${modificationHandoff
+          ? `Prepared board · ${escapeHtml(modificationHandoff.handoffState)} · ${escapeHtml(String(modificationHandoff.readyTaskCount))} ready / ${escapeHtml(String(modificationHandoff.blockedTaskCount))} blocked${modificationHandoff.reportPath ? ` · ${escapeHtml(modificationHandoff.reportPath)}` : ""}`
+          : (investigation.nextManualAction ? escapeHtml(investigation.nextManualAction) : "Blocked families stay in Investigation until more runtime evidence or source material is captured.")}</small>
       </div>
 
       <div class="tree-row">
@@ -15739,6 +15814,50 @@ function renderInvestigationPanel() {
       </div>
 
       <div class="tree-row">
+        <strong>Project Modification Board</strong>
+        <span>${modificationHandoff
+          ? "The project-facing handoff is prepared and turns promoted donor work into explicit compose/runtime tasks."
+          : "Prepare the project modification board after promotion so Investigation hands off into concrete compose/runtime work."}</span>
+        <div class="evidence-actions">
+          ${(investigation.promotion?.queuedItemCount ?? 0) > 0 || modificationHandoff ? `
+            <button
+              type="button"
+              class="copy-button"
+              data-project-modification-action="prepare-handoff"
+            >${modificationHandoff ? "Refresh Modification Board" : "Prepare Modification Board"}</button>
+          ` : ""}
+          ${modificationHandoff ? `
+            <button
+              type="button"
+              class="copy-button"
+              data-switch-workbench-mode="scene"
+              data-switch-workflow-panel="compose"
+              data-switch-status="Compose Mode is active so you can continue from the prepared modification task board."
+            >Open Modification / Compose</button>
+          ` : ""}
+          ${modificationHandoff ? `
+            <button
+              type="button"
+              class="copy-button"
+              data-runtime-action="launch"
+            >Open Runtime</button>
+          ` : ""}
+          ${modificationHandoff?.sourceQueuePath ? renderCopyButton(modificationHandoff.sourceQueuePath, "modification source queue path", "Copy Queue Source") : ""}
+          ${modificationHandoff?.reportPath ? renderCopyButton(modificationHandoff.reportPath, "project modification handoff path", "Copy Report Path") : ""}
+        </div>
+        <div class="investigation-list">
+          ${handoffTopTasks.length > 0 ? handoffTopTasks.map((task) => `
+            <div class="investigation-row">
+              <strong>${escapeHtml(task.displayName)} <code>${escapeHtml(task.taskStatus)}</code></strong>
+              <small>${escapeHtml(task.familyName)}${task.sectionKey ? ` · ${escapeHtml(task.sectionKey)}` : ""} · ${escapeHtml(task.sourceArtifactKind)} · ${escapeHtml(task.preferredWorkflowPanel)}</small>
+              <small>${escapeHtml(task.nextAction)}</small>
+              <small>${task.sourceArtifactPath ? `source artifact · ${escapeHtml(task.sourceArtifactPath)}` : "source artifact · pending"}</small>
+            </div>
+          `).join("") : `<div class="investigation-row"><strong>No project-facing modification board yet</strong><small>Promote ready investigation items, then prepare the modification board to surface compose/runtime tasks here.</small></div>`}
+        </div>
+      </div>
+
+      <div class="tree-row">
         <strong>Blocked Families</strong>
         <span>These donor families still need more source material or scenario evidence before they should move forward.</span>
         <div class="investigation-list">
@@ -15790,7 +15909,10 @@ function renderProjectSummary() {
     : "No evidence refs indexed yet.";
   const runtimeLaunch = getRuntimeLaunchInfo();
   const donorScan = state.bundle?.donorScan ?? null;
+  const investigation = state.bundle?.investigation ?? null;
+  const modificationHandoff = getProjectModificationHandoff();
   const vabsStatusMarkup = renderVabsStatusSummary();
+  const queuedModificationCount = typeof investigation?.promotion?.queuedItemCount === "number" ? investigation.promotion.queuedItemCount : 0;
 
   const lifecycleChips = lifecycleStageOrder.map((stageId) => {
     const stage = selectedProject.lifecycle?.stages?.[stageId];
@@ -16300,6 +16422,51 @@ function renderProjectSummary() {
         <span>donor files: read-only</span>
         <span>donor image import: bounded slice</span>
         <span>validated slice: project_001</span>
+      </div>
+    </div>
+    <div class="tree-row">
+      <strong>Modification Handoff</strong>
+      <span>${modificationHandoff
+        ? `${escapeHtml(modificationHandoff.handoffState)} · ${escapeHtml(String(modificationHandoff.readyTaskCount))} ready / ${escapeHtml(String(modificationHandoff.blockedTaskCount))} blocked. Promoted donor work now lands as explicit compose/runtime tasks for this project.`
+        : (queuedModificationCount > 0
+          ? `This project has ${escapeHtml(String(queuedModificationCount))} promoted investigation item${queuedModificationCount === 1 ? "" : "s"} waiting to be turned into compose/runtime tasks.`
+          : "No promoted donor work is queued for this project yet.")}</span>
+      <div class="chip-row">
+        <span>${escapeHtml(String(queuedModificationCount))} queued from Investigation</span>
+        <span>${escapeHtml(String(modificationHandoff?.readyTaskCount ?? 0))} ready for compose/runtime</span>
+        <span>${escapeHtml(String(modificationHandoff?.blockedTaskCount ?? 0))} blocked</span>
+        <span>${modificationHandoff?.recommendedStage ? escapeHtml(labelizeStage(modificationHandoff.recommendedStage)) : "Investigation"}</span>
+      </div>
+      <div class="evidence-actions">
+        ${(queuedModificationCount > 0 || modificationHandoff) ? `
+          <button
+            type="button"
+            class="copy-button"
+            data-project-modification-action="prepare-handoff"
+          >${modificationHandoff ? "Refresh Modification Board" : "Prepare Modification Board"}</button>
+        ` : ""}
+        ${modificationHandoff ? `
+          <button
+            type="button"
+            class="copy-button"
+            data-switch-workbench-mode="scene"
+            data-switch-workflow-panel="compose"
+            data-switch-status="Compose Mode is active so you can continue from the prepared project modification tasks."
+          >Open Modification / Compose</button>
+        ` : ""}
+        ${modificationHandoff ? `
+          <button
+            type="button"
+            class="copy-button"
+            data-runtime-action="launch"
+          >Open Runtime</button>
+        ` : ""}
+        ${modificationHandoff?.reportPath ? renderCopyButton(modificationHandoff.reportPath, "project modification handoff path", "Copy Report Path") : ""}
+      </div>
+      <div class="detail-list">
+        ${Array.isArray(modificationHandoff?.topTasks) && modificationHandoff.topTasks.length > 0 ? modificationHandoff.topTasks.slice(0, 4).map((task) => `
+          <small><strong>${escapeHtml(task.displayName)}</strong> · ${escapeHtml(task.taskStatus)} · ${escapeHtml(task.sourceArtifactKind)}${task.sectionKey ? ` · ${escapeHtml(task.sectionKey)}` : ""}${task.sourceArtifactPath ? ` · <code>${escapeHtml(task.sourceArtifactPath)}</code>` : ""}</small>
+        `).join("") : `<small>${queuedModificationCount > 0 ? "Prepare the modification board to resolve the strongest compose/runtime-ready artifact per queued item." : "Investigation will surface ready sections here after promotion."}</small>`}
       </div>
     </div>
     ${vabsStatusMarkup}

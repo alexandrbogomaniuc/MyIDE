@@ -252,7 +252,7 @@ function buildPromotionSectionProfiles(file: JsonObject | null): PromotionSectio
       familyName: asString(section.familyName),
       sectionKey: asString(section.sectionKey),
       sectionState: asString(section.sectionState) || undefined,
-      sectionBundlePath: asString(section.sectionBundlePath) || undefined,
+      sectionBundlePath: asString(section.sectionBundlePath) || asString(section.reconstructionBundlePath) || undefined,
       nextSectionStep: asString(section.nextSectionStep) || undefined
     }))
     .filter((section) => section.familyName.length > 0 && section.sectionKey.length > 0);
@@ -728,6 +728,7 @@ export async function refreshInvestigationArtifacts(options: {
     captureFamilySourceProfilesFile,
     captureFamilyActionsFile,
     familyReconstructionProfilesFile,
+    familyReconstructionSectionBundlesFile,
     familyReconstructionSectionsFile,
     runtimeCandidatesFile,
     requestLogFile,
@@ -741,6 +742,7 @@ export async function refreshInvestigationArtifacts(options: {
     readOptionalJsonFile<JsonObject>(paths.captureFamilySourceProfilesPath),
     readOptionalJsonFile<JsonObject>(paths.captureFamilyActionsPath),
     readOptionalJsonFile<JsonObject>(paths.familyReconstructionProfilesPath),
+    readOptionalJsonFile<JsonObject>(paths.familyReconstructionSectionBundlesPath),
     readOptionalJsonFile<JsonObject>(paths.familyReconstructionSectionsPath),
     readOptionalJsonFile<JsonObject>(paths.runtimeCandidatesPath),
     readOptionalJsonFile<JsonObject>(paths.runtimeRequestLogPath),
@@ -809,7 +811,7 @@ export async function refreshInvestigationArtifacts(options: {
     generatedAt,
     scenarioCoverageRows: buildPromotionScenarioRows(refreshedCoverageRows),
     familyProfiles: buildPromotionFamilyProfiles(familyReconstructionProfilesFile),
-    sectionProfiles: buildPromotionSectionProfiles(familyReconstructionSectionsFile)
+    sectionProfiles: buildPromotionSectionProfiles(familyReconstructionSectionBundlesFile ?? familyReconstructionSectionsFile)
   });
   const promotionSummary = buildPromotionSummary(
     paths.reconstructionReadyFamiliesPath,

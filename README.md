@@ -146,11 +146,13 @@ Public publication rules are defined in [`00_control/PUBLIC_REPO_POLICY.md`](./0
 - `npm run donor-scan:scenario -- --donor-id donor_001_mystery_garden --profile default-bet --minutes 5`
 - `npm run donor-scan:coverage -- --donor-id donor_001_mystery_garden`
 - `npm run donor-scan:promote -- --donor-id donor_001_mystery_garden`
+- `npm run project:prepare-modification -- --project-id project_001`
 - `npm run donor-scan:run-family-action -- --donor-id donor_001_mystery_garden --family big_win --limit 10`
 - `npm run donor-scan:run-section-action -- --donor-id donor_001_mystery_garden --section big_win/BW`
 - `npm run donor-scan:verify -- --donor-id donor_001_mystery_garden`
 - `npm run smoke:donor-scan-investigation`
 - `npm run smoke:donor-scan-promotion`
+- `npm run smoke:project-modification-handoff`
 - `npm run runtime:mirror:project_001`
 - `npm run runtime:harvest:project_001`
 - `npm run runtime:harvest:smoke:project_001`

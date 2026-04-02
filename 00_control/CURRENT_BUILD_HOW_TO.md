@@ -15,7 +15,9 @@ For the current build, Investigation is the important new truth surface. Use it 
 2. Run `npm run donor-scan:coverage -- --donor-id donor_001_mystery_garden` to refresh investigation artifacts.
 3. Run one bounded profile such as `npm run donor-scan:scenario -- --donor-id donor_001_mystery_garden --profile default-bet --minutes 5`.
 4. Open the shell and use the `Investigation` panel to review coverage, blocked families, the next IDE self-investigation profile, the next manual-assist action, and promotion readiness.
-5. When the panel shows ready candidates, run `npm run donor-scan:promote -- --donor-id donor_001_mystery_garden` or use **Promote Ready Families** in the shell before switching into Modification / Compose.
+5. When the panel shows ready candidates, run `npm run donor-scan:promote -- --donor-id donor_001_mystery_garden` or use **Promote Ready Families** in the shell.
+6. Then run `npm run project:prepare-modification -- --project-id project_001` or use **Prepare Modification Board** in the shell so the promoted donor queue becomes explicit compose/runtime tasks for the project.
+7. Once the modification board is ready, switch into **Modification / Compose** or **Runtime** from that board instead of continuing to scan the same ready section endlessly.
 
 ## 1. Launch The Current Build
 1. Finder double-click daily start: `./run/Start-MyIDE-Workbench.command`.

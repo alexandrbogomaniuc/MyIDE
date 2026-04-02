@@ -210,11 +210,11 @@ export function applyPromotionCandidates(
   for (const candidate of selectedCandidates) {
     const queueId = buildQueueId(candidate);
     const existing = merged.get(queueId);
-    merged.set(queueId, existing ?? {
+    merged.set(queueId, {
       ...candidate,
       queueId,
       status: "queued-for-modification",
-      promotedAt,
+      promotedAt: existing?.promotedAt ?? promotedAt,
       queuedFromStage: "investigation"
     });
   }

@@ -52,6 +52,8 @@ and answers early:
   - Refresh the scenario catalog, scenario coverage, next scenario targets, blocker summary, event stream, and investigation status without starting another bounded profile.
 - `npm run donor-scan:promote -- --donor-id donor_XXX`
   - Promote reconstruction-ready families or sections into an explicit `modification-queue.json` instead of leaving readiness as an advisory-only state.
+- `npm run project:prepare-modification -- --project-id project_001`
+  - Resolve that donor-side queue into a project-facing `reports/modification-handoff.json` board so Compose/Runtime can start from the strongest grounded artifact per queued task.
 - `npm run donor-scan:verify -- --donor-id donor_XXX`
   - Verify the machine-readable donor-scan outputs exist and are internally coherent enough for operator use.
 - `npm run donor-scan:capture-next -- --donor-id donor_XXX --limit 5`
@@ -91,6 +93,7 @@ Key files:
 - `investigation-status.json`
 - `reconstruction-ready-families.json`
 - `modification-queue.json`
+- `40_projects/<project_id>/reports/modification-handoff.json`
 - `capture-target-families.json`
 - `capture-blocker-families.json`
 - `capture-family-source-profiles.json`

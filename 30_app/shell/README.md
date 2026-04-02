@@ -26,6 +26,7 @@ The operational workflow is now:
 1. Run a bounded self-investigation profile when one is available.
 2. Follow the explicit operator-assist action when the bounded pass stops helping.
 3. Promote ready families/sections into Modification explicitly instead of treating readiness as an implied state change.
+4. Prepare the project modification board so promoted donor items resolve into explicit compose/runtime tasks with the strongest grounded artifact per task.
 
 ## Preferred Launchers
 - `./run/start-workbench.sh`

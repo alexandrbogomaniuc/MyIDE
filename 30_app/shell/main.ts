@@ -5,6 +5,7 @@ import path from "node:path";
 import { loadProjectSlice } from "./projectSlice";
 import { createProjectFromInput, type ShellCreateProjectInput } from "../workspace/createProject";
 import { saveEditableProjectData, type EditableProjectData } from "../workspace/editableProject";
+import { prepareProjectModificationHandoff } from "../workspace/modificationHandoff";
 import { loadWorkspaceSlice } from "./workspaceSlice";
 import {
   buildRuntimeAssetOverrideRedirectMap,
@@ -2139,6 +2140,9 @@ ipcMain.handle("myide:run-donor-scan-promotion", async (_event, donorId: string,
     donorName: typeof donorName === "string" && donorName.length > 0 ? donorName : donorId,
     scenarioIds: []
   });
+});
+ipcMain.handle("myide:prepare-project-modification-handoff", async (_event, projectId: string) => {
+  return prepareProjectModificationHandoff(projectId);
 });
 ipcMain.handle("myide:run-donor-scan-section-action", async (_event, donorId: string, sectionKey: string) => {
   return runSectionAction({
