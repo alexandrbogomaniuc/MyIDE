@@ -48,6 +48,14 @@ interface LocalRuntimeMirrorManifest {
   }>;
 }
 
+interface RuntimeDebugKitSourceAsset {
+  fileType: string;
+  sourceUrl: string | null;
+  sourceRepoRelativePath: string;
+  copiedRepoRelativePath: string;
+  copiedAbsolutePath: string;
+}
+
 interface RuntimeResourceMapSnapshot {
   projectId?: string;
   entryCount?: number;
@@ -240,21 +248,57 @@ async function main(): Promise<void> {
   const targetRequestLogPath = path.join(workspaceRoot, "40_projects", projectId, "runtime", "local-mirror", "request-log.latest.json");
   const targetOverrideManifestPath = path.join(workspaceRoot, "40_projects", projectId, "overrides", "runtime-asset-overrides.json");
   const targetRuntimeAssetsDirectory = path.join(workspaceRoot, "40_projects", projectId, "overrides", "runtime-assets");
+  const reportsRoot = path.join(workspaceRoot, "40_projects", projectId, "reports");
+  const runtimeDebugKitDirectory = path.join(reportsRoot, "runtime-debug-kit");
+  const handoffPath = path.join(reportsRoot, "modification-handoff.json");
+  const bundlePath = path.join(runtimeDebugKitDirectory, "selected-project-runtime-debug.smoke.json");
   const artifactPath = getArtifactPath();
   const baselineStatus = await captureGitStatus(workspaceRoot);
 
   const sourceManifestRaw = await fs.readFile(sourceManifestPath, "utf8");
   const sourceManifest = JSON.parse(sourceManifestRaw) as LocalRuntimeMirrorManifest;
   assert(Array.isArray(sourceManifest.entries) && sourceManifest.entries.length > 0, "project_001 runtime mirror manifest should expose grounded entries.");
+  const runtimeDebugKitAssetsByFileType = new Map<string, RuntimeDebugKitSourceAsset>();
+  for (const entry of sourceManifest.entries) {
+    if (
+      !entry
+      || typeof entry.fileType !== "string"
+      || typeof entry.repoRelativePath !== "string"
+      || entry.repoRelativePath.length === 0
+      || runtimeDebugKitAssetsByFileType.has(entry.fileType)
+    ) {
+      continue;
+    }
+
+    const copiedRepoRelativePath = path.join(
+      "40_projects",
+      projectId,
+      "reports",
+      "runtime-debug-kit",
+      path.basename(entry.repoRelativePath)
+    ).replace(/\\/g, "/");
+    runtimeDebugKitAssetsByFileType.set(entry.fileType, {
+      fileType: entry.fileType,
+      sourceUrl: typeof entry.sourceUrl === "string" ? entry.sourceUrl : null,
+      sourceRepoRelativePath: entry.repoRelativePath,
+      copiedRepoRelativePath,
+      copiedAbsolutePath: path.join(workspaceRoot, copiedRepoRelativePath)
+    });
+  }
+  const runtimeDebugKitAssets = [...runtimeDebugKitAssetsByFileType.values()];
+  assert(runtimeDebugKitAssets.length > 0, "project_001 runtime mirror manifest should expose at least one reusable source asset.");
 
   const originalTargetManifest = await readOptionalBuffer(targetManifestPath);
   const originalTargetRequestLog = await readOptionalBuffer(targetRequestLogPath);
   const originalTargetOverrideManifest = await readOptionalBuffer(targetOverrideManifestPath);
   const originalTargetRuntimeAssets = await snapshotDirectory(targetRuntimeAssetsDirectory);
+  const originalHandoff = await readOptionalBuffer(handoffPath);
+  const originalRuntimeDebugKitDirectory = await snapshotDirectory(runtimeDebugKitDirectory);
 
   let run: SmokeRunResult | null = null;
   try {
     await fs.mkdir(path.dirname(targetManifestPath), { recursive: true });
+    await fs.mkdir(runtimeDebugKitDirectory, { recursive: true });
     await fs.mkdir(path.dirname(artifactPath), { recursive: true });
     await fs.rm(artifactPath, { force: true });
 
@@ -269,10 +313,73 @@ async function main(): Promise<void> {
     };
     await fs.writeFile(targetManifestPath, `${JSON.stringify(selectedProjectManifest, null, 2)}\n`, "utf8");
 
+    for (const asset of runtimeDebugKitAssets) {
+      await fs.mkdir(path.dirname(asset.copiedAbsolutePath), { recursive: true });
+      await fs.copyFile(path.join(workspaceRoot, asset.sourceRepoRelativePath), asset.copiedAbsolutePath);
+    }
+
+    await fs.writeFile(
+      bundlePath,
+      `${JSON.stringify({
+        generatedAt: new Date().toISOString(),
+        localSources: runtimeDebugKitAssets.map((asset) => ({
+          familyName: "runtime-debug-kit",
+          sourceKind: "runtime-debug-proof-source",
+          relation: `selected-project-${asset.fileType}`,
+          localPath: asset.copiedRepoRelativePath,
+          sourceUrl: asset.sourceUrl
+        }))
+      }, null, 2)}\n`,
+      "utf8"
+    );
+
+    await fs.writeFile(
+      handoffPath,
+      `${JSON.stringify({
+        schemaVersion: "0.1.0",
+        projectId,
+        projectDisplayName: "Sugar Merge Up Research Scaffold",
+        donorId: "donor_002_sugar_merge_up",
+        donorName: "Sugar Merge Up (research only)",
+        generatedAt: new Date().toISOString(),
+        currentStage: "modificationComposeRuntime",
+        recommendedStage: "modificationComposeRuntime",
+        handoffState: "ready-for-modification",
+        sourceQueuePath: null,
+        queueItemCount: 1,
+        readyTaskCount: 1,
+        blockedTaskCount: 0,
+        nextOperatorAction: "Open Runtime Debug Host and prove a bounded project-local override from the grounded selected-project mirror.",
+        tasks: [
+          {
+            taskId: "task.runtime.debug.project_002.smoke",
+            queueId: "smoke.queue.project_002.runtime_debug",
+            scenarioId: "smoke.scenario.project_002.runtime_debug",
+            displayName: "Project 002 Runtime Debug Smoke",
+            promotionKind: "section",
+            familyName: "runtime_debug",
+            sectionKey: "runtime_debug/project_002",
+            taskStatus: "ready-for-compose-runtime",
+            recommendedWorkbench: "runtime",
+            preferredWorkflowPanel: "runtime",
+            preferredWorkbenchMode: "runtime",
+            sourceArtifactKind: "runtime-debug-proof-bundle",
+            sourceArtifactState: "ready",
+            sourceArtifactPath: path.relative(workspaceRoot, bundlePath).replace(/\\/g, "/"),
+            supportingArtifactPaths: runtimeDebugKitAssets.map((asset) => asset.copiedRepoRelativePath),
+            rationale: "Smoke-seeded selected-project runtime debug proof with project-local task-kit donor assets.",
+            nextAction: "Open Runtime Debug Host and verify bounded override hits on the grounded selected-project launch path.",
+            canOpenCompose: true,
+            canOpenRuntime: true
+          }
+        ]
+      }, null, 2)}\n`,
+      "utf8"
+    );
+
     run = await runSelectedProjectDebugSmoke(workspaceRoot, {
       ...process.env,
       MYIDE_RUNTIME_DEBUG_PROJECT_ID: projectId,
-      MYIDE_RUNTIME_DEBUG_ALLOW_MISSING_DONOR_ASSET: "1",
       MYIDE_RUNTIME_DEBUG_ARTIFACT_PATH: artifactPath
     });
 
@@ -287,7 +394,11 @@ async function main(): Promise<void> {
     assert.ok(Number(payload.resourceMapCount ?? 0) > 0, "Selected-project runtime debug smoke should record runtime resource-map entries.");
     assert.ok(Number(payload.staticImageEntryCount ?? 0) > 0, "Selected-project runtime debug smoke should capture at least one static-image candidate.");
     assert.ok(typeof payload.candidateRuntimeSourceUrl === "string" && payload.candidateRuntimeSourceUrl.length > 0, "Selected-project runtime debug smoke should capture a request-backed runtime candidate.");
-    assert.equal(payload.allowMissingDonorAsset, true, "Selected-project runtime debug smoke should mark donor-asset fallback as allowed.");
+    assert.equal(payload.allowMissingDonorAsset, false, "Selected-project runtime debug smoke should require a real project-local donor asset proof.");
+    assert.ok(typeof payload.overrideDonorAssetId === "string" && payload.overrideDonorAssetId.length > 0, "Selected-project runtime debug smoke should resolve a project-local donor asset.");
+    assert.equal(payload.overrideCreated, true, "Selected-project runtime debug smoke should create a project-local override.");
+    assert.equal(payload.overrideCleared, true, "Selected-project runtime debug smoke should clear the temporary override after reload.");
+    assert.ok(Number(payload.overrideHitCountAfterReload ?? 0) > 0, "Selected-project runtime debug smoke should prove an override hit after reload.");
 
     const requestLogRaw = await fs.readFile(targetRequestLogPath, "utf8");
     const requestLog = JSON.parse(requestLogRaw) as RuntimeResourceMapSnapshot;
@@ -301,14 +412,6 @@ async function main(): Promise<void> {
       "Selected-project runtime debug smoke should record the chosen candidate inside the selected-project request log."
     );
 
-    if (!(typeof payload.overrideDonorAssetId === "string" && payload.overrideDonorAssetId.length > 0)) {
-      assert.match(
-        String(payload.overrideBlocked ?? ""),
-        /donor asset/i,
-        "Selected-project runtime debug smoke should explain when donor-asset-backed override proof stays blocked."
-      );
-    }
-
     console.log("PASS smoke:electron-runtime-selected-project-debug");
     console.log(`Project: ${projectId}`);
     console.log(`Entry URL: ${payload.entryUrl ?? "<missing>"}`);
@@ -318,11 +421,15 @@ async function main(): Promise<void> {
     await restoreFile(targetRequestLogPath, originalTargetRequestLog);
     await restoreFile(targetOverrideManifestPath, originalTargetOverrideManifest);
     await restoreDirectory(targetRuntimeAssetsDirectory, originalTargetRuntimeAssets);
+    await restoreFile(handoffPath, originalHandoff);
+    await restoreDirectory(runtimeDebugKitDirectory, originalRuntimeDebugKitDirectory);
 
     await cleanupEmptyDirectory(path.join(workspaceRoot, "40_projects", projectId, "runtime", "local-mirror"));
     await cleanupEmptyDirectory(path.join(workspaceRoot, "40_projects", projectId, "runtime"));
     await cleanupEmptyDirectory(targetRuntimeAssetsDirectory);
     await cleanupEmptyDirectory(path.join(workspaceRoot, "40_projects", projectId, "overrides"));
+    await cleanupEmptyDirectory(runtimeDebugKitDirectory);
+    await cleanupEmptyDirectory(reportsRoot);
 
     const restoredStatus = await captureGitStatus(workspaceRoot);
     assert.equal(

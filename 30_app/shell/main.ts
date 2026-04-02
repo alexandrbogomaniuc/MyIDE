@@ -12,14 +12,9 @@ import {
   buildRuntimeAssetOverrideStatus,
   clearRuntimeAssetOverride,
   createRuntimeAssetOverride,
+  loadPreferredRuntimeOverrideDonorAsset,
   type RuntimeAssetOverrideHitInfo
 } from "../workspace/donorOverride";
-import {
-  buildProjectDonorAssetIndex,
-  readProjectDonorAssetIndex,
-  type DonorAssetIndex,
-  type IndexedDonorAsset
-} from "../../tools/donor-assets/shared";
 import {
   buildLocalRuntimeMirrorAssetUrl,
   buildLocalRuntimeLaunchHtml,
@@ -992,26 +987,6 @@ async function runRuntimeDebugProofSequence(window: BrowserWindow, profileId?: s
   };
 }
 
-async function loadPreferredRuntimeDebugDonorAsset(
-  projectId: string,
-  preferredFileType?: string | null
-): Promise<IndexedDonorAsset | null> {
-  let donorIndex: DonorAssetIndex | null = null;
-  try {
-    donorIndex = await readProjectDonorAssetIndex(projectId) ?? await buildProjectDonorAssetIndex(projectId);
-  } catch {
-    return null;
-  }
-  const normalizedPreferredFileType = typeof preferredFileType === "string" && preferredFileType.trim().length > 0
-    ? preferredFileType.trim().toLowerCase()
-    : null;
-  return donorIndex?.assets.find((entry) => normalizedPreferredFileType !== null && entry.fileType === normalizedPreferredFileType)
-    ?? donorIndex?.assets.find((entry) => entry.fileType === "png")
-    ?? donorIndex?.assets.find((entry) => entry.fileType === "webp")
-    ?? donorIndex?.assets[0]
-    ?? null;
-}
-
 async function runRuntimeDebugHost(options: RuntimeDebugHostOptions = {}): Promise<RuntimeDebugHostResult | null> {
   const timeoutMs = Number.parseInt(process.env.MYIDE_RUNTIME_DEBUG_TIMEOUT_MS ?? "90000", 10);
   const runtimeInspectorPreloadPath = resolveRuntimeInspectorPreloadPath();
@@ -1240,7 +1215,7 @@ async function runRuntimeDebugHost(options: RuntimeDebugHostOptions = {}): Promi
       }));
     }
 
-    const donorAsset = await loadPreferredRuntimeDebugDonorAsset(
+    const donorAsset = await loadPreferredRuntimeOverrideDonorAsset(
       projectId,
       candidate?.fileType ?? bridgeAssetCandidate?.fileType ?? null
     );

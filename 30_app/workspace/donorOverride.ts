@@ -288,6 +288,129 @@ function parseRuntimeSourceInfo(runtimeSourceUrl: string): RuntimeSourceInfo {
   };
 }
 
+function selectPreferredDonorAsset(
+  assets: readonly IndexedDonorAsset[],
+  preferredFileType?: string | null
+): IndexedDonorAsset | null {
+  const normalizedPreferredFileType = typeof preferredFileType === "string" && preferredFileType.trim().length > 0
+    ? preferredFileType.trim().toLowerCase()
+    : null;
+  return assets.find((entry) => normalizedPreferredFileType !== null && entry.fileType === normalizedPreferredFileType)
+    ?? assets.find((entry) => entry.fileType === "png")
+    ?? assets.find((entry) => entry.fileType === "webp")
+    ?? assets[0]
+    ?? null;
+}
+
+async function loadIndexedDonorAssets(projectId: string): Promise<IndexedDonorAsset[]> {
+  try {
+    const donorIndex = await readProjectDonorAssetIndex(projectId) ?? await buildProjectDonorAssetIndex(projectId);
+    return Array.isArray(donorIndex?.assets) ? donorIndex.assets : [];
+  } catch (error) {
+    if (projectId === "project_001") {
+      throw error;
+    }
+    return [];
+  }
+}
+
+async function loadModificationTaskKitAssets(projectId: string): Promise<IndexedDonorAsset[]> {
+  const handoff = await readProjectModificationHandoff(projectId);
+  const donorId = handoff?.donorId ?? projectId;
+  const donorName = handoff?.donorName ?? projectId;
+  const tasks = Array.isArray(handoff?.tasks) ? handoff.tasks : [];
+  const assets: IndexedDonorAsset[] = [];
+  const seenAssetIds = new Set<string>();
+
+  for (const task of tasks) {
+    const artifactPaths = [
+      task.sourceArtifactPath,
+      ...(Array.isArray(task.supportingArtifactPaths) ? task.supportingArtifactPaths : [])
+    ].filter((value): value is string => typeof value === "string" && value.length > 0);
+    const candidates: ModificationTaskKitCandidate[] = [];
+    const seenCandidatePaths = new Set<string>();
+    const pushCandidates = (nextCandidates: readonly ModificationTaskKitCandidate[]) => {
+      nextCandidates.forEach((candidate) => {
+        if (seenCandidatePaths.has(candidate.localPath)) {
+          return;
+        }
+        seenCandidatePaths.add(candidate.localPath);
+        candidates.push(candidate);
+      });
+    };
+
+    for (const artifactPath of artifactPaths) {
+      const normalizedPath = artifactPath.replace(/\\/g, "/");
+      if (getSupportedFileType(normalizedPath)) {
+        pushCandidates([{
+          localPath: normalizedPath,
+          title: buildModificationTaskAssetTitle(task, path.basename(normalizedPath)),
+          notes: "task-local grounded image",
+          sourceUrl: null
+        }]);
+        continue;
+      }
+
+      if (path.extname(normalizedPath).toLowerCase() !== ".json") {
+        continue;
+      }
+
+      const bundle = await readOptionalJsonFile(path.join(workspaceRoot, normalizedPath));
+      if (!bundle) {
+        continue;
+      }
+      pushCandidates(collectModificationTaskKitCandidatesFromBundle(task, bundle));
+    }
+
+    for (const candidate of candidates) {
+      const fileType = getSupportedFileType(candidate.localPath);
+      const donorAbsolutePath = path.join(workspaceRoot, candidate.localPath);
+      if (!fileType || !existsSync(donorAbsolutePath)) {
+        continue;
+      }
+
+      const assetId = buildModificationTaskAssetId(projectId, task.taskId, candidate.localPath);
+      if (seenAssetIds.has(assetId)) {
+        continue;
+      }
+      seenAssetIds.add(assetId);
+
+      assets.push({
+        assetId,
+        evidenceId: `modification-task:${task.taskId}`,
+        captureSessionId: `modification-task:${task.taskId}`,
+        donorId,
+        donorName,
+        title: candidate.title,
+        filename: path.basename(candidate.localPath),
+        fileType,
+        sourceCategory: "modification task kit",
+        sourceUrl: candidate.sourceUrl,
+        notes: candidate.notes,
+        repoRelativePath: candidate.localPath,
+        donorRelativePath: candidate.localPath,
+        localExists: true,
+        previewAvailable: true,
+        width: null,
+        height: null
+      });
+    }
+  }
+
+  return assets.sort((left, right) => left.assetId.localeCompare(right.assetId));
+}
+
+export async function loadPreferredRuntimeOverrideDonorAsset(
+  projectId: string,
+  preferredFileType?: string | null
+): Promise<IndexedDonorAsset | null> {
+  const indexedAsset = selectPreferredDonorAsset(await loadIndexedDonorAssets(projectId), preferredFileType);
+  if (indexedAsset) {
+    return indexedAsset;
+  }
+  return selectPreferredDonorAsset(await loadModificationTaskKitAssets(projectId), preferredFileType);
+}
+
 function buildOverrideFileName(sourceInfo: RuntimeSourceInfo, donorAsset: IndexedDonorAsset): string {
   const runtimeStem = sanitizeSlug(sourceInfo.runtimeFilename.replace(/\.[^.]+$/, ""));
   const donorStem = sanitizeSlug(donorAsset.assetId);
@@ -319,96 +442,12 @@ async function writeManifest(projectId: string, manifest: RuntimeAssetOverrideMa
 }
 
 async function loadDonorAsset(projectId: string, donorAssetId: string): Promise<IndexedDonorAsset> {
-  let donorAsset: IndexedDonorAsset | null = null;
-
-  try {
-    const donorIndex = await readProjectDonorAssetIndex(projectId) ?? await buildProjectDonorAssetIndex(projectId);
-    donorAsset = donorIndex.assets.find((entry) => entry.assetId === donorAssetId) ?? null;
-  } catch (error) {
-    if (projectId === "project_001") {
-      throw error;
-    }
-  }
+  const indexedAssets = await loadIndexedDonorAssets(projectId);
+  let donorAsset = indexedAssets.find((entry) => entry.assetId === donorAssetId) ?? null;
 
   if (!donorAsset) {
-    const handoff = await readProjectModificationHandoff(projectId);
-    const donorId = handoff?.donorId ?? projectId;
-    const donorName = handoff?.donorName ?? projectId;
-    const tasks = Array.isArray(handoff?.tasks) ? handoff.tasks : [];
-
-    for (const task of tasks) {
-      const artifactPaths = [
-        task.sourceArtifactPath,
-        ...(Array.isArray(task.supportingArtifactPaths) ? task.supportingArtifactPaths : [])
-      ].filter((value): value is string => typeof value === "string" && value.length > 0);
-      const candidates: ModificationTaskKitCandidate[] = [];
-      const seenCandidatePaths = new Set<string>();
-      const pushCandidates = (nextCandidates: readonly ModificationTaskKitCandidate[]) => {
-        nextCandidates.forEach((candidate) => {
-          if (seenCandidatePaths.has(candidate.localPath)) {
-            return;
-          }
-          seenCandidatePaths.add(candidate.localPath);
-          candidates.push(candidate);
-        });
-      };
-
-      for (const artifactPath of artifactPaths) {
-        const normalizedPath = artifactPath.replace(/\\/g, "/");
-        if (getSupportedFileType(normalizedPath)) {
-          pushCandidates([{
-            localPath: normalizedPath,
-            title: buildModificationTaskAssetTitle(task, path.basename(normalizedPath)),
-            notes: "task-local grounded image",
-            sourceUrl: null
-          }]);
-          continue;
-        }
-        if (path.extname(normalizedPath).toLowerCase() !== ".json") {
-          continue;
-        }
-
-        const bundle = await readOptionalJsonFile(path.join(workspaceRoot, normalizedPath));
-        if (!bundle) {
-          continue;
-        }
-        pushCandidates(collectModificationTaskKitCandidatesFromBundle(task, bundle));
-      }
-
-      const matchedCandidate = candidates.find(
-        (candidate) => buildModificationTaskAssetId(projectId, task.taskId, candidate.localPath) === donorAssetId
-      );
-      if (!matchedCandidate) {
-        continue;
-      }
-
-      const fileType = getSupportedFileType(matchedCandidate.localPath);
-      const donorAbsolutePath = path.join(workspaceRoot, matchedCandidate.localPath);
-      if (!fileType || !existsSync(donorAbsolutePath)) {
-        continue;
-      }
-
-      donorAsset = {
-        assetId: donorAssetId,
-        evidenceId: `modification-task:${task.taskId}`,
-        captureSessionId: `modification-task:${task.taskId}`,
-        donorId,
-        donorName,
-        title: matchedCandidate.title,
-        filename: path.basename(matchedCandidate.localPath),
-        fileType,
-        sourceCategory: "modification task kit",
-        sourceUrl: matchedCandidate.sourceUrl,
-        notes: matchedCandidate.notes,
-        repoRelativePath: matchedCandidate.localPath,
-        donorRelativePath: matchedCandidate.localPath,
-        localExists: true,
-        previewAvailable: true,
-        width: null,
-        height: null
-      };
-      break;
-    }
+    donorAsset = (await loadModificationTaskKitAssets(projectId))
+      .find((entry) => entry.assetId === donorAssetId) ?? null;
   }
 
   if (!donorAsset) {
