@@ -96,11 +96,41 @@ const lifecycleStageOrder = [
 ];
 
 const investigationProfiles = [
-  { profileId: "default-bet", label: "Default Bet", minutes: 5 },
-  { profileId: "max-bet", label: "Max Bet", minutes: 10 },
-  { profileId: "autoplay", label: "Autoplay", minutes: 10 },
-  { profileId: "buy-feature", label: "Buy Feature", minutes: 5 },
-  { profileId: "manual-operator-assist", label: "Manual Assist", minutes: 10 }
+  {
+    profileId: "default-bet",
+    label: "Default Bet",
+    minutes: 5,
+    executionMode: "self-bounded",
+    runtimeActions: ["launch", "enter", "spin", "spin", "spin"]
+  },
+  {
+    profileId: "max-bet",
+    label: "Max Bet",
+    minutes: 10,
+    executionMode: "self-bounded",
+    runtimeActions: ["launch", "enter", "spin", "spin", "spin", "spin", "spin", "spin"]
+  },
+  {
+    profileId: "autoplay",
+    label: "Autoplay",
+    minutes: 10,
+    executionMode: "self-bounded",
+    runtimeActions: ["launch", "enter", "spin", "spin", "spin", "spin", "spin", "spin", "spin", "spin", "spin", "spin"]
+  },
+  {
+    profileId: "buy-feature",
+    label: "Buy Feature",
+    minutes: 5,
+    executionMode: "operator-assisted",
+    runtimeActions: ["launch", "enter"]
+  },
+  {
+    profileId: "manual-operator",
+    label: "Manual Operator",
+    minutes: 10,
+    executionMode: "operator-assisted",
+    runtimeActions: ["launch", "enter", "spin"]
+  }
 ];
 
 const objectSizePresets = {
@@ -3247,8 +3277,64 @@ async function runDonorScanFamilyAction(family, limit = 10) {
   }
 }
 
+function normalizeInvestigationProfileId(profileId) {
+  return profileId === "manual-operator-assist" ? "manual-operator" : profileId;
+}
+
 function getInvestigationProfileDefinition(profileId) {
-  return investigationProfiles.find((profile) => profile.profileId === profileId) ?? null;
+  const normalizedProfileId = normalizeInvestigationProfileId(profileId);
+  return investigationProfiles.find((profile) => profile.profileId === normalizedProfileId) ?? null;
+}
+
+async function runBoundedInvestigationProfile(profile) {
+  const runtimeActions = Array.isArray(profile?.runtimeActions) ? profile.runtimeActions : [];
+  if (runtimeActions.length === 0) {
+    return;
+  }
+
+  for (const action of runtimeActions) {
+    if (action === "launch") {
+      const launched = await handleRuntimeLaunch();
+      if (!launched) {
+        throw new Error("Runtime launch is blocked for this donor project.");
+      }
+      await waitForRendererCondition(() => state.runtimeUi.ready, "runtime launch readiness", { timeoutMs: 20000, intervalMs: 100 });
+      await sleep(800);
+      continue;
+    }
+
+    await handleRuntimeAction(action);
+    await sleep(action === "spin" ? 1600 : 1200);
+  }
+}
+
+async function runDonorPromotionQueue() {
+  const api = window.myideApi;
+  const selectedProject = getSelectedProject();
+  const donorId = typeof selectedProject?.donor?.donorId === "string" ? selectedProject.donor.donorId : "";
+  const donorName = typeof selectedProject?.donor?.donorName === "string" ? selectedProject.donor.donorName : donorId;
+  if (!api || typeof api.runDonorPromotionQueue !== "function" || !donorId) {
+    setPreviewStatus("Investigation promotion is not available in this renderer session.");
+    return;
+  }
+
+  setPreviewStatus("Promoting ready investigation families and sections into the modification queue...");
+  try {
+    const result = await api.runDonorPromotionQueue(donorId, donorName);
+    await reloadWorkspace(false, state.selectedProjectId);
+    const promotedCount = Number(result?.promotedCount ?? 0);
+    const queueItemCount = Number(result?.queueItemCount ?? 0);
+    const nextOperatorAction = typeof result?.nextOperatorAction === "string"
+      ? result.nextOperatorAction
+      : "Open Modification / Compose and continue from the queued donor families.";
+    setPreviewStatus(
+      `Promotion queue updated. Added ${promotedCount} item${promotedCount === 1 ? "" : "s"}; `
+      + `${queueItemCount} queued for Modification. ${nextOperatorAction}`
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    setPreviewStatus(`Investigation promotion failed: ${message}`);
+  }
 }
 
 async function runDonorScenarioProfile(profileId, minutes = null) {
@@ -3256,36 +3342,50 @@ async function runDonorScenarioProfile(profileId, minutes = null) {
   const selectedProject = getSelectedProject();
   const donorId = typeof selectedProject?.donor?.donorId === "string" ? selectedProject.donor.donorId : "";
   const donorName = typeof selectedProject?.donor?.donorName === "string" ? selectedProject.donor.donorName : donorId;
-  const profile = getInvestigationProfileDefinition(profileId);
+  const normalizedProfileId = normalizeInvestigationProfileId(profileId);
+  const profile = getInvestigationProfileDefinition(normalizedProfileId);
   const requestedMinutes = Number.isFinite(minutes) && minutes > 0
     ? minutes
     : profile?.minutes ?? 5;
-  if (!api || typeof api.runDonorScenarioProfile !== "function" || !donorId || !profileId) {
+  if (!api || typeof api.runDonorScenarioProfile !== "function" || !donorId || !normalizedProfileId) {
     setPreviewStatus("Bounded investigation profiles are not available in this renderer session.");
     return;
   }
 
-  setPreviewStatus(`Running investigation profile ${profile?.label ?? profileId} for ${requestedMinutes} minute${requestedMinutes === 1 ? "" : "s"}...`);
+  setPreviewStatus(`Running investigation profile ${profile?.label ?? normalizedProfileId} for ${requestedMinutes} minute${requestedMinutes === 1 ? "" : "s"}...`);
   try {
-    const result = await api.runDonorScenarioProfile(donorId, profileId, requestedMinutes, donorName);
+    if (profile?.executionMode === "self-bounded") {
+      await runBoundedInvestigationProfile(profile);
+    } else if (Array.isArray(profile?.runtimeActions) && profile.runtimeActions.length > 0 && state.runtimeUi.launched === false) {
+      await handleRuntimeLaunch();
+    }
+
+    const result = await api.runDonorScenarioProfile(donorId, normalizedProfileId, requestedMinutes, donorName);
     await reloadWorkspace(false, state.selectedProjectId);
     const runtimeScanState = typeof result?.runtimeScanState === "string" ? result.runtimeScanState : "unknown";
     const lifecycleLane = typeof result?.lifecycleLane === "string" ? result.lifecycleLane : "unknown";
     const readyForReconstructionCount = Number(result?.readyForReconstructionCount ?? 0);
     const blockedScenarioCount = Number(result?.blockedScenarioCount ?? 0);
+    const coverageDeltaCount = Number(result?.coverageDeltaCount ?? 0);
+    const promotionReadyCount = Number(result?.promotionReadyCount ?? 0);
+    const queuedForModificationCount = Number(result?.queuedForModificationCount ?? 0);
+    const needsOperatorAssist = Boolean(result?.needsOperatorAssist);
     const nextProfile = typeof result?.nextProfile === "string" ? result.nextProfile : null;
     const nextOperatorAction = typeof result?.nextOperatorAction === "string"
       ? result.nextOperatorAction
       : "Review the refreshed investigation board.";
     setPreviewStatus(
-      `Investigation profile ${profile?.label ?? profileId} completed. Runtime scan is ${runtimeScanState}; lane ${lifecycleLane}; `
+      `Investigation profile ${profile?.label ?? normalizedProfileId} completed. Runtime scan is ${runtimeScanState}; lane ${lifecycleLane}; `
       + `${readyForReconstructionCount} ready scenario${readyForReconstructionCount === 1 ? "" : "s"}; `
       + `${blockedScenarioCount} blocked scenario${blockedScenarioCount === 1 ? "" : "s"}; `
+      + `${coverageDeltaCount} coverage change${coverageDeltaCount === 1 ? "" : "s"}; `
+      + `${promotionReadyCount} promotion-ready; ${queuedForModificationCount} queued; `
+      + `${needsOperatorAssist ? "operator assist needed" : "no manual assist leading"}. `
       + `next profile ${nextProfile ?? "none"}. ${nextOperatorAction}`
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    setPreviewStatus(`Investigation profile ${profile?.label ?? profileId} failed: ${message}`);
+    setPreviewStatus(`Investigation profile ${profile?.label ?? normalizedProfileId} failed: ${message}`);
   }
 }
 
@@ -11833,6 +11933,10 @@ function handleNavigationClick(event) {
       void runDonorScenarioProfile(profileId, Number.isFinite(minutes) && minutes > 0 ? minutes : null);
       return true;
     }
+    if (donorScanActionButton.dataset.donorScanAction === "run-promotion-queue") {
+      void runDonorPromotionQueue();
+      return true;
+    }
     if (donorScanActionButton.dataset.donorScanAction === "run-section-action") {
       const sectionKey = typeof donorScanActionButton.dataset.donorScanSectionKey === "string"
         && donorScanActionButton.dataset.donorScanSectionKey.trim().length > 0
@@ -15343,6 +15447,8 @@ function renderInvestigationPanel() {
 
   const selectedProject = getSelectedProject();
   const investigation = state.bundle?.investigation ?? null;
+  const donorScan = state.bundle?.donorScan ?? null;
+  const runtimeResourceMap = state.bundle?.runtimeResourceMap ?? null;
   if (!selectedProject) {
     elements.investigationBrowser.innerHTML = `<div class="tree-row"><strong>No Project</strong><span>Select a project to review investigation coverage.</span></div>`;
     return;
@@ -15372,10 +15478,67 @@ function renderInvestigationPanel() {
   const counts = investigation.countsByState ?? {};
   const coverageRows = Array.isArray(investigation.topScenarioCoverage) ? investigation.topScenarioCoverage : [];
   const nextTargets = Array.isArray(investigation.topScenarioTargets) ? investigation.topScenarioTargets : [];
+  const readyCandidates = Array.isArray(investigation.topReadyCandidates) ? investigation.topReadyCandidates : [];
+  const modificationQueue = Array.isArray(investigation.topModificationQueue) ? investigation.topModificationQueue : [];
   const recommendedProfile = investigation.nextCaptureProfile
     ? getInvestigationProfileDefinition(investigation.nextCaptureProfile)
     : null;
   const canMoveToModification = investigation.modificationReadiness !== "investigation-only";
+  const selfInvestigationProfile = investigation.selfInvestigation?.nextAutoProfile
+    ? getInvestigationProfileDefinition(investigation.selfInvestigation.nextAutoProfile)
+    : null;
+  const operatorAssistProfile = investigation.operatorAssist?.suggestedProfile
+    ? getInvestigationProfileDefinition(investigation.operatorAssist.suggestedProfile)
+    : null;
+  const runtimeCoverage = runtimeResourceMap?.coverage ?? null;
+  const blockedRawFamilies = Array.isArray(donorScan?.rawPayloadBlockedFamilyNames) ? donorScan.rawPayloadBlockedFamilyNames : [];
+  const investigationSummaryPayload = {
+    projectId: selectedProject.projectId,
+    donorId: investigation.donorId,
+    donorName: investigation.donorName,
+    generatedAt: investigation.generatedAt,
+    stage: {
+      currentStage: investigation.currentStage,
+      lifecycleLane: investigation.lifecycleLane,
+      modificationReadiness: investigation.modificationReadiness,
+      recommendedStage: investigation.recommendedStage
+    },
+    scenarioCoverage: {
+      scenarioCount: investigation.scenarioCount,
+      readyForReconstructionCount: investigation.readyForReconstructionCount,
+      blockedScenarioCount: investigation.blockedScenarioCount,
+      countsByState: investigation.countsByState
+    },
+    runtimeCoverage: runtimeCoverage ? {
+      entryCount: runtimeResourceMap.entryCount,
+      localStaticEntryCount: runtimeCoverage.localStaticEntryCount,
+      upstreamStaticEntryCount: runtimeCoverage.upstreamStaticEntryCount,
+      overrideEntryCount: runtimeCoverage.overrideEntryCount,
+      unresolvedUpstreamCount: runtimeCoverage.unresolvedUpstreamCount,
+      stageCounts: runtimeCoverage.stageCounts
+    } : null,
+    donorScanCoverage: donorScan ? {
+      runtimeCandidateCount: donorScan.runtimeCandidateCount,
+      atlasManifestCount: donorScan.atlasManifestCount,
+      requestBackedStaticHintCount: donorScan.requestBackedStaticHintCount,
+      captureFamilyCount: donorScan.captureFamilyCount,
+      familySourceProfileCount: donorScan.familySourceProfileCount,
+      familyReconstructionProfileCount: donorScan.familyReconstructionProfileCount,
+      familyReconstructionSectionCount: donorScan.familyReconstructionSectionCount,
+      rawPayloadBlockedFamilyNames: donorScan.rawPayloadBlockedFamilyNames
+    } : null,
+    next: {
+      nextCaptureProfile: investigation.nextCaptureProfile,
+      nextOperatorAction: investigation.nextOperatorAction,
+      nextManualAction: investigation.nextManualAction,
+      nextScenarioTarget: nextTargets[0] ?? null
+    },
+    selfInvestigation: investigation.selfInvestigation,
+    operatorAssist: investigation.operatorAssist,
+    promotion: investigation.promotion,
+    readyCandidates,
+    modificationQueue
+  };
 
   elements.investigationBrowser.innerHTML = `
     <div class="investigation-grid">
@@ -15396,15 +15559,25 @@ function renderInvestigationPanel() {
           <small>${investigation.scenarioCaptureLogPath ? `<code>${escapeHtml(investigation.scenarioCaptureLogPath)}</code>` : "No scenario capture log yet."}</small>
         </div>
         <div class="detail-card">
+          <span>Runtime Coverage</span>
+          <strong>${escapeHtml(String(runtimeResourceMap?.entryCount ?? 0))} entries</strong>
+          <small>${runtimeCoverage ? `${escapeHtml(String(runtimeCoverage.localStaticEntryCount))} local static · ${escapeHtml(String(runtimeCoverage.upstreamStaticEntryCount))} upstream static · ${escapeHtml(String(runtimeCoverage.overrideEntryCount))} overrides` : "Runtime resource coverage will appear after bounded investigation or manual runtime play."}</small>
+        </div>
+        <div class="detail-card">
           <span>Stage Handoff</span>
           <strong>${escapeHtml(labelizeStatus(investigation.modificationReadiness))}</strong>
           <small>Recommended stage: ${escapeHtml(labelizeStage(investigation.recommendedStage))}</small>
+        </div>
+        <div class="detail-card">
+          <span>Promotion Queue</span>
+          <strong>${escapeHtml(String(investigation.promotion.readyCandidateCount))} ready / ${escapeHtml(String(investigation.promotion.queuedItemCount))} queued</strong>
+          <small>${escapeHtml(labelizeStatus(investigation.promotion.promotionReadiness))}</small>
         </div>
       </div>
 
       <div class="tree-row">
         <strong>Coverage Board</strong>
-        <span>Bounded scenario coverage separates reconstruction-ready families from families still blocked on source material.</span>
+        <span>Bounded scenario coverage now separates what the IDE can promote into Modification from what must stay in Investigation.</span>
         <div class="chip-row">
           <span>${escapeHtml(String(investigation.scenarioCount))} scenario families</span>
           <span>${escapeHtml(String(investigation.readyForReconstructionCount))} ready for reconstruction</span>
@@ -15413,21 +15586,29 @@ function renderInvestigationPanel() {
           <span>${escapeHtml(String(counts["discovered-in-static-scan"] ?? 0))} discovered in static scan</span>
           <span>${escapeHtml(String(counts["source-material-sufficient"] ?? 0))} source-material sufficient</span>
           <span>${escapeHtml(String(counts["reconstruction-ready"] ?? 0))} reconstruction ready</span>
+          <span>${escapeHtml(String(donorScan?.captureFamilyCount ?? 0))} donor families</span>
+          <span>${escapeHtml(String(donorScan?.familyReconstructionSectionCount ?? 0))} grounded sections</span>
+          <span>${escapeHtml(String(blockedRawFamilies.length))} raw blocker families</span>
+        </div>
+        <div class="evidence-actions">
+          ${renderCopyButton(JSON.stringify(investigationSummaryPayload, null, 2), "investigation summary", "Copy Investigation Summary")}
+          ${investigation.investigationStatusPath ? renderCopyButton(investigation.investigationStatusPath, "investigation status path", "Copy Status Path") : ""}
+          ${investigation.scenarioBlockerSummaryPath ? renderCopyButton(investigation.scenarioBlockerSummaryPath, "scenario blocker summary path", "Copy Blocker Summary Path") : ""}
         </div>
       </div>
 
       <div class="tree-row">
-        <strong>Next Operator Action</strong>
-        <span>${escapeHtml(investigation.nextOperatorAction)}</span>
+        <strong>IDE Self-Investigation</strong>
+        <span>${escapeHtml(investigation.selfInvestigation?.rationale ?? "No bounded self-investigation recommendation is available yet.")}</span>
         <div class="evidence-actions">
-          ${recommendedProfile ? `
+          ${selfInvestigationProfile && investigation.selfInvestigation?.canRunNextProfile ? `
             <button
               type="button"
               class="copy-button"
               data-donor-scan-action="run-scenario-profile"
-              data-donor-scan-profile="${escapeAttribute(recommendedProfile.profileId)}"
-              data-donor-scan-minutes="${escapeAttribute(String(recommendedProfile.minutes))}"
-            >Run Recommended Profile</button>
+              data-donor-scan-profile="${escapeAttribute(selfInvestigationProfile.profileId)}"
+              data-donor-scan-minutes="${escapeAttribute(String(selfInvestigationProfile.minutes))}"
+            >Run IDE Next Pass</button>
           ` : ""}
           ${investigationProfiles.map((profile) => `
             <button
@@ -15438,23 +15619,64 @@ function renderInvestigationPanel() {
               data-donor-scan-minutes="${escapeAttribute(String(profile.minutes))}"
             >${escapeHtml(profile.label)}</button>
           `).join("")}
+        </div>
+        <small>${investigation.latestRun
+          ? `Latest run · ${escapeHtml(investigation.latestRun.profileLabel)} · ${escapeHtml(String(investigation.latestRun.minutesRequested))} min · ${escapeHtml(String(investigation.latestRun.coverageDeltaCount))} coverage change(s)`
+          : "No bounded profile has been recorded yet."}</small>
+      </div>
+
+      <div class="tree-row">
+        <strong>Operator Assist</strong>
+        <span>${escapeHtml(investigation.operatorAssist?.nextOperatorAction ?? investigation.nextOperatorAction)}</span>
+        <div class="evidence-actions">
+          ${operatorAssistProfile ? `
+            <button
+              type="button"
+              class="copy-button"
+              data-donor-scan-action="run-scenario-profile"
+              data-donor-scan-profile="${escapeAttribute(operatorAssistProfile.profileId)}"
+              data-donor-scan-minutes="${escapeAttribute(String(operatorAssistProfile.minutes))}"
+            >Run ${escapeHtml(operatorAssistProfile.label)}</button>
+          ` : ""}
+          <button type="button" class="copy-button" data-runtime-action="launch">Launch Runtime</button>
+          <button type="button" class="copy-button" data-runtime-action="enter">Advance Intro</button>
+          <button type="button" class="copy-button" data-runtime-action="spin">Spin Once</button>
           <button
             type="button"
             class="copy-button"
             data-switch-workflow-panel="donor"
             data-switch-status="Donor panel is active again so you can review donor scan evidence, capture targets, and blocked families."
           >Open Donor Panel</button>
+        </div>
+        <small>${investigation.operatorAssist?.evidenceHints?.length > 0
+          ? `Evidence hints · ${escapeHtml(investigation.operatorAssist.evidenceHints.join(", "))}`
+          : "No specific evidence hint is leading the manual-assist queue yet."}</small>
+      </div>
+
+      <div class="tree-row">
+        <strong>Promotion To Modification</strong>
+        <span>${escapeHtml(investigation.promotion?.promotionReadiness ?? "not-ready")} · ${escapeHtml(String(investigation.promotion?.readyCandidateCount ?? 0))} ready candidate(s) · ${escapeHtml(String(investigation.promotion?.queuedItemCount ?? 0))} queued item(s)</span>
+        <div class="evidence-actions">
+          ${(investigation.promotion?.readyCandidateCount ?? 0) > 0 ? `
+            <button
+              type="button"
+              class="copy-button"
+              data-donor-scan-action="run-promotion-queue"
+            >Promote Ready Families</button>
+          ` : ""}
           ${canMoveToModification ? `
             <button
               type="button"
               class="copy-button"
               data-switch-workbench-mode="scene"
               data-switch-workflow-panel="compose"
-              data-switch-status="Compose Mode is active because Investigation shows at least partial readiness for reconstruction."
+              data-switch-status="Compose Mode is active because Investigation has grounded ready families waiting for modification work."
             >Open Modification / Compose</button>
           ` : ""}
+          ${investigation.promotion?.readyCandidatesPath ? renderCopyButton(investigation.promotion.readyCandidatesPath, "ready promotion candidates path", "Copy Ready Path") : ""}
+          ${investigation.promotion?.modificationQueuePath ? renderCopyButton(investigation.promotion.modificationQueuePath, "modification queue path", "Copy Queue Path") : ""}
         </div>
-        <small>${investigation.nextManualAction ? escapeHtml(investigation.nextManualAction) : "No manual-only action is currently leading the queue."}</small>
+        <small>${investigation.nextManualAction ? escapeHtml(investigation.nextManualAction) : "Blocked families stay in Investigation until more runtime evidence or source material is captured."}</small>
       </div>
 
       <div class="tree-row">
@@ -15484,6 +15706,48 @@ function renderInvestigationPanel() {
               <small>${escapeHtml(scenario.nextOperatorAction)}</small>
             </div>
           `).join("") : `<div class="investigation-row"><strong>No queued targets</strong><small>The current investigation state does not expose a next target yet.</small></div>`}
+        </div>
+      </div>
+
+      <div class="tree-row">
+        <strong>Ready For Modification</strong>
+        <span>These candidates can leave Investigation and become explicit modification work items.</span>
+        <div class="investigation-list">
+          ${readyCandidates.length > 0 ? readyCandidates.map((candidate) => `
+            <div class="investigation-row">
+              <strong>${escapeHtml(candidate.displayName)} <code>${escapeHtml(candidate.promotionKind)}</code></strong>
+              <small>${escapeHtml(candidate.familyName)}${candidate.sectionKey ? ` · ${escapeHtml(candidate.sectionKey)}` : ""} · ${escapeHtml(candidate.readinessState)}</small>
+              <small>${escapeHtml(candidate.nextAction)}</small>
+              <small>${candidate.sourceArtifactPath ? `source bundle · ${escapeHtml(candidate.sourceArtifactPath)}` : "source bundle · pending"}</small>
+            </div>
+          `).join("") : `<div class="investigation-row"><strong>No ready promotion candidates</strong><small>Families stay in Investigation until source material and runtime evidence are sufficient.</small></div>`}
+        </div>
+      </div>
+
+      <div class="tree-row">
+        <strong>Modification Queue</strong>
+        <span>Promotion is explicit and reviewable. Queued items are ready to be worked in Modification / Compose.</span>
+        <div class="investigation-list">
+          ${modificationQueue.length > 0 ? modificationQueue.map((item) => `
+            <div class="investigation-row">
+              <strong>${escapeHtml(item.displayName)} <code>${escapeHtml(item.status)}</code></strong>
+              <small>${escapeHtml(item.familyName)}${item.sectionKey ? ` · ${escapeHtml(item.sectionKey)}` : ""} · ${escapeHtml(item.promotionKind)}</small>
+              <small>${item.sourceArtifactPath ? `source bundle · ${escapeHtml(item.sourceArtifactPath)}` : "source bundle · pending"}</small>
+            </div>
+          `).join("") : `<div class="investigation-row"><strong>No queued modification items</strong><small>Use Promote Ready Families when enough coverage and source material exist.</small></div>`}
+        </div>
+      </div>
+
+      <div class="tree-row">
+        <strong>Blocked Families</strong>
+        <span>These donor families still need more source material or scenario evidence before they should move forward.</span>
+        <div class="investigation-list">
+          ${blockedRawFamilies.length > 0 ? blockedRawFamilies.map((familyName) => `
+            <div class="investigation-row">
+              <strong>${escapeHtml(familyName)}</strong>
+              <small>raw donor payload blocker</small>
+            </div>
+          `).join("") : `<div class="investigation-row"><strong>No raw-only blocker family is currently leading the donor queue.</strong><small>Blocked scenario families are still visible above in coverage and next-target rows.</small></div>`}
         </div>
       </div>
     </div>

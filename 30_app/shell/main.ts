@@ -45,6 +45,7 @@ import {
 import { captureNextTargets } from "../../tools/donor-scan/captureNextTargets";
 import { runFamilyAction } from "../../tools/donor-scan/runFamilyAction";
 import { runScenarioScan } from "../../tools/donor-scan/runScenarioScan";
+import { runPromotionQueue } from "../../tools/donor-scan/runPromotionQueue";
 import { runSectionAction } from "../../tools/donor-scan/runSectionAction";
 
 const isBridgeSmokeMode = process.env.MYIDE_BRIDGE_SMOKE === "1";
@@ -2130,6 +2131,13 @@ ipcMain.handle("myide:run-donor-scan-scenario", async (_event, donorId: string, 
     donorName: typeof donorName === "string" && donorName.length > 0 ? donorName : donorId,
     profileId,
     minutesRequested: typeof minutes === "number" && Number.isFinite(minutes) && minutes > 0 ? minutes : 5
+  });
+});
+ipcMain.handle("myide:run-donor-scan-promotion", async (_event, donorId: string, donorName?: string) => {
+  return runPromotionQueue({
+    donorId,
+    donorName: typeof donorName === "string" && donorName.length > 0 ? donorName : donorId,
+    scenarioIds: []
   });
 });
 ipcMain.handle("myide:run-donor-scan-section-action", async (_event, donorId: string, sectionKey: string) => {

@@ -11,7 +11,13 @@ The target workflow is now explicit:
 3. Math / Config
 4. GS Export
 
-Investigation is now a first-class IDE stage. It combines static donor scan, bounded runtime/scenario capture, scenario coverage, blocked-family reporting, next-profile guidance, and stage handoff readiness.
+Investigation is now a first-class IDE stage. It combines static donor scan, bounded runtime/scenario capture, scenario coverage, blocked-family reporting, next-profile guidance, operator-assist guidance, and an explicit handoff queue into Modification.
+
+The operational rule is now:
+- Lane A: ready for reconstruction / modification
+- Lane B: still blocked on source material or scenario coverage
+
+The IDE now tries bounded self-investigation first, then tells the operator what to do next, and only then promotes ready families/sections into Modification.
 
 ## Current Phase
 - Current milestone: IDE-LIFECYCLE-A lifecycle backbone on top of the existing runtime-first shell, donor scan, and compose/runtime proving slices.
@@ -139,10 +145,12 @@ Public publication rules are defined in [`00_control/PUBLIC_REPO_POLICY.md`](./0
 - `npm run donor-scan:static -- --donor-id donor_001_mystery_garden --donor-name "Mystery Garden"`
 - `npm run donor-scan:scenario -- --donor-id donor_001_mystery_garden --profile default-bet --minutes 5`
 - `npm run donor-scan:coverage -- --donor-id donor_001_mystery_garden`
+- `npm run donor-scan:promote -- --donor-id donor_001_mystery_garden`
 - `npm run donor-scan:run-family-action -- --donor-id donor_001_mystery_garden --family big_win --limit 10`
 - `npm run donor-scan:run-section-action -- --donor-id donor_001_mystery_garden --section big_win/BW`
 - `npm run donor-scan:verify -- --donor-id donor_001_mystery_garden`
 - `npm run smoke:donor-scan-investigation`
+- `npm run smoke:donor-scan-promotion`
 - `npm run runtime:mirror:project_001`
 - `npm run runtime:harvest:project_001`
 - `npm run runtime:harvest:smoke:project_001`

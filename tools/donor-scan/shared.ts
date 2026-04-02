@@ -213,6 +213,8 @@ export interface DonorScanPaths {
   scenarioBlockerSummaryPath: string;
   investigationEventsPath: string;
   investigationStatusPath: string;
+  reconstructionReadyFamiliesPath: string;
+  modificationQueuePath: string;
   captureRunPath: string;
   blockerSummaryPath: string;
   scanSummaryPath: string;
@@ -3857,6 +3859,8 @@ export function buildDonorScanPaths(donorId: string): DonorScanPaths {
     scenarioBlockerSummaryPath: path.join(harvestRoot, "scenario-blocker-summary.md"),
     investigationEventsPath: path.join(harvestRoot, "investigation-events.jsonl"),
     investigationStatusPath: path.join(harvestRoot, "investigation-status.json"),
+    reconstructionReadyFamiliesPath: path.join(harvestRoot, "reconstruction-ready-families.json"),
+    modificationQueuePath: path.join(harvestRoot, "modification-queue.json"),
     captureRunPath: path.join(harvestRoot, "next-capture-run.json"),
     blockerSummaryPath: path.join(harvestRoot, "blocker-summary.md"),
     scanSummaryPath: path.join(harvestRoot, "scan-summary.json")

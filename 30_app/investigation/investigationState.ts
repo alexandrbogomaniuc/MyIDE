@@ -44,6 +44,48 @@ export interface InvestigationAgentLoopSummary {
   manualAssistNeeded: boolean;
 }
 
+export interface InvestigationLatestRunSummary {
+  profileId: string;
+  profileLabel: string;
+  executionMode: "self-bounded" | "operator-assisted";
+  minutesRequested: number;
+  startedAt: string;
+  finishedAt: string;
+  coverageDeltaCount: number;
+  observedScenarioIds: string[];
+}
+
+export interface InvestigationSelfRunSummary {
+  runCount: number;
+  canRunNextProfile: boolean;
+  nextAutoProfile: string | null;
+  nextAutoProfileLabel: string | null;
+  boundedWindowMinutes: number | null;
+  rationale: string;
+}
+
+export interface InvestigationOperatorAssistSummary {
+  assistRequired: boolean;
+  suggestedProfile: string | null;
+  targetScenarioId: string | null;
+  targetScenarioName: string | null;
+  nextOperatorAction: string;
+  suggestedRuntimeActions: string[];
+  evidenceHints: string[];
+}
+
+export interface InvestigationPromotionSummary {
+  promotionReadiness: "not-ready" | "ready-to-promote" | "queued" | "mixed";
+  readyCandidateCount: number;
+  readyFamilyCount: number;
+  readySectionCount: number;
+  queuedItemCount: number;
+  queuedFamilyCount: number;
+  queuedSectionCount: number;
+  readyCandidatesPath: string | null;
+  modificationQueuePath: string | null;
+}
+
 export interface InvestigationStatusFile {
   schemaVersion: string;
   donorId: string;
@@ -69,6 +111,10 @@ export interface InvestigationStatusFile {
   nextCaptureProfile: string | null;
   nextOperatorAction: string;
   nextManualAction: string | null;
+  latestRun: InvestigationLatestRunSummary | null;
+  selfInvestigation: InvestigationSelfRunSummary;
+  operatorAssist: InvestigationOperatorAssistSummary;
+  promotion: InvestigationPromotionSummary;
   stageHandoff: InvestigationStageHandoff;
   agentLoop: InvestigationAgentLoopSummary;
 }
@@ -153,7 +199,7 @@ export function buildAgentLoopSummary(
     stillMissing: blocked.length > 0 ? blocked : ["No blocked scenario family is currently leading the queue."],
     nextProfileToRun: nextTarget?.nextProfile ?? null,
     nextOperatorAction: nextTarget?.nextOperatorAction ?? "Review the latest investigation status before changing stages.",
-    manualAssistNeeded: Boolean(nextTarget?.nextProfile === "manual-operator-assist")
+    manualAssistNeeded: Boolean(nextTarget?.nextProfile === "manual-operator" || nextTarget?.nextProfile === "manual-operator-assist")
   };
 }
 

@@ -8,13 +8,14 @@ Use this when you want to test the current MyIDE build exactly as it works today
 3. Math / Config
 4. GS Export
 
-For the current build, Investigation is the important new truth surface. Use it to review donor scan state, runtime scan state, scenario coverage, blocked families, next profile, and stage handoff readiness before switching into compose/runtime work.
+For the current build, Investigation is the important new truth surface. Use it to review donor scan state, runtime scan state, scenario coverage, blocked families, next profile, operator-assist guidance, and promotion readiness before switching into compose/runtime work.
 
 ## Investigation Quick Path
 1. Run `npm run donor-scan:url -- --donor-id donor_001_mystery_garden --donor-name "Mystery Garden"` if the donor harvest needs a refresh.
 2. Run `npm run donor-scan:coverage -- --donor-id donor_001_mystery_garden` to refresh investigation artifacts.
 3. Run one bounded profile such as `npm run donor-scan:scenario -- --donor-id donor_001_mystery_garden --profile default-bet --minutes 5`.
-4. Open the shell and use the `Investigation` panel to review coverage, blocked families, next profile, and handoff readiness.
+4. Open the shell and use the `Investigation` panel to review coverage, blocked families, the next IDE self-investigation profile, the next manual-assist action, and promotion readiness.
+5. When the panel shows ready candidates, run `npm run donor-scan:promote -- --donor-id donor_001_mystery_garden` or use **Promote Ready Families** in the shell before switching into Modification / Compose.
 
 ## 1. Launch The Current Build
 1. Finder double-click daily start: `./run/Start-MyIDE-Workbench.command`.

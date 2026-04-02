@@ -16,9 +16,16 @@ The new `Investigation` panel surfaces:
 - bounded runtime scan state
 - scenario coverage
 - blocked families/events
-- next capture profile
+- next bounded self-investigation profile
 - next operator action
+- operator-assist runtime guidance
+- promotion readiness and modification queue state
 - stage handoff readiness
+
+The operational workflow is now:
+1. Run a bounded self-investigation profile when one is available.
+2. Follow the explicit operator-assist action when the bounded pass stops helping.
+3. Promote ready families/sections into Modification explicitly instead of treating readiness as an implied state change.
 
 ## Preferred Launchers
 - `./run/start-workbench.sh`

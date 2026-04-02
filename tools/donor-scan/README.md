@@ -13,6 +13,8 @@ It combines:
 - scenario coverage classification
 - structured investigation events
 - next-action guidance
+- operator-assist guidance
+- explicit promotion into Modification
 
 The key product distinction is explicit:
 - Lane A: ready for reconstruction / modification
@@ -48,6 +50,8 @@ and answers early:
   - Run one bounded investigation profile, refresh the scenario capture log and event stream, and update stage handoff guidance.
 - `npm run donor-scan:coverage -- --donor-id donor_XXX`
   - Refresh the scenario catalog, scenario coverage, next scenario targets, blocker summary, event stream, and investigation status without starting another bounded profile.
+- `npm run donor-scan:promote -- --donor-id donor_XXX`
+  - Promote reconstruction-ready families or sections into an explicit `modification-queue.json` instead of leaving readiness as an advisory-only state.
 - `npm run donor-scan:verify -- --donor-id donor_XXX`
   - Verify the machine-readable donor-scan outputs exist and are internally coherent enough for operator use.
 - `npm run donor-scan:capture-next -- --donor-id donor_XXX --limit 5`
@@ -85,6 +89,8 @@ Key files:
 - `scenario-blocker-summary.md`
 - `investigation-events.jsonl`
 - `investigation-status.json`
+- `reconstruction-ready-families.json`
+- `modification-queue.json`
 - `capture-target-families.json`
 - `capture-blocker-families.json`
 - `capture-family-source-profiles.json`

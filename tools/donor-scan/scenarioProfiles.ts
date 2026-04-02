@@ -5,6 +5,9 @@ export interface ScenarioProfileDefinition {
   defaultMinutes: number;
   requiresOperatorAssist: boolean;
   primaryUse: "coverage" | "stress" | "bonus" | "manual";
+  executionMode: "self-bounded" | "operator-assisted";
+  suggestedRuntimeActions: Array<"launch" | "enter" | "spin">;
+  boundedSpinCount: number;
 }
 
 export const scenarioProfiles: readonly ScenarioProfileDefinition[] = [
@@ -14,7 +17,10 @@ export const scenarioProfiles: readonly ScenarioProfileDefinition[] = [
     description: "Short bounded runtime pass at the default bet for early coverage and basic event discovery.",
     defaultMinutes: 5,
     requiresOperatorAssist: false,
-    primaryUse: "coverage"
+    primaryUse: "coverage",
+    executionMode: "self-bounded",
+    suggestedRuntimeActions: ["launch", "enter", "spin"],
+    boundedSpinCount: 3
   },
   {
     profileId: "max-bet",
@@ -22,7 +28,10 @@ export const scenarioProfiles: readonly ScenarioProfileDefinition[] = [
     description: "Bounded high-value pass intended to expose anticipation, win, and bonus-adjacent families faster.",
     defaultMinutes: 10,
     requiresOperatorAssist: false,
-    primaryUse: "stress"
+    primaryUse: "stress",
+    executionMode: "self-bounded",
+    suggestedRuntimeActions: ["launch", "enter", "spin"],
+    boundedSpinCount: 6
   },
   {
     profileId: "autoplay",
@@ -30,7 +39,10 @@ export const scenarioProfiles: readonly ScenarioProfileDefinition[] = [
     description: "Bounded autoplay coverage pass for repeated base-spin sampling without random manual play.",
     defaultMinutes: 10,
     requiresOperatorAssist: false,
-    primaryUse: "coverage"
+    primaryUse: "coverage",
+    executionMode: "self-bounded",
+    suggestedRuntimeActions: ["launch", "enter", "spin"],
+    boundedSpinCount: 10
   },
   {
     profileId: "buy-feature",
@@ -38,18 +50,33 @@ export const scenarioProfiles: readonly ScenarioProfileDefinition[] = [
     description: "Explicit bonus-entry profile for donors that expose a legal bounded buy-feature path.",
     defaultMinutes: 5,
     requiresOperatorAssist: true,
-    primaryUse: "bonus"
+    primaryUse: "bonus",
+    executionMode: "operator-assisted",
+    suggestedRuntimeActions: ["launch", "enter"],
+    boundedSpinCount: 0
   },
   {
-    profileId: "manual-operator-assist",
-    displayName: "Manual Operator Assist",
+    profileId: "manual-operator",
+    displayName: "Manual Operator",
     description: "Structured manual play with explicit coverage targets when the donor still needs human steering.",
     defaultMinutes: 10,
     requiresOperatorAssist: true,
-    primaryUse: "manual"
+    primaryUse: "manual",
+    executionMode: "operator-assisted",
+    suggestedRuntimeActions: ["launch", "enter", "spin"],
+    boundedSpinCount: 0
   }
 ] as const;
 
+const scenarioProfileAliases: Record<string, string> = {
+  "manual-operator-assist": "manual-operator"
+};
+
+export function normalizeScenarioProfileId(profileId: string): string {
+  return scenarioProfileAliases[profileId] ?? profileId;
+}
+
 export function getScenarioProfile(profileId: string): ScenarioProfileDefinition | undefined {
-  return scenarioProfiles.find((profile) => profile.profileId === profileId);
+  const normalizedProfileId = normalizeScenarioProfileId(profileId);
+  return scenarioProfiles.find((profile) => profile.profileId === normalizedProfileId);
 }

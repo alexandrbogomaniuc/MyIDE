@@ -1,5 +1,8 @@
+import { promises as fs } from "node:fs";
+import path from "node:path";
 import { refreshInvestigationArtifacts } from "./writeCoverageReport";
-import { getScenarioProfile } from "./scenarioProfiles";
+import { buildDonorScanPaths, fileExists, readOptionalJsonFile, workspaceRoot } from "./shared";
+import { getScenarioProfile, normalizeScenarioProfileId } from "./scenarioProfiles";
 
 export interface RunScenarioScanResult {
   donorId: string;
@@ -10,6 +13,10 @@ export interface RunScenarioScanResult {
   lifecycleLane: string;
   readyForReconstructionCount: number;
   blockedScenarioCount: number;
+  coverageDeltaCount: number;
+  promotionReadyCount: number;
+  queuedForModificationCount: number;
+  needsOperatorAssist: boolean;
   nextProfile: string | null;
   nextOperatorAction: string;
   investigationStatusPath: string;
@@ -71,28 +78,59 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
   };
 }
 
+async function syncLatestRuntimeRequestLogForDonor(donorId: string): Promise<void> {
+  const registryPath = path.join(workspaceRoot, "40_projects", "registry.json");
+  const registry = await readOptionalJsonFile<{ projects?: Array<{ projectId?: string; donor?: { donorId?: string } }> }>(registryPath);
+  const projectId = registry?.projects?.find((project) => project?.donor?.donorId === donorId)?.projectId;
+  if (!projectId) {
+    return;
+  }
+
+  const latestRuntimeRequestLogPath = path.join(
+    workspaceRoot,
+    "40_projects",
+    projectId,
+    "runtime",
+    "local-mirror",
+    "request-log.latest.json"
+  );
+  if (!await fileExists(latestRuntimeRequestLogPath)) {
+    return;
+  }
+
+  const donorPaths = buildDonorScanPaths(donorId);
+  await fs.mkdir(path.dirname(donorPaths.runtimeRequestLogPath), { recursive: true });
+  await fs.copyFile(latestRuntimeRequestLogPath, donorPaths.runtimeRequestLogPath);
+}
+
 export async function runScenarioScan(input: ParsedArgs): Promise<RunScenarioScanResult> {
   const startedAt = new Date().toISOString();
+  await syncLatestRuntimeRequestLogForDonor(input.donorId);
   const result = await refreshInvestigationArtifacts({
     donorId: input.donorId,
     donorName: input.donorName,
     profileRun: {
-      profileId: input.profileId,
+      profileId: normalizeScenarioProfileId(input.profileId),
       minutesRequested: input.minutesRequested,
       startedAt,
       finishedAt: new Date().toISOString()
     }
   });
+  const latestRun = result.investigationStatus.latestRun;
 
   return {
     donorId: input.donorId,
     donorName: input.donorName,
-    profileId: input.profileId,
+    profileId: normalizeScenarioProfileId(input.profileId),
     minutesRequested: input.minutesRequested,
     runtimeScanState: result.investigationStatus.runtimeScanState,
     lifecycleLane: result.investigationStatus.lifecycleLane,
     readyForReconstructionCount: result.investigationStatus.readyForReconstructionCount,
     blockedScenarioCount: result.investigationStatus.blockedScenarioCount,
+    coverageDeltaCount: latestRun?.coverageDeltaCount ?? 0,
+    promotionReadyCount: result.investigationStatus.promotion.readyCandidateCount,
+    queuedForModificationCount: result.investigationStatus.promotion.queuedItemCount,
+    needsOperatorAssist: result.investigationStatus.operatorAssist.assistRequired,
     nextProfile: result.investigationStatus.nextCaptureProfile,
     nextOperatorAction: result.investigationStatus.nextOperatorAction,
     investigationStatusPath: result.investigationStatus.eventStreamPath.replace("investigation-events.jsonl", "investigation-status.json")
@@ -111,6 +149,10 @@ async function main(): Promise<void> {
   console.log(`Lifecycle lane: ${result.lifecycleLane}`);
   console.log(`Ready for reconstruction: ${result.readyForReconstructionCount}`);
   console.log(`Blocked scenarios: ${result.blockedScenarioCount}`);
+  console.log(`Coverage delta: ${result.coverageDeltaCount}`);
+  console.log(`Promotion ready: ${result.promotionReadyCount}`);
+  console.log(`Queued for modification: ${result.queuedForModificationCount}`);
+  console.log(`Needs operator assist: ${result.needsOperatorAssist ? "yes" : "no"}`);
   console.log(`Next profile: ${result.nextProfile ?? "none"}`);
   console.log(`Next action: ${result.nextOperatorAction}`);
 }

@@ -10,7 +10,7 @@ Before deep runtime or compose testing, confirm the shell now makes the current 
 3. Math / Config
 4. GS Export
 
-For this build, Investigation should expose static scan state, runtime scan state, scenario coverage, blocked families, next profile guidance, and stage handoff readiness.
+For this build, Investigation should expose static scan state, runtime scan state, scenario coverage, blocked families, next profile guidance, operator-assist guidance, and explicit promotion readiness.
 
 ## Before You Start
 1. This test edits reconstructed internal scene data under `40_projects/project_001/internal`; raw donor files under `10_donors/` stay read-only even when a donor image is imported.
@@ -31,6 +31,10 @@ For this build, Investigation should expose static scan state, runtime scan stat
    - The bridge health card shows the preload bridge is healthy.
 3. `project_001` load
    - `project_001` appears in the project list and loads without error.
+   - Open `Investigation` and confirm the panel now separates:
+     - IDE self-investigation
+     - operator assist
+     - promotion to modification
    - Runtime Mode is selected by default when the grounded donor runtime entry is available.
    - The runtime toolbar is grouped separately from compose controls.
    - The left-side workflow rail shows `Runtime`, `Donor`, `Compose`, `VABS`, and `Project`.

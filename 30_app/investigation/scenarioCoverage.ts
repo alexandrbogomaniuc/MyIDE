@@ -37,7 +37,7 @@ export const canonicalScenarioFamilies: readonly ScenarioFamilyDefinition[] = [
     category: "entry",
     order: 10,
     keywords: ["intro", "start", "resume", "loading", "launch", "splash", "startpage"],
-    recommendedProfiles: ["manual-operator-assist", "default-bet"],
+    recommendedProfiles: ["manual-operator", "default-bet"],
     manualAction: "Launch the donor runtime, advance past the intro, and record the start/resume gate."
   },
   {
@@ -64,7 +64,7 @@ export const canonicalScenarioFamilies: readonly ScenarioFamilyDefinition[] = [
     category: "bonus",
     order: 40,
     keywords: ["free", "freespin", "bonus", "trigger", "enter", "fs_enter"],
-    recommendedProfiles: ["buy-feature", "max-bet", "manual-operator-assist"],
+    recommendedProfiles: ["buy-feature", "max-bet", "manual-operator"],
     manualAction: "Trigger a bonus transition or buy-feature path and capture the entry family."
   },
   {
@@ -73,7 +73,7 @@ export const canonicalScenarioFamilies: readonly ScenarioFamilyDefinition[] = [
     category: "bonus",
     order: 50,
     keywords: ["free", "freespin", "bonus", "loop", "fs_loop"],
-    recommendedProfiles: ["buy-feature", "manual-operator-assist"],
+    recommendedProfiles: ["buy-feature", "manual-operator"],
     manualAction: "Stay inside the free-spin round long enough to capture the loop family."
   },
   {
@@ -82,7 +82,7 @@ export const canonicalScenarioFamilies: readonly ScenarioFamilyDefinition[] = [
     category: "bonus",
     order: 60,
     keywords: ["free", "freespin", "bonus", "exit", "fs_exit"],
-    recommendedProfiles: ["buy-feature", "manual-operator-assist"],
+    recommendedProfiles: ["buy-feature", "manual-operator"],
     manualAction: "Complete the free-spin path and capture the exit/summary family."
   },
   {
@@ -91,7 +91,7 @@ export const canonicalScenarioFamilies: readonly ScenarioFamilyDefinition[] = [
     category: "celebration",
     order: 70,
     keywords: ["bigwin", "big_win", "mw", "smw", "bw", "mega", "super", "win"],
-    recommendedProfiles: ["max-bet", "manual-operator-assist"],
+    recommendedProfiles: ["max-bet", "manual-operator"],
     manualAction: "Capture or reconstruct the win celebration family and keep its source/material state explicit."
   },
   {
@@ -100,7 +100,7 @@ export const canonicalScenarioFamilies: readonly ScenarioFamilyDefinition[] = [
     category: "celebration",
     order: 80,
     keywords: ["jackpot", "jp"],
-    recommendedProfiles: ["max-bet", "manual-operator-assist"],
+    recommendedProfiles: ["max-bet", "manual-operator"],
     manualAction: "Use a bounded high-value profile and capture the jackpot family if the donor exposes one."
   },
   {
@@ -109,7 +109,7 @@ export const canonicalScenarioFamilies: readonly ScenarioFamilyDefinition[] = [
     category: "ui",
     order: 90,
     keywords: ["popup", "popups", "dialog", "modal", "startpage", "start_page", "panel"],
-    recommendedProfiles: ["manual-operator-assist", "default-bet"],
+    recommendedProfiles: ["manual-operator", "default-bet"],
     manualAction: "Record popup and overlay families as distinct investigation coverage, not as incidental screenshots."
   },
   {
@@ -118,7 +118,7 @@ export const canonicalScenarioFamilies: readonly ScenarioFamilyDefinition[] = [
     category: "effect",
     order: 100,
     keywords: ["wild", "scatter", "coin", "bird", "key", "stick", "effect", "symbol"],
-    recommendedProfiles: ["max-bet", "autoplay", "manual-operator-assist"],
+    recommendedProfiles: ["max-bet", "autoplay", "manual-operator"],
     manualAction: "Use the strongest profile that can expose symbol/effect families without widening into unbounded play."
   },
   {
@@ -127,7 +127,7 @@ export const canonicalScenarioFamilies: readonly ScenarioFamilyDefinition[] = [
     category: "bonus",
     order: 110,
     keywords: ["bonus", "transition", "enter", "exit", "trigger", "pickup"],
-    recommendedProfiles: ["buy-feature", "manual-operator-assist"],
+    recommendedProfiles: ["buy-feature", "manual-operator"],
     manualAction: "Capture the transition family that bridges base play into the bonus state."
   }
 ] as const;

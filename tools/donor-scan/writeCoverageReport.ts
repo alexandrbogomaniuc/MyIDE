@@ -5,7 +5,11 @@ import {
   deriveLifecycleLane,
   deriveStageHandoff,
   scenarioDisplayName,
+  type InvestigationLatestRunSummary,
+  type InvestigationOperatorAssistSummary,
+  type InvestigationPromotionSummary,
   type InvestigationScenarioCoverageRow,
+  type InvestigationSelfRunSummary,
   type InvestigationStatusFile
 } from "../../30_app/investigation/investigationState";
 import {
@@ -17,8 +21,16 @@ import {
   scenarioStatePriority,
   type ScenarioCoverageState
 } from "../../30_app/investigation/scenarioCoverage";
+import {
+  applyPromotionCandidates,
+  buildReadyPromotionCandidates,
+  type ModificationQueueFile,
+  type PromotionFamilyProfileRow,
+  type PromotionScenarioRow,
+  type PromotionSectionProfileRow
+} from "../../30_app/investigation/promotionQueue";
 import { buildScenarioCatalog, type ScenarioCatalogFile } from "./buildScenarioCatalog";
-import { getScenarioProfile } from "./scenarioProfiles";
+import { getScenarioProfile, normalizeScenarioProfileId } from "./scenarioProfiles";
 import {
   buildDonorScanPaths,
   readOptionalJsonFile,
@@ -46,12 +58,16 @@ interface ScenarioCaptureRunRecord {
   runId: string;
   profileId: string;
   profileLabel: string;
+  executionMode: "self-bounded" | "operator-assisted";
   minutesRequested: number;
   startedAt: string;
   finishedAt: string;
   runtimeLaunchSignal: "present" | "missing";
   requiresOperatorAssist: boolean;
   observedScenarioIds: string[];
+  runtimeStageHits: Record<string, number>;
+  coverageDeltaCount: number;
+  coverageDeltaScenarioIds: string[];
   notes: string[];
   nextProfile: string | null;
   nextOperatorAction: string;
@@ -72,6 +88,12 @@ interface RefreshCoverageProfileRun {
   minutesRequested: number;
   startedAt: string;
   finishedAt: string;
+}
+
+interface RuntimeObservationSummary {
+  runtimeLaunchSignal: "present" | "missing";
+  observedScenarioIds: string[];
+  runtimeStageHits: Record<string, number>;
 }
 
 export interface InvestigationRefreshResult {
@@ -126,19 +148,237 @@ function inferRuntimeLaunchSignal(
   return runtimeCandidateCount > 0 || requestEntries > 0 ? "present" : "missing";
 }
 
-function inferObservedScenarioIds(
-  profileId: string,
-  runtimeLaunchSignal: "present" | "missing"
-): string[] {
-  if (runtimeLaunchSignal !== "present") {
-    return [];
+function getObjectArray(value: JsonValue | undefined): JsonObject[] {
+  return Array.isArray(value)
+    ? value.filter((entry): entry is JsonObject => Boolean(entry) && typeof entry === "object" && !Array.isArray(entry))
+    : [];
+}
+
+function collectRuntimeStageHits(requestLog: JsonObject | null): Record<string, number> {
+  const stageHits = new Map<string, number>();
+  for (const entry of getObjectArray(requestLog?.entries)) {
+    const lastStage = asString(entry.lastStage);
+    if (lastStage) {
+      stageHits.set(lastStage, (stageHits.get(lastStage) ?? 0) + 1);
+    }
+    const rawStageHitCounts = entry.stageHitCounts;
+    if (rawStageHitCounts && typeof rawStageHitCounts === "object" && !Array.isArray(rawStageHitCounts)) {
+      for (const [stageName, hitCount] of Object.entries(rawStageHitCounts)) {
+        if (typeof hitCount === "number" && Number.isFinite(hitCount) && hitCount > 0) {
+          stageHits.set(stageName, (stageHits.get(stageName) ?? 0) + hitCount);
+        }
+      }
+    }
   }
 
-  const observed = new Set<string>(["intro_start_resume"]);
-  if (["default-bet", "max-bet", "autoplay", "manual-operator-assist"].includes(profileId)) {
+  return Object.fromEntries(Array.from(stageHits.entries()).sort((left, right) => left[0].localeCompare(right[0])));
+}
+
+function inferRuntimeObservation(
+  profileId: string,
+  scanSummary: JsonObject | null,
+  runtimeCandidates: JsonObject | null,
+  requestLog: JsonObject | null
+): RuntimeObservationSummary {
+  const runtimeLaunchSignal = inferRuntimeLaunchSignal(scanSummary, runtimeCandidates, requestLog);
+  const runtimeStageHits = collectRuntimeStageHits(requestLog);
+  if (runtimeLaunchSignal !== "present") {
+    return {
+      runtimeLaunchSignal,
+      observedScenarioIds: [],
+      runtimeStageHits
+    };
+  }
+
+  const observed = new Set<string>();
+  const normalizedProfileId = normalizeScenarioProfileId(profileId);
+  const sawLaunch = (runtimeStageHits.launch ?? 0) > 0 || (runtimeStageHits.reload ?? 0) > 0;
+  const sawEnter = (runtimeStageHits.enter ?? 0) > 0;
+  const sawSpin = (runtimeStageHits.spin ?? 0) > 0;
+
+  if (sawLaunch || sawEnter || Object.keys(runtimeStageHits).length > 0) {
+    observed.add("intro_start_resume");
+  }
+  if (sawSpin || ["default-bet", "max-bet", "autoplay", "manual-operator"].includes(normalizedProfileId)) {
     observed.add("base_spin");
   }
-  return Array.from(observed);
+
+  return {
+    runtimeLaunchSignal,
+    observedScenarioIds: Array.from(observed),
+    runtimeStageHits
+  };
+}
+
+function buildCoverageDelta(previousCoverage: {
+  scenarios?: Array<{ scenarioId?: string; state?: string }>;
+} | null, currentCoverage: readonly ScenarioCoverageEntry[]): {
+  changedScenarioIds: string[];
+  changedCount: number;
+} {
+  const previousStates = new Map<string, string>();
+  for (const scenario of previousCoverage?.scenarios ?? []) {
+    if (typeof scenario?.scenarioId === "string" && typeof scenario?.state === "string") {
+      previousStates.set(scenario.scenarioId, scenario.state);
+    }
+  }
+
+  const changedScenarioIds = currentCoverage
+    .filter((scenario) => previousStates.get(scenario.scenarioId) !== scenario.state)
+    .map((scenario) => scenario.scenarioId);
+
+  return {
+    changedScenarioIds,
+    changedCount: changedScenarioIds.length
+  };
+}
+
+function buildPromotionFamilyProfiles(file: JsonObject | null): PromotionFamilyProfileRow[] {
+  return getObjectArray(file?.families)
+    .map((family) => ({
+      familyName: asString(family.familyName),
+      profileState: asString(family.profileState) || undefined,
+      readiness: asString(family.readiness) || undefined,
+      bundlePath: asString(family.bundlePath) || undefined,
+      worksetPath: asString(family.worksetPath) || undefined,
+      nextStep: asString(family.nextStep) || undefined
+    }))
+    .filter((family) => family.familyName.length > 0);
+}
+
+function buildPromotionSectionProfiles(file: JsonObject | null): PromotionSectionProfileRow[] {
+  return getObjectArray(file?.sections)
+    .map((section) => ({
+      familyName: asString(section.familyName),
+      sectionKey: asString(section.sectionKey),
+      sectionState: asString(section.sectionState) || undefined,
+      sectionBundlePath: asString(section.sectionBundlePath) || undefined,
+      nextSectionStep: asString(section.nextSectionStep) || undefined
+    }))
+    .filter((section) => section.familyName.length > 0 && section.sectionKey.length > 0);
+}
+
+function buildPromotionScenarioRows(rows: readonly ScenarioCoverageEntry[]): PromotionScenarioRow[] {
+  return rows.map((scenario) => ({
+    scenarioId: scenario.scenarioId,
+    displayName: scenario.displayName,
+    lane: scenario.lane,
+    state: scenario.state,
+    matchedFamilyNames: scenario.matchedFamilyNames,
+    nextOperatorAction: scenario.nextOperatorAction
+  }));
+}
+
+function buildPromotionSummary(
+  readyFilePath: string,
+  readyFile: {
+    readyCandidateCount: number;
+    readyFamilyCount: number;
+    readySectionCount: number;
+  },
+  queuePath: string,
+  queueFile: ModificationQueueFile | null
+): InvestigationPromotionSummary {
+  const queuedItemCount = queueFile?.itemCount ?? 0;
+  const queuedFamilyCount = queueFile?.queuedFamilyCount ?? 0;
+  const queuedSectionCount = queueFile?.queuedSectionCount ?? 0;
+  let promotionReadiness: InvestigationPromotionSummary["promotionReadiness"] = "not-ready";
+  if (readyFile.readyCandidateCount > 0 && queuedItemCount === 0) {
+    promotionReadiness = "ready-to-promote";
+  } else if (readyFile.readyCandidateCount > 0 && queuedItemCount > 0 && queuedItemCount < readyFile.readyCandidateCount) {
+    promotionReadiness = "mixed";
+  } else if (queuedItemCount > 0) {
+    promotionReadiness = "queued";
+  }
+
+  return {
+    promotionReadiness,
+    readyCandidateCount: readyFile.readyCandidateCount,
+    readyFamilyCount: readyFile.readyFamilyCount,
+    readySectionCount: readyFile.readySectionCount,
+    queuedItemCount,
+    queuedFamilyCount,
+    queuedSectionCount,
+    readyCandidatesPath: toRepoRelativePath(readyFilePath),
+    modificationQueuePath: queueFile ? toRepoRelativePath(queuePath) : null
+  };
+}
+
+function buildSelfInvestigationSummary(
+  captureLog: ScenarioCaptureLogFile,
+  nextTargets: Array<{
+    nextProfile: string | null;
+    nextOperatorAction: string;
+  }>
+): InvestigationSelfRunSummary {
+  const nextAutoTarget = nextTargets.find((target) => {
+    if (!target.nextProfile) {
+      return false;
+    }
+    return getScenarioProfile(target.nextProfile)?.executionMode === "self-bounded";
+  }) ?? null;
+  const nextAutoProfile = nextAutoTarget?.nextProfile ?? null;
+  const nextProfileDefinition = nextAutoProfile ? getScenarioProfile(nextAutoProfile) : null;
+
+  return {
+    runCount: captureLog.runCount,
+    canRunNextProfile: Boolean(nextAutoProfile),
+    nextAutoProfile,
+    nextAutoProfileLabel: nextProfileDefinition?.displayName ?? null,
+    boundedWindowMinutes: nextProfileDefinition?.defaultMinutes ?? null,
+    rationale: nextAutoTarget?.nextOperatorAction
+      ?? "No bounded self-investigation profile is currently leading the queue."
+  };
+}
+
+function buildOperatorAssistSummary(
+  nextTargets: Array<{
+    scenarioId: string;
+    displayName: string;
+    nextProfile: string | null;
+    nextOperatorAction: string;
+  }>,
+  coverageRows: readonly ScenarioCoverageEntry[]
+): InvestigationOperatorAssistSummary {
+  const operatorTarget = nextTargets.find((target) => {
+    if (!target.nextProfile) {
+      return false;
+    }
+    return getScenarioProfile(target.nextProfile)?.executionMode === "operator-assisted";
+  }) ?? nextTargets[0] ?? null;
+  const profileDefinition = operatorTarget?.nextProfile ? getScenarioProfile(operatorTarget.nextProfile) : null;
+  const targetCoverage = coverageRows.find((scenario) => scenario.scenarioId === operatorTarget?.scenarioId) ?? null;
+
+  return {
+    assistRequired: Boolean(operatorTarget && profileDefinition?.executionMode === "operator-assisted"),
+    suggestedProfile: operatorTarget?.nextProfile ?? null,
+    targetScenarioId: operatorTarget?.scenarioId ?? null,
+    targetScenarioName: operatorTarget?.displayName ?? null,
+    nextOperatorAction: operatorTarget?.nextOperatorAction ?? "No manual assist step is currently leading the queue.",
+    suggestedRuntimeActions: profileDefinition?.suggestedRuntimeActions ?? [],
+    evidenceHints: [
+      ...(targetCoverage?.matchedFamilyNames ?? []).slice(0, 4),
+      ...(targetCoverage?.blockerClasses ?? []).slice(0, 2)
+    ]
+  };
+}
+
+function buildLatestRunSummary(captureLog: ScenarioCaptureLogFile): InvestigationLatestRunSummary | null {
+  const latestRun = captureLog.recentRuns[captureLog.recentRuns.length - 1] ?? null;
+  if (!latestRun) {
+    return null;
+  }
+
+  return {
+    profileId: latestRun.profileId,
+    profileLabel: latestRun.profileLabel,
+    executionMode: latestRun.executionMode,
+    minutesRequested: latestRun.minutesRequested,
+    startedAt: latestRun.startedAt,
+    finishedAt: latestRun.finishedAt,
+    coverageDeltaCount: latestRun.coverageDeltaCount,
+    observedScenarioIds: latestRun.observedScenarioIds
+  };
 }
 
 function appendCaptureRun(
@@ -146,7 +386,11 @@ function appendCaptureRun(
   donorId: string,
   donorName: string,
   profileRun: RefreshCoverageProfileRun | null,
-  runtimeLaunchSignal: "present" | "missing"
+  runtimeObservation: RuntimeObservationSummary,
+  coverageDelta: {
+    changedScenarioIds: string[];
+    changedCount: number;
+  }
 ): ScenarioCaptureLogFile {
   const base: ScenarioCaptureLogFile = existing ?? {
     schemaVersion: "0.1.0",
@@ -168,23 +412,30 @@ function appendCaptureRun(
   }
 
   const profile = getScenarioProfile(profileRun.profileId);
-  const observedScenarioIds = inferObservedScenarioIds(profileRun.profileId, runtimeLaunchSignal);
+  const observedScenarioIds = runtimeObservation.observedScenarioIds;
   const run: ScenarioCaptureRunRecord = {
-    runId: `${profileRun.profileId}-${profileRun.finishedAt}`,
-    profileId: profileRun.profileId,
-    profileLabel: profile?.displayName ?? profileRun.profileId,
+    runId: `${normalizeScenarioProfileId(profileRun.profileId)}-${profileRun.finishedAt}`,
+    profileId: normalizeScenarioProfileId(profileRun.profileId),
+    profileLabel: profile?.displayName ?? normalizeScenarioProfileId(profileRun.profileId),
+    executionMode: profile?.executionMode ?? "operator-assisted",
     minutesRequested: profileRun.minutesRequested,
     startedAt: profileRun.startedAt,
     finishedAt: profileRun.finishedAt,
-    runtimeLaunchSignal,
+    runtimeLaunchSignal: runtimeObservation.runtimeLaunchSignal,
     requiresOperatorAssist: profile?.requiresOperatorAssist ?? true,
     observedScenarioIds,
-    notes: runtimeLaunchSignal === "present"
+    runtimeStageHits: runtimeObservation.runtimeStageHits,
+    coverageDeltaCount: coverageDelta.changedCount,
+    coverageDeltaScenarioIds: coverageDelta.changedScenarioIds,
+    notes: runtimeObservation.runtimeLaunchSignal === "present"
       ? [
           "Runtime launch evidence is present for this donor.",
           observedScenarioIds.length > 0
             ? `Structured runtime observation advanced: ${observedScenarioIds.join(", ")}.`
-            : "No conservative runtime scenario observation could be promoted automatically."
+            : "No conservative runtime scenario observation could be promoted automatically.",
+          coverageDelta.changedCount > 0
+            ? `Coverage improved for ${coverageDelta.changedCount} scenario family${coverageDelta.changedCount === 1 ? "" : "ies"}.`
+            : "Coverage state did not improve during this bounded window."
         ]
       : ["No runtime launch evidence was present, so the profile stayed advisory-only."],
     nextProfile: null,
@@ -288,7 +539,9 @@ function buildScenarioBlockerSummary(
   donorName: string,
   scenarios: readonly ScenarioCoverageEntry[],
   nextProfile: string | null,
-  nextAction: string
+  nextAction: string,
+  operatorAssist: InvestigationOperatorAssistSummary,
+  promotion: InvestigationPromotionSummary
 ): string {
   const ready = scenarios.filter((scenario) => scenario.lane === "ready-for-reconstruction");
   const blocked = scenarios.filter((scenario) => scenario.lane === "still-blocked-on-source-material");
@@ -311,16 +564,27 @@ function buildScenarioBlockerSummary(
     "",
     "## Next Operator Step",
     `- Next profile: ${nextProfile ?? "none"}`,
-    `- Next action: ${nextAction}`
+    `- Next action: ${nextAction}`,
+    `- Manual assist required: ${operatorAssist.assistRequired ? "yes" : "no"}`,
+    `- Suggested runtime actions: ${operatorAssist.suggestedRuntimeActions.length > 0 ? operatorAssist.suggestedRuntimeActions.join(", ") : "none"}`,
+    "",
+    "## Promotion Queue",
+    `- Promotion readiness: ${promotion.promotionReadiness}`,
+    `- Ready candidates: ${promotion.readyCandidateCount}`,
+    `- Queued modification items: ${promotion.queuedItemCount}`
   ].join("\n");
 }
 
 function buildEvents(
   donorId: string,
   profileRun: RefreshCoverageProfileRun | null,
-  runtimeLaunchSignal: "present" | "missing",
+  runtimeObservation: RuntimeObservationSummary,
   coverageRows: readonly ScenarioCoverageEntry[],
-  investigationStatus: InvestigationStatusFile
+  investigationStatus: InvestigationStatusFile,
+  coverageDelta: {
+    changedScenarioIds: string[];
+    changedCount: number;
+  }
 ): InvestigationEventRecord[] {
   const timestamp = new Date().toISOString();
   const events: InvestigationEventRecord[] = [
@@ -337,31 +601,51 @@ function buildEvents(
   ];
 
   if (profileRun) {
+    const profileDefinition = getScenarioProfile(profileRun.profileId);
     events.push({
       timestamp: profileRun.startedAt,
       type: "investigation.profile.started",
       donorId,
-      profileId: profileRun.profileId,
-      summary: `Started bounded profile ${profileRun.profileId}.`,
+      profileId: normalizeScenarioProfileId(profileRun.profileId),
+      summary: `Started bounded profile ${normalizeScenarioProfileId(profileRun.profileId)}.`,
       details: {
-        minutesRequested: profileRun.minutesRequested
+        minutesRequested: profileRun.minutesRequested,
+        executionMode: profileDefinition?.executionMode ?? "operator-assisted",
+        suggestedRuntimeActions: profileDefinition?.suggestedRuntimeActions ?? []
       }
     });
     events.push({
       timestamp: profileRun.finishedAt,
-      type: runtimeLaunchSignal === "present" ? "investigation.profile.completed" : "investigation.profile.completed-without-runtime",
+      type: runtimeObservation.runtimeLaunchSignal === "present" ? "investigation.profile.completed" : "investigation.profile.completed-without-runtime",
       donorId,
-      profileId: profileRun.profileId,
-      summary: runtimeLaunchSignal === "present"
-        ? `Completed bounded profile ${profileRun.profileId} with runtime launch evidence.`
-        : `Completed bounded profile ${profileRun.profileId}, but no runtime launch evidence was present.`,
+      profileId: normalizeScenarioProfileId(profileRun.profileId),
+      summary: runtimeObservation.runtimeLaunchSignal === "present"
+        ? `Completed bounded profile ${normalizeScenarioProfileId(profileRun.profileId)} with runtime launch evidence.`
+        : `Completed bounded profile ${normalizeScenarioProfileId(profileRun.profileId)}, but no runtime launch evidence was present.`,
       details: {
-        minutesRequested: profileRun.minutesRequested
+        minutesRequested: profileRun.minutesRequested,
+        runtimeStageHits: runtimeObservation.runtimeStageHits,
+        observedScenarioIds: runtimeObservation.observedScenarioIds
       }
     });
+
+    if (runtimeObservation.observedScenarioIds.length > 0) {
+      events.push({
+        timestamp: profileRun.finishedAt,
+        type: "investigation.runtime.observed",
+        donorId,
+        profileId: normalizeScenarioProfileId(profileRun.profileId),
+        summary: `Runtime observation advanced ${runtimeObservation.observedScenarioIds.length} scenario family${runtimeObservation.observedScenarioIds.length === 1 ? "" : "ies"}.`,
+        details: {
+          observedScenarioIds: runtimeObservation.observedScenarioIds,
+          runtimeStageHits: runtimeObservation.runtimeStageHits
+        }
+      });
+    }
   }
 
-  for (const scenario of coverageRows.slice(0, 8)) {
+  const coverageChangeSet = new Set(coverageDelta.changedScenarioIds);
+  for (const scenario of coverageRows.filter((entry) => coverageChangeSet.has(entry.scenarioId)).slice(0, 8)) {
     events.push({
       timestamp,
       type: "investigation.coverage.updated",
@@ -372,6 +656,18 @@ function buildEvents(
         lane: scenario.lane,
         nextProfile: scenario.nextProfile,
         blockerClasses: scenario.blockerClasses
+      }
+    });
+  }
+
+  if (coverageDelta.changedCount > 0) {
+    events.push({
+      timestamp,
+      type: "investigation.coverage.improved",
+      donorId,
+      summary: `Coverage improved for ${coverageDelta.changedCount} scenario family${coverageDelta.changedCount === 1 ? "" : "ies"}.`,
+      details: {
+        scenarioIds: coverageDelta.changedScenarioIds
       }
     });
   }
@@ -387,6 +683,34 @@ function buildEvents(
       modificationReadiness: investigationStatus.stageHandoff.modificationReadiness
     }
   });
+
+  if (investigationStatus.operatorAssist.assistRequired) {
+    events.push({
+      timestamp,
+      type: "investigation.operator-assist.required",
+      donorId,
+      profileId: investigationStatus.operatorAssist.suggestedProfile,
+      scenarioId: investigationStatus.operatorAssist.targetScenarioId,
+      summary: investigationStatus.operatorAssist.nextOperatorAction,
+      details: {
+        suggestedRuntimeActions: investigationStatus.operatorAssist.suggestedRuntimeActions,
+        evidenceHints: investigationStatus.operatorAssist.evidenceHints
+      }
+    });
+  }
+
+  if (investigationStatus.promotion.readyCandidateCount > 0) {
+    events.push({
+      timestamp,
+      type: "investigation.ready-for-modification.reached",
+      donorId,
+      summary: `${investigationStatus.promotion.readyCandidateCount} family or section handoff candidate${investigationStatus.promotion.readyCandidateCount === 1 ? "" : "s"} are ready for Modification.`,
+      details: {
+        promotionReadiness: investigationStatus.promotion.promotionReadiness,
+        queuedItemCount: investigationStatus.promotion.queuedItemCount
+      }
+    });
+  }
   return events;
 }
 
@@ -407,7 +731,9 @@ export async function refreshInvestigationArtifacts(options: {
     familyReconstructionSectionsFile,
     runtimeCandidatesFile,
     requestLogFile,
-    previousCaptureLog
+    previousCaptureLog,
+    previousCoverage,
+    existingModificationQueue
   ] = await Promise.all([
     readOptionalJsonFile<JsonObject>(paths.scanSummaryPath),
     readOptionalJsonFile<JsonObject>(paths.captureTargetFamiliesPath),
@@ -418,7 +744,9 @@ export async function refreshInvestigationArtifacts(options: {
     readOptionalJsonFile<JsonObject>(paths.familyReconstructionSectionsPath),
     readOptionalJsonFile<JsonObject>(paths.runtimeCandidatesPath),
     readOptionalJsonFile<JsonObject>(paths.runtimeRequestLogPath),
-    readOptionalJsonFile<ScenarioCaptureLogFile>(paths.scenarioCaptureLogPath)
+    readOptionalJsonFile<ScenarioCaptureLogFile>(paths.scenarioCaptureLogPath),
+    readOptionalJsonFile<{ scenarios?: Array<{ scenarioId?: string; state?: string }> }>(paths.scenarioCoveragePath),
+    readOptionalJsonFile<ModificationQueueFile>(paths.modificationQueuePath)
   ]);
 
   const scenarioCatalog = buildScenarioCatalog({
@@ -434,41 +762,75 @@ export async function refreshInvestigationArtifacts(options: {
     scanSummary
   });
 
-  const runtimeLaunchSignal = inferRuntimeLaunchSignal(scanSummary, runtimeCandidatesFile, requestLogFile);
+  const runtimeObservation = inferRuntimeObservation(options.profileRun?.profileId ?? "default-bet", scanSummary, runtimeCandidatesFile, requestLogFile);
+  const coverageRows = buildCoverageRows(scenarioCatalog, {
+    ...(previousCaptureLog ?? {
+      schemaVersion: "0.1.0",
+      donorId: options.donorId,
+      donorName: options.donorName,
+      generatedAt,
+      runCount: 0,
+      observedScenarioIds: [],
+      recentRuns: []
+    }),
+    observedScenarioIds: Array.from(new Set([
+      ...((previousCaptureLog?.observedScenarioIds ?? [])),
+      ...runtimeObservation.observedScenarioIds
+    ]))
+  });
+  const coverageDelta = buildCoverageDelta(previousCoverage, coverageRows);
   const captureLog = appendCaptureRun(
     previousCaptureLog,
     options.donorId,
     options.donorName,
     options.profileRun ?? null,
-    runtimeLaunchSignal
+    runtimeObservation,
+    coverageDelta
   );
-  const coverageRows = buildCoverageRows(scenarioCatalog, captureLog);
+  const refreshedCoverageRows = buildCoverageRows(scenarioCatalog, captureLog);
   const countsByState = createCoverageCounts();
-  for (const scenario of coverageRows) {
+  for (const scenario of refreshedCoverageRows) {
     countsByState[scenario.state] += 1;
   }
 
-  const stageHandoff = deriveStageHandoff(coverageRows);
-  const lifecycleLane = deriveLifecycleLane(coverageRows);
-  const nextTargets = buildNextTargets(coverageRows);
+  const stageHandoff = deriveStageHandoff(refreshedCoverageRows);
+  const lifecycleLane = deriveLifecycleLane(refreshedCoverageRows);
+  const nextTargets = buildNextTargets(refreshedCoverageRows);
   const nextPrimaryTarget = nextTargets[0] ?? null;
-  const readyScenarioIds = coverageRows
+  const readyScenarioIds = refreshedCoverageRows
     .filter((scenario) => scenario.lane === "ready-for-reconstruction")
     .map((scenario) => scenario.scenarioId);
-  const blockedScenarioIds = coverageRows
+  const blockedScenarioIds = refreshedCoverageRows
     .filter((scenario) => scenario.lane === "still-blocked-on-source-material")
     .map((scenario) => scenario.scenarioId);
+  const readyPromotionFile = buildReadyPromotionCandidates({
+    donorId: options.donorId,
+    donorName: options.donorName,
+    generatedAt,
+    scenarioCoverageRows: buildPromotionScenarioRows(refreshedCoverageRows),
+    familyProfiles: buildPromotionFamilyProfiles(familyReconstructionProfilesFile),
+    sectionProfiles: buildPromotionSectionProfiles(familyReconstructionSectionsFile)
+  });
+  const promotionSummary = buildPromotionSummary(
+    paths.reconstructionReadyFamiliesPath,
+    readyPromotionFile,
+    paths.modificationQueuePath,
+    existingModificationQueue
+  );
+  const selfInvestigation = buildSelfInvestigationSummary(captureLog, nextTargets);
+  const operatorAssist = buildOperatorAssistSummary(nextTargets, refreshedCoverageRows);
+  const latestRun = buildLatestRunSummary(captureLog);
 
   const scenarioCoverage = {
     schemaVersion: "0.1.0",
     donorId: options.donorId,
     donorName: options.donorName,
     generatedAt,
-    scenarioCount: coverageRows.length,
+    scenarioCount: refreshedCoverageRows.length,
     countsByState,
     readyForReconstructionCount: readyScenarioIds.length,
     blockedScenarioCount: blockedScenarioIds.length,
-    scenarios: coverageRows
+    scenarios: refreshedCoverageRows
   };
 
   const investigationStatus: InvestigationStatusFile = {
@@ -481,7 +843,7 @@ export async function refreshInvestigationArtifacts(options: {
     staticScanState: asString(scanSummary?.scanState) || "unknown",
     runtimeScanState: captureLog.runCount > 0
       ? "bounded-profile-complete"
-      : runtimeLaunchSignal === "present"
+      : runtimeObservation.runtimeLaunchSignal === "present"
         ? "runtime-launch-evidence-present"
         : "not-started",
     scenarioCatalogPath: toRepoRelativePath(paths.scenarioCatalogPath),
@@ -490,7 +852,7 @@ export async function refreshInvestigationArtifacts(options: {
     nextScenarioTargetsPath: toRepoRelativePath(paths.nextScenarioTargetsPath),
     scenarioBlockerSummaryPath: toRepoRelativePath(paths.scenarioBlockerSummaryPath),
     eventStreamPath: toRepoRelativePath(paths.investigationEventsPath),
-    scenarioCount: coverageRows.length,
+    scenarioCount: refreshedCoverageRows.length,
     readyForReconstructionCount: readyScenarioIds.length,
     blockedScenarioCount: blockedScenarioIds.length,
     countsByState,
@@ -499,9 +861,13 @@ export async function refreshInvestigationArtifacts(options: {
     blockedScenarioNames: blockedScenarioIds.map((scenarioId) => scenarioDisplayName(scenarioId)),
     nextCaptureProfile: nextPrimaryTarget?.nextProfile ?? null,
     nextOperatorAction: nextPrimaryTarget?.nextOperatorAction ?? stageHandoff.rationale,
-    nextManualAction: nextPrimaryTarget?.nextOperatorAction ?? null,
+    nextManualAction: operatorAssist.assistRequired ? operatorAssist.nextOperatorAction : null,
+    latestRun,
+    selfInvestigation,
+    operatorAssist,
+    promotion: promotionSummary,
     stageHandoff,
-    agentLoop: buildAgentLoopSummary(coverageRows)
+    agentLoop: buildAgentLoopSummary(refreshedCoverageRows)
   };
 
   if (captureLog.recentRuns.length > 0) {
@@ -512,22 +878,26 @@ export async function refreshInvestigationArtifacts(options: {
 
   const scenarioBlockerSummary = buildScenarioBlockerSummary(
     options.donorName,
-    coverageRows,
+    refreshedCoverageRows,
     investigationStatus.nextCaptureProfile,
-    investigationStatus.nextOperatorAction
+    investigationStatus.nextOperatorAction,
+    operatorAssist,
+    promotionSummary
   );
   const events = buildEvents(
     options.donorId,
     options.profileRun ?? null,
-    runtimeLaunchSignal,
-    coverageRows,
-    investigationStatus
+    runtimeObservation,
+    refreshedCoverageRows,
+    investigationStatus,
+    coverageDelta
   );
 
   await Promise.all([
     writeJsonFile(paths.scenarioCatalogPath, scenarioCatalog),
     writeJsonFile(paths.scenarioCoveragePath, scenarioCoverage),
     writeJsonFile(paths.scenarioCaptureLogPath, captureLog),
+    writeJsonFile(paths.reconstructionReadyFamiliesPath, readyPromotionFile),
     writeJsonFile(paths.nextScenarioTargetsPath, {
       schemaVersion: "0.1.0",
       donorId: options.donorId,

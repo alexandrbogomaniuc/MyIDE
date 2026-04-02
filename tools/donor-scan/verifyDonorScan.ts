@@ -52,6 +52,7 @@ async function main(): Promise<void> {
     paths.scenarioBlockerSummaryPath,
     paths.investigationEventsPath,
     paths.investigationStatusPath,
+    paths.reconstructionReadyFamiliesPath,
     paths.blockerSummaryPath,
     paths.scanSummaryPath
   ];
@@ -252,6 +253,10 @@ async function main(): Promise<void> {
     blockedScenarioCount?: number;
     nextCaptureProfile?: string | null;
     nextOperatorAction?: string;
+    latestRun?: { profileId?: string; coverageDeltaCount?: number };
+    selfInvestigation?: { canRunNextProfile?: boolean };
+    operatorAssist?: { assistRequired?: boolean; nextOperatorAction?: string };
+    promotion?: { readyCandidateCount?: number; queuedItemCount?: number; promotionReadiness?: string };
     stageHandoff?: { modificationReadiness?: string; recommendedStage?: string };
     agentLoop?: { nextOperatorAction?: string };
   }>(paths.investigationStatusPath);
@@ -266,6 +271,12 @@ async function main(): Promise<void> {
     typeof investigationStatus.nextOperatorAction === "string" && investigationStatus.nextOperatorAction.length > 0,
     "investigation status should record the next operator action"
   );
+  assert.ok(typeof investigationStatus.selfInvestigation?.canRunNextProfile === "boolean", "investigation status should record self-investigation guidance");
+  assert.ok(typeof investigationStatus.operatorAssist?.assistRequired === "boolean", "investigation status should record operator assist guidance");
+  assert.ok(typeof investigationStatus.operatorAssist?.nextOperatorAction === "string", "investigation status should record operator assist next action");
+  assert.ok(typeof investigationStatus.promotion?.readyCandidateCount === "number", "investigation status should record promotion-ready counts");
+  assert.ok(typeof investigationStatus.promotion?.queuedItemCount === "number", "investigation status should record queued modification counts");
+  assert.ok(typeof investigationStatus.promotion?.promotionReadiness === "string", "investigation status should record promotion readiness");
   assert.ok(
     typeof investigationStatus.stageHandoff?.modificationReadiness === "string",
     "investigation status should record stage handoff readiness"
@@ -278,6 +289,17 @@ async function main(): Promise<void> {
     typeof investigationStatus.agentLoop?.nextOperatorAction === "string" && investigationStatus.agentLoop.nextOperatorAction.length > 0,
     "investigation status should record the agent loop next operator action"
   );
+
+  const readyPromotion = await readJsonFile<{
+    readyCandidateCount?: number;
+    readyFamilyCount?: number;
+    readySectionCount?: number;
+    candidates?: Array<{ candidateId?: string; promotionKind?: string }>;
+  }>(paths.reconstructionReadyFamiliesPath);
+  assert.ok(typeof readyPromotion.readyCandidateCount === "number", "ready promotion file should record candidate counts");
+  assert.ok(typeof readyPromotion.readyFamilyCount === "number", "ready promotion file should record family counts");
+  assert.ok(typeof readyPromotion.readySectionCount === "number", "ready promotion file should record section counts");
+  assert.ok(Array.isArray(readyPromotion.candidates), "ready promotion file should include candidate rows");
 
   const blockerSummary = await readOptionalTextFile(paths.blockerSummaryPath);
   assert.ok(blockerSummary && blockerSummary.includes("Next operator step"), "blocker summary should explain the next operator step");

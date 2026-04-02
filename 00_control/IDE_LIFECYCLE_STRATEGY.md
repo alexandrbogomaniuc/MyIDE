@@ -14,6 +14,9 @@ Goal:
 - run static donor scan
 - run bounded runtime/scenario capture
 - track scenario-family coverage honestly
+- let the IDE investigate by itself first with bounded profiles
+- guide the operator when the bounded pass stops helping
+- promote ready families/sections explicitly into Modification
 - separate reconstruction-ready families from source-blocked families
 
 Entry criteria:
@@ -21,7 +24,7 @@ Entry criteria:
 
 Exit criteria:
 - the project has enough grounded source material for at least part of the scenario catalog
-- the IDE can explain what is ready, what is blocked, and the next best capture/manual action
+- the IDE can explain what is ready, what is blocked, what profile to run next, what manual action is needed next, and what is ready to promote into Modification
 
 Key outputs:
 - `scan-summary.json`
@@ -31,6 +34,8 @@ Key outputs:
 - `next-scenario-targets.json`
 - `investigation-events.jsonl`
 - `investigation-status.json`
+- `reconstruction-ready-families.json`
+- `modification-queue.json`
 
 ## Stage 2 — Modification / Compose / Runtime
 

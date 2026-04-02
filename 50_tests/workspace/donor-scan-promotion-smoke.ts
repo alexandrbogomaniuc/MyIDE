@@ -1,7 +1,7 @@
 import { strict as assert } from "node:assert";
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { runScenarioScan } from "../../tools/donor-scan/runScenarioScan";
+import { runPromotionQueue } from "../../tools/donor-scan/runPromotionQueue";
 import { refreshInvestigationArtifacts } from "../../tools/donor-scan/writeCoverageReport";
 
 const workspaceRoot = path.resolve(__dirname, "../../..");
@@ -11,15 +11,14 @@ async function writeJson(filePath: string, value: unknown): Promise<void> {
   await fs.writeFile(filePath, JSON.stringify(value, null, 2));
 }
 
-async function main(): Promise<void> {
-  const donorId = `donor_smoke_investigation_${Date.now().toString(36)}`;
+async function seedInvestigationDonor(donorId: string): Promise<string> {
   const harvestRoot = path.join(workspaceRoot, "10_donors", donorId, "evidence", "local_only", "harvest");
   await fs.mkdir(harvestRoot, { recursive: true });
 
   await writeJson(path.join(harvestRoot, "scan-summary.json"), {
     schemaVersion: "0.1.0",
     donorId,
-    donorName: "Investigation Smoke Donor",
+    donorName: "Promotion Smoke Donor",
     generatedAt: new Date().toISOString(),
     scanState: "scanned",
     runtimeCandidateCount: 2,
@@ -33,15 +32,13 @@ async function main(): Promise<void> {
     translationPayloadStatus: "mapped",
     translationPayloadCount: 1,
     mirrorCandidateStatus: "strong-partial",
-    fullLocalRuntimePackage: false,
-    partialLocalRuntimePackage: true,
     nextOperatorAction: "Run a bounded scenario profile and review blocked families.",
     blockerHighlights: ["Use investigation mode to separate ready vs blocked families."],
     rawPayloadBlockedFamilyNames: ["coin"]
   });
   await writeJson(path.join(harvestRoot, "runtime-candidates.json"), {
     donorId,
-    donorName: "Investigation Smoke Donor",
+    donorName: "Promotion Smoke Donor",
     runtimeCandidateCount: 2
   });
   await writeJson(path.join(harvestRoot, "runtime-request-log.json"), {
@@ -63,7 +60,7 @@ async function main(): Promise<void> {
   });
   await writeJson(path.join(harvestRoot, "capture-target-families.json"), {
     donorId,
-    donorName: "Investigation Smoke Donor",
+    donorName: "Promotion Smoke Donor",
     familyCount: 3,
     families: [
       { familyName: "big_win", untriedTargetCount: 1, blockedTargetCount: 0 },
@@ -73,7 +70,7 @@ async function main(): Promise<void> {
   });
   await writeJson(path.join(harvestRoot, "capture-blocker-families.json"), {
     donorId,
-    donorName: "Investigation Smoke Donor",
+    donorName: "Promotion Smoke Donor",
     familyCount: 1,
     families: [
       { familyName: "coin", blockerClass: "raw-payload-blocked" }
@@ -81,7 +78,7 @@ async function main(): Promise<void> {
   });
   await writeJson(path.join(harvestRoot, "capture-family-source-profiles.json"), {
     donorId,
-    donorName: "Investigation Smoke Donor",
+    donorName: "Promotion Smoke Donor",
     familyCount: 3,
     families: [
       { familyName: "big_win", localPageCount: 2, localSameFamilyBundleReferenceCount: 1, localSameFamilyVariantAssetCount: 1 },
@@ -91,7 +88,7 @@ async function main(): Promise<void> {
   });
   await writeJson(path.join(harvestRoot, "capture-family-actions.json"), {
     donorId,
-    donorName: "Investigation Smoke Donor",
+    donorName: "Promotion Smoke Donor",
     actionCount: 3,
     families: [
       { familyName: "big_win", actionClass: "use-local-sources", localSourceAssetCount: 2, nextStep: "Prepare reconstruction." },
@@ -101,69 +98,74 @@ async function main(): Promise<void> {
   });
   await writeJson(path.join(harvestRoot, "family-reconstruction-profiles.json"), {
     donorId,
-    donorName: "Investigation Smoke Donor",
+    donorName: "Promotion Smoke Donor",
     familyCount: 1,
     families: [
-      { familyName: "big_win", readiness: "ready-for-spine-atlas-reconstruction", exactLocalSourceCount: 2, relatedLocalSourceCount: 1 }
+      {
+        familyName: "big_win",
+        profileState: "ready-for-spine-atlas-reconstruction",
+        readiness: "ready-with-local-sources",
+        exactLocalSourceCount: 2,
+        bundlePath: "10_donors/example/family-reconstruction-bundles/big_win.json",
+        nextStep: "Move into modification."
+      }
     ]
   });
   await writeJson(path.join(harvestRoot, "family-reconstruction-sections.json"), {
     donorId,
-    donorName: "Investigation Smoke Donor",
+    donorName: "Promotion Smoke Donor",
     sectionCount: 1,
     sections: [
-      { familyName: "big_win", sectionKey: "big_win/BW", mappedAttachmentCount: 12, attachmentCount: 12 }
+      {
+        familyName: "big_win",
+        sectionKey: "big_win/BW",
+        sectionState: "ready-for-skin-reconstruction",
+        sectionBundlePath: "10_donors/example/family-reconstruction-section-bundles/big_win--BW.json",
+        mappedAttachmentCount: 12,
+        attachmentCount: 12,
+        nextSectionStep: "Promote the BW section."
+      }
     ]
   });
 
+  return harvestRoot;
+}
+
+async function main(): Promise<void> {
+  const donorId = `donor_smoke_promotion_${Date.now().toString(36)}`;
+  const harvestRoot = await seedInvestigationDonor(donorId);
+
   const initial = await refreshInvestigationArtifacts({
     donorId,
-    donorName: "Investigation Smoke Donor"
+    donorName: "Promotion Smoke Donor"
   });
-  assert.equal(initial.investigationStatus.currentStage, "investigation", "static refresh should produce investigation status");
-  assert.ok(initial.investigationStatus.blockedScenarioCount >= 1, "static refresh should preserve blocked scenarios");
-  assert.ok(initial.investigationStatus.readyForReconstructionCount >= 1, "static refresh should preserve ready scenarios");
+  assert.ok(initial.investigationStatus.promotion.readyCandidateCount >= 1, "refresh should surface ready promotion candidates");
 
-  const scenarioRun = await runScenarioScan({
+  const result = await runPromotionQueue({
     donorId,
-    donorName: "Investigation Smoke Donor",
-    profileId: "default-bet",
-    minutesRequested: 5
+    donorName: "Promotion Smoke Donor",
+    scenarioIds: []
   });
-  assert.equal(scenarioRun.profileId, "default-bet", "scenario run should preserve the requested profile");
-  assert.ok(scenarioRun.readyForReconstructionCount >= 1, "scenario run should preserve reconstruction-ready scenarios");
+  assert.ok(result.queueItemCount >= 1, "promotion should queue at least one modification item");
 
-  const coverage = JSON.parse(await fs.readFile(path.join(harvestRoot, "scenario-coverage.json"), "utf8")) as {
-    scenarios?: Array<{ scenarioId?: string; state?: string; observedInRuntime?: boolean }>;
+  const queue = JSON.parse(await fs.readFile(path.join(harvestRoot, "modification-queue.json"), "utf8")) as {
+    itemCount?: number;
+    items?: Array<{ status?: string }>;
   };
-  const intro = coverage.scenarios?.find((entry) => entry.scenarioId === "intro_start_resume");
-  assert.equal(intro?.observedInRuntime, true, "default-bet should conservatively observe the intro/start scenario");
-  assert.notEqual(intro?.state, "not-discovered", "the intro/start scenario should no longer be undiscovered after the profile run");
+  assert.ok(typeof queue.itemCount === "number" && queue.itemCount >= 1, "modification queue should record queued items");
+  assert.equal(queue.items?.[0]?.status, "queued-for-modification", "promoted items should be explicitly queued");
 
   const status = JSON.parse(await fs.readFile(path.join(harvestRoot, "investigation-status.json"), "utf8")) as {
-    lifecycleLane?: string;
-    nextCaptureProfile?: string | null;
-    stageHandoff?: { modificationReadiness?: string };
-    selfInvestigation?: { canRunNextProfile?: boolean };
-    operatorAssist?: { nextOperatorAction?: string };
-    promotion?: { readyCandidateCount?: number };
+    promotion?: { queuedItemCount?: number; promotionReadiness?: string };
   };
-  assert.ok(typeof status.lifecycleLane === "string", "investigation status should record the lifecycle lane");
-  assert.ok(typeof status.stageHandoff?.modificationReadiness === "string", "investigation status should record stage handoff readiness");
-  assert.ok("nextCaptureProfile" in status, "investigation status should record the next profile recommendation");
-  assert.ok(typeof status.selfInvestigation?.canRunNextProfile === "boolean", "investigation status should record bounded self-investigation guidance");
-  assert.ok(typeof status.operatorAssist?.nextOperatorAction === "string", "investigation status should record operator assist guidance");
-  assert.ok(typeof status.promotion?.readyCandidateCount === "number", "investigation status should record promotion-ready candidate counts");
+  assert.ok(typeof status.promotion?.queuedItemCount === "number" && status.promotion.queuedItemCount >= 1, "investigation status should surface queued item count");
+  assert.ok(typeof status.promotion?.promotionReadiness === "string", "investigation status should surface promotion readiness");
 
-  const eventsText = await fs.readFile(path.join(harvestRoot, "investigation-events.jsonl"), "utf8");
-  assert.ok(eventsText.includes("investigation.profile.completed"), "event stream should include a profile completion event");
-  assert.ok(eventsText.includes("investigation.ready-for-modification.reached"), "event stream should include a modification-readiness event");
-
-  console.log("PASS donor-scan-investigation smoke");
+  console.log("PASS donor-scan-promotion smoke");
 }
 
 main().catch((error: unknown) => {
   const message = error instanceof Error ? error.message : String(error);
-  console.error(`FAIL donor-scan-investigation smoke - ${message}`);
+  console.error(`FAIL donor-scan-promotion smoke - ${message}`);
   process.exitCode = 1;
 });

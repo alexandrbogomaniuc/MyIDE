@@ -933,6 +933,7 @@ export interface DonorScanStatus {
 export interface InvestigationStatusSummary {
   donorId: string;
   donorName: string;
+  generatedAt: string | null;
   currentStage: string;
   lifecycleLane: string;
   staticScanState: string;
@@ -951,6 +952,42 @@ export interface InvestigationStatusSummary {
   nextCaptureProfile: string | null;
   nextOperatorAction: string;
   nextManualAction: string | null;
+  latestRun: {
+    profileId: string;
+    profileLabel: string;
+    executionMode: string;
+    minutesRequested: number;
+    coverageDeltaCount: number;
+    observedScenarioIds: string[];
+  } | null;
+  selfInvestigation: {
+    runCount: number;
+    canRunNextProfile: boolean;
+    nextAutoProfile: string | null;
+    nextAutoProfileLabel: string | null;
+    boundedWindowMinutes: number | null;
+    rationale: string;
+  };
+  operatorAssist: {
+    assistRequired: boolean;
+    suggestedProfile: string | null;
+    targetScenarioId: string | null;
+    targetScenarioName: string | null;
+    nextOperatorAction: string;
+    suggestedRuntimeActions: string[];
+    evidenceHints: string[];
+  };
+  promotion: {
+    promotionReadiness: string;
+    readyCandidateCount: number;
+    readyFamilyCount: number;
+    readySectionCount: number;
+    queuedItemCount: number;
+    queuedFamilyCount: number;
+    queuedSectionCount: number;
+    readyCandidatesPath: string | null;
+    modificationQueuePath: string | null;
+  };
   modificationReadiness: string;
   recommendedStage: string;
   readyScenarioNames: string[];
@@ -972,6 +1009,26 @@ export interface InvestigationStatusSummary {
     lane: string;
     nextProfile: string | null;
     nextOperatorAction: string;
+  }>;
+  topReadyCandidates: Array<{
+    candidateId: string;
+    scenarioId: string;
+    displayName: string;
+    promotionKind: string;
+    familyName: string;
+    sectionKey: string | null;
+    readinessState: string;
+    nextAction: string;
+    sourceArtifactPath: string | null;
+  }>;
+  topModificationQueue: Array<{
+    queueId: string;
+    displayName: string;
+    promotionKind: string;
+    familyName: string;
+    sectionKey: string | null;
+    status: string;
+    sourceArtifactPath: string | null;
   }>;
 }
 
@@ -3035,10 +3092,14 @@ async function loadInvestigationStatus(selectedProject: WorkspaceProjectSummary 
   const investigationStatusPath = `10_donors/${donorId}/evidence/local_only/harvest/investigation-status.json`;
   const scenarioCoveragePath = `10_donors/${donorId}/evidence/local_only/harvest/scenario-coverage.json`;
   const nextScenarioTargetsPath = `10_donors/${donorId}/evidence/local_only/harvest/next-scenario-targets.json`;
-  const [investigationStatusFile, scenarioCoverageFile, nextScenarioTargetsFile] = await Promise.all([
+  const readyCandidatesPath = `10_donors/${donorId}/evidence/local_only/harvest/reconstruction-ready-families.json`;
+  const modificationQueuePath = `10_donors/${donorId}/evidence/local_only/harvest/modification-queue.json`;
+  const [investigationStatusFile, scenarioCoverageFile, nextScenarioTargetsFile, readyCandidatesFile, modificationQueueFile] = await Promise.all([
     readOptionalJsonFile(path.join(workspaceRoot, investigationStatusPath)) as Promise<JsonObject | null>,
     readOptionalJsonFile(path.join(workspaceRoot, scenarioCoveragePath)) as Promise<JsonObject | null>,
-    readOptionalJsonFile(path.join(workspaceRoot, nextScenarioTargetsPath)) as Promise<JsonObject | null>
+    readOptionalJsonFile(path.join(workspaceRoot, nextScenarioTargetsPath)) as Promise<JsonObject | null>,
+    readOptionalJsonFile(path.join(workspaceRoot, readyCandidatesPath)) as Promise<JsonObject | null>,
+    readOptionalJsonFile(path.join(workspaceRoot, modificationQueuePath)) as Promise<JsonObject | null>
   ]);
 
   if (!investigationStatusFile) {
@@ -3078,10 +3139,49 @@ async function loadInvestigationStatus(selectedProject: WorkspaceProjectSummary 
   const stageHandoff = investigationStatusFile.stageHandoff && typeof investigationStatusFile.stageHandoff === "object" && !Array.isArray(investigationStatusFile.stageHandoff)
     ? investigationStatusFile.stageHandoff as JsonObject
     : {};
+  const selfInvestigation = investigationStatusFile.selfInvestigation && typeof investigationStatusFile.selfInvestigation === "object" && !Array.isArray(investigationStatusFile.selfInvestigation)
+    ? investigationStatusFile.selfInvestigation as JsonObject
+    : {};
+  const operatorAssist = investigationStatusFile.operatorAssist && typeof investigationStatusFile.operatorAssist === "object" && !Array.isArray(investigationStatusFile.operatorAssist)
+    ? investigationStatusFile.operatorAssist as JsonObject
+    : {};
+  const promotion = investigationStatusFile.promotion && typeof investigationStatusFile.promotion === "object" && !Array.isArray(investigationStatusFile.promotion)
+    ? investigationStatusFile.promotion as JsonObject
+    : {};
+  const latestRun = investigationStatusFile.latestRun && typeof investigationStatusFile.latestRun === "object" && !Array.isArray(investigationStatusFile.latestRun)
+    ? investigationStatusFile.latestRun as JsonObject
+    : null;
+  const topReadyCandidates = getObjectArray(readyCandidatesFile?.candidates)
+    .map((candidate) => ({
+      candidateId: typeof candidate.candidateId === "string" ? candidate.candidateId : "",
+      scenarioId: typeof candidate.scenarioId === "string" ? candidate.scenarioId : "",
+      displayName: typeof candidate.displayName === "string" ? candidate.displayName : "",
+      promotionKind: typeof candidate.promotionKind === "string" ? candidate.promotionKind : "unknown",
+      familyName: typeof candidate.familyName === "string" ? candidate.familyName : "",
+      sectionKey: typeof candidate.sectionKey === "string" ? candidate.sectionKey : null,
+      readinessState: typeof candidate.readinessState === "string" ? candidate.readinessState : "unknown",
+      nextAction: typeof candidate.nextAction === "string" ? candidate.nextAction : "Open Modification / Compose and continue from the grounded donor bundle.",
+      sourceArtifactPath: typeof candidate.sourceArtifactPath === "string" ? candidate.sourceArtifactPath : null
+    }))
+    .filter((candidate) => candidate.candidateId.length > 0)
+    .slice(0, 8);
+  const topModificationQueue = getObjectArray(modificationQueueFile?.items)
+    .map((item) => ({
+      queueId: typeof item.queueId === "string" ? item.queueId : "",
+      displayName: typeof item.displayName === "string" ? item.displayName : "",
+      promotionKind: typeof item.promotionKind === "string" ? item.promotionKind : "unknown",
+      familyName: typeof item.familyName === "string" ? item.familyName : "",
+      sectionKey: typeof item.sectionKey === "string" ? item.sectionKey : null,
+      status: typeof item.status === "string" ? item.status : "unknown",
+      sourceArtifactPath: typeof item.sourceArtifactPath === "string" ? item.sourceArtifactPath : null
+    }))
+    .filter((item) => item.queueId.length > 0)
+    .slice(0, 8);
 
   return {
     donorId,
     donorName: typeof investigationStatusFile.donorName === "string" ? investigationStatusFile.donorName : selectedProject?.donor?.donorName ?? donorId,
+    generatedAt: typeof investigationStatusFile.generatedAt === "string" ? investigationStatusFile.generatedAt : null,
     currentStage: typeof investigationStatusFile.currentStage === "string" ? investigationStatusFile.currentStage : "investigation",
     lifecycleLane: typeof investigationStatusFile.lifecycleLane === "string" ? investigationStatusFile.lifecycleLane : "unknown",
     staticScanState: typeof investigationStatusFile.staticScanState === "string" ? investigationStatusFile.staticScanState : "unknown",
@@ -3104,6 +3204,48 @@ async function loadInvestigationStatus(selectedProject: WorkspaceProjectSummary 
     nextCaptureProfile: typeof investigationStatusFile.nextCaptureProfile === "string" ? investigationStatusFile.nextCaptureProfile : null,
     nextOperatorAction: typeof investigationStatusFile.nextOperatorAction === "string" ? investigationStatusFile.nextOperatorAction : "Review the investigation status.",
     nextManualAction: typeof investigationStatusFile.nextManualAction === "string" ? investigationStatusFile.nextManualAction : null,
+    latestRun: latestRun ? {
+      profileId: typeof latestRun.profileId === "string" ? latestRun.profileId : "",
+      profileLabel: typeof latestRun.profileLabel === "string" ? latestRun.profileLabel : "",
+      executionMode: typeof latestRun.executionMode === "string" ? latestRun.executionMode : "unknown",
+      minutesRequested: typeof latestRun.minutesRequested === "number" ? latestRun.minutesRequested : 0,
+      coverageDeltaCount: typeof latestRun.coverageDeltaCount === "number" ? latestRun.coverageDeltaCount : 0,
+      observedScenarioIds: Array.isArray(latestRun.observedScenarioIds)
+        ? latestRun.observedScenarioIds.filter((entry): entry is string => typeof entry === "string" && entry.length > 0)
+        : []
+    } : null,
+    selfInvestigation: {
+      runCount: typeof selfInvestigation.runCount === "number" ? selfInvestigation.runCount : 0,
+      canRunNextProfile: Boolean(selfInvestigation.canRunNextProfile),
+      nextAutoProfile: typeof selfInvestigation.nextAutoProfile === "string" ? selfInvestigation.nextAutoProfile : null,
+      nextAutoProfileLabel: typeof selfInvestigation.nextAutoProfileLabel === "string" ? selfInvestigation.nextAutoProfileLabel : null,
+      boundedWindowMinutes: typeof selfInvestigation.boundedWindowMinutes === "number" ? selfInvestigation.boundedWindowMinutes : null,
+      rationale: typeof selfInvestigation.rationale === "string" ? selfInvestigation.rationale : "No bounded self-investigation rationale is available yet."
+    },
+    operatorAssist: {
+      assistRequired: Boolean(operatorAssist.assistRequired),
+      suggestedProfile: typeof operatorAssist.suggestedProfile === "string" ? operatorAssist.suggestedProfile : null,
+      targetScenarioId: typeof operatorAssist.targetScenarioId === "string" ? operatorAssist.targetScenarioId : null,
+      targetScenarioName: typeof operatorAssist.targetScenarioName === "string" ? operatorAssist.targetScenarioName : null,
+      nextOperatorAction: typeof operatorAssist.nextOperatorAction === "string" ? operatorAssist.nextOperatorAction : "No manual assist step is currently leading the queue.",
+      suggestedRuntimeActions: Array.isArray(operatorAssist.suggestedRuntimeActions)
+        ? operatorAssist.suggestedRuntimeActions.filter((entry): entry is string => typeof entry === "string" && entry.length > 0)
+        : [],
+      evidenceHints: Array.isArray(operatorAssist.evidenceHints)
+        ? operatorAssist.evidenceHints.filter((entry): entry is string => typeof entry === "string" && entry.length > 0)
+        : []
+    },
+    promotion: {
+      promotionReadiness: typeof promotion.promotionReadiness === "string" ? promotion.promotionReadiness : "not-ready",
+      readyCandidateCount: typeof promotion.readyCandidateCount === "number" ? promotion.readyCandidateCount : 0,
+      readyFamilyCount: typeof promotion.readyFamilyCount === "number" ? promotion.readyFamilyCount : 0,
+      readySectionCount: typeof promotion.readySectionCount === "number" ? promotion.readySectionCount : 0,
+      queuedItemCount: typeof promotion.queuedItemCount === "number" ? promotion.queuedItemCount : 0,
+      queuedFamilyCount: typeof promotion.queuedFamilyCount === "number" ? promotion.queuedFamilyCount : 0,
+      queuedSectionCount: typeof promotion.queuedSectionCount === "number" ? promotion.queuedSectionCount : 0,
+      readyCandidatesPath: typeof promotion.readyCandidatesPath === "string" ? promotion.readyCandidatesPath : null,
+      modificationQueuePath: typeof promotion.modificationQueuePath === "string" ? promotion.modificationQueuePath : null
+    },
     modificationReadiness: typeof stageHandoff.modificationReadiness === "string" ? stageHandoff.modificationReadiness : "unknown",
     recommendedStage: typeof stageHandoff.recommendedStage === "string" ? stageHandoff.recommendedStage : "investigation",
     readyScenarioNames: Array.isArray(investigationStatusFile.readyScenarioIds)
@@ -3114,6 +3256,9 @@ async function loadInvestigationStatus(selectedProject: WorkspaceProjectSummary 
       : [],
     topScenarioCoverage,
     topScenarioTargets
+    ,
+    topReadyCandidates,
+    topModificationQueue
   };
 }
 
