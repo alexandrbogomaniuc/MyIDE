@@ -6664,7 +6664,7 @@ async function runLiveRuntimeSelectedProjectReopenSmoke() {
     const taskRuntimeMatch = getProjectModificationTaskRuntimeMatchForPage(matchedTask, matchedPage);
     baseResult.taskRuntimeEntryKind = taskRuntimeMatch?.matchKind ?? null;
     if (taskRuntimeMatch?.matchKind === "page-proof") {
-      throw new Error(`Task ${matchedTask.taskId} still matched through a page proof instead of broader request-backed runtime evidence.`);
+      throw new Error(`Task ${matchedTask.taskId} still matched through a page proof instead of broader grounded runtime evidence.`);
     }
 
     const taskRuntimeEntry = getRuntimeWorkbenchEntryForModificationTask(matchedTask);
@@ -11261,6 +11261,9 @@ function getProjectModificationTaskRuntimeMatchForPage(task, page) {
     if (score > Number.NEGATIVE_INFINITY && entry?.requestBacked) {
       score += 10;
     }
+    if (score > Number.NEGATIVE_INFINITY && entry?.kind === "local-mirror-manifest" && kind !== "donor-asset") {
+      kind = "local-mirror";
+    }
     if (score > Number.NEGATIVE_INFINITY && entry?.kind === "resource-map" && entry?.requestBacked && kind !== "donor-asset") {
       kind = "request-backed";
     }
@@ -12194,9 +12197,11 @@ function getSceneSectionRuntimeContext(sectionEntry, options = {}) {
       })
     : null;
   const statusLabel = preferredWorkbenchEntry
-    ? preferredWorkbenchEntry.requestBacked
-      ? "request-backed runtime source"
-      : "runtime workbench source"
+    ? preferredWorkbenchEntry.kind === "local-mirror-manifest"
+      ? "local-mirror runtime source"
+      : preferredWorkbenchEntry.requestBacked
+        ? "request-backed runtime source"
+        : "runtime workbench source"
     : preferredReference
       ? "supporting runtime evidence"
       : "no grounded runtime link";
@@ -21339,6 +21344,8 @@ function renderInspector() {
                     ? "donor asset match"
                     : page?.runtimeMatchKind === "request-backed"
                       ? "request-backed trace"
+                    : page?.runtimeMatchKind === "local-mirror"
+                      ? "local mirror trace"
                     : page?.runtimeMatchKind === "page-source"
                       ? "page source match"
                       : page?.runtimeMatchKind === "cue-token"

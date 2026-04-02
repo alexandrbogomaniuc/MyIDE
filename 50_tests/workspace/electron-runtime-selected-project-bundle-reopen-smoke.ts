@@ -387,8 +387,7 @@ async function main(): Promise<void> {
     assert.equal(payload.runtimeLaunchEntryUrl, null, "Selected-project bundle reopen smoke should not fake an embedded launch URL.");
     assert.equal(payload.pageRuntimeProofLoaded, false, "Selected-project bundle reopen smoke should not rely on a persisted page proof.");
     assert.equal(payload.runtimeWorkbenchHasPageProofEntry, false, "Selected-project bundle reopen smoke should not surface a page-proof runtime entry.");
-    assert(payload.taskRuntimeEntryKind, "Selected-project bundle reopen smoke should still match the task through grounded runtime evidence.");
-    assert.notEqual(payload.taskRuntimeEntryKind, "page-proof", "Selected-project bundle reopen smoke should not match the task through a persisted page proof.");
+    assert.equal(payload.taskRuntimeEntryKind, "local-mirror", "Selected-project bundle reopen smoke should report the exact local-mirror runtime trace.");
     assert.equal(payload.taskRuntimeEntrySourceUrl, runtimeSourceUrl, "Selected-project bundle reopen smoke used the wrong runtime source.");
     assert.equal(payload.runtimeWorkbenchEntryKind, "local-mirror-manifest", "Selected-project bundle reopen smoke should reopen from a grounded local-mirror manifest entry.");
     assert.equal(payload.runtimeWorkbenchEntryRequestSource, "local-mirror-manifest", "Selected-project bundle reopen smoke should preserve the local-mirror request source label.");
