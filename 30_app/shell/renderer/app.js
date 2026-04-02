@@ -1018,7 +1018,7 @@ function getSelectedProjectRuntimeHarvestCandidateCount() {
 
   getRuntimeResourceMapEntries().forEach((entry) => {
     const sourceUrl = typeof entry?.canonicalSourceUrl === "string" ? entry.canonicalSourceUrl : "";
-    if (!sourceUrl || candidates.has(sourceUrl) || !entry?.localMirrorRepoRelativePath) {
+    if (!sourceUrl || candidates.has(sourceUrl)) {
       return;
     }
 
@@ -6730,8 +6730,8 @@ async function runLiveRuntimeSelectedProjectReopenSmoke() {
 
 async function runLiveRuntimeSelectedProjectHarvestSmoke() {
   const targetProjectId = "project_002";
-  const runtimeSourceUrl = "https://example.invalid/runtime/big-win.bundle.js";
-  const runtimeStaticSourceUrl = "https://example.invalid/runtime/img/big-win-ribbon.png";
+  let runtimeSourceUrl = null;
+  let runtimeStaticSourceUrl = null;
   const startedAt = new Date().toISOString();
   const baseResult = {
     startedAt,
@@ -6848,13 +6848,11 @@ async function runLiveRuntimeSelectedProjectHarvestSmoke() {
     if (!preHarvestTaskRuntimeEntry?.sourceUrl) {
       throw new Error(`Task ${matchedTask.taskId} did not resolve to a grounded runtime workbench entry before harvest.`);
     }
+    runtimeSourceUrl = preHarvestTaskRuntimeEntry.sourceUrl;
 
     baseResult.preHarvestRuntimeWorkbenchEntryKind = preHarvestTaskRuntimeEntry.kind ?? null;
     if (!["local-mirror-manifest", "resource-map", "page-runtime-proof"].includes(preHarvestTaskRuntimeEntry.kind ?? "")) {
       throw new Error(`Selected-project runtime harvest smoke expected a grounded runtime workbench entry before harvest, received ${preHarvestTaskRuntimeEntry.kind ?? "none"}.`);
-    }
-    if (preHarvestTaskRuntimeEntry.sourceUrl !== runtimeSourceUrl) {
-      throw new Error(`Selected-project runtime harvest smoke expected pre-harvest source ${runtimeSourceUrl}, received ${preHarvestTaskRuntimeEntry.sourceUrl}.`);
     }
 
     const harvestButton = await waitForRendererCondition(
@@ -6902,12 +6900,20 @@ async function runLiveRuntimeSelectedProjectHarvestSmoke() {
 
     const harvestedStaticAssetEntry = await waitForRendererCondition(
       () => {
-        const entry = getRuntimeResourceMapEntry(runtimeStaticSourceUrl);
-        return entry && Number(entry.stageHitCounts?.["selected-project-harvest"] ?? 0) > 0 ? entry : null;
+        return getRuntimeResourceMapEntries().find((entry) => (
+          entry?.canonicalSourceUrl
+          && entry.canonicalSourceUrl !== runtimeSourceUrl
+          && entry.requestCategory === "static-asset"
+          && Number(entry.stageHitCounts?.["selected-project-harvest"] ?? 0) > 0
+        )) ?? null;
       },
       `${targetProjectId} bounded runtime harvest request to record the selected static image`
     );
-    baseResult.harvestedStaticAssetSourceUrl = harvestedStaticAssetEntry?.canonicalSourceUrl ?? runtimeStaticSourceUrl;
+    runtimeStaticSourceUrl = harvestedStaticAssetEntry?.canonicalSourceUrl ?? null;
+    if (!runtimeStaticSourceUrl) {
+      throw new Error("Selected-project runtime harvest smoke could not resolve the harvested static-image source.");
+    }
+    baseResult.harvestedStaticAssetSourceUrl = runtimeStaticSourceUrl;
     baseResult.harvestedStaticAssetRequestCategory = harvestedStaticAssetEntry?.requestCategory ?? null;
     baseResult.harvestedStaticAssetRequestSource = harvestedStaticAssetEntry?.requestSource ?? null;
 

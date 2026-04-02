@@ -666,9 +666,6 @@ function getRuntimeHarvestCandidateEntries(
     if (candidates.has(entry.canonicalSourceUrl)) {
       continue;
     }
-    if (!resolveRuntimeHarvestLocalMirrorAbsolutePath(entry)) {
-      continue;
-    }
 
     const kind = inferRuntimeHarvestCandidateKind(entry.canonicalSourceUrl, entry.fileType);
     if (!kind) {
@@ -2011,6 +2008,27 @@ async function handleRuntimeMirrorRequest(request: IncomingMessage, response: Se
       }
 
       try {
+        const overrideAbsolutePath = getRuntimeOverrideAbsolutePath(sourceUrl, projectId);
+        if (overrideAbsolutePath) {
+          const overrideContent = new Uint8Array(await fs.readFile(overrideAbsolutePath));
+          const overrideFileType = path.extname(new URL(sourceUrl).pathname).replace(/^\./, "").toLowerCase()
+            || path.extname(overrideAbsolutePath).replace(/^\./, "").toLowerCase()
+            || "bin";
+          recordRuntimeOverrideHit(sourceUrl);
+          recordRuntimeResourceHit(projectId, parsedUrl.toString(), sourceUrl, "project-local-override", {
+            overrideAbsolutePath,
+            fileType: overrideFileType,
+            resourceType: "fetch"
+          });
+          sendRuntimeMirrorResponse(response, 200, {
+            "content-type": getRuntimeMirrorContentType(overrideFileType),
+            "cache-control": "no-store",
+            "x-myide-runtime-source": "project-local-override",
+            "x-myide-runtime-local-path": overrideAbsolutePath
+          }, overrideContent);
+          return;
+        }
+
         const upstreamFallback = await fetchRuntimeUpstreamFallbackUrl(sourceUrl);
         recordRuntimeResourceHit(projectId, parsedUrl.toString(), upstreamFallback.sourceUrl, "upstream-request", {
           fileType: upstreamFallback.fileType,
