@@ -39,6 +39,10 @@ interface LiveDonorImportPayload {
   taskKitPageRuntimePersistedAfterReload?: boolean;
   taskKitPageRuntimePersistedSourceUrl?: string | null;
   taskKitTaskRuntimeOpenUsesPersistedPageProof?: boolean;
+  taskKitSceneSectionBannerRuntimeChipLabel?: string | null;
+  taskKitSceneSectionBannerRuntimeSummary?: string | null;
+  taskKitSceneSectionDetailRuntimeChipLabel?: string | null;
+  taskKitSceneSectionDetailRuntimeNote?: string | null;
   importedAssetCount?: number | null;
   importedFileTypes?: string[];
   importModes?: string[];
@@ -492,6 +496,24 @@ async function main(): Promise<void> {
       payload.taskKitTaskRuntimeOpenUsesPersistedPageProof,
       true,
       "Renderer did not make task-level Open Runtime reuse the persisted page-aware runtime proof after reload."
+    );
+    assert.equal(
+      payload.taskKitSceneSectionBannerRuntimeChipLabel,
+      "request-backed runtime source",
+      "Renderer did not expose the exact request-backed runtime label on the imported scene-section banner."
+    );
+    assert(
+      /request-backed runtime workbench/i.test(payload.taskKitSceneSectionBannerRuntimeSummary ?? ""),
+      "Renderer did not expose the exact request-backed runtime summary on the imported scene-section banner."
+    );
+    assert.equal(
+      payload.taskKitSceneSectionDetailRuntimeChipLabel,
+      "request-backed runtime source",
+      "Renderer did not expose the exact request-backed runtime label on the imported scene-section detail card."
+    );
+    assert(
+      /request-backed runtime workbench/i.test(payload.taskKitSceneSectionDetailRuntimeNote ?? ""),
+      "Renderer did not expose the exact request-backed runtime note on the imported scene-section detail card."
     );
     assert.equal(payload.replacementPersistVerified, true, "Renderer did not preserve the donor-backed replacement layout/layer after reload.");
     assert.equal(payload.replacementLinkageVerified, true, "Renderer did not preserve donor linkage for the donor-backed replacement after reload.");

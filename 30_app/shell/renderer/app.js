@@ -4963,6 +4963,10 @@ async function runLiveDonorImportSmoke() {
     taskKitPageRuntimePersistedAfterReload: false,
     taskKitPageRuntimePersistedSourceUrl: null,
     taskKitTaskRuntimeOpenUsesPersistedPageProof: false,
+    taskKitSceneSectionBannerRuntimeChipLabel: null,
+    taskKitSceneSectionBannerRuntimeSummary: null,
+    taskKitSceneSectionDetailRuntimeChipLabel: null,
+    taskKitSceneSectionDetailRuntimeNote: null,
     importedAssetCount: 0,
     importedFileTypes: [],
     importModes: [],
@@ -5434,6 +5438,43 @@ async function runLiveDonorImportSmoke() {
       () => state.selectedObjectId === taskKitEditableMemberId && getSelectedObjectIds().length === 1,
       `${taskKitEditableMemberId} to become the single selected task member after persisted runtime open`
     );
+    const taskKitSceneSectionRuntimeSurfaces = await waitForRendererCondition(
+      () => {
+        const sceneSectionBannerCards = Array.from(elements.sceneExplorer?.querySelectorAll(".tree-row.isolate-banner .detail-card") ?? []);
+        const sceneSectionBannerCard = sceneSectionBannerCards.find((card) => (
+          card.querySelector("span")?.textContent?.trim() === importedTaskSceneSection.label
+        )) ?? null;
+        const bannerRuntimeChipLabel = Array.from(sceneSectionBannerCard?.querySelectorAll(".chip-row span") ?? [])
+          .map((entry) => entry.textContent?.trim() ?? "")
+          .find((entry) => /runtime source$/i.test(entry)) ?? null;
+        const bannerRuntimeSummary = sceneSectionBannerCard?.querySelector("small")?.textContent?.trim() ?? null;
+        const inspectorRuntimeChipLabel = Array.from(elements.inspector?.querySelectorAll(".donor-asset-chip-row span") ?? [])
+          .map((entry) => entry.textContent?.trim() ?? "")
+          .find((entry) => /runtime source$/i.test(entry)) ?? null;
+        const inspectorCards = Array.from(elements.inspector?.querySelectorAll(".detail-card") ?? []);
+        const runtimeLinkedCard = inspectorCards.find((card) => (
+          card.querySelector("span")?.textContent?.trim() === "Runtime-linked Group"
+        )) ?? null;
+        const inspectorRuntimeNote = runtimeLinkedCard?.querySelector("small")?.textContent?.trim() ?? null;
+        return sceneSectionBannerCard
+          && bannerRuntimeChipLabel
+          && bannerRuntimeSummary
+          && inspectorRuntimeChipLabel
+          && inspectorRuntimeNote
+          ? {
+              bannerRuntimeChipLabel,
+              bannerRuntimeSummary,
+              inspectorRuntimeChipLabel,
+              inspectorRuntimeNote
+            }
+          : null;
+      },
+      `${preparedModificationTask.taskId} scene-section runtime surfaces to expose the exact persisted runtime labels`
+    );
+    baseResult.taskKitSceneSectionBannerRuntimeChipLabel = taskKitSceneSectionRuntimeSurfaces.bannerRuntimeChipLabel;
+    baseResult.taskKitSceneSectionBannerRuntimeSummary = taskKitSceneSectionRuntimeSurfaces.bannerRuntimeSummary;
+    baseResult.taskKitSceneSectionDetailRuntimeChipLabel = taskKitSceneSectionRuntimeSurfaces.inspectorRuntimeChipLabel;
+    baseResult.taskKitSceneSectionDetailRuntimeNote = taskKitSceneSectionRuntimeSurfaces.inspectorRuntimeNote;
 
     const taskLeadMemberButton = await waitForRendererCondition(
       () => elements.inspector?.querySelector("[data-task-reconstruction-focus-object-id]") ?? null,
@@ -12288,17 +12329,16 @@ function getSceneSectionRuntimeContext(sectionEntry, options = {}) {
         donorAsset: primaryDonorAsset
       })
     : null;
-  const statusLabel = preferredWorkbenchEntry
-    ? preferredWorkbenchEntry.kind === "local-mirror-manifest"
-      ? "local-mirror runtime source"
-      : preferredWorkbenchEntry.requestBacked
-        ? "request-backed runtime source"
-        : "runtime workbench source"
+  const runtimeWorkbenchSurface = preferredWorkbenchEntry
+    ? getRuntimeWorkbenchEntrySurface(preferredWorkbenchEntry)
+    : null;
+  const statusLabel = runtimeWorkbenchSurface
+    ? `${runtimeWorkbenchSurface.kind} runtime source`
     : preferredReference
       ? "supporting runtime evidence"
       : "no grounded runtime link";
-  const note = preferredWorkbenchEntry
-    ? `This scene section contains donor-backed members that map to ${preferredWorkbenchEntry.relativePath ?? preferredWorkbenchEntry.sourceUrl} through the runtime workbench.`
+  const note = runtimeWorkbenchSurface
+    ? `This scene section contains donor-backed members that map to ${preferredWorkbenchEntry.relativePath ?? preferredWorkbenchEntry.sourceUrl} through the ${runtimeWorkbenchSurface.title.toLowerCase()}.`
     : preferredReference
       ? `${preferredReference.label} is the strongest grounded runtime evidence currently supporting this scene section.`
       : "No runtime workbench entry or supporting runtime screenshot currently maps back to this scene section.";
@@ -12308,6 +12348,8 @@ function getSceneSectionRuntimeContext(sectionEntry, options = {}) {
     evidenceIds: Array.from(evidenceIds),
     linkedWorkbenchEntries,
     preferredWorkbenchEntry,
+    runtimeWorkbenchSurfaceKind: runtimeWorkbenchSurface?.kind ?? null,
+    runtimeWorkbenchSurfaceTitle: runtimeWorkbenchSurface?.title ?? null,
     linkedReferenceScreens,
     preferredReference,
     donorAsset: primaryDonorAsset,
@@ -18346,7 +18388,7 @@ function renderSceneExplorer() {
           const gamePartSummary = entry.gamePartSummary;
           const sectionState = entry.stateSummary ?? getSceneSectionStateSummary(entry, editorData);
           const runtimeSummary = runtimeContext?.preferredWorkbenchEntry
-            ? `Runtime-linked through ${runtimeContext.preferredWorkbenchEntry.relativePath ?? runtimeContext.preferredWorkbenchEntry.sourceUrl}.`
+            ? `${runtimeContext.runtimeWorkbenchSurfaceTitle ?? "Grounded runtime workbench"} · ${runtimeContext.preferredWorkbenchEntry.relativePath ?? runtimeContext.preferredWorkbenchEntry.sourceUrl}.`
             : runtimeContext?.preferredReference
               ? `Supported by ${runtimeContext.preferredReference.label}.`
               : "No grounded runtime link recorded for this scene section yet.";
