@@ -130,6 +130,9 @@ contextBridge.exposeInMainWorld("myideApi", {
   reportLiveRuntimeSelectedProjectReopenSmokeResult: (payload: unknown): void => {
     ipcRenderer.send("myide:live-runtime-selected-project-reopen-smoke-result", payload);
   },
+  reportLiveRuntimeSelectedProjectHarvestSmokeResult: (payload: unknown): void => {
+    ipcRenderer.send("myide:live-runtime-selected-project-harvest-smoke-result", payload);
+  },
   reportLiveRuntimeSelectedProjectOverrideSmokeResult: (payload: unknown): void => {
     ipcRenderer.send("myide:live-runtime-selected-project-override-smoke-result", payload);
   },
@@ -160,6 +163,7 @@ contextBridge.exposeInMainWorld("myideApi", {
   loadProjectSlice: (selectedProjectId?: string): Promise<ProjectSliceBundle> => ipcRenderer.invoke("myide:load-project-slice", selectedProjectId),
   createProject: (input: ShellCreateProjectInput): Promise<ShellCreateProjectResult> => ipcRenderer.invoke("myide:create-project", input),
   getRuntimeResourceMap: (projectId: string): Promise<unknown> => ipcRenderer.invoke("myide:get-runtime-resource-map", projectId),
+  harvestRuntimeRequestEvidence: (projectId: string): Promise<unknown> => ipcRenderer.invoke("myide:harvest-runtime-request-evidence", projectId),
   saveRuntimePageProof: (projectId: string, proof: Record<string, unknown>): Promise<unknown> => ipcRenderer.invoke("myide:save-runtime-page-proof", projectId, proof),
   resetRuntimeResourceMap: (projectId: string): Promise<unknown> => ipcRenderer.invoke("myide:reset-runtime-resource-map", projectId),
   setRuntimeRequestStage: (stage: string): Promise<unknown> => ipcRenderer.invoke("myide:set-runtime-request-stage", stage),

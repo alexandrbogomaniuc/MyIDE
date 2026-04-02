@@ -169,11 +169,12 @@ Recommended rule:
 7. Use **Spin / Trigger** if you want the bounded runtime action path that currently sends `Space` to the runtime surface.
 8. Use **Use Debug Host** from the Runtime toolbar as the primary runtime action.
 9. If you open a non-validated project that has grounded runtime page proofs, request-backed traces, or grounded local-mirror runtime source entries such as static images or bundles but still has no grounded launch URL, **Open Runtime** can now keep the runtime workbench active on that evidence surface; embedded launch and Debug Host should still stay blocked for that project until it has a grounded runtime entry.
-9. The dedicated Runtime Debug Host loads the same local mirror in a separate window and is the current path that can prove a request-backed static image override hit.
-10. If that Runtime Debug Host path blocks again, check its console/load diagnostics first; the current mirror now serves cross-origin-safe headers for mirrored module/runtime assets, which was the concrete blocker behind the last `rsa-plugins.js` failure.
-11. Use **Pick / Inspect** and then click the live runtime surface when you need the strongest grounded runtime trace available inside the shell.
-12. Read the right-hand inspector and runtime asset workbench for picked target, request-backed source priority, runtime/display-object trace when exposed, texture/frame info when exposed, runtime URL, local mirror file path when grounded, the current runtime resource-map record, override eligibility, and supporting evidence refs.
-13. Use the new runtime bridge actions in the inspector or workbench to:
+10. If that blocked-launch selected project only has grounded local-mirror source files and no fresh request-backed entry yet, use **Harvest Request-backed Sources** to upgrade those bounded local files into request-backed runtime workbench traces without pretending embedded launch or Debug Host are available.
+11. The dedicated Runtime Debug Host loads the same local mirror in a separate window and is the current path that can prove a request-backed static image override hit.
+12. If that Runtime Debug Host path blocks again, check its console/load diagnostics first; the current mirror now serves cross-origin-safe headers for mirrored module/runtime assets, which was the concrete blocker behind the last `rsa-plugins.js` failure.
+13. Use **Pick / Inspect** and then click the live runtime surface when you need the strongest grounded runtime trace available inside the shell.
+14. Read the right-hand inspector and runtime asset workbench for picked target, request-backed source priority, runtime/display-object trace when exposed, texture/frame info when exposed, runtime URL, local mirror file path when grounded, the current runtime resource-map record, override eligibility, and supporting evidence refs.
+15. Use the new runtime bridge actions in the inspector or workbench to:
    - focus the strongest grounded donor asset card
    - focus the strongest grounded donor evidence entry
    - focus a related compose object if one already exists for that donor-linked asset

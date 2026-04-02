@@ -300,6 +300,15 @@ function isLiveRuntimeSelectedProjectReopenSmokeMode() {
   }
 }
 
+function isLiveRuntimeSelectedProjectHarvestSmokeMode() {
+  try {
+    const search = typeof window.location?.search === "string" ? window.location.search : "";
+    return new URLSearchParams(search).get("liveRuntimeSelectedProjectHarvestSmoke") === "1";
+  } catch {
+    return false;
+  }
+}
+
 function isLiveRuntimeSelectedProjectOverrideSmokeMode() {
   try {
     const search = typeof window.location?.search === "string" ? window.location.search : "";
@@ -587,6 +596,20 @@ async function emitLiveRuntimeSelectedProjectReopenSmoke(payload) {
   }
 }
 
+async function emitLiveRuntimeSelectedProjectHarvestSmoke(payload) {
+  try {
+    if (window.myideApi && typeof window.myideApi.reportLiveRuntimeSelectedProjectHarvestSmokeResult === "function") {
+      window.myideApi.reportLiveRuntimeSelectedProjectHarvestSmokeResult(payload);
+      return;
+    }
+
+    console.log(`MYIDE_LIVE_RUNTIME_SELECTED_PROJECT_HARVEST:${JSON.stringify(payload)}`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.log(`MYIDE_LIVE_RUNTIME_SELECTED_PROJECT_HARVEST:${JSON.stringify({ status: "fail", error: `live selected-project runtime harvest payload serialization failed: ${message}` })}`);
+  }
+}
+
 async function emitLiveRuntimeSelectedProjectOverrideSmoke(payload) {
   try {
     if (window.myideApi && typeof window.myideApi.reportLiveRuntimeSelectedProjectOverrideSmokeResult === "function") {
@@ -869,6 +892,11 @@ async function bootRenderer() {
     return;
   }
 
+  if (isLiveRuntimeSelectedProjectHarvestSmokeMode()) {
+    await runLiveRuntimeSelectedProjectHarvestSmoke();
+    return;
+  }
+
   if (isLiveRuntimeSelectedProjectOverrideSmokeMode()) {
     await runLiveRuntimeSelectedProjectOverrideSmoke();
     return;
@@ -963,6 +991,26 @@ function canUseRuntimeWorkbenchSurface() {
 
 function canUseRuntimeDebugHostForSelectedProject() {
   return state.selectedProjectId === "project_001" && canUseRuntimeMode();
+}
+
+function getSelectedProjectRuntimeHarvestCandidateCount() {
+  return (getRuntimeMirrorStatus()?.entries ?? []).filter((entry) => (
+    entry?.fileExists !== false
+    && [
+      "launch-script",
+      "runtime-loader",
+      "runtime-bundle",
+      "support-script",
+      "runtime-metadata",
+      "translation-payload"
+    ].includes(entry.kind)
+  )).length;
+}
+
+function canHarvestSelectedProjectRuntimeRequestEvidence() {
+  return state.selectedProjectId !== "project_001"
+    && getSelectedProjectRuntimeHarvestCandidateCount() > 0
+    && !canUseRuntimeDebugHostForSelectedProject();
 }
 
 function getRuntimeDebugHostUnavailableMessage() {
@@ -3124,6 +3172,58 @@ async function resetRuntimeResourceMapForCurrentProject(options = {}) {
   }
 }
 
+async function harvestRuntimeRequestEvidenceForCurrentProject() {
+  const api = window.myideApi;
+  if (!api || typeof api.harvestRuntimeRequestEvidence !== "function" || !state.selectedProjectId) {
+    setPreviewStatus("Selected-project runtime harvest is not available in this renderer session.");
+    return null;
+  }
+
+  if (!canHarvestSelectedProjectRuntimeRequestEvidence()) {
+    setPreviewStatus(getRuntimeLaunchInfo()?.blocker ?? "This project does not yet have grounded local-mirror runtime sources to harvest.");
+    return null;
+  }
+
+  const projectId = state.selectedProjectId;
+  state.runtimeUi.lastSelectedProjectHarvestResult = {
+    projectId,
+    status: "pending"
+  };
+  setPreviewStatus(`Harvesting grounded local-mirror runtime sources for ${projectId} into request-backed workbench entries...`);
+
+  try {
+    const result = await api.harvestRuntimeRequestEvidence(projectId);
+    await refreshRuntimeResourceMap({ silent: true });
+    state.runtimeUi.lastSelectedProjectHarvestResult = result ?? {
+      projectId,
+      status: "blocked",
+      blocker: "The bounded selected-project runtime harvest returned no result."
+    };
+
+    const harvestedEntryCount = Number(result?.harvestedEntryCount ?? 0);
+    const attemptedSourceCount = Number(result?.attemptedSourceCount ?? 0);
+    const topSourceUrl = typeof result?.topSourceUrl === "string" ? result.topSourceUrl : null;
+    if (topSourceUrl) {
+      setRuntimeWorkbenchSource(topSourceUrl, { render: false });
+    }
+
+    renderAll();
+    setPreviewStatus(harvestedEntryCount > 0
+      ? `Harvested ${harvestedEntryCount} request-backed runtime source${harvestedEntryCount === 1 ? "" : "s"} from ${attemptedSourceCount} grounded local-mirror candidate${attemptedSourceCount === 1 ? "" : "s"} for ${projectId}. Embedded launch stays blocked while the runtime workbench refreshes on those harvested traces.`
+      : String(result?.blocker ?? "The bounded selected-project runtime harvest did not record any grounded requests."));
+    return result ?? null;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    state.runtimeUi.lastSelectedProjectHarvestResult = {
+      projectId,
+      status: "error",
+      error: message
+    };
+    setPreviewStatus(`Selected-project runtime harvest failed: ${message}`);
+    return null;
+  }
+}
+
 async function createRuntimeOverrideFromCurrentBridge() {
   const candidate = getRuntimeOverrideCandidate();
   if (!candidate.eligible || !candidate.runtimeSourceUrl || !candidate.donorAsset) {
@@ -3690,6 +3790,11 @@ async function handleRuntimeAction(action) {
 
   if (action === "open-debug-host") {
     await openRuntimeDebugHostWindow();
+    return;
+  }
+
+  if (action === "harvest-request-evidence") {
+    await harvestRuntimeRequestEvidenceForCurrentProject();
     return;
   }
 
@@ -6548,6 +6653,223 @@ async function runLiveRuntimeSelectedProjectReopenSmoke() {
   }
 }
 
+async function runLiveRuntimeSelectedProjectHarvestSmoke() {
+  const targetProjectId = "project_002";
+  const runtimeSourceUrl = "https://example.invalid/runtime/big-win.bundle.js";
+  const startedAt = new Date().toISOString();
+  const baseResult = {
+    startedAt,
+    projectId: targetProjectId,
+    preloadExecuted: Boolean(window.myideApi),
+    myideApiExposed: Boolean(window.myideApi && typeof window.myideApi.loadProjectSlice === "function"),
+    projectLoaded: false,
+    runtimeLaunchBlocked: false,
+    runtimeLaunchEntryUrl: null,
+    harvestActionVisible: false,
+    harvestSucceeded: false,
+    harvestApiStatus: null,
+    harvestApiBlocker: null,
+    harvestApiAttemptedSourceCount: 0,
+    harvestApiFailedSourceUrls: [],
+    harvestApiTopSourceUrl: null,
+    harvestedEntryCount: 0,
+    harvestedRequestCategory: null,
+    harvestedRequestSource: null,
+    taskId: null,
+    pageName: null,
+    preHarvestRuntimeWorkbenchEntryKind: null,
+    taskRuntimeEntryKind: null,
+    taskRuntimeEntrySourceUrl: null,
+    runtimeWorkbenchEntryKind: null,
+    runtimeWorkbenchEntryRequestSource: null,
+    runtimeModeSelected: false,
+    taskRuntimeOpenUsesHarvestedRequestWorkbenchEntry: false,
+    runtimeDebugHostActionVisible: false,
+    runtimeSourceDebugHostActionVisible: false,
+    runtimeStatusHeading: null,
+    runtimeStatusMentionsOfficialDailyPath: false,
+    embeddedRuntimeLaunched: false,
+    previewStatus: null
+  };
+
+  try {
+    const api = window.myideApi;
+    if (
+      !api
+      || typeof api.loadProjectSlice !== "function"
+      || typeof api.reportRendererReady !== "function"
+    ) {
+      throw new Error("Renderer selected-project runtime harvest smoke could not access the required desktop bridge helpers.");
+    }
+
+    await waitForRendererCondition(
+      () => Boolean(state.bundle && getWorkspaceProjects().length > 0),
+      "workspace discovery for selected-project runtime harvest smoke"
+    );
+
+    if (state.selectedProjectId !== targetProjectId) {
+      const projectButton = await waitForRendererCondition(
+        () => elements.projectBrowser?.querySelector(`[data-project-id="${targetProjectId}"]`) ?? null,
+        `project browser entry for ${targetProjectId}`
+      );
+      clickRendererElement(projectButton);
+    }
+
+    await waitForRendererCondition(
+      () => state.selectedProjectId === targetProjectId && Boolean(state.bundle),
+      `${targetProjectId} to load for the selected-project runtime harvest smoke`
+    );
+    baseResult.projectLoaded = true;
+
+    setWorkbenchMode("runtime", { silent: true, force: true });
+    setWorkflowPanel("runtime", { silent: true, force: true });
+    await waitForRendererCondition(
+      () => state.workbenchMode === "runtime" && getActiveWorkflowPanel() === "runtime",
+      `${targetProjectId} runtime workbench activation`
+    );
+
+    const runtimeLaunch = getRuntimeLaunchInfo();
+    baseResult.runtimeLaunchEntryUrl = runtimeLaunch?.entryUrl ?? null;
+    baseResult.runtimeLaunchBlocked = !Boolean(runtimeLaunch?.entryUrl) && Boolean(runtimeLaunch?.blocker);
+    if (runtimeLaunch?.entryUrl) {
+      throw new Error(`Selected-project runtime harvest smoke expected launch to stay blocked, but ${targetProjectId} exposed ${runtimeLaunch.entryUrl}.`);
+    }
+
+    const matchedTask = getProjectModificationTasks()[0] ?? null;
+    if (!matchedTask) {
+      throw new Error(`No prepared modification task is available for ${targetProjectId}.`);
+    }
+
+    const matchedPage = getProjectModificationTaskReconstructionPages(matchedTask)[0] ?? null;
+    if (!matchedPage?.pageName) {
+      throw new Error(`No reconstruction page is available for ${matchedTask.taskId}.`);
+    }
+
+    baseResult.taskId = matchedTask.taskId;
+    baseResult.pageName = matchedPage.pageName;
+
+    const preHarvestTaskRuntimeEntry = getRuntimeWorkbenchEntryForModificationTask(matchedTask);
+    if (!preHarvestTaskRuntimeEntry?.sourceUrl) {
+      throw new Error(`Task ${matchedTask.taskId} did not resolve to a grounded local-mirror entry before harvest.`);
+    }
+
+    baseResult.preHarvestRuntimeWorkbenchEntryKind = preHarvestTaskRuntimeEntry.kind ?? null;
+    if (preHarvestTaskRuntimeEntry.kind !== "local-mirror-manifest") {
+      throw new Error(`Selected-project runtime harvest smoke expected a local-mirror entry before harvest, received ${preHarvestTaskRuntimeEntry.kind ?? "none"}.`);
+    }
+    if (preHarvestTaskRuntimeEntry.sourceUrl !== runtimeSourceUrl) {
+      throw new Error(`Selected-project runtime harvest smoke expected pre-harvest source ${runtimeSourceUrl}, received ${preHarvestTaskRuntimeEntry.sourceUrl}.`);
+    }
+
+    const harvestButton = await waitForRendererCondition(
+      () => elements.runtimeStatus?.querySelector('button[data-runtime-action="harvest-request-evidence"]') ?? null,
+      "selected-project runtime harvest button"
+    );
+    baseResult.harvestActionVisible = true;
+    clickRendererElement(harvestButton);
+
+    const harvestResult = await waitForRendererCondition(
+      () => {
+        const result = state.runtimeUi?.lastSelectedProjectHarvestResult;
+        return result?.status && result.status !== "pending" ? result : null;
+      },
+      `${targetProjectId} selected-project runtime harvest action to finish`
+    );
+    baseResult.harvestApiStatus = typeof harvestResult?.status === "string" ? harvestResult.status : null;
+    baseResult.harvestApiBlocker = typeof harvestResult?.blocker === "string" ? harvestResult.blocker : null;
+    baseResult.harvestApiAttemptedSourceCount = Number(harvestResult?.attemptedSourceCount ?? 0);
+    baseResult.harvestApiFailedSourceUrls = Array.isArray(harvestResult?.failedSourceUrls)
+      ? harvestResult.failedSourceUrls.slice()
+      : [];
+    baseResult.harvestApiTopSourceUrl = typeof harvestResult?.topSourceUrl === "string" ? harvestResult.topSourceUrl : null;
+    if (harvestResult?.status !== "ready") {
+      throw new Error(
+        `Selected-project runtime harvest returned ${String(harvestResult?.status ?? "unknown")}: ${String(harvestResult?.blocker ?? harvestResult?.error ?? "no blocker reported")}`
+      );
+    }
+
+    const harvestedEntry = await waitForRendererCondition(
+      () => {
+        const entry = getRuntimeResourceMapEntry(runtimeSourceUrl);
+        return entry && Number(entry.stageHitCounts?.["selected-project-harvest"] ?? 0) > 0 ? entry : null;
+      },
+      `${targetProjectId} bounded runtime harvest request to record the selected bundle`
+    );
+
+    baseResult.harvestSucceeded = true;
+    baseResult.harvestedEntryCount = getRuntimeResourceMapEntries()
+      .filter((entry) => Number(entry.stageHitCounts?.["selected-project-harvest"] ?? 0) > 0)
+      .length;
+    baseResult.harvestedRequestCategory = harvestedEntry?.requestCategory ?? null;
+    baseResult.harvestedRequestSource = harvestedEntry?.requestSource ?? null;
+
+    const taskRuntimeMatch = getProjectModificationTaskRuntimeMatchForPage(matchedTask, matchedPage);
+    baseResult.taskRuntimeEntryKind = taskRuntimeMatch?.matchKind ?? null;
+
+    const taskRuntimeEntry = getRuntimeWorkbenchEntryForModificationTask(matchedTask);
+    if (!taskRuntimeEntry?.sourceUrl) {
+      throw new Error(`Task ${matchedTask.taskId} did not resolve to a request-backed runtime workbench entry after harvest.`);
+    }
+
+    baseResult.taskRuntimeEntrySourceUrl = taskRuntimeEntry.sourceUrl;
+    baseResult.runtimeWorkbenchEntryKind = taskRuntimeEntry.kind ?? null;
+    baseResult.runtimeWorkbenchEntryRequestSource = taskRuntimeEntry.requestSource ?? null;
+
+    if (taskRuntimeEntry.sourceUrl !== runtimeSourceUrl) {
+      throw new Error(`Task ${matchedTask.taskId} did not stay on the harvested runtime source after harvest.`);
+    }
+    if (taskRuntimeEntry.kind !== "resource-map") {
+      throw new Error(`Selected-project runtime harvest smoke expected a request-backed runtime entry after harvest, received ${taskRuntimeEntry.kind ?? "none"}.`);
+    }
+
+    openProjectModificationTask(matchedTask.taskId, "runtime");
+    await waitForRendererCondition(
+      () => state.workflowUi?.activePanel === "runtime"
+        && state.workbenchMode === "runtime"
+        && getRuntimeWorkbenchSourceUrl() === taskRuntimeEntry.sourceUrl
+        && state.runtimeUi.launched === false,
+      `${matchedTask.taskId} task runtime open to stay on the harvested blocked-launch runtime surface`
+    );
+
+    baseResult.runtimeModeSelected = state.workbenchMode === "runtime";
+    baseResult.taskRuntimeOpenUsesHarvestedRequestWorkbenchEntry = getRuntimeWorkbenchSourceUrl() === taskRuntimeEntry.sourceUrl
+      && taskRuntimeEntry.kind === "resource-map";
+    baseResult.embeddedRuntimeLaunched = Boolean(state.runtimeUi.launched);
+    baseResult.runtimeDebugHostActionVisible = Boolean(document.querySelector('button[data-runtime-action="open-debug-host"]:not([hidden])'));
+    baseResult.runtimeSourceDebugHostActionVisible = Boolean(document.querySelector('button[data-runtime-source-action="open-debug-host"]'));
+    baseResult.runtimeStatusHeading = elements.runtimeStatus?.querySelector(".runtime-workbench-callout strong")?.textContent?.trim() ?? null;
+    const runtimeStatusText = elements.runtimeStatus?.textContent?.replace(/\s+/g, " ").trim() ?? "";
+    baseResult.runtimeStatusMentionsOfficialDailyPath = /official daily path/i.test(runtimeStatusText);
+    if (baseResult.runtimeDebugHostActionVisible || baseResult.runtimeSourceDebugHostActionVisible) {
+      throw new Error(`Selected-project runtime harvest smoke still exposed Debug Host actions for ${targetProjectId}.`);
+    }
+    if (baseResult.runtimeStatusHeading !== "Selected-project runtime surface") {
+      throw new Error(`Selected-project runtime harvest smoke expected a selected-project runtime heading, received ${baseResult.runtimeStatusHeading ?? "none"}.`);
+    }
+    if (baseResult.runtimeStatusMentionsOfficialDailyPath) {
+      throw new Error(`Selected-project runtime harvest smoke still described ${targetProjectId} as the official daily runtime path.`);
+    }
+
+    baseResult.previewStatus = elements.previewStatus?.textContent?.trim() ?? null;
+    document.body.dataset.liveRuntimeSelectedProjectHarvestSmoke = "pass";
+    await emitLiveRuntimeSelectedProjectHarvestSmoke({
+      ...baseResult,
+      status: "pass"
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const failureMessage = `Live selected-project runtime harvest smoke failed: ${message}`;
+    setPreviewStatus(failureMessage);
+    document.body.dataset.liveRuntimeSelectedProjectHarvestSmoke = "fail";
+    await emitLiveRuntimeSelectedProjectHarvestSmoke({
+      ...baseResult,
+      status: "fail",
+      error: message,
+      previewStatus: failureMessage
+    });
+  }
+}
+
 async function runLiveRuntimeSelectedProjectOverrideSmoke() {
   const targetProjectId = "project_002";
   const startedAt = new Date().toISOString();
@@ -9262,6 +9584,9 @@ function bindActions() {
     setWorkbenchMode(modeButton.dataset.workbenchMode);
   });
   elements.onboardingCard?.addEventListener("click", (event) => {
+    handleNavigationClick(event);
+  });
+  elements.runtimeStatus?.addEventListener("click", (event) => {
     handleNavigationClick(event);
   });
   elements.runtimeToolbar?.addEventListener("click", (event) => {
@@ -20949,6 +21274,7 @@ function renderActivityLog() {
 function renderRuntimeWorkbenchAssetList() {
   const entries = getRuntimeWorkbenchEntries();
   const debugHostAvailable = canUseRuntimeDebugHostForSelectedProject();
+  const harvestAvailable = canHarvestSelectedProjectRuntimeRequestEvidence();
   const focusedSourceUrl = getRuntimeWorkbenchSourceUrl()
     ?? getRuntimeOverrideCandidate().runtimeSourceUrl
     ?? entries[0]?.sourceUrl
@@ -20960,11 +21286,15 @@ function renderRuntimeWorkbenchAssetList() {
   const workbenchMessage = entries.length === 0
     ? debugHostAvailable
       ? "Open Debug Host to populate the official runtime workbench. The embedded path has not recorded any usable runtime source entries in this session yet."
-      : "This selected project does not yet have any grounded runtime workbench items. Stay in Compose or seed grounded runtime evidence before expecting a live runtime reopen path."
+      : harvestAvailable
+        ? "This selected project does not yet have any request-backed runtime workbench items. Use Harvest Request-backed Sources to refresh grounded local-mirror traces without pretending embedded launch is ready."
+        : "This selected project does not yet have any grounded runtime workbench items. Stay in Compose or seed grounded runtime evidence before expecting a live runtime reopen path."
     : embeddedRequestBackedImages.length === 0
       ? debugHostAvailable
         ? "No request-backed static image is available from the weaker embedded runtime path yet. The dedicated Runtime Debug Host result is ranked first and should be treated as the official daily runtime path."
-        : "The current selected project still has no request-backed static image candidate. Use the grounded runtime workbench evidence that exists here without pretending Debug Host is available for this project."
+        : harvestAvailable
+          ? "The current selected project still has no request-backed static image candidate, but Harvest Request-backed Sources can refresh grounded non-static runtime traces while Debug Host stays unavailable here."
+          : "The current selected project still has no request-backed static image candidate. Use the grounded runtime workbench evidence that exists here without pretending Debug Host is available for this project."
       : debugHostAvailable
         ? "Request-backed runtime items are ranked with the strongest debug-host/static candidates first so you can jump quickly into source, evidence, compose, and override actions."
         : "Request-backed runtime items are available for this selected project. Use the runtime workbench to reopen grounded traces and bounded overrides while Debug Host remains project_001-only.";
@@ -21058,6 +21388,8 @@ function renderRuntimeWorkbench() {
   const latestResourceEntry = getRuntimeResourceMapEntries()[0] ?? null;
   const debugHostResult = state.runtimeUi.debugHost;
   const debugHostAvailable = canUseRuntimeDebugHostForSelectedProject();
+  const harvestAvailable = canHarvestSelectedProjectRuntimeRequestEvidence();
+  const hasGroundedMirrorSources = (runtimeMirrorStatus?.entries ?? []).some((entry) => entry?.fileExists !== false);
   const runtimeCalloutHeading = debugHostAvailable ? "Official daily path" : "Selected-project runtime surface";
   const runtimeCalloutMessage = debugHostAvailable
     ? (debugHostResult?.status === "pass"
@@ -21065,7 +21397,9 @@ function renderRuntimeWorkbench() {
         : "Use Debug Host to run the official runtime trace and override-proof cycle. The integrated embedded runtime remains available, but it is secondary until it exposes stronger asset truth.")
     : runtimeLaunch?.entryUrl
       ? "The runtime workbench is the truthful selected-project surface here. Embedded launch is indexed, but the dedicated Runtime Debug Host still remains validated only for project_001."
-      : "The runtime workbench is the truthful selected-project surface here. Use request-backed traces, donor/evidence jumps, and bounded overrides without pretending embedded launch or Debug Host are available for this project yet.";
+      : harvestAvailable
+        ? "The runtime workbench is the truthful selected-project surface here. Harvest grounded local-mirror sources to refresh request-backed traces, then keep using donor/evidence jumps and bounded overrides without pretending embedded launch or Debug Host are available for this project yet."
+        : "The runtime workbench is the truthful selected-project surface here. Use request-backed traces, donor/evidence jumps, and bounded overrides without pretending embedded launch or Debug Host are available for this project yet.";
   const runtimeDebugHostCardTitle = debugHostAvailable
     ? (debugHostResult?.status === "pass"
         ? `${debugHostResult.overrideHitCountAfterReload ?? 0} override hit${debugHostResult.overrideHitCountAfterReload === 1 ? "" : "s"} proved`
@@ -21147,7 +21481,9 @@ function renderRuntimeWorkbench() {
         ? debugHostAvailable
           ? "The grounded local runtime mirror is active on this machine, and the dedicated Runtime Debug Host is the official daily runtime path."
           : "The grounded local runtime mirror is active on this machine. Keep using the selected-project runtime workbench surface here while Debug Host stays validated only for project_001."
-        : "No local donor runtime mirror is captured, so runtime work still falls back to the recorded donor entry."}</span>
+        : hasGroundedMirrorSources
+          ? "Grounded local-mirror runtime source files are indexed for this project, but the mirror is still partial. Use Harvest Request-backed Sources and the runtime workbench without pretending embedded launch is ready."
+          : "No local donor runtime mirror is captured, so runtime work still falls back to the recorded donor entry."}</span>
       <div class="chip-row">
         <span>${escapeHtml(runtimeLaunch.captureSessionId ?? "runtime session unknown")}</span>
         <span>${escapeHtml(runtimeLaunch.runtimeSourceLabel ?? "Blocked")}</span>
@@ -21162,6 +21498,7 @@ function renderRuntimeWorkbench() {
       <span>${escapeHtml(runtimeCalloutMessage)}</span>
       <div class="evidence-actions">
         ${debugHostAvailable ? `<button type="button" class="copy-button" data-runtime-action="open-debug-host">Use Debug Host</button>` : ""}
+        ${harvestAvailable ? `<button type="button" class="copy-button" data-runtime-action="harvest-request-evidence">Harvest Request-backed Sources</button>` : ""}
         ${launchButtonMarkup}
         <button type="button" class="copy-button" data-switch-workflow-panel="runtime" data-switch-workbench-mode="scene" data-switch-status="Compose Mode is active. The runtime workbench kept the current project context.">Switch To Compose</button>
       </div>
@@ -21720,10 +22057,13 @@ function renderAll() {
       const workflowBridge = getRuntimeWorkflowBridge();
       const runtimeOverrideCandidate = getRuntimeOverrideCandidate();
       const debugHostAvailable = canUseRuntimeDebugHostForSelectedProject();
+      const harvestAvailable = canHarvestSelectedProjectRuntimeRequestEvidence();
       if (action === "launch") {
         disabled = !Boolean(runtimeLaunch?.entryUrl);
       } else if (action === "open-debug-host") {
         disabled = !debugHostAvailable;
+      } else if (action === "harvest-request-evidence") {
+        disabled = !harvestAvailable;
       } else if (action === "reload" || action === "inspect-toggle" || action === "focus-note" || action === "focus-init") {
         disabled = !state.runtimeUi.launched;
       } else if (action === "pause" || action === "resume" || action === "step") {
@@ -21757,6 +22097,9 @@ function renderAll() {
     elements.runtimeControlNote.textContent = state.runtimeUi.lastCommandStatus?.blocked
       ?? (runtimeOverrideCandidate.activeOverride
         ? `Active runtime override: ${runtimeOverrideCandidate.activeOverride.runtimeRelativePath} -> ${runtimeOverrideCandidate.activeOverride.donorAssetId}. Reload Runtime Mode after changing it.`
+        : null)
+      ?? (canHarvestSelectedProjectRuntimeRequestEvidence()
+        ? "Harvest grounded local-mirror runtime sources to refresh request-backed workbench traces for this selected project while embedded launch stays blocked."
         : null)
       ?? runtimeLaunch?.blocker
       ?? "Launch the donor runtime, inspect a grounded source, and create a project-local static override when the trace is eligible.";

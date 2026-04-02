@@ -70,6 +70,7 @@ const isLiveCreateDragSmokeMode = process.env.MYIDE_LIVE_CREATE_DRAG_SMOKE === "
 const isLiveDonorImportSmokeMode = process.env.MYIDE_LIVE_DONOR_IMPORT_SMOKE === "1";
 const isLiveRuntimePageProofRelaunchSmokeMode = process.env.MYIDE_LIVE_RUNTIME_PAGE_PROOF_RELAUNCH_SMOKE === "1";
 const isLiveRuntimeSelectedProjectReopenSmokeMode = process.env.MYIDE_LIVE_RUNTIME_SELECTED_PROJECT_REOPEN_SMOKE === "1";
+const isLiveRuntimeSelectedProjectHarvestSmokeMode = process.env.MYIDE_LIVE_RUNTIME_SELECTED_PROJECT_HARVEST_SMOKE === "1";
 const isLiveRuntimeSelectedProjectOverrideSmokeMode = process.env.MYIDE_LIVE_RUNTIME_SELECTED_PROJECT_OVERRIDE_SMOKE === "1";
 const isLiveRuntimeSmokeMode = process.env.MYIDE_LIVE_RUNTIME_SMOKE === "1";
 const isRuntimeSelectedProjectRouteSmokeMode = process.env.MYIDE_RUNTIME_SELECTED_PROJECT_ROUTE_SMOKE === "1";
@@ -158,6 +159,11 @@ interface LiveRuntimeSelectedProjectReopenSmokePayload {
   error?: string;
 }
 
+interface LiveRuntimeSelectedProjectHarvestSmokePayload {
+  status?: string;
+  error?: string;
+}
+
 interface LiveRuntimeSelectedProjectOverrideSmokePayload {
   status?: string;
   error?: string;
@@ -217,6 +223,7 @@ let activeLiveCreateDragSmokeReporter: ((payload: LiveCreateDragSmokePayload) =>
 let activeLiveDonorImportSmokeReporter: ((payload: LiveDonorImportSmokePayload) => void) | null = null;
 let activeLiveRuntimePageProofRelaunchSmokeReporter: ((payload: LiveRuntimePageProofRelaunchSmokePayload) => void) | null = null;
 let activeLiveRuntimeSelectedProjectReopenSmokeReporter: ((payload: LiveRuntimeSelectedProjectReopenSmokePayload) => void) | null = null;
+let activeLiveRuntimeSelectedProjectHarvestSmokeReporter: ((payload: LiveRuntimeSelectedProjectHarvestSmokePayload) => void) | null = null;
 let activeLiveRuntimeSelectedProjectOverrideSmokeReporter: ((payload: LiveRuntimeSelectedProjectOverrideSmokePayload) => void) | null = null;
 let activeLiveRuntimeSmokeReporter: ((payload: LiveRuntimeSmokePayload) => void) | null = null;
 let activeLiveDuplicateDeleteSmokeReporter: ((payload: LiveDuplicateDeleteSmokePayload) => void) | null = null;
@@ -556,6 +563,111 @@ async function primeRuntimeProjectCachesFromWorkspace(): Promise<string[]> {
     await ensureRuntimeProjectCaches(projectId);
   }));
   return projectIds;
+}
+
+function getRuntimeHarvestCandidateEntries(status: LocalRuntimeMirrorStatus | null | undefined) {
+  if (!status?.entries?.length) {
+    return [];
+  }
+
+  const allowedKinds = new Set([
+    "launch-script",
+    "runtime-loader",
+    "runtime-bundle",
+    "support-script",
+    "runtime-metadata",
+    "translation-payload"
+  ]);
+
+  return status.entries
+    .filter((entry) => (
+      entry?.fileExists !== false
+      && typeof entry?.sourceUrl === "string"
+      && entry.sourceUrl.length > 0
+      && allowedKinds.has(entry.kind)
+    ))
+    .slice(0, 8);
+}
+
+async function harvestRuntimeRequestEvidence(projectId: string): Promise<{
+  projectId: string;
+  status: "ready" | "blocked";
+  blocker: string | null;
+  attemptedSourceCount: number;
+  harvestedEntryCount: number;
+  harvestedSourceUrls: string[];
+  failedSourceUrls: string[];
+  topSourceUrl: string | null;
+  resourceMapEntryCount: number;
+}> {
+  rememberRuntimeProjectId(projectId);
+  await ensureRuntimeProjectCaches(projectId);
+
+  const runtimeMirrorStatus = getRuntimeLocalMirrorStatus(projectId);
+  const candidates = getRuntimeHarvestCandidateEntries(runtimeMirrorStatus);
+  if (candidates.length === 0) {
+    const resourceMap = await loadRuntimeResourceMapStatus(projectId);
+    return {
+      projectId,
+      status: "blocked",
+      blocker: runtimeMirrorStatus?.blocker ?? "No bounded local-mirror runtime source candidates are indexed for this project yet.",
+      attemptedSourceCount: 0,
+      harvestedEntryCount: 0,
+      harvestedSourceUrls: [],
+      failedSourceUrls: [],
+      topSourceUrl: null,
+      resourceMapEntryCount: resourceMap.entryCount
+    };
+  }
+
+  const previousStage = runtimeRequestStage;
+  const harvestedSourceUrls: string[] = [];
+  const failedSourceUrls: string[] = [];
+
+  try {
+    setRuntimeRequestStage("selected-project-harvest");
+
+    for (const entry of candidates) {
+      try {
+        const response = await fetch(buildLocalRuntimeMirrorProxyUrl(projectId, entry.sourceUrl), {
+          headers: {
+            "user-agent": "Mozilla/5.0 (MyIDE selected-project runtime harvest)"
+          },
+          redirect: "follow"
+        });
+
+        if (!response.ok) {
+          throw new Error(`${response.status} ${response.statusText}`);
+        }
+
+        await response.arrayBuffer();
+        harvestedSourceUrls.push(entry.sourceUrl);
+      } catch {
+        failedSourceUrls.push(entry.sourceUrl);
+      }
+    }
+  } finally {
+    setRuntimeRequestStage(previousStage);
+  }
+
+  const resourceMap = await loadRuntimeResourceMapStatus(projectId);
+  const harvestedEntries = resourceMap.entries.filter((entry) => (
+    Number(entry.stageHitCounts["selected-project-harvest"] ?? 0) > 0
+  ));
+
+  return {
+    projectId,
+    status: harvestedEntries.length > 0 ? "ready" : "blocked",
+    blocker: harvestedEntries.length > 0
+      ? null
+      : "The bounded selected-project harvest did not record any grounded runtime requests.",
+    attemptedSourceCount: candidates.length,
+    harvestedEntryCount: harvestedEntries.length,
+    harvestedSourceUrls,
+    failedSourceUrls,
+    topSourceUrl: harvestedEntries[0]?.canonicalSourceUrl ?? harvestedSourceUrls[0] ?? null,
+    resourceMapEntryCount: resourceMap.entryCount
+  };
 }
 
 async function clearRuntimeWebviewCache(): Promise<{ cleared: true; partition: string }> {
@@ -2483,6 +2595,43 @@ function attachLiveRuntimeSelectedProjectReopenSmokeHandlers(window: BrowserWind
   };
 }
 
+function attachLiveRuntimeSelectedProjectHarvestSmokeHandlers(window: BrowserWindow): void {
+  if (!isLiveRuntimeSelectedProjectHarvestSmokeMode) {
+    return;
+  }
+
+  console.log("MYIDE_LIVE_RUNTIME_SELECTED_PROJECT_HARVEST_MAIN_READY");
+  const timeoutMs = Number.parseInt(process.env.MYIDE_LIVE_RUNTIME_SELECTED_PROJECT_HARVEST_TIMEOUT_MS ?? "90000", 10);
+  const smokeTimeout = setTimeout(() => {
+    finishLiveRuntimeSmoke(1, "FAIL smoke:electron-runtime-selected-project-harvest - timeout waiting for renderer harvest payload");
+  }, Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 90000);
+
+  const clearSmokeTimeout = () => {
+    clearTimeout(smokeTimeout);
+  };
+
+  window.webContents.on("did-fail-load", (_event, errorCode, errorDescription) => {
+    clearSmokeTimeout();
+    finishLiveRuntimeSmoke(1, `FAIL smoke:electron-runtime-selected-project-harvest - renderer failed to load (${errorCode} ${errorDescription})`);
+  });
+
+  window.webContents.on("render-process-gone", (_event, details) => {
+    clearSmokeTimeout();
+    finishLiveRuntimeSmoke(1, `FAIL smoke:electron-runtime-selected-project-harvest - renderer process exited (${details.reason})`);
+  });
+
+  activeLiveRuntimeSelectedProjectHarvestSmokeReporter = (payload) => {
+    clearSmokeTimeout();
+    console.log(`MYIDE_LIVE_RUNTIME_SELECTED_PROJECT_HARVEST_RESULT:${JSON.stringify(payload)}`);
+    if (payload.status === "pass") {
+      finishLiveRuntimeSmoke(0, "PASS smoke:electron-runtime-selected-project-harvest");
+      return;
+    }
+
+    finishLiveRuntimeSmoke(1, `FAIL smoke:electron-runtime-selected-project-harvest - ${payload.error ?? "renderer reported failure"}`);
+  };
+}
+
 function attachLiveRuntimeSelectedProjectOverrideSmokeHandlers(window: BrowserWindow): void {
   if (!isLiveRuntimeSelectedProjectOverrideSmokeMode) {
     return;
@@ -2810,6 +2959,7 @@ function createWindow(): void {
   attachLiveDonorImportSmokeHandlers(window);
   attachLiveRuntimePageProofRelaunchSmokeHandlers(window);
   attachLiveRuntimeSelectedProjectReopenSmokeHandlers(window);
+  attachLiveRuntimeSelectedProjectHarvestSmokeHandlers(window);
   attachLiveRuntimeSelectedProjectOverrideSmokeHandlers(window);
   attachLiveRuntimeSmokeHandlers(window);
   attachLiveDuplicateDeleteSmokeHandlers(window);
@@ -2854,6 +3004,7 @@ function createWindow(): void {
     ...(isLiveDonorImportSmokeMode ? { liveDonorImportSmoke: "1" } : {}),
     ...(isLiveRuntimePageProofRelaunchSmokeMode ? { liveRuntimePageProofRelaunchSmoke: "1" } : {}),
     ...(isLiveRuntimeSelectedProjectReopenSmokeMode ? { liveRuntimeSelectedProjectReopenSmoke: "1" } : {}),
+    ...(isLiveRuntimeSelectedProjectHarvestSmokeMode ? { liveRuntimeSelectedProjectHarvestSmoke: "1" } : {}),
     ...(isLiveRuntimeSelectedProjectOverrideSmokeMode ? { liveRuntimeSelectedProjectOverrideSmoke: "1" } : {}),
     ...(isLiveRuntimeSmokeMode ? { liveRuntimeSmoke: "1" } : {}),
     ...(isLiveDuplicateDeleteSmokeMode ? { liveDuplicateDeleteSmoke: "1" } : {}),
@@ -2942,6 +3093,12 @@ ipcMain.on("myide:live-runtime-page-proof-relaunch-smoke-result", (_event, paylo
 ipcMain.on("myide:live-runtime-selected-project-reopen-smoke-result", (_event, payload: LiveRuntimeSelectedProjectReopenSmokePayload) => {
   if (typeof activeLiveRuntimeSelectedProjectReopenSmokeReporter === "function") {
     activeLiveRuntimeSelectedProjectReopenSmokeReporter(payload ?? {});
+  }
+});
+
+ipcMain.on("myide:live-runtime-selected-project-harvest-smoke-result", (_event, payload: LiveRuntimeSelectedProjectHarvestSmokePayload) => {
+  if (typeof activeLiveRuntimeSelectedProjectHarvestSmokeReporter === "function") {
+    activeLiveRuntimeSelectedProjectHarvestSmokeReporter(payload ?? {});
   }
 });
 
@@ -3040,6 +3197,9 @@ ipcMain.handle("myide:save-project-editor", async (_event, projectId: string, da
 });
 ipcMain.handle("myide:get-runtime-resource-map", async (_event, projectId: string) => {
   return loadRuntimeResourceMapStatus(projectId);
+});
+ipcMain.handle("myide:harvest-runtime-request-evidence", async (_event, projectId: string) => {
+  return harvestRuntimeRequestEvidence(projectId);
 });
 ipcMain.handle("myide:save-runtime-page-proof", async (_event, projectId: string, proof: SaveRuntimePageProofInput) => {
   return saveRuntimePageProof(projectId, proof);
