@@ -31,6 +31,8 @@ If that task is grounded by a page-fit artifact such as the `big_win/BW` fit-app
 
 Those page-aware cards can now either select the best single grouped Compose member for that grounded page cue or widen out to all grouped members already tied to the same grounded page source, so the operator can move from a page cue to the right section members on the current surface without falling back to donor hunting.
 
+The same page-aware cards can now also jump straight to the grounded donor asset or donor evidence behind that page cue, then return to the active grouped Compose section to continue editing on the same task surface.
+
 ## Current Phase
 - Current milestone: IDE-LIFECYCLE-A lifecycle backbone on top of the existing runtime-first shell, donor scan, and compose/runtime proving slices.
 - Active validated donor slice: `donor_001_mystery_garden`.

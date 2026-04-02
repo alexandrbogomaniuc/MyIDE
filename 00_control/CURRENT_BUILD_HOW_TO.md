@@ -23,6 +23,7 @@ For the current build, Investigation is the important new truth surface. Use it 
 10. When one grouped section member is selected, use the new task-aware inspector replace actions to swap that object from the active task kit while keeping the current grouped section and layout intact.
 11. If the active task is grounded by a fit-apply page bundle, use the page-aware reconstruction guide in that same inspector to see the lead page, fit mode, affected slot or attachment cue, and the page-local **Use This Page Source** action before widening out to the full task kit.
 12. The same page-aware cards can now either select the best single grouped section member for that page cue or widen out to all grouped members already tied to that page source, so you can move from the page cue straight into the current Compose section before doing a replacement.
+13. If you need to inspect the grounded donor source before replacing anything, use **Show Page Asset** or **Show Page Evidence** on that same page-aware card, then reopen the active task section and keep editing from the same grouped Compose surface.
 
 ## 1. Launch The Current Build
 1. Finder double-click daily start: `./run/Start-MyIDE-Workbench.command`.

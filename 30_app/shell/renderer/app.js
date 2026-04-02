@@ -4775,6 +4775,81 @@ async function runLiveDonorImportSmoke() {
     baseResult.taskKitPageGuideName = taskReconstructionGuideCard.dataset.taskReconstructionPage;
     baseResult.taskKitPageGuideVerified = true;
 
+    const taskPageSourceAssetButton = taskReconstructionGuideCard.querySelector("[data-focus-donor-asset-id]");
+    if (!(taskPageSourceAssetButton instanceof HTMLElement) || !taskPageSourceAssetButton.dataset.focusDonorAssetId) {
+      throw new Error(`Page-aware source asset focus is missing for ${preparedModificationTask.taskId}.`);
+    }
+    const taskPageSourceAssetId = taskPageSourceAssetButton.dataset.focusDonorAssetId;
+    clickRendererElement(taskPageSourceAssetButton);
+    await waitForRendererCondition(
+      () => state.workflowUi?.activePanel === "donor" && state.donorAssetUi?.highlightedAssetId === taskPageSourceAssetId,
+      `${preparedModificationTask.taskId} page source donor asset to become highlighted`
+    );
+    baseResult.taskKitPageSourceAssetId = taskPageSourceAssetId;
+    baseResult.taskKitPageSourceAssetFocusVerified = true;
+
+    openProjectModificationTask(preparedModificationTask.taskId, "compose");
+    const taskReopenedAfterSourceAsset = await waitForRendererCondition(
+      () => {
+        const entry = getSceneSectionEntryForDonorAssetGroupKey(preparedTaskKitGroup.key);
+        return entry
+          && state.modificationTaskUi?.activeTaskId === preparedModificationTask.taskId
+          && state.workflowUi?.activePanel === "compose"
+          && getSelectedObjectIds().some((objectId) => entry.memberObjectIds.includes(objectId))
+          ? entry
+          : null;
+      },
+      `${preparedModificationTask.taskId} to reopen on the imported scene section after source asset jump`
+    );
+    focusSceneObjectInWorkflow(taskKitEditableMemberId, {
+      statusMessage: `Re-selected ${taskKitEditableMemberId} after returning from the page source asset trace.`
+    });
+    await waitForRendererCondition(
+      () => state.selectedObjectId === taskKitEditableMemberId && getSelectedObjectIds().length === 1,
+      `${taskKitEditableMemberId} to become the single selected task member after source asset jump`
+    );
+    const taskReconstructionGuideCardAfterSourceAsset = await waitForRendererCondition(
+      () => elements.inspector?.querySelector(`[data-task-reconstruction-page="${CSS.escape(baseResult.taskKitPageGuideName)}"]`) ?? elements.inspector?.querySelector('[data-task-reconstruction-related="1"], [data-task-reconstruction-page]') ?? null,
+      `${preparedModificationTask.taskId} page-aware reconstruction guide after source asset jump`
+    );
+    if (!(taskReconstructionGuideCardAfterSourceAsset instanceof HTMLElement)) {
+      throw new Error(`Page-aware reconstruction guidance did not return after focusing the source asset for ${preparedModificationTask.taskId}.`);
+    }
+
+    const taskPageSourceEvidenceButton = taskReconstructionGuideCardAfterSourceAsset.querySelector("[data-focus-donor-evidence-id]");
+    if (!(taskPageSourceEvidenceButton instanceof HTMLElement) || !taskPageSourceEvidenceButton.dataset.focusDonorEvidenceId) {
+      throw new Error(`Page-aware source evidence focus is missing for ${preparedModificationTask.taskId}.`);
+    }
+    const taskPageSourceEvidenceId = taskPageSourceEvidenceButton.dataset.focusDonorEvidenceId;
+    clickRendererElement(taskPageSourceEvidenceButton);
+    await waitForRendererCondition(
+      () => state.workflowUi?.activePanel === "donor" && state.evidenceUi?.highlightedEvidenceId === taskPageSourceEvidenceId,
+      `${preparedModificationTask.taskId} page source evidence to become highlighted`
+    );
+    baseResult.taskKitPageSourceEvidenceId = taskPageSourceEvidenceId;
+    baseResult.taskKitPageSourceEvidenceFocusVerified = true;
+
+    openProjectModificationTask(preparedModificationTask.taskId, "compose");
+    await waitForRendererCondition(
+      () => {
+        const entry = getSceneSectionEntryForDonorAssetGroupKey(preparedTaskKitGroup.key);
+        return entry
+          && state.modificationTaskUi?.activeTaskId === preparedModificationTask.taskId
+          && state.workflowUi?.activePanel === "compose"
+          && getSelectedObjectIds().some((objectId) => entry.memberObjectIds.includes(objectId))
+          ? entry
+          : null;
+      },
+      `${preparedModificationTask.taskId} to reopen on the imported scene section after source trace jumps`
+    );
+    focusSceneObjectInWorkflow(taskKitEditableMemberId, {
+      statusMessage: `Re-selected ${taskKitEditableMemberId} after returning from the page source trace.`
+    });
+    await waitForRendererCondition(
+      () => state.selectedObjectId === taskKitEditableMemberId && getSelectedObjectIds().length === 1,
+      `${taskKitEditableMemberId} to become the single selected task member after source trace jumps`
+    );
+
     const taskLeadMemberButton = await waitForRendererCondition(
       () => elements.inspector?.querySelector("[data-task-reconstruction-focus-object-id]") ?? null,
       `${preparedModificationTask.taskId} page lead-member selection action`
@@ -5751,11 +5826,11 @@ async function runLiveDonorImportSmoke() {
       throw new Error("The donor source evidence jump did not complete.");
     }
 
-    if (!baseResult.taskKitImportCompleted || !baseResult.taskKitComposeLandingVerified || !baseResult.taskKitPageGuideVerified || !baseResult.taskKitLeadMemberSelectionVerified || !baseResult.taskKitPageMemberSelectionVerified || !baseResult.taskKitQuickReplaceVerified) {
-      throw new Error("The prepared modification task did not complete grouped Compose landing, page-aware guidance, lead-member selection, page-member selection, plus task-aware replace verification.");
+    if (!baseResult.taskKitImportCompleted || !baseResult.taskKitComposeLandingVerified || !baseResult.taskKitPageGuideVerified || !baseResult.taskKitPageSourceAssetFocusVerified || !baseResult.taskKitPageSourceEvidenceFocusVerified || !baseResult.taskKitLeadMemberSelectionVerified || !baseResult.taskKitPageMemberSelectionVerified || !baseResult.taskKitQuickReplaceVerified) {
+      throw new Error("The prepared modification task did not complete grouped Compose landing, page-aware guidance, page-source asset/evidence jumps, lead-member selection, page-member selection, plus task-aware replace verification.");
     }
 
-    const successMessage = `Live donor import smoke passed: imported task kit ${baseResult.taskKitGroupKey ?? "n/a"} into scene section ${baseResult.taskKitSectionLabel ?? "n/a"}, reopened active task ${baseResult.taskKitTaskId ?? "n/a"} on that grouped compose surface, surfaced page-aware guide ${baseResult.taskKitPageGuideName ?? "n/a"}, selected lead member ${baseResult.taskKitLeadMemberSelectionId ?? "n/a"}, selected ${baseResult.taskKitPageMemberSelectionCount ?? 0} page-linked scene member${baseResult.taskKitPageMemberSelectionCount === 1 ? "" : "s"}, replaced ${baseResult.taskKitEditableMemberId ?? "n/a"} with task-aware source ${baseResult.taskKitQuickReplaceAssetId ?? "n/a"}, then imported ${importedAssets.length} donor assets (${baseResult.importedFileTypes.join(", ")}), moved ${primaryImportedAsset.objectId} to (${baseResult.draggedX}, ${baseResult.draggedY}), resized it to ${baseResult.resizedWidth}×${baseResult.resizedHeight}, multi-selected/aligned/distributed donor-backed objects, replaced ${baseResult.replacementObjectId ?? "n/a"} with donor asset ${baseResult.replacementDonorEvidenceId ?? "n/a"}, and reloaded donor linkage for every donor-backed object.`;
+    const successMessage = `Live donor import smoke passed: imported task kit ${baseResult.taskKitGroupKey ?? "n/a"} into scene section ${baseResult.taskKitSectionLabel ?? "n/a"}, reopened active task ${baseResult.taskKitTaskId ?? "n/a"} on that grouped compose surface, surfaced page-aware guide ${baseResult.taskKitPageGuideName ?? "n/a"}, focused page source asset ${baseResult.taskKitPageSourceAssetId ?? "n/a"} and evidence ${baseResult.taskKitPageSourceEvidenceId ?? "n/a"}, selected lead member ${baseResult.taskKitLeadMemberSelectionId ?? "n/a"}, selected ${baseResult.taskKitPageMemberSelectionCount ?? 0} page-linked scene member${baseResult.taskKitPageMemberSelectionCount === 1 ? "" : "s"}, replaced ${baseResult.taskKitEditableMemberId ?? "n/a"} with task-aware source ${baseResult.taskKitQuickReplaceAssetId ?? "n/a"}, then imported ${importedAssets.length} donor assets (${baseResult.importedFileTypes.join(", ")}), moved ${primaryImportedAsset.objectId} to (${baseResult.draggedX}, ${baseResult.draggedY}), resized it to ${baseResult.resizedWidth}×${baseResult.resizedHeight}, multi-selected/aligned/distributed donor-backed objects, replaced ${baseResult.replacementObjectId ?? "n/a"} with donor asset ${baseResult.replacementDonorEvidenceId ?? "n/a"}, and reloaded donor linkage for every donor-backed object.`;
     setPreviewStatus(successMessage);
     baseResult.previewStatus = successMessage;
     document.body.dataset.liveDonorImportSmoke = "pass";
@@ -19221,6 +19296,22 @@ function renderInspector() {
                           data-task-reconstruction-object-ids="${escapeAttribute(JSON.stringify(page.matchedSceneMembers.map((entry) => entry.id)))}"
                           title="Select grouped Compose members already tied to ${escapeAttribute(page.pageName)}"
                         >${page.matchedSceneMembers.length === 1 ? "Select Page Members" : `Select ${page.matchedSceneMembers.length} Page Members`}</button>
+                      ` : ""}
+                      ${page.matchedTaskKitAsset?.assetId ? `
+                        <button
+                          type="button"
+                          class="copy-button"
+                          data-focus-donor-asset-id="${escapeAttribute(page.matchedTaskKitAsset.assetId)}"
+                          title="Focus the donor asset card for ${escapeAttribute(page.pageName)}"
+                        >Show Page Asset</button>
+                      ` : ""}
+                      ${page.matchedTaskKitAsset?.evidenceId ? `
+                        <button
+                          type="button"
+                          class="copy-button"
+                          data-focus-donor-evidence-id="${escapeAttribute(page.matchedTaskKitAsset.evidenceId)}"
+                          title="Focus the donor evidence item for ${escapeAttribute(page.pageName)}"
+                        >Show Page Evidence</button>
                       ` : ""}
                       ${replaceableSelectedObject && page.matchedTaskKitAsset && page.matchedTaskKitAsset.assetId !== donorAsset?.assetId ? `
                         <button
