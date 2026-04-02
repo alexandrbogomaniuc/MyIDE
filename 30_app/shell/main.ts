@@ -72,6 +72,7 @@ const isLiveRuntimePageProofRelaunchSmokeMode = process.env.MYIDE_LIVE_RUNTIME_P
 const isLiveRuntimeSmokeMode = process.env.MYIDE_LIVE_RUNTIME_SMOKE === "1";
 const isRuntimeSelectedProjectRouteSmokeMode = process.env.MYIDE_RUNTIME_SELECTED_PROJECT_ROUTE_SMOKE === "1";
 const isRuntimeSelectedProjectRedirectSmokeMode = process.env.MYIDE_RUNTIME_SELECTED_PROJECT_REDIRECT_SMOKE === "1";
+const isRuntimeSelectedProjectObservationSmokeMode = process.env.MYIDE_RUNTIME_SELECTED_PROJECT_UPSTREAM_OBSERVATION_SMOKE === "1";
 const isLiveDuplicateDeleteSmokeMode = process.env.MYIDE_LIVE_DUPLICATE_DELETE_SMOKE === "1";
 const isLiveReorderSmokeMode = process.env.MYIDE_LIVE_REORDER_SMOKE === "1";
 const isLiveLayerReassignSmokeMode = process.env.MYIDE_LIVE_LAYER_REASSIGN_SMOKE === "1";
@@ -367,6 +368,18 @@ function finishRuntimeSelectedProjectRouteSmoke(exitCode: number, message: strin
 }
 
 function finishRuntimeSelectedProjectRedirectSmoke(exitCode: number, message: string): void {
+  if (exitCode === 0) {
+    console.log(message);
+  } else {
+    console.error(message);
+  }
+
+  setTimeout(() => {
+    app.exit(exitCode);
+  }, 0);
+}
+
+function finishRuntimeSelectedProjectObservationSmoke(exitCode: number, message: string): void {
   if (exitCode === 0) {
     console.log(message);
   } else {
@@ -1372,9 +1385,24 @@ function installRuntimeAssetOverrideInterception(): void {
 
     const redirectURL = getRuntimeRedirectUrl(details.url);
     if (!redirectURL) {
-      recordRuntimeResourceHit("project_001", details.url, details.url, "upstream-request", {
-        resourceType: details.resourceType
-      });
+      const observed = getRuntimeObservedRequestMetadata(details.url);
+      if (observed) {
+        recordRuntimeResourceHit(
+          observed.projectId,
+          details.url,
+          observed.canonicalSourceUrl,
+          observed.requestSource,
+          {
+            captureMethod: "partition-webrequest",
+            localMirrorAbsolutePath: observed.localMirrorAbsolutePath ?? null,
+            overrideAbsolutePath: observed.overrideAbsolutePath ?? null,
+            fileType: observed.fileType ?? null,
+            runtimeRelativePath: observed.runtimeRelativePath ?? null,
+            resourceType: details.resourceType,
+            stage: runtimeRequestStage
+          }
+        );
+      }
       callback({});
       return;
     }
@@ -2017,6 +2045,115 @@ async function runRuntimeSelectedProjectRedirectSmoke(): Promise<void> {
       projectId
     })}`);
     finishRuntimeSelectedProjectRedirectSmoke(1, `FAIL smoke:electron-runtime-selected-project-upstream-redirect - ${message}`);
+  } finally {
+    if (probeWindow && !probeWindow.isDestroyed()) {
+      probeWindow.destroy();
+    }
+  }
+}
+
+async function runRuntimeSelectedProjectObservationSmoke(): Promise<void> {
+  console.log("MYIDE_RUNTIME_SELECTED_PROJECT_UPSTREAM_OBSERVATION_MAIN_READY");
+  const projectId = process.env.MYIDE_RUNTIME_SELECTED_PROJECT_UPSTREAM_OBSERVATION_PROJECT_ID ?? "project_002";
+  const runtimeSourceUrl = process.env.MYIDE_RUNTIME_SELECTED_PROJECT_UPSTREAM_OBSERVATION_SOURCE_URL
+    ?? "https://cdn.bgaming-network.com/runtime/img/selected-project-upstream-observation-smoke.png";
+
+  let probeWindow: BrowserWindow | null = null;
+  try {
+    bridgeHealthState.lastSelectedProjectId = projectId;
+    recentRuntimeObservationFingerprints.clear();
+    runtimeAssetOverrideHits.clear();
+    resetRuntimeResourceMap(projectId);
+    scheduleRuntimeResourceMapSnapshotWrite(projectId);
+    resetRuntimeResourceMap("project_001");
+    scheduleRuntimeResourceMapSnapshotWrite("project_001");
+    await primeRuntimeProjectCachesFromWorkspace();
+
+    const redirectUrl = getRuntimeRedirectUrl(runtimeSourceUrl);
+    probeWindow = new BrowserWindow({
+      width: 800,
+      height: 600,
+      show: false,
+      backgroundColor: "#0b1017",
+      webPreferences: {
+        partition: runtimeWebviewPartition,
+        backgroundThrottling: false,
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true
+      }
+    });
+    await probeWindow.loadURL("data:text/html;charset=utf-8,<html><body>runtime upstream observation smoke</body></html>");
+
+    const imageResult = await probeWindow.webContents.executeJavaScript(
+      `new Promise((resolve) => {
+        const image = new Image();
+        image.onload = () => resolve({ status: "load", currentSrc: image.currentSrc || image.src });
+        image.onerror = () => resolve({ status: "error", currentSrc: image.currentSrc || image.src });
+        image.src = ${JSON.stringify(runtimeSourceUrl)};
+        document.body.appendChild(image);
+      })`,
+      true
+    ) as {
+      status?: string;
+      currentSrc?: string;
+    } | null;
+    await delay(500);
+
+    const projectResourceMap = await loadRuntimeResourceMapStatus(projectId);
+    const project001ResourceMap = await loadRuntimeResourceMapStatus("project_001");
+    const matchedProjectEntry = projectResourceMap.entries.find((entry) => entry.canonicalSourceUrl === runtimeSourceUrl) ?? null;
+    const project001ContainsSeedSource = project001ResourceMap.entries.some((entry) => entry.canonicalSourceUrl === runtimeSourceUrl);
+    const payload: {
+      status: "pass" | "fail";
+      error: string | null;
+      projectId: string;
+      runtimeSourceUrl: string;
+      redirectUrl: string | null;
+      imageStatus: string | null;
+      imageCurrentSrc: string | null;
+      projectResourceMapEntryCount: number;
+      matchedProjectRequestSource: string | null;
+      matchedProjectLatestRequestUrl: string | null;
+      project001ContainsSeedSource: boolean;
+    } = {
+      status: (
+        redirectUrl === null
+        && Boolean(matchedProjectEntry)
+        && matchedProjectEntry?.requestSource === "upstream-request"
+        && !project001ContainsSeedSource
+      ) ? "pass" : "fail",
+      error: null,
+      projectId,
+      runtimeSourceUrl,
+      redirectUrl,
+      imageStatus: typeof imageResult?.status === "string" ? imageResult.status : null,
+      imageCurrentSrc: typeof imageResult?.currentSrc === "string" ? imageResult.currentSrc : null,
+      projectResourceMapEntryCount: projectResourceMap.entryCount,
+      matchedProjectRequestSource: matchedProjectEntry?.requestSource ?? null,
+      matchedProjectLatestRequestUrl: matchedProjectEntry?.latestRequestUrl ?? null,
+      project001ContainsSeedSource
+    };
+
+    if (payload.status !== "pass") {
+      payload.error = "Selected-project upstream observation smoke still polluted project_001 or failed to attribute the request to the selected project.";
+    }
+
+    console.log(`MYIDE_RUNTIME_SELECTED_PROJECT_UPSTREAM_OBSERVATION_RESULT:${JSON.stringify(payload)}`);
+    if (payload.status === "pass") {
+      finishRuntimeSelectedProjectObservationSmoke(0, "PASS smoke:electron-runtime-selected-project-upstream-observation");
+      return;
+    }
+
+    finishRuntimeSelectedProjectObservationSmoke(1, `FAIL smoke:electron-runtime-selected-project-upstream-observation - ${payload.error}`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.log(`MYIDE_RUNTIME_SELECTED_PROJECT_UPSTREAM_OBSERVATION_RESULT:${JSON.stringify({
+      status: "fail",
+      error: message,
+      projectId
+    })}`);
+    finishRuntimeSelectedProjectObservationSmoke(1, `FAIL smoke:electron-runtime-selected-project-upstream-observation - ${message}`);
   } finally {
     if (probeWindow && !probeWindow.isDestroyed()) {
       probeWindow.destroy();
@@ -2895,6 +3032,11 @@ app.whenReady().then(() => {
           console.error(`MYIDE_RUNTIME_MIRROR_SERVER_FAIL:${error instanceof Error ? error.message : String(error)}`);
         })
         .finally(() => {
+          if (isRuntimeSelectedProjectObservationSmokeMode) {
+            void runRuntimeSelectedProjectObservationSmoke();
+            return;
+          }
+
           if (isRuntimeSelectedProjectRedirectSmokeMode) {
             void runRuntimeSelectedProjectRedirectSmoke();
             return;
@@ -2920,6 +3062,11 @@ app.whenReady().then(() => {
 
 app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) {
+    if (isRuntimeSelectedProjectObservationSmokeMode) {
+      void runRuntimeSelectedProjectObservationSmoke();
+      return;
+    }
+
     if (isRuntimeSelectedProjectRouteSmokeMode) {
       void runRuntimeSelectedProjectRouteSmoke();
       return;
