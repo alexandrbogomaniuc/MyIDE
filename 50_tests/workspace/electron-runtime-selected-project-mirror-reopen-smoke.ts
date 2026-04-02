@@ -33,6 +33,9 @@ interface MirrorReopenPayload {
   runtimeStatusHeading?: string | null;
   runtimeSurfaceCountLabel?: string | null;
   runtimeSurfaceSummaryTitle?: string | null;
+  runtimeStatusSurfaceChipLabel?: string | null;
+  runtimeStatusSurfaceCardTitle?: string | null;
+  inspectorSurfaceChipLabel?: string | null;
   runtimeStatusMentionsOfficialDailyPath?: boolean;
   embeddedRuntimeLaunched?: boolean;
   previewStatus?: string | null;
@@ -423,6 +426,9 @@ async function main(): Promise<void> {
     assert.equal(payload.runtimeStatusHeading, "Selected-project runtime surface", "Selected-project mirror reopen smoke should keep the runtime status heading project-aware.");
     assert.equal(payload.runtimeSurfaceCountLabel, "local-mirror", "Selected-project mirror reopen smoke should expose the exact local-mirror runtime surface label.");
     assert.equal(payload.runtimeSurfaceSummaryTitle, "Local-mirror runtime workbench", "Selected-project mirror reopen smoke should expose the exact local-mirror runtime surface summary title.");
+    assert.equal(payload.runtimeStatusSurfaceChipLabel, "local-mirror", "Selected-project mirror reopen smoke should expose the exact local-mirror runtime status chip.");
+    assert.equal(payload.runtimeStatusSurfaceCardTitle, "Local-mirror runtime workbench", "Selected-project mirror reopen smoke should expose the exact local-mirror runtime status card title.");
+    assert.equal(payload.inspectorSurfaceChipLabel, "local-mirror", "Selected-project mirror reopen smoke should expose the exact local-mirror inspector chip.");
     assert.equal(payload.runtimeStatusMentionsOfficialDailyPath, false, "Selected-project mirror reopen smoke should not claim project_002 is on the official daily runtime path.");
     assert.equal(payload.embeddedRuntimeLaunched, false, "Selected-project mirror reopen smoke should not launch the embedded runtime.");
 

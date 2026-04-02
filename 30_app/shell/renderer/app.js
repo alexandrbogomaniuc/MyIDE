@@ -6595,6 +6595,9 @@ async function runLiveRuntimeSelectedProjectReopenSmoke() {
     runtimeStatusHeading: null,
     runtimeSurfaceCountLabel: null,
     runtimeSurfaceSummaryTitle: null,
+    runtimeStatusSurfaceChipLabel: null,
+    runtimeStatusSurfaceCardTitle: null,
+    inspectorSurfaceChipLabel: null,
     runtimeStatusMentionsOfficialDailyPath: false,
     embeddedRuntimeLaunched: false,
     previewStatus: null
@@ -6718,6 +6721,29 @@ async function runLiveRuntimeSelectedProjectReopenSmoke() {
     );
     baseResult.runtimeSurfaceCountLabel = runtimeSurfaceSummary.countLabel;
     baseResult.runtimeSurfaceSummaryTitle = runtimeSurfaceSummary.summaryTitle;
+    const runtimeSurfaceLabels = await waitForRendererCondition(
+      () => {
+        const runtimeStatusSurfaceChipLabel = elements.runtimeStatus?.querySelector(".runtime-status-summary .chip-row span:nth-child(2)")?.textContent?.trim() ?? null;
+        const runtimeSurfaceCards = Array.from(elements.runtimeStatus?.querySelectorAll(".detail-card") ?? []);
+        const runtimeSurfaceCard = runtimeSurfaceCards.find((card) => {
+          const cardLabel = card.querySelector("span")?.textContent?.trim() ?? "";
+          return cardLabel === "Selected-project Surface";
+        }) ?? null;
+        const runtimeStatusSurfaceCardTitle = runtimeSurfaceCard?.querySelector("strong")?.textContent?.trim() ?? null;
+        const inspectorSurfaceChipLabel = elements.inspector?.querySelector(".inspector-purpose + .chip-row span:nth-child(2)")?.textContent?.trim() ?? null;
+        return runtimeStatusSurfaceChipLabel && runtimeStatusSurfaceCardTitle && inspectorSurfaceChipLabel
+          ? {
+            runtimeStatusSurfaceChipLabel,
+            runtimeStatusSurfaceCardTitle,
+            inspectorSurfaceChipLabel
+          }
+          : null;
+      },
+      "selected-project runtime surface labels"
+    );
+    baseResult.runtimeStatusSurfaceChipLabel = runtimeSurfaceLabels.runtimeStatusSurfaceChipLabel;
+    baseResult.runtimeStatusSurfaceCardTitle = runtimeSurfaceLabels.runtimeStatusSurfaceCardTitle;
+    baseResult.inspectorSurfaceChipLabel = runtimeSurfaceLabels.inspectorSurfaceChipLabel;
     const runtimeStatusText = elements.runtimeStatus?.textContent?.replace(/\s+/g, " ").trim() ?? "";
     baseResult.runtimeStatusMentionsOfficialDailyPath = /official daily path/i.test(runtimeStatusText);
     if (baseResult.runtimeDebugHostActionVisible || baseResult.runtimeSourceDebugHostActionVisible) {
@@ -21637,6 +21663,35 @@ function renderActivityLog() {
     .join("");
 }
 
+function getActiveRuntimeWorkbenchSurface(preferredSourceUrl = null) {
+  const workbenchEntries = getRuntimeWorkbenchEntries();
+  const activeWorkbenchSourceUrl = getRuntimeCanonicalSourceUrl(preferredSourceUrl)
+    ?? getRuntimeWorkbenchSourceUrl()
+    ?? workbenchEntries[0]?.sourceUrl
+    ?? null;
+  const activeWorkbenchEntry = workbenchEntries.find((entry) => entry.sourceUrl === activeWorkbenchSourceUrl) ?? workbenchEntries[0] ?? null;
+  const activeWorkbenchSurfaceKind = activeWorkbenchEntry?.kind === "resource-map" && activeWorkbenchEntry?.requestBacked
+    ? "request-backed"
+    : activeWorkbenchEntry?.kind === "local-mirror-manifest"
+      ? "local-mirror"
+      : activeWorkbenchEntry?.kind === "page-runtime-proof"
+        ? "page-proof"
+        : "grounded";
+  const activeWorkbenchSurfaceTitle = activeWorkbenchSurfaceKind === "request-backed"
+    ? "Request-backed runtime workbench"
+    : activeWorkbenchSurfaceKind === "local-mirror"
+      ? "Local-mirror runtime workbench"
+      : activeWorkbenchSurfaceKind === "page-proof"
+        ? "Page-proof runtime workbench"
+        : "Grounded runtime workbench";
+
+  return {
+    activeWorkbenchEntry,
+    activeWorkbenchSurfaceKind,
+    activeWorkbenchSurfaceTitle
+  };
+}
+
 function renderRuntimeWorkbenchAssetList() {
   const entries = getRuntimeWorkbenchEntries();
   const debugHostAvailable = canUseRuntimeDebugHostForSelectedProject();
@@ -21752,6 +21807,11 @@ function renderRuntimeWorkbench() {
   const runtimeCoverage = getRuntimeCoverageStatus();
   const runtimeAssetUseEntries = getRuntimeAssetUseEntries();
   const latestResourceEntry = getRuntimeResourceMapEntries()[0] ?? null;
+  const {
+    activeWorkbenchEntry,
+    activeWorkbenchSurfaceKind,
+    activeWorkbenchSurfaceTitle
+  } = getActiveRuntimeWorkbenchSurface();
   const debugHostResult = state.runtimeUi.debugHost;
   const debugHostAvailable = canUseRuntimeDebugHostForSelectedProject();
   const harvestAvailable = canHarvestSelectedProjectRuntimeRequestEvidence();
@@ -21852,7 +21912,7 @@ function renderRuntimeWorkbench() {
           : "No local donor runtime mirror is captured, so runtime work still falls back to the recorded donor entry."}</span>
       <div class="chip-row">
         <span>${escapeHtml(runtimeLaunch.captureSessionId ?? "runtime session unknown")}</span>
-        <span>${escapeHtml(runtimeLaunch.runtimeSourceLabel ?? "Blocked")}</span>
+        <span>${escapeHtml(debugHostAvailable ? (runtimeLaunch.runtimeSourceLabel ?? "Blocked") : activeWorkbenchSurfaceKind)}</span>
         <span>${debugHostResult?.status === "pass" ? "debug host proved" : "debug host pending"}</span>
         <span>${runtimeLaunch.entryUrl ? "runtime entry ready" : "launch blocked"}</span>
         <span>${state.runtimeUi.inspectEnabled ? "embedded pick armed" : "embedded pick idle"}</span>
@@ -21876,9 +21936,11 @@ function renderRuntimeWorkbench() {
         <small>${escapeHtml(runtimeDebugHostCardBody)}</small>
       </div>
       <div class="detail-card">
-        <span>Runtime Entry</span>
-        <strong>${escapeHtml(runtimeLaunch.runtimeSourceLabel ?? "Blocked")}</strong>
-        <small>${runtimeLaunch.entryUrl ? `<code>${escapeHtml(runtimeLaunch.entryUrl)}</code>` : "No grounded launch URL is recorded."}</small>
+        <span>${escapeHtml(debugHostAvailable ? "Runtime Entry" : "Selected-project Surface")}</span>
+        <strong>${escapeHtml(debugHostAvailable ? (runtimeLaunch.runtimeSourceLabel ?? "Blocked") : activeWorkbenchSurfaceTitle)}</strong>
+        <small>${debugHostAvailable
+          ? (runtimeLaunch.entryUrl ? `<code>${escapeHtml(runtimeLaunch.entryUrl)}</code>` : "No grounded launch URL is recorded.")
+          : escapeHtml(activeWorkbenchEntry?.relativePath ?? activeWorkbenchEntry?.sourceUrl ?? "No grounded runtime workbench item is selected for this project yet.")}</small>
       </div>
       <div class="detail-card">
         <span>Current Runtime URL</span>
@@ -21979,25 +22041,11 @@ function renderRuntimeInspector() {
   const sourcePaths = Array.isArray(runtimeLaunch?.sourcePaths) ? runtimeLaunch.sourcePaths : [];
   const topRuntimeAsset = lastPick?.topRuntimeAsset ?? runtimeAssetUseEntries[0] ?? null;
   const workbenchEntries = getRuntimeWorkbenchEntries();
-  const activeWorkbenchSourceUrl = getRuntimeWorkbenchSourceUrl()
-    ?? runtimeOverrideCandidate.runtimeSourceUrl
-    ?? workbenchEntries[0]?.sourceUrl
-    ?? null;
-  const activeWorkbenchEntry = workbenchEntries.find((entry) => entry.sourceUrl === activeWorkbenchSourceUrl) ?? workbenchEntries[0] ?? null;
-  const activeWorkbenchSurfaceKind = activeWorkbenchEntry?.kind === "resource-map" && activeWorkbenchEntry?.requestBacked
-    ? "request-backed"
-    : activeWorkbenchEntry?.kind === "local-mirror-manifest"
-      ? "local-mirror"
-      : activeWorkbenchEntry?.kind === "page-runtime-proof"
-        ? "page-proof"
-        : "grounded";
-  const activeWorkbenchSurfaceTitle = activeWorkbenchSurfaceKind === "request-backed"
-    ? "Request-backed runtime workbench"
-    : activeWorkbenchSurfaceKind === "local-mirror"
-      ? "Local-mirror runtime workbench"
-      : activeWorkbenchSurfaceKind === "page-proof"
-        ? "Page-proof runtime workbench"
-        : "Grounded runtime workbench";
+  const {
+    activeWorkbenchEntry,
+    activeWorkbenchSurfaceKind,
+    activeWorkbenchSurfaceTitle
+  } = getActiveRuntimeWorkbenchSurface(runtimeOverrideCandidate.runtimeSourceUrl);
   const embeddedRequestBackedImages = getRuntimeResourceMapEntries().filter((entry) => (
     entry.requestCategory === "static-asset"
     && ["png", "webp", "jpg", "jpeg", "svg"].includes(String(entry.fileType ?? "").toLowerCase())
@@ -22028,7 +22076,7 @@ function renderRuntimeInspector() {
       <div class="detail-grid runtime-workbench-grid">
         <div class="detail-card ${debugHostAvailable ? (state.runtimeUi.debugHost?.status === "pass" ? "is-positive" : "is-alert") : "is-alert"}">
           <span>Preferred Candidate</span>
-          <strong>${escapeHtml(activeWorkbenchEntry?.relativePath ?? (debugHostAvailable ? "Open Debug Host to choose a runtime candidate" : "Select a grounded request-backed runtime candidate"))}</strong>
+          <strong>${escapeHtml(activeWorkbenchEntry?.relativePath ?? (debugHostAvailable ? "Open Debug Host to choose a runtime candidate" : "Select a grounded runtime workbench candidate"))}</strong>
           <small>${escapeHtml(activeWorkbenchEntry?.note ?? (debugHostAvailable ? "No grounded runtime workbench item is selected yet." : "No grounded runtime workbench item is selected for this project yet."))}</small>
         </div>
         <div class="detail-card ${activeWorkbenchEntry?.donorAsset ? "is-positive" : "is-alert"}">
@@ -22309,7 +22357,7 @@ function renderRuntimeInspector() {
       : "This selected project stays on the grounded runtime workbench surface. Grounded reopen, donor/evidence jumps, and bounded overrides remain available here even while Debug Host and embedded launch are not yet validated for this project.")}</p>
     <div class="chip-row">
       <span>${escapeHtml(runtimeLaunch?.availability ?? "blocked")}</span>
-      <span>${escapeHtml(runtimeLaunch?.runtimeSourceLabel ?? "Blocked")}</span>
+      <span>${escapeHtml(debugHostAvailable ? (runtimeLaunch?.runtimeSourceLabel ?? "Blocked") : activeWorkbenchSurfaceKind)}</span>
       <span>${state.runtimeUi.debugHost?.status === "pass" ? "debug host official" : "debug host ready"}</span>
       <span>${state.runtimeUi.inspectEnabled ? "embedded pick armed" : "embedded pick idle"}</span>
       <span>${diagnostics?.pixiVersion ? `Pixi ${escapeHtml(diagnostics.pixiVersion)}` : runtimeLaunch?.pixiVersion ? `Pixi ${escapeHtml(runtimeLaunch.pixiVersion)}` : escapeHtml(diagnostics?.engineKind ?? "Pixi unknown")}</span>
