@@ -42,6 +42,7 @@ import {
   resetRuntimeResourceMap
 } from "../runtime/runtimeResourceMap";
 import {
+  buildRuntimePageProofStatus,
   saveRuntimePageProof,
   type SaveRuntimePageProofInput
 } from "../runtime/runtimePageProofs";
@@ -636,7 +637,8 @@ function resolveRuntimeHarvestLocalMirrorAbsolutePath(entry: {
 
 function getRuntimeHarvestCandidateEntries(
   status: LocalRuntimeMirrorStatus | null | undefined,
-  resourceMap: Awaited<ReturnType<typeof loadRuntimeResourceMapStatus>> | null | undefined
+  resourceMap: Awaited<ReturnType<typeof loadRuntimeResourceMapStatus>> | null | undefined,
+  pageProofStatus: Awaited<ReturnType<typeof buildRuntimePageProofStatus>> | null | undefined
 ): RuntimeHarvestCandidate[] {
   const candidates = new Map<string, RuntimeHarvestCandidate>();
 
@@ -680,6 +682,29 @@ function getRuntimeHarvestCandidateEntries(
     });
   }
 
+  for (const entry of pageProofStatus?.entries ?? []) {
+    if (typeof entry?.sourceUrl !== "string" || entry.sourceUrl.length === 0) {
+      continue;
+    }
+    if (candidates.has(entry.sourceUrl)) {
+      continue;
+    }
+    if (!resolveRuntimeHarvestLocalMirrorAbsolutePath(entry)) {
+      continue;
+    }
+
+    const kind = inferRuntimeHarvestCandidateKind(entry.sourceUrl, path.extname(entry.localMirrorRepoRelativePath ?? "").replace(/^\./, "").toLowerCase() || null);
+    if (!kind) {
+      continue;
+    }
+
+    candidates.set(entry.sourceUrl, {
+      sourceUrl: entry.sourceUrl,
+      kind,
+      preferAssetRoute: false
+    });
+  }
+
   return Array.from(candidates.values()).slice(0, 8);
 }
 
@@ -715,7 +740,8 @@ async function harvestRuntimeRequestEvidence(projectId: string): Promise<{
 
   const runtimeMirrorStatus = getRuntimeLocalMirrorStatus(projectId);
   const resourceMap = await loadRuntimeResourceMapStatus(projectId);
-  const candidates = getRuntimeHarvestCandidateEntries(runtimeMirrorStatus, resourceMap);
+  const pageProofStatus = await buildRuntimePageProofStatus(projectId);
+  const candidates = getRuntimeHarvestCandidateEntries(runtimeMirrorStatus, resourceMap, pageProofStatus);
   if (candidates.length === 0) {
     return {
       projectId,
@@ -793,18 +819,33 @@ async function readRuntimeHarvestFallbackFile(
 ): Promise<{ absolutePath: string; fileType: string; content: Uint8Array } | null> {
   const resourceMap = await loadRuntimeResourceMapStatus(projectId);
   const matchingEntry = resourceMap.entries.find((entry) => entry.canonicalSourceUrl === sourceUrl);
-  if (!matchingEntry) {
+  if (matchingEntry) {
+    const absolutePath = resolveRuntimeHarvestLocalMirrorAbsolutePath(matchingEntry);
+    if (!absolutePath) {
+      return null;
+    }
+
+    return {
+      absolutePath,
+      fileType: matchingEntry.fileType ?? (path.extname(absolutePath).replace(/^\./, "").toLowerCase() || "bin"),
+      content: new Uint8Array(await fs.readFile(absolutePath))
+    };
+  }
+
+  const pageProofStatus = await buildRuntimePageProofStatus(projectId);
+  const matchingProofEntry = pageProofStatus?.entries.find((entry) => entry.sourceUrl === sourceUrl);
+  if (!matchingProofEntry) {
     return null;
   }
 
-  const absolutePath = resolveRuntimeHarvestLocalMirrorAbsolutePath(matchingEntry);
+  const absolutePath = resolveRuntimeHarvestLocalMirrorAbsolutePath(matchingProofEntry);
   if (!absolutePath) {
     return null;
   }
 
   return {
     absolutePath,
-    fileType: matchingEntry.fileType ?? (path.extname(absolutePath).replace(/^\./, "").toLowerCase() || "bin"),
+    fileType: path.extname(absolutePath).replace(/^\./, "").toLowerCase() || "bin",
     content: new Uint8Array(await fs.readFile(absolutePath))
   };
 }

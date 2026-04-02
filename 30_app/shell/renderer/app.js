@@ -1027,6 +1027,17 @@ function getSelectedProjectRuntimeHarvestCandidateCount() {
     }
   });
 
+  (state.bundle?.runtimePageProofs?.entries ?? []).forEach((entry) => {
+    const sourceUrl = typeof entry?.sourceUrl === "string" ? entry.sourceUrl : "";
+    if (!sourceUrl || candidates.has(sourceUrl) || !entry?.localMirrorRepoRelativePath) {
+      return;
+    }
+
+    if (inferRuntimeHarvestCandidateKind(sourceUrl, getRuntimeResourceFileType(entry.localMirrorRepoRelativePath))) {
+      candidates.add(sourceUrl);
+    }
+  });
+
   return candidates.size;
 }
 
@@ -6839,7 +6850,7 @@ async function runLiveRuntimeSelectedProjectHarvestSmoke() {
     }
 
     baseResult.preHarvestRuntimeWorkbenchEntryKind = preHarvestTaskRuntimeEntry.kind ?? null;
-    if (!["local-mirror-manifest", "resource-map"].includes(preHarvestTaskRuntimeEntry.kind ?? "")) {
+    if (!["local-mirror-manifest", "resource-map", "page-runtime-proof"].includes(preHarvestTaskRuntimeEntry.kind ?? "")) {
       throw new Error(`Selected-project runtime harvest smoke expected a grounded runtime workbench entry before harvest, received ${preHarvestTaskRuntimeEntry.kind ?? "none"}.`);
     }
     if (preHarvestTaskRuntimeEntry.sourceUrl !== runtimeSourceUrl) {
