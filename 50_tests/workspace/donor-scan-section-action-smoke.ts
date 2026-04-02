@@ -151,6 +151,7 @@ async function main(): Promise<void> {
   assert.ok(result.reconstructionBundlePath, "section action should write a reconstruction bundle");
   assert.ok(result.skinBlueprintPath, "section action should write a skin blueprint");
   assert.ok(result.skinRenderPlanPath, "section action should write a skin render plan");
+  assert.ok(result.skinMaterialPlanPath, "section action should write a skin material plan");
   assert.equal(result.mappedAttachmentCount, 4, "section action should preserve mapped attachment counts");
   assert.equal(result.exactLocalSourceCount, 2, "section action should preserve exact local source counts");
 
@@ -162,6 +163,7 @@ async function main(): Promise<void> {
     reconstructionBundlePath?: string | null;
     skinBlueprintPath?: string | null;
     skinRenderPlanPath?: string | null;
+    skinMaterialPlanPath?: string | null;
     mappedAttachmentCount?: number;
   };
   assert.equal(sectionActionRun.sectionKey, "big_win/BW", "section action run should preserve section key");
@@ -170,6 +172,7 @@ async function main(): Promise<void> {
   assert.ok(sectionActionRun.reconstructionBundlePath, "section action run should point at the prepared reconstruction bundle");
   assert.ok(sectionActionRun.skinBlueprintPath, "section action run should point at the prepared skin blueprint");
   assert.ok(sectionActionRun.skinRenderPlanPath, "section action run should point at the prepared skin render plan");
+  assert.ok(sectionActionRun.skinMaterialPlanPath, "section action run should point at the prepared skin material plan");
   assert.equal(sectionActionRun.mappedAttachmentCount, 4, "section action run should persist mapped attachment counts");
 
   const worksetPath = result.worksetPath ?? "";
@@ -270,6 +273,37 @@ async function main(): Promise<void> {
     : null;
   assert.ok(renderProfile, "section skin render plan profiles should include the prepared section");
   assert.equal(renderProfile?.renderState, "ready-for-layered-render-reconstruction", "section skin render plan profiles should preserve render readiness");
+
+  const skinMaterialPlanPath = result.skinMaterialPlanPath ?? "";
+  const resolvedSkinMaterialPlanPath = path.isAbsolute(skinMaterialPlanPath) ? skinMaterialPlanPath : path.join(workspaceRoot, skinMaterialPlanPath);
+  const skinMaterialPlan = JSON.parse(await fs.readFile(resolvedSkinMaterialPlanPath, "utf8")) as {
+    sectionKey?: string;
+    materialState?: string;
+    pageCount?: number;
+    exactPageImageCount?: number;
+    missingPageImageCount?: number;
+    relatedImageCandidateCount?: number;
+    pages?: Array<{ pageName?: string; exactPageLocalPath?: string | null }>;
+  };
+  assert.equal(skinMaterialPlan.sectionKey, "big_win/BW", "section skin material plan should preserve section key");
+  assert.equal(skinMaterialPlan.materialState, "needs-related-image-review", "section skin material plan should explain when only related images are local");
+  assert.equal(skinMaterialPlan.pageCount, 2, "section skin material plan should expose atlas page coverage");
+  assert.equal(skinMaterialPlan.exactPageImageCount, 0, "section skin material plan should record missing exact page images in the smoke fixture");
+  assert.equal(skinMaterialPlan.missingPageImageCount, 2, "section skin material plan should count missing atlas pages");
+  assert.ok((skinMaterialPlan.relatedImageCandidateCount ?? 0) >= 1, "section skin material plan should preserve related image candidates");
+  assert.ok(Array.isArray(skinMaterialPlan.pages) && skinMaterialPlan.pages.length === 2, "section skin material plan should expose page material records");
+
+  const skinMaterialPlanProfilesPath = path.join(donorRoot, "section-skin-material-plan-profiles.json");
+  const skinMaterialPlanProfiles = JSON.parse(await fs.readFile(skinMaterialPlanProfilesPath, "utf8")) as {
+    sectionCount?: number;
+    sections?: Array<{ sectionKey?: string; materialState?: string; materialPlanPath?: string }>;
+  };
+  assert.ok((skinMaterialPlanProfiles.sectionCount ?? 0) >= 1, "section skin material plan profiles should record prepared sections");
+  const materialProfile = Array.isArray(skinMaterialPlanProfiles.sections)
+    ? skinMaterialPlanProfiles.sections.find((section) => section?.sectionKey === "big_win/BW")
+    : null;
+  assert.ok(materialProfile, "section skin material plan profiles should include the prepared section");
+  assert.equal(materialProfile?.materialState, "needs-related-image-review", "section skin material plan profiles should preserve material readiness");
 
   console.log("PASS donor-scan:section-action");
   console.log(`Donor: ${donorId}`);

@@ -3258,6 +3258,7 @@ async function runDonorScanSectionAction(sectionKey) {
     const reconstructionBundlePath = typeof result?.reconstructionBundlePath === "string" ? result.reconstructionBundlePath : null;
     const skinBlueprintPath = typeof result?.skinBlueprintPath === "string" ? result.skinBlueprintPath : null;
     const skinRenderPlanPath = typeof result?.skinRenderPlanPath === "string" ? result.skinRenderPlanPath : null;
+    const skinMaterialPlanPath = typeof result?.skinMaterialPlanPath === "string" ? result.skinMaterialPlanPath : null;
     const exactLocalSourceCount = Number(result?.exactLocalSourceCount ?? 0);
     const mappedAttachmentCount = Number(result?.mappedAttachmentCount ?? 0);
     const attachmentCount = Number(result?.attachmentCount ?? 0);
@@ -3272,7 +3273,8 @@ async function runDonorScanSectionAction(sectionKey) {
         + `${worksetPath ? ` at ${worksetPath}` : ""}`
         + `${reconstructionBundlePath ? ` using ${reconstructionBundlePath}` : ""}`
         + `${skinBlueprintPath ? ` with ${skinBlueprintPath}` : ""}`
-        + `${skinRenderPlanPath ? ` and ${skinRenderPlanPath}` : ""}. ${nextOperatorAction}`
+        + `${skinRenderPlanPath ? ` and ${skinRenderPlanPath}` : ""}`
+        + `${skinMaterialPlanPath ? ` plus ${skinMaterialPlanPath}` : ""}. ${nextOperatorAction}`
       );
       return;
     }
@@ -15385,7 +15387,7 @@ function renderProjectSummary() {
         ` : ""}
         ${donorScan?.sectionActionRunStatus ? `
           <div class="detail-list">
-            <small><strong>Latest section action</strong> · ${escapeHtml(donorScan.sectionActionRunStatus)} · ${escapeHtml(donorScan.sectionActionRunMode || "unknown")}${donorScan.sectionActionRunSectionKey ? ` · ${escapeHtml(donorScan.sectionActionRunSectionKey)}` : ""}${donorScan.sectionActionWorksetPath ? ` · workset <code>${escapeHtml(donorScan.sectionActionWorksetPath)}</code>` : ""}${donorScan.sectionActionReconstructionBundlePath ? ` · bundle <code>${escapeHtml(donorScan.sectionActionReconstructionBundlePath)}</code>` : ""}${donorScan.sectionActionSkinBlueprintPath ? ` · blueprint <code>${escapeHtml(donorScan.sectionActionSkinBlueprintPath)}</code>` : ""}${donorScan.sectionActionSkinRenderPlanPath ? ` · render plan <code>${escapeHtml(donorScan.sectionActionSkinRenderPlanPath)}</code>` : ""}${donorScan.sectionActionMappedAttachmentCount > 0 ? ` · ${escapeHtml(String(donorScan.sectionActionMappedAttachmentCount))} mapped attachment${donorScan.sectionActionMappedAttachmentCount === 1 ? "" : "s"}` : ""}${donorScan.sectionActionExactLocalSourceCount > 0 ? ` · ${escapeHtml(String(donorScan.sectionActionExactLocalSourceCount))} grounded local source${donorScan.sectionActionExactLocalSourceCount === 1 ? "" : "s"}` : ""}</small>
+            <small><strong>Latest section action</strong> · ${escapeHtml(donorScan.sectionActionRunStatus)} · ${escapeHtml(donorScan.sectionActionRunMode || "unknown")}${donorScan.sectionActionRunSectionKey ? ` · ${escapeHtml(donorScan.sectionActionRunSectionKey)}` : ""}${donorScan.sectionActionWorksetPath ? ` · workset <code>${escapeHtml(donorScan.sectionActionWorksetPath)}</code>` : ""}${donorScan.sectionActionReconstructionBundlePath ? ` · bundle <code>${escapeHtml(donorScan.sectionActionReconstructionBundlePath)}</code>` : ""}${donorScan.sectionActionSkinBlueprintPath ? ` · blueprint <code>${escapeHtml(donorScan.sectionActionSkinBlueprintPath)}</code>` : ""}${donorScan.sectionActionSkinRenderPlanPath ? ` · render plan <code>${escapeHtml(donorScan.sectionActionSkinRenderPlanPath)}</code>` : ""}${donorScan.sectionActionSkinMaterialPlanPath ? ` · material plan <code>${escapeHtml(donorScan.sectionActionSkinMaterialPlanPath)}</code>` : ""}${donorScan.sectionActionMappedAttachmentCount > 0 ? ` · ${escapeHtml(String(donorScan.sectionActionMappedAttachmentCount))} mapped attachment${donorScan.sectionActionMappedAttachmentCount === 1 ? "" : "s"}` : ""}${donorScan.sectionActionExactLocalSourceCount > 0 ? ` · ${escapeHtml(String(donorScan.sectionActionExactLocalSourceCount))} grounded local source${donorScan.sectionActionExactLocalSourceCount === 1 ? "" : "s"}` : ""}</small>
           </div>
         ` : ""}
         ${Array.isArray(donorScan?.topCaptureFamilies) && donorScan.topCaptureFamilies.length > 0 ? `
@@ -15542,6 +15544,16 @@ function renderProjectSummary() {
               <small><strong>${escapeHtml(section.sectionKey)}</strong> · ${escapeHtml(section.renderState)} · ${escapeHtml(String(section.mappedLayerCount))}/${escapeHtml(String(section.layerCount))} mapped layer${section.layerCount === 1 ? "" : "s"}${section.unmappedLayerCount > 0 ? ` · ${escapeHtml(String(section.unmappedLayerCount))} unmapped` : ""}${section.atlasPageCount > 0 ? ` · ${escapeHtml(String(section.atlasPageCount))} atlas page${section.atlasPageCount === 1 ? "" : "s"}` : ""}${section.exactLocalSourceCount > 0 ? ` · ${escapeHtml(String(section.exactLocalSourceCount))} local source${section.exactLocalSourceCount === 1 ? "" : "s"}` : ""}</small>
               <small>${escapeHtml(section.nextRenderStep)}</small>
               <small>render plan · <code>${escapeHtml(section.renderPlanPath)}</code>${section.atlasSourcePath ? ` · atlas <code>${escapeHtml(section.atlasSourcePath)}</code>` : ""}${section.sampleLocalSourcePath ? ` · local source <code>${escapeHtml(section.sampleLocalSourcePath)}</code>` : ""}</small>
+            `).join("")}
+          </div>
+        ` : ""}
+        ${Array.isArray(donorScan?.topSectionSkinMaterialPlanProfiles) && donorScan.topSectionSkinMaterialPlanProfiles.length > 0 ? `
+          <div class="detail-list">
+            <small><strong>Prepared section skin material plans</strong></small>
+            ${donorScan.topSectionSkinMaterialPlanProfiles.map((section) => `
+              <small><strong>${escapeHtml(section.sectionKey)}</strong> · ${escapeHtml(section.materialState)} · ${escapeHtml(String(section.exactPageImageCount))}/${escapeHtml(String(section.pageCount))} exact page image${section.pageCount === 1 ? "" : "s"}${section.missingPageImageCount > 0 ? ` · ${escapeHtml(String(section.missingPageImageCount))} missing` : ""}${section.relatedImageCandidateCount > 0 ? ` · ${escapeHtml(String(section.relatedImageCandidateCount))} related image candidate${section.relatedImageCandidateCount === 1 ? "" : "s"}` : ""}</small>
+              <small>${escapeHtml(section.nextMaterialStep)}</small>
+              <small>material plan · <code>${escapeHtml(section.materialPlanPath)}</code>${section.atlasSourcePath ? ` · atlas <code>${escapeHtml(section.atlasSourcePath)}</code>` : ""}${section.sampleLocalSourcePath ? ` · local source <code>${escapeHtml(section.sampleLocalSourcePath)}</code>` : ""}</small>
             `).join("")}
           </div>
         ` : ""}

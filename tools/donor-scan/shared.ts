@@ -162,6 +162,8 @@ export interface DonorScanPaths {
   sectionSkinBlueprintProfilesPath: string;
   sectionSkinRenderPlansRoot: string;
   sectionSkinRenderPlanProfilesPath: string;
+  sectionSkinMaterialPlansRoot: string;
+  sectionSkinMaterialPlanProfilesPath: string;
   captureRunPath: string;
   blockerSummaryPath: string;
   scanSummaryPath: string;
@@ -1123,6 +1125,80 @@ export interface SectionSkinRenderPlanProfilesFile {
   sections: SectionSkinRenderPlanProfileRecord[];
 }
 
+export type SectionSkinMaterialState =
+  | "ready-with-exact-page-images"
+  | "needs-related-image-review"
+  | "needs-page-source-discovery";
+
+export interface SectionSkinMaterialCandidateRecord {
+  localPath: string;
+  sourceKind: FamilyReconstructionLocalSourceRecord["sourceKind"];
+  relation: FamilyReconstructionLocalSourceRecord["relation"];
+  familyName: string;
+}
+
+export interface SectionSkinMaterialPageRecord {
+  orderIndex: number;
+  pageName: string;
+  layerCount: number;
+  slotNames: string[];
+  exactPageLocalPath: string | null;
+  relatedImageCandidateCount: number;
+  relatedImageCandidates: SectionSkinMaterialCandidateRecord[];
+}
+
+export interface SectionSkinMaterialPlanFile {
+  schemaVersion: string;
+  donorId: string;
+  donorName: string;
+  generatedAt: string;
+  familyName: string;
+  sectionKey: string;
+  skinName: string;
+  materialState: SectionSkinMaterialState;
+  renderState: SectionSkinRenderPlanState;
+  blueprintState: SectionSkinBlueprintState;
+  reconstructionState: SectionReconstructionBundleState;
+  pageCount: number;
+  exactPageImageCount: number;
+  missingPageImageCount: number;
+  relatedImageCandidateCount: number;
+  exactLocalSourceCount: number;
+  relatedLocalSourceCount: number;
+  sampleLocalSourcePath: string | null;
+  atlasSourcePath: string | null;
+  renderPlanPath: string;
+  skinBlueprintPath: string;
+  reconstructionBundlePath: string;
+  nextMaterialStep: string;
+  pages: SectionSkinMaterialPageRecord[];
+  relatedImageCandidates: SectionSkinMaterialCandidateRecord[];
+}
+
+export interface SectionSkinMaterialPlanProfileRecord {
+  familyName: string;
+  sectionKey: string;
+  skinName: string;
+  materialState: SectionSkinMaterialState;
+  pageCount: number;
+  exactPageImageCount: number;
+  missingPageImageCount: number;
+  relatedImageCandidateCount: number;
+  sampleLocalSourcePath: string | null;
+  atlasSourcePath: string | null;
+  materialPlanPath: string;
+  nextMaterialStep: string;
+}
+
+export interface SectionSkinMaterialPlanProfilesFile {
+  schemaVersion: string;
+  donorId: string;
+  donorName: string;
+  generatedAt: string;
+  sectionCount: number;
+  sections: SectionSkinMaterialPlanProfileRecord[];
+}
+
 export interface SectionActionRunFile {
   schemaVersion: string;
   donorId: string;
@@ -1137,6 +1213,7 @@ export interface SectionActionRunFile {
   reconstructionBundlePath: string | null;
   skinBlueprintPath: string | null;
   skinRenderPlanPath: string | null;
+  skinMaterialPlanPath: string | null;
   exactLocalSourceCount: number;
   attachmentCount: number;
   mappedAttachmentCount: number;
@@ -1239,6 +1316,8 @@ export function buildDonorScanPaths(donorId: string): DonorScanPaths {
     sectionSkinBlueprintProfilesPath: path.join(harvestRoot, "section-skin-blueprint-profiles.json"),
     sectionSkinRenderPlansRoot: path.join(harvestRoot, "section-skin-render-plans"),
     sectionSkinRenderPlanProfilesPath: path.join(harvestRoot, "section-skin-render-plan-profiles.json"),
+    sectionSkinMaterialPlansRoot: path.join(harvestRoot, "section-skin-material-plans"),
+    sectionSkinMaterialPlanProfilesPath: path.join(harvestRoot, "section-skin-material-plan-profiles.json"),
     captureRunPath: path.join(harvestRoot, "next-capture-run.json"),
     blockerSummaryPath: path.join(harvestRoot, "blocker-summary.md"),
     scanSummaryPath: path.join(harvestRoot, "scan-summary.json")
