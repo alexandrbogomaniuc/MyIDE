@@ -154,6 +154,8 @@ export interface DonorScanPaths {
   familyReconstructionMapsPath: string;
   familyReconstructionSectionsPath: string;
   familyReconstructionSectionBundlesPath: string;
+  sectionActionRunPath: string;
+  sectionReconstructionWorksetsRoot: string;
   captureRunPath: string;
   blockerSummaryPath: string;
   scanSummaryPath: string;
@@ -825,6 +827,58 @@ export interface FamilyReconstructionSectionBundlesFile {
   sections: FamilyReconstructionSectionBundleRecord[];
 }
 
+export interface SectionReconstructionWorksetFile {
+  schemaVersion: string;
+  donorId: string;
+  donorName: string;
+  generatedAt: string;
+  familyName: string;
+  sectionKey: string;
+  sectionType: FamilyReconstructionSectionType;
+  skinName: string;
+  bundleState: FamilyReconstructionSectionBundleState;
+  readiness: FamilyReconstructionReadiness;
+  profileState: FamilyReconstructionProfileState;
+  sectionState: FamilyReconstructionSectionState;
+  attachmentCount: number;
+  mappedAttachmentCount: number;
+  unmappedAttachmentCount: number;
+  atlasPageCount: number;
+  atlasPageNames: string[];
+  atlasRegionCount: number;
+  atlasRegionNames: string[];
+  slotNames: string[];
+  animationNames: string[];
+  exactLocalSourceCount: number;
+  relatedLocalSourceCount: number;
+  localSources: FamilyReconstructionLocalSourceRecord[];
+  sampleLocalSourcePath: string | null;
+  sectionBundlePath: string;
+  reconstructionBundlePath: string;
+  nextSectionStep: string;
+  attachments: FamilyReconstructionAttachmentRecord[];
+}
+
+export type SectionActionRunStatus = "prepared" | "blocked";
+
+export interface SectionActionRunFile {
+  schemaVersion: string;
+  donorId: string;
+  donorName: string;
+  generatedAt: string;
+  familyName: string;
+  sectionKey: string;
+  requestedMode: "prepare-section-workset";
+  status: SectionActionRunStatus;
+  sectionBundlePath: string;
+  worksetPath: string | null;
+  exactLocalSourceCount: number;
+  attachmentCount: number;
+  mappedAttachmentCount: number;
+  unmappedAttachmentCount: number;
+  nextOperatorAction: string;
+}
+
 export interface FamilyActionRunFile {
   schemaVersion: string;
   donorId: string;
@@ -912,6 +966,8 @@ export function buildDonorScanPaths(donorId: string): DonorScanPaths {
     familyReconstructionMapsPath: path.join(harvestRoot, "family-reconstruction-maps.json"),
     familyReconstructionSectionsPath: path.join(harvestRoot, "family-reconstruction-sections.json"),
     familyReconstructionSectionBundlesPath: path.join(harvestRoot, "family-reconstruction-section-bundles.json"),
+    sectionActionRunPath: path.join(harvestRoot, "section-action-run.json"),
+    sectionReconstructionWorksetsRoot: path.join(harvestRoot, "section-reconstruction-worksets"),
     captureRunPath: path.join(harvestRoot, "next-capture-run.json"),
     blockerSummaryPath: path.join(harvestRoot, "blocker-summary.md"),
     scanSummaryPath: path.join(harvestRoot, "scan-summary.json")

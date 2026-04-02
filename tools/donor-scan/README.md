@@ -36,6 +36,8 @@ and answers early:
   - Build a grounded family-source queue from `capture-family-source-profiles.json`, bundle image variants, bundle references, atlas missing pages, and still-open family targets, then capture those family-specific source-material candidates directly.
 - `npm run donor-scan:run-family-action -- --donor-id donor_XXX --family big_win --limit 10`
   - Execute the current family action from `capture-family-actions.json`. Capture-oriented families reuse the existing donor-scan capture runner; evidence/reconstruction families prepare grounded worksets, and `use-local-sources` families now also emit reconstruction-ready family bundles instead of stopping at an advisory note.
+- `npm run donor-scan:run-section-action -- --donor-id donor_XXX --section big_win/BW`
+  - Prepare one grounded reconstruction section workset directly from `family-reconstruction-section-bundles.json` when a specific section is already ready to leave the family queue.
 
 ## Outputs
 
@@ -65,6 +67,8 @@ Key files:
 - `family-reconstruction-maps.json`
 - `family-reconstruction-sections.json`
 - `family-reconstruction-section-bundles.json`
+- `section-action-run.json`
+- `section-reconstruction-worksets/<family>--<section>.json`
 - `next-capture-run.json`
 - `package-graph.json`
 - `blocker-summary.md`
@@ -118,6 +122,8 @@ The file stays grounded: it only summarizes local sources donor scan already cap
 `family-reconstruction-sections.json` is the next reusable step after those family-wide maps. It breaks one reconstruction-ready family down into grounded section units, currently using Spine skin groupings when that evidence exists, and records per-section mapped coverage, atlas page counts, animation names, and the next section-level reconstruction step.
 
 `family-reconstruction-section-bundles.json` is the next reusable step after those section summaries. It turns each grounded section unit into a reconstruction input with exact local source counts, attachment lists, atlas page ownership, slot names, animation names, and the shared family reconstruction bundle path.
+
+`donor-scan:run-section-action` is the executable layer on top of those section bundles. It writes `section-action-run.json` plus `section-reconstruction-worksets/<family>--<section>.json`, so one grounded section can move into deeper reconstruction without inventing a new capture lane or forcing the operator to reassemble the section by hand.
 
 `donor-scan:capture-family-sources` is the next step after that dossier. It does not invent new URLs. Instead, it turns the grounded family evidence back into a family-specific source-material queue, prioritizes optimized variant-backed and bundle-backed family assets before raw atlas-page retries, and refreshes donor scan after the run.
 

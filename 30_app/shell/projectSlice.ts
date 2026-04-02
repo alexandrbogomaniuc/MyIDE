@@ -156,6 +156,7 @@ export interface DonorScanStatus {
   nextCaptureTargetsPath: string | null;
   captureRunPath: string | null;
   familyActionRunPath: string | null;
+  sectionActionRunPath: string | null;
   captureTargetFamiliesPath: string | null;
   captureFamilySourceProfilesPath: string | null;
   captureFamilyActionsPath: string | null;
@@ -208,6 +209,12 @@ export interface DonorScanStatus {
   familyActionWorksetPath: string | null;
   familyActionReconstructionBundlePath: string | null;
   familyActionReconstructionLocalSourceCount: number;
+  sectionActionRunStatus: string | null;
+  sectionActionRunMode: string | null;
+  sectionActionRunSectionKey: string | null;
+  sectionActionWorksetPath: string | null;
+  sectionActionExactLocalSourceCount: number;
+  sectionActionMappedAttachmentCount: number;
   nextOperatorAction: string | null;
   blockerHighlights: string[];
   blockerSummaryMarkdown: string | null;
@@ -954,7 +961,8 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
   const familyReconstructionSectionBundlesPath = `10_donors/${donorId}/evidence/local_only/harvest/family-reconstruction-section-bundles.json`;
   const captureRunPath = `10_donors/${donorId}/evidence/local_only/harvest/next-capture-run.json`;
   const familyActionRunPath = `10_donors/${donorId}/evidence/local_only/harvest/family-action-run.json`;
-  const [scanSummary, blockerSummaryMarkdown, nextCaptureTargetsFile, captureRunSummary, captureTargetFamiliesFile, captureFamilySourceProfilesFile, captureFamilyActionsFile, familyReconstructionProfilesFile, familyReconstructionMapsFile, familyReconstructionSectionsFile, familyReconstructionSectionBundlesFile, familyActionRunSummary] = await Promise.all([
+  const sectionActionRunPath = `10_donors/${donorId}/evidence/local_only/harvest/section-action-run.json`;
+  const [scanSummary, blockerSummaryMarkdown, nextCaptureTargetsFile, captureRunSummary, captureTargetFamiliesFile, captureFamilySourceProfilesFile, captureFamilyActionsFile, familyReconstructionProfilesFile, familyReconstructionMapsFile, familyReconstructionSectionsFile, familyReconstructionSectionBundlesFile, familyActionRunSummary, sectionActionRunSummary] = await Promise.all([
     readOptionalJsonFile(path.join(workspaceRoot, scanSummaryPath)) as Promise<JsonObject | null>,
     readOptionalTextFile(path.join(workspaceRoot, blockerSummaryPath)),
     readOptionalJsonFile(path.join(workspaceRoot, nextCaptureTargetsPath)) as Promise<JsonObject | null>,
@@ -966,7 +974,8 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
     readOptionalJsonFile(path.join(workspaceRoot, familyReconstructionMapsPath)) as Promise<JsonObject | null>,
     readOptionalJsonFile(path.join(workspaceRoot, familyReconstructionSectionsPath)) as Promise<JsonObject | null>,
     readOptionalJsonFile(path.join(workspaceRoot, familyReconstructionSectionBundlesPath)) as Promise<JsonObject | null>,
-    readOptionalJsonFile(path.join(workspaceRoot, familyActionRunPath)) as Promise<JsonObject | null>
+    readOptionalJsonFile(path.join(workspaceRoot, familyActionRunPath)) as Promise<JsonObject | null>,
+    readOptionalJsonFile(path.join(workspaceRoot, sectionActionRunPath)) as Promise<JsonObject | null>
   ]);
 
   if (!scanSummary) {
@@ -1185,6 +1194,7 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
     nextCaptureTargetsPath: nextCaptureTargetsFile ? nextCaptureTargetsPath : null,
     captureRunPath: captureRunSummary ? captureRunPath : null,
     familyActionRunPath: familyActionRunSummary ? familyActionRunPath : null,
+    sectionActionRunPath: sectionActionRunSummary ? sectionActionRunPath : null,
     captureTargetFamiliesPath: captureTargetFamiliesFile ? captureTargetFamiliesPath : null,
     captureFamilySourceProfilesPath: captureFamilySourceProfilesFile ? captureFamilySourceProfilesPath : null,
     captureFamilyActionsPath: captureFamilyActionsFile ? captureFamilyActionsPath : null,
@@ -1253,6 +1263,12 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
     familyActionWorksetPath: typeof familyActionRunSummary?.worksetPath === "string" ? familyActionRunSummary.worksetPath : null,
     familyActionReconstructionBundlePath: typeof familyActionRunSummary?.reconstructionBundlePath === "string" ? familyActionRunSummary.reconstructionBundlePath : null,
     familyActionReconstructionLocalSourceCount: typeof familyActionRunSummary?.reconstructionLocalSourceCount === "number" ? familyActionRunSummary.reconstructionLocalSourceCount : 0,
+    sectionActionRunStatus: typeof sectionActionRunSummary?.status === "string" ? sectionActionRunSummary.status : null,
+    sectionActionRunMode: typeof sectionActionRunSummary?.requestedMode === "string" ? sectionActionRunSummary.requestedMode : null,
+    sectionActionRunSectionKey: typeof sectionActionRunSummary?.sectionKey === "string" ? sectionActionRunSummary.sectionKey : null,
+    sectionActionWorksetPath: typeof sectionActionRunSummary?.worksetPath === "string" ? sectionActionRunSummary.worksetPath : null,
+    sectionActionExactLocalSourceCount: typeof sectionActionRunSummary?.exactLocalSourceCount === "number" ? sectionActionRunSummary.exactLocalSourceCount : 0,
+    sectionActionMappedAttachmentCount: typeof sectionActionRunSummary?.mappedAttachmentCount === "number" ? sectionActionRunSummary.mappedAttachmentCount : 0,
     nextOperatorAction: typeof scanSummary.nextOperatorAction === "string" ? scanSummary.nextOperatorAction : (donor.nextOperatorAction ?? null),
     blockerHighlights,
     blockerSummaryMarkdown,

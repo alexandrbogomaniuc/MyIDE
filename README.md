@@ -31,6 +31,7 @@ MyIDE is a universal local-first IDE for multiple game projects over time, with 
 - Donor scan now also writes `family-reconstruction-maps.json` for those reconstruction-ready families, so the IDE can show grounded slot/attachment coverage against local atlas regions and pages before deeper reconstruction work starts.
 - Donor scan now also writes `family-reconstruction-sections.json`, so one reconstruction-ready family can break down into grounded section units such as Spine skin groupings before any editor-side reconstruction work starts.
 - Donor scan now also writes `family-reconstruction-section-bundles.json`, so those grounded section units become reusable reconstruction inputs with exact local source counts, attachment lists, atlas page ownership, and shared family reconstruction bundle paths.
+- Donor scan now also has a generic section-action runner: `npm run donor-scan:run-section-action -- --donor-id donor_XXX --section big_win/BW` prepares one grounded reconstruction section workset directly from `family-reconstruction-section-bundles.json`, so section-level reconstruction can start from a reusable donor artifact instead of another ad hoc source hunt.
 - Guided capture failure evidence now feeds back into donor scan too, so ranked targets can show when the latest guided capture already exhausted the current grounded URL attempts and the operator should switch to deeper source discovery instead of repeating the same run.
 - Donor scan now also classifies `raw-payload-blocked` image targets when guided capture has already exhausted only raw/direct grounded URLs for them and no stronger grounded alternate path exists yet, so the operator can stop treating those families as near-term capture wins.
 - Donor scan now also groups those dead ends into `capture-blocker-families.json`, so the IDE can say “the `coin`, `big_win`, or `bird` family is blocked” instead of only dumping a flat list of failed URLs.
@@ -100,6 +101,7 @@ Public publication rules are defined in [`00_control/PUBLIC_REPO_POLICY.md`](./0
 - `npm run donor:intake:url -- --donor-id donor_003_example --donor-name "Example Donor" --url "https://demo.example.com/play/Game/FUN?server=demo"`
 - `npm run donor-scan:url -- --donor-id donor_001_mystery_garden --donor-name "Mystery Garden"`
 - `npm run donor-scan:run-family-action -- --donor-id donor_001_mystery_garden --family big_win --limit 10`
+- `npm run donor-scan:run-section-action -- --donor-id donor_001_mystery_garden --section big_win/BW`
 - `npm run donor-scan:verify -- --donor-id donor_001_mystery_garden`
 - `npm run runtime:mirror:project_001`
 - `npm run runtime:harvest:project_001`
@@ -130,6 +132,7 @@ Public publication rules are defined in [`00_control/PUBLIC_REPO_POLICY.md`](./0
 - `npm run create:project -- --config 40_projects/templates/project-template/project.meta.json.example --project-root 40_projects/project_003`
 - `npm run smoke:create-project`
 - `npm run smoke:donor-scan-family-action`
+- `npm run smoke:donor-scan-section-action`
 - `npm run smoke:edit-project`
 - `npm run smoke:create-object`
 - `npm run smoke:order-isolate`
