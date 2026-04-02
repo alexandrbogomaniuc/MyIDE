@@ -40,6 +40,7 @@ interface RuntimeDebugSmokePayload {
   overrideCleared?: boolean;
   overrideHitCountAfterReload?: number;
   overrideBlocked?: string | null;
+  allowMissingDonorAsset?: boolean;
 }
 
 function resolveWorkspaceRoot(): string {
@@ -71,6 +72,14 @@ function getArtifactPath(): string {
   return process.env.MYIDE_RUNTIME_DEBUG_ARTIFACT_PATH || "/tmp/myide-electron-runtime-debug.json";
 }
 
+function getExpectedProjectId(): string {
+  return process.env.MYIDE_RUNTIME_DEBUG_PROJECT_ID || "project_001";
+}
+
+function allowMissingDonorAsset(): boolean {
+  return process.env.MYIDE_RUNTIME_DEBUG_ALLOW_MISSING_DONOR_ASSET === "1";
+}
+
 function writeArtifact(payload: unknown): void {
   writeFileSync(getArtifactPath(), `${JSON.stringify(payload, null, 2)}\n`);
 }
@@ -96,6 +105,7 @@ function runElectronRuntimeDebugSmoke(workspaceRoot: string): Promise<SmokeRunRe
       env: {
         ...process.env,
         MYIDE_RUNTIME_DEBUG_SMOKE: "1",
+        MYIDE_RUNTIME_DEBUG_PROJECT_ID: getExpectedProjectId(),
         MYIDE_RUNTIME_DEBUG_TIMEOUT_MS: process.env.MYIDE_RUNTIME_DEBUG_TIMEOUT_MS ?? "90000",
         MYIDE_RUNTIME_DEBUG_SHOW: process.env.MYIDE_RUNTIME_DEBUG_SHOW ?? "0"
       },
@@ -139,10 +149,12 @@ async function main(): Promise<void> {
 
   const payload = JSON.parse(payloadLine.slice(markerPrefix.length)) as RuntimeDebugSmokePayload;
   writeArtifact(payload);
+  const expectedProjectId = getExpectedProjectId();
+  const relaxedOverrideProof = allowMissingDonorAsset();
 
   assert.equal(payload.status, "pass", `Runtime debug payload reported failure: ${payload.error ?? "<no error>"}\n${output}`);
   assert.equal(payload.pathDecision, "embedded-no-go-debug-host", "Runtime debug smoke did not report the debug-host pivot.");
-  assert.equal(payload.projectId, "project_001", "Runtime debug smoke did not target project_001.");
+  assert.equal(payload.projectId, expectedProjectId, `Runtime debug smoke did not target ${expectedProjectId}.`);
   assert.equal(payload.runtimeSourceLabel, "Local mirror", "Runtime debug host did not use the local mirror.");
   assert.ok(typeof payload.entryUrl === "string" && payload.entryUrl.length > 0, "Runtime debug host entry URL is missing.");
   assert.ok(typeof payload.bridgeSource === "string" && payload.bridgeSource.length > 0, "Runtime debug host bridge source is missing.");
@@ -150,10 +162,26 @@ async function main(): Promise<void> {
   assert.ok(Number(payload.staticImageEntryCount ?? 0) > 0, "Runtime debug host did not capture any request-backed static image entries.");
   assert.ok(typeof payload.candidateRuntimeSourceUrl === "string" && payload.candidateRuntimeSourceUrl.length > 0, "Runtime debug host did not choose a request-backed static image candidate.");
   assert.ok(Number(payload.candidateHitCount ?? 0) > 0, "Runtime debug candidate did not record any hits.");
-  assert.ok(typeof payload.overrideDonorAssetId === "string" && payload.overrideDonorAssetId.length > 0, "Runtime debug override donor asset id is missing.");
-  assert.equal(payload.overrideCreated, true, "Runtime debug override was not created.");
-  assert.equal(payload.overrideCleared, true, "Runtime debug override was not cleared.");
-  assert.ok(Number(payload.overrideHitCountAfterReload ?? 0) > 0, `Runtime debug override did not record a hit after reload.\n${output}`);
+  if (relaxedOverrideProof) {
+    if (typeof payload.overrideDonorAssetId === "string" && payload.overrideDonorAssetId.length > 0) {
+      assert.equal(payload.overrideCreated, true, "Runtime debug override was not created after donor asset selection succeeded.");
+      assert.equal(payload.overrideCleared, true, "Runtime debug override was not cleared after donor asset selection succeeded.");
+      assert.ok(Number(payload.overrideHitCountAfterReload ?? 0) > 0, `Runtime debug override did not record a hit after reload.\n${output}`);
+    } else {
+      assert.equal(payload.overrideCreated, false, "Runtime debug smoke should not create an override when donor assets are unavailable.");
+      assert.equal(payload.overrideCleared, false, "Runtime debug smoke should not clear an override that was never created.");
+      assert.match(
+        String(payload.overrideBlocked ?? ""),
+        /donor asset/i,
+        "Runtime debug smoke should explain when donor-asset-backed override proof stays blocked."
+      );
+    }
+  } else {
+    assert.ok(typeof payload.overrideDonorAssetId === "string" && payload.overrideDonorAssetId.length > 0, "Runtime debug override donor asset id is missing.");
+    assert.equal(payload.overrideCreated, true, "Runtime debug override was not created.");
+    assert.equal(payload.overrideCleared, true, "Runtime debug override was not cleared.");
+    assert.ok(Number(payload.overrideHitCountAfterReload ?? 0) > 0, `Runtime debug override did not record a hit after reload.\n${output}`);
+  }
 
   console.log("PASS smoke:electron-runtime-debug");
   console.log(`Artifact: ${artifactPath}`);

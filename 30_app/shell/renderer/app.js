@@ -990,7 +990,11 @@ function canUseRuntimeWorkbenchSurface() {
 }
 
 function canUseRuntimeDebugHostForSelectedProject() {
-  return state.selectedProjectId === "project_001" && canUseRuntimeMode();
+  return canUseRuntimeMode();
+}
+
+function isOfficialRuntimeDebugHostProject() {
+  return state.selectedProjectId === "project_001";
 }
 
 function getSelectedProjectRuntimeHarvestCandidateCount() {
@@ -1043,8 +1047,7 @@ function getSelectedProjectRuntimeHarvestCandidateCount() {
 
 function canHarvestSelectedProjectRuntimeRequestEvidence() {
   return state.selectedProjectId !== "project_001"
-    && getSelectedProjectRuntimeHarvestCandidateCount() > 0
-    && !canUseRuntimeDebugHostForSelectedProject();
+    && getSelectedProjectRuntimeHarvestCandidateCount() > 0;
 }
 
 function inferRuntimeHarvestCandidateKind(sourceUrl, fileType = null) {
@@ -1083,14 +1086,7 @@ function inferRuntimeHarvestCandidateKind(sourceUrl, fileType = null) {
 }
 
 function getRuntimeDebugHostUnavailableMessage() {
-  if (state.selectedProjectId !== "project_001") {
-    const projectLabel = typeof state.selectedProjectId === "string" && state.selectedProjectId.length > 0
-      ? state.selectedProjectId
-      : "this selected project";
-    return `The dedicated Runtime Debug Host is still validated only for project_001. ${projectLabel} can keep using grounded request-backed runtime traces, bounded overrides, and any indexed embedded launch path without switching into Debug Host.`;
-  }
-
-  return "The dedicated Runtime Debug Host needs a grounded runtime launch URL, but launch is still blocked in this slice.";
+  return "The dedicated Runtime Debug Host needs a grounded runtime launch URL before it can reopen the live runtime on this selected project.";
 }
 
 function getRuntimeOverrideStatus() {
@@ -3512,11 +3508,13 @@ async function openRuntimeDebugHostWindow(options = {}) {
   }
 
   const result = await api.openRuntimeDebugHost(
-    proofMode || profileId || candidateHintTokens.length > 0
+    proofMode || profileId || candidateHintTokens.length > 0 || state.selectedProjectId
       ? {
+          projectId: state.selectedProjectId ?? null,
           proofMode,
           profileId,
-          candidateHintTokens
+          candidateHintTokens,
+          allowMissingDonorAsset: state.selectedProjectId !== "project_001"
         }
       : undefined
   );
@@ -3535,6 +3533,7 @@ async function openRuntimeDebugHostWindow(options = {}) {
   const candidatePath = result?.candidateRuntimeRelativePath ?? result?.candidateRuntimeSourceUrl ?? "no request-backed static image candidate";
   const hitCount = Number(result?.overrideHitCountAfterReload ?? 0);
   const error = typeof result?.error === "string" ? result.error : null;
+  const overrideBlocked = typeof result?.overrideBlocked === "string" ? result.overrideBlocked : null;
   const prefix = statusPrefix ? `${statusPrefix}. ` : "";
 
   if (error) {
@@ -3542,7 +3541,17 @@ async function openRuntimeDebugHostWindow(options = {}) {
     return result ?? null;
   }
 
-  setPreviewStatus(`${prefix}Opened Runtime Debug Host on ${runtimeSourceLabel}. Candidate ${candidatePath} recorded ${hitCount} override hit${hitCount === 1 ? "" : "s"} after reload.`);
+  if (hitCount > 0) {
+    setPreviewStatus(`${prefix}Opened Runtime Debug Host on ${runtimeSourceLabel}. Candidate ${candidatePath} recorded ${hitCount} override hit${hitCount === 1 ? "" : "s"} after reload.`);
+    return result ?? null;
+  }
+
+  if (overrideBlocked) {
+    setPreviewStatus(`${prefix}Opened Runtime Debug Host on ${runtimeSourceLabel}. Candidate ${candidatePath} stayed grounded, but override proof remains blocked: ${overrideBlocked}`);
+    return result ?? null;
+  }
+
+  setPreviewStatus(`${prefix}Opened Runtime Debug Host on ${runtimeSourceLabel}. Candidate ${candidatePath} is grounded and ready for deeper runtime inspection.`);
   return result ?? null;
 }
 
@@ -7203,8 +7212,12 @@ async function runLiveRuntimeSelectedProjectHarvestSmoke() {
     baseResult.runtimeStatusHeading = elements.runtimeStatus?.querySelector(".runtime-workbench-callout strong")?.textContent?.trim() ?? null;
     const runtimeStatusText = elements.runtimeStatus?.textContent?.replace(/\s+/g, " ").trim() ?? "";
     baseResult.runtimeStatusMentionsOfficialDailyPath = /official daily path/i.test(runtimeStatusText);
-    if (baseResult.runtimeDebugHostActionVisible || baseResult.runtimeSourceDebugHostActionVisible) {
-      throw new Error(`Selected-project runtime harvest smoke still exposed Debug Host actions for ${targetProjectId}.`);
+    if (baseResult.runtimeLaunchBlocked || !baseResult.runtimeLaunchEntryUrl) {
+      if (baseResult.runtimeDebugHostActionVisible || baseResult.runtimeSourceDebugHostActionVisible) {
+        throw new Error(`Selected-project runtime harvest smoke still exposed Debug Host actions for ${targetProjectId} without a grounded launch path.`);
+      }
+    } else if (!baseResult.runtimeDebugHostActionVisible || !baseResult.runtimeSourceDebugHostActionVisible) {
+      throw new Error(`Selected-project runtime harvest smoke did not expose Debug Host actions for ${targetProjectId} once the grounded launch path was indexed.`);
     }
     if (baseResult.runtimeStatusHeading !== "Selected-project runtime surface") {
       throw new Error(`Selected-project runtime harvest smoke expected a selected-project runtime heading, received ${baseResult.runtimeStatusHeading ?? "none"}.`);
@@ -17808,6 +17821,7 @@ function renderOnboardingCard() {
     project: "Project scaffolding and workspace refresh stay separate from the runtime/composer workflow."
   };
   const debugHostAvailable = canUseRuntimeDebugHostForSelectedProject();
+  const debugHostOfficial = debugHostAvailable && isOfficialRuntimeDebugHostProject();
   const bridgeActions = [
     debugHostAvailable
       ? `<button type="button" class="copy-button" data-runtime-action="open-debug-host">Use Debug Host</button>`
@@ -17849,7 +17863,7 @@ function renderOnboardingCard() {
       <div class="chip-row">
         <span>${escapeHtml(getWorkbenchModeLabel())} mode active</span>
         <span>${escapeHtml(getWorkflowPanelLabel(workflowPanel))} panel active</span>
-        <span>${escapeHtml(debugHostAvailable ? (runtimeLaunch?.localRuntimePackageAvailable ? "local runtime mirror available" : "public runtime fallback") : activeWorkbenchSurfaceKind)}</span>
+        <span>${escapeHtml(debugHostOfficial ? (runtimeLaunch?.localRuntimePackageAvailable ? "local runtime mirror available" : "public runtime fallback") : activeWorkbenchSurfaceKind)}</span>
       </div>
     </div>
     <div class="detail-grid">
@@ -17899,7 +17913,7 @@ function renderOnboardingCard() {
     <div class="tree-row">
       <strong>What remains bounded</strong>
       <div class="chip-row">${[
-        "project_001 only",
+        debugHostOfficial ? "project_001 validated path" : "selected-project grounded path",
         "static donor images only",
         "donor evidence read-only",
         "compose saves internal scene",
@@ -21586,7 +21600,7 @@ function renderInspector() {
                           title="Use the dedicated Runtime Debug Host when this page cue has no loaded runtime trace yet"
                         >Use Debug Host</button>
                       ` : taskSectionContext.task.canOpenRuntime ? `
-                        <span class="muted-copy">Debug Host remains validated only for project_001. Keep this task on grounded request-backed runtime entries when they exist.</span>
+                        <span class="muted-copy">Debug Host still needs a grounded runtime launch URL here. Keep this task on grounded request-backed runtime entries when they exist.</span>
                       ` : ""}
                       ${replaceableSelectedObject && page.matchedTaskKitAsset && page.matchedTaskKitAsset.assetId !== donorAsset?.assetId ? `
                         <button
@@ -21822,9 +21836,12 @@ function renderRuntimeWorkbenchAssetList() {
     entry.requestCategory === "static-asset"
     && ["png", "webp", "jpg", "jpeg", "svg"].includes(String(entry.fileType ?? "").toLowerCase())
   ));
+  const debugHostOfficial = debugHostAvailable && isOfficialRuntimeDebugHostProject();
   const workbenchMessage = entries.length === 0
       ? debugHostAvailable
-        ? "Open Debug Host to populate the official runtime workbench. The embedded path has not recorded any usable runtime source entries in this session yet."
+        ? (debugHostOfficial
+            ? "Open Debug Host to populate the official runtime workbench. The embedded path has not recorded any usable runtime source entries in this session yet."
+            : "Open Debug Host to populate the stronger runtime workbench for this selected project. The embedded path has not recorded any usable runtime source entries in this session yet.")
         : harvestAvailable
         ? (runtimeLaunch?.entryUrl
             ? "This selected project does not yet have any request-backed runtime workbench items. Use Harvest Request-backed Sources to refresh grounded runtime traces while embedded launch stays available from the local mirror."
@@ -21832,13 +21849,17 @@ function renderRuntimeWorkbenchAssetList() {
           : "This selected project does not yet have any grounded runtime workbench items. Stay in Compose or seed grounded runtime evidence before expecting a live runtime reopen path."
     : embeddedRequestBackedImages.length === 0
       ? debugHostAvailable
-        ? "No request-backed static image is available from the weaker embedded runtime path yet. The dedicated Runtime Debug Host result is ranked first and should be treated as the official daily runtime path."
+        ? (debugHostOfficial
+            ? "No request-backed static image is available from the weaker embedded runtime path yet. The dedicated Runtime Debug Host result is ranked first and should be treated as the official daily runtime path."
+            : "No request-backed static image is available from the weaker embedded runtime path yet. The dedicated Runtime Debug Host result is ranked first and should be treated as the stronger grounded debug path for this selected project.")
         : harvestAvailable
           ? `The current selected project still has no request-backed static image candidate, but Harvest Request-backed Sources can refresh grounded runtime traces, including static assets, while Debug Host stays unavailable here${runtimeLaunch?.entryUrl ? " and embedded launch stays available from the local mirror" : ""}.`
           : "The current selected project still has no request-backed static image candidate. Use the grounded runtime workbench evidence that exists here without pretending Debug Host is available for this project."
       : debugHostAvailable
-        ? "Request-backed runtime items are ranked with the strongest debug-host/static candidates first so you can jump quickly into source, evidence, compose, and override actions."
-        : "Request-backed runtime items are available for this selected project. Use the runtime workbench to reopen grounded traces and bounded overrides while Debug Host remains project_001-only.";
+        ? (debugHostOfficial
+            ? "Request-backed runtime items are ranked with the strongest debug-host/static candidates first so you can jump quickly into source, evidence, compose, and override actions."
+            : "Request-backed runtime items are ranked with the strongest selected-project debug/static candidates first so you can jump quickly into source, evidence, compose, and override actions.")
+        : "Request-backed runtime items are available for this selected project. Use the runtime workbench to reopen grounded traces and bounded overrides while Debug Host stays blocked until launch is grounded.";
 
   const listMarkup = entries.slice(0, 10).map((entry) => {
     const isFocused = focusedSourceUrl === entry.sourceUrl;
@@ -21934,23 +21955,28 @@ function renderRuntimeWorkbench() {
   } = getActiveRuntimeWorkbenchSurface();
   const debugHostResult = state.runtimeUi.debugHost;
   const debugHostAvailable = canUseRuntimeDebugHostForSelectedProject();
+  const debugHostOfficial = debugHostAvailable && isOfficialRuntimeDebugHostProject();
   const harvestAvailable = canHarvestSelectedProjectRuntimeRequestEvidence();
   const hasGroundedMirrorSources = (runtimeMirrorStatus?.entries ?? []).some((entry) => entry?.fileExists !== false);
-  const runtimeCalloutHeading = debugHostAvailable ? "Official daily path" : "Selected-project runtime surface";
+  const runtimeCalloutHeading = debugHostOfficial ? "Official daily path" : "Selected-project runtime surface";
   const runtimeCalloutMessage = debugHostAvailable
     ? (debugHostResult?.status === "pass"
-        ? `Use Debug Host is now the practical runtime workflow for project_001. The latest run proved ${debugHostResult.candidateRuntimeRelativePath ?? debugHostResult.candidateRuntimeSourceUrl ?? "the current request-backed image"} with ${debugHostResult.overrideHitCountAfterReload ?? 0} override hit${Number(debugHostResult.overrideHitCountAfterReload ?? 0) === 1 ? "" : "s"} after reload.`
-        : "Use Debug Host to run the official runtime trace and override-proof cycle. The integrated embedded runtime remains available, but it is secondary until it exposes stronger asset truth.")
+        ? (debugHostOfficial
+            ? `Use Debug Host is now the practical runtime workflow for project_001. The latest run proved ${debugHostResult.candidateRuntimeRelativePath ?? debugHostResult.candidateRuntimeSourceUrl ?? "the current request-backed image"} with ${debugHostResult.overrideHitCountAfterReload ?? 0} override hit${Number(debugHostResult.overrideHitCountAfterReload ?? 0) === 1 ? "" : "s"} after reload.`
+            : `Use Debug Host when this selected project needs the stronger grounded runtime proof path. The latest run proved ${debugHostResult.candidateRuntimeRelativePath ?? debugHostResult.candidateRuntimeSourceUrl ?? "the current request-backed image"}${Number(debugHostResult.overrideHitCountAfterReload ?? 0) > 0 ? ` with ${debugHostResult.overrideHitCountAfterReload ?? 0} override hit${Number(debugHostResult.overrideHitCountAfterReload ?? 0) === 1 ? "" : "s"} after reload` : " and kept the live candidate grounded even though bounded override proof remained blocked"}.`)
+        : (debugHostOfficial
+            ? "Use Debug Host to run the official runtime trace and override-proof cycle. The integrated embedded runtime remains available, but it is secondary until it exposes stronger asset truth."
+            : "Use Debug Host to run the stronger grounded runtime trace for this selected project. The integrated embedded runtime remains available, but it is secondary until it exposes stronger asset truth."))
     : runtimeLaunch?.entryUrl
-      ? "The runtime workbench is the truthful selected-project surface here. Embedded launch is indexed, but the dedicated Runtime Debug Host still remains validated only for project_001."
+      ? "The runtime workbench is the truthful selected-project surface here. Embedded launch is indexed, but the dedicated Runtime Debug Host still needs a grounded launch URL before it can reopen this project."
       : harvestAvailable
         ? "The runtime workbench is the truthful selected-project surface here. Harvest grounded runtime sources to refresh request-backed traces, then keep using donor/evidence jumps and bounded overrides without pretending embedded launch or Debug Host are available for this project yet."
         : "The runtime workbench is the truthful selected-project surface here. Use request-backed traces, donor/evidence jumps, and bounded overrides without pretending embedded launch or Debug Host are available for this project yet.";
   const runtimeDebugHostCardTitle = debugHostAvailable
     ? (debugHostResult?.status === "pass"
         ? `${debugHostResult.overrideHitCountAfterReload ?? 0} override hit${debugHostResult.overrideHitCountAfterReload === 1 ? "" : "s"} proved`
-        : "Open Debug Host to start official runtime work")
-    : "Validated only for project_001";
+        : (debugHostOfficial ? "Open Debug Host to start official runtime work" : "Open Debug Host to start grounded runtime work"))
+    : "Launch required for Debug Host";
   const runtimeDebugHostCardBody = debugHostAvailable
     ? (debugHostResult
         ? debugHostResult.error
@@ -22025,8 +22051,10 @@ function renderRuntimeWorkbench() {
       <strong>Runtime Workbench</strong>
       <span>${escapeHtml(currentStatus)}. ${runtimeLaunch.localRuntimePackageAvailable
         ? debugHostAvailable
-          ? "The grounded local runtime mirror is active on this machine, and the dedicated Runtime Debug Host is the official daily runtime path."
-          : "The grounded local runtime mirror is active on this machine. Keep using the selected-project runtime workbench surface here while Debug Host stays validated only for project_001."
+          ? (debugHostOfficial
+              ? "The grounded local runtime mirror is active on this machine, and the dedicated Runtime Debug Host is the official daily runtime path."
+              : "The grounded local runtime mirror is active on this machine, and the dedicated Runtime Debug Host is available for this selected project when you need stronger runtime asset truth.")
+          : "The grounded local runtime mirror is active on this machine. Keep using the selected-project runtime workbench surface here while Debug Host stays blocked until launch is grounded."
         : hasGroundedMirrorSources
           ? "Grounded local-mirror runtime source files are indexed for this project, but the mirror is still partial. Use Harvest Request-backed Sources and the runtime workbench without pretending embedded launch is ready."
           : "No local donor runtime mirror is captured, so runtime work still falls back to the recorded donor entry."}</span>
@@ -22171,23 +22199,26 @@ function renderRuntimeInspector() {
     && ["png", "webp", "jpg", "jpeg", "svg"].includes(String(entry.fileType ?? "").toLowerCase())
   ));
   const debugHostAvailable = canUseRuntimeDebugHostForSelectedProject();
+  const debugHostOfficial = debugHostAvailable && isOfficialRuntimeDebugHostProject();
   const inspectorTitle = activeWorkbenchEntry?.relativePath
     ?? (lastPick?.targetTag
       ? `Picked ${lastPick.targetTag}`
       : runtimeLaunch?.captureSessionId ?? "Runtime Mode");
   const officialPathSection = renderInspectorSection(
-    debugHostAvailable ? "Official Runtime Path" : "Selected-project runtime surface",
+    debugHostOfficial ? "Official Runtime Path" : debugHostAvailable ? "Grounded Debug Path" : "Selected-project runtime surface",
     debugHostAvailable ? (state.runtimeUi.debugHost?.status === "pass" ? "proved" : "ready") : activeWorkbenchSurfaceKind,
     `
       <div class="tree-row runtime-workbench-summary">
-        <strong>${escapeHtml(debugHostAvailable ? "Official Runtime Work Mode" : activeWorkbenchSurfaceTitle)}</strong>
+        <strong>${escapeHtml(debugHostOfficial ? "Official Runtime Work Mode" : debugHostAvailable ? "Grounded Debug Path" : activeWorkbenchSurfaceTitle)}</strong>
         <span>${escapeHtml(debugHostAvailable
           ? (state.runtimeUi.debugHost?.status === "pass"
-              ? `Debug Host already proved ${state.runtimeUi.debugHost.candidateRuntimeRelativePath ?? state.runtimeUi.debugHost.candidateRuntimeSourceUrl ?? "the current request-backed candidate"} with ${state.runtimeUi.debugHost.overrideHitCountAfterReload ?? 0} override hit${Number(state.runtimeUi.debugHost.overrideHitCountAfterReload ?? 0) === 1 ? "" : "s"} after reload.`
+              ? (debugHostOfficial
+                  ? `Debug Host already proved ${state.runtimeUi.debugHost.candidateRuntimeRelativePath ?? state.runtimeUi.debugHost.candidateRuntimeSourceUrl ?? "the current request-backed candidate"} with ${state.runtimeUi.debugHost.overrideHitCountAfterReload ?? 0} override hit${Number(state.runtimeUi.debugHost.overrideHitCountAfterReload ?? 0) === 1 ? "" : "s"} after reload.`
+                  : `Debug Host already proved ${state.runtimeUi.debugHost.candidateRuntimeRelativePath ?? state.runtimeUi.debugHost.candidateRuntimeSourceUrl ?? "the current request-backed candidate"} for this selected project${Number(state.runtimeUi.debugHost.overrideHitCountAfterReload ?? 0) > 0 ? ` with ${state.runtimeUi.debugHost.overrideHitCountAfterReload ?? 0} override hit${Number(state.runtimeUi.debugHost.overrideHitCountAfterReload ?? 0) === 1 ? "" : "s"} after reload` : " while bounded override proof remained blocked"}.`)
               : "Use Debug Host first when you need trustworthy runtime asset selection or override proof. The embedded runtime trace below remains secondary until it exposes stronger asset truth.")
           : runtimeLaunch?.entryUrl
-            ? "This selected project can launch the grounded embedded runtime through its local mirror, but the runtime workbench still stays primary for truthful source selection and bounded overrides while Debug Host remains validated only for project_001."
-            : "This selected project should stay on the grounded runtime workbench surface. Grounded reopen and bounded overrides are usable here even while Debug Host remains validated only for project_001.")}</span>
+            ? "This selected project can launch the grounded embedded runtime through its local mirror, but the runtime workbench still stays primary for truthful source selection and bounded overrides until Debug Host can reopen the live runtime here."
+            : "This selected project should stay on the grounded runtime workbench surface. Grounded reopen and bounded overrides are usable here even while Debug Host stays blocked.")}</span>
         <div class="evidence-actions">
           ${debugHostAvailable ? `<button type="button" class="copy-button" data-runtime-action="open-debug-host">Use Debug Host</button>` : ""}
           ${activeWorkbenchEntry?.donorAsset ? `<button type="button" class="copy-button" data-focus-donor-asset-id="${escapeAttribute(activeWorkbenchEntry.donorAsset.assetId)}">Focus Asset</button>` : ""}
@@ -22475,9 +22506,11 @@ function renderRuntimeInspector() {
       <h3>${escapeHtml(inspectorTitle)}</h3>
     </div>
     <p class="inspector-purpose">${escapeHtml(debugHostAvailable
-      ? "The dedicated Runtime Debug Host is the official daily runtime path for project_001. This panel is grouped around the practical work loop: official path first, runtime asset list second, live trace third, and deeper source/override coverage last."
+      ? (debugHostOfficial
+          ? "The dedicated Runtime Debug Host is the official daily runtime path for project_001. This panel is grouped around the practical work loop: official path first, runtime asset list second, live trace third, and deeper source/override coverage last."
+          : "The dedicated Runtime Debug Host is available for this grounded selected project. This panel stays grouped around the practical debug loop: strongest path first, runtime asset list second, live trace third, and deeper source/override coverage last.")
       : runtimeLaunch?.entryUrl
-        ? "This selected project can launch the grounded embedded runtime through its local mirror. The runtime workbench remains the truthful source/override surface here while Debug Host stays validated only for project_001."
+        ? "This selected project can launch the grounded embedded runtime through its local mirror. The runtime workbench remains the truthful source/override surface here while Debug Host stays blocked until a grounded launch is available."
         : "This selected project stays on the grounded runtime workbench surface. Grounded reopen, donor/evidence jumps, and bounded overrides remain available here even while Debug Host and embedded launch are not yet validated for this project.")}</p>
     <div class="chip-row">
       <span>${escapeHtml(runtimeLaunch?.availability ?? "blocked")}</span>

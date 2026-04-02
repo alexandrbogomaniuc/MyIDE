@@ -368,7 +368,7 @@ async function main(): Promise<void> {
             affectedSlotNames: ["smoke.slot.big_win_bundle"],
             affectedAttachmentNames: ["smoke.attachment.big_win_bundle"],
             regionNames: ["big-win-bundle"],
-            nextFitApplyStep: "Harvest request-backed runtime evidence and keep the selected-project runtime workbench on that bundle trace while Debug Host stays project_001-only."
+            nextFitApplyStep: "Harvest request-backed runtime evidence, keep the selected-project runtime workbench on that bundle trace, and leave Debug Host available once the grounded launch path is indexed."
           },
           {
             pageName: "big_win_image",
@@ -432,7 +432,7 @@ async function main(): Promise<void> {
             sourceArtifactState: "ready",
             sourceArtifactPath: repoSourceBundlePath,
             supportingArtifactPaths: [repoSourceRuntimeBundlePath, repoMirrorBundlePath],
-            rationale: "Smoke-seeded modification task proving selected-project runtime harvest can upgrade grounded local-mirror bundle and static-image evidence into fresh request-backed runtime workbench traces, then use the harvested static image for a bounded project-local override while embedded launch stays project-aware and Debug Host remains project_001-only.",
+            rationale: "Smoke-seeded modification task proving selected-project runtime harvest can upgrade grounded local-mirror bundle and static-image evidence into fresh request-backed runtime workbench traces, then use the harvested static image for a bounded project-local override while embedded launch and Debug Host stay project-aware.",
             nextAction: "Harvest Runtime requests, verify the task reopens on the harvested bundle trace, and create/clear the bounded override from the harvested static image.",
             canOpenCompose: true,
             canOpenRuntime: true
@@ -540,8 +540,8 @@ async function main(): Promise<void> {
     assert.equal(payload.runtimeOverrideCleared, true, "Selected-project harvest smoke did not clear the bounded override.");
     assert(payload.previewStatusAfterCreate?.includes("Launch or reopen the embedded runtime when you want to confirm reload-time hits for this source."), "Selected-project harvest smoke create status should mention the indexed embedded launch follow-up.");
     assert(!payload.previewStatusAfterCreate?.includes("Reloading the embedded runtime now"), "Selected-project harvest smoke create status should not claim the embedded runtime already reloaded.");
-    assert.equal(payload.runtimeDebugHostActionVisible, false, "Selected-project harvest smoke should not expose the runtime Debug Host action for project_002.");
-    assert.equal(payload.runtimeSourceDebugHostActionVisible, false, "Selected-project harvest smoke should not expose source-level Debug Host actions for project_002.");
+    assert.equal(payload.runtimeDebugHostActionVisible, true, "Selected-project harvest smoke should expose the runtime Debug Host action once project_002 has a grounded launch path.");
+    assert.equal(payload.runtimeSourceDebugHostActionVisible, true, "Selected-project harvest smoke should expose source-level Debug Host actions once project_002 has a grounded launch path.");
     assert.equal(payload.runtimeStatusHeading, "Selected-project runtime surface", "Selected-project harvest smoke should keep the runtime status heading project-aware.");
     assert.equal(payload.runtimeStatusMentionsOfficialDailyPath, false, "Selected-project harvest smoke should not claim project_002 is on the official daily runtime path.");
     assert.equal(payload.embeddedRuntimeLaunched, false, "Selected-project harvest smoke should not launch the embedded runtime.");

@@ -3255,7 +3255,7 @@ async function buildRuntimeLaunchStatus(
         availability: "local-mirror",
         launchSurface: "integrated-local-runtime",
         localRuntimePackageAvailable: true,
-        blocker: "The dedicated Runtime Debug Host is still validated only for project_001, but this selected project can launch the grounded project-local runtime mirror in Runtime Mode.",
+        blocker: "This selected project can launch the grounded project-local runtime mirror in Runtime Mode and open the dedicated Runtime Debug Host when stronger live runtime inspection is needed.",
         entryUrl: runtimeMirror.launchUrl,
         resolvedRuntimeHost: runtimeMirror.publicEntryUrl ?? null,
         runtimeSourceLabel: "Local mirror",
@@ -3273,7 +3273,7 @@ async function buildRuntimeLaunchStatus(
         observedAssetGroups: [],
         notes: [
           "Runtime Mode can launch this selected project through its grounded project-local runtime mirror.",
-          "The dedicated Runtime Debug Host still remains validated only for project_001, so the selected-project runtime workbench stays the primary source/override surface."
+          "The dedicated Runtime Debug Host can reuse that grounded project-local mirror when this selected project needs stronger runtime inspection."
         ]
       };
     }
