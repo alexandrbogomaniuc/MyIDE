@@ -6600,6 +6600,8 @@ async function runLiveRuntimeSelectedProjectReopenSmoke() {
     inspectorSurfaceChipLabel: null,
     onboardingSurfaceChipLabel: null,
     onboardingSurfaceCardTitle: null,
+    activeTaskRuntimeChipLabel: null,
+    activeTaskRuntimeContextLine: null,
     runtimeStatusMentionsOfficialDailyPath: false,
     embeddedRuntimeLaunched: false,
     previewStatus: null
@@ -6766,6 +6768,26 @@ async function runLiveRuntimeSelectedProjectReopenSmoke() {
     );
     baseResult.onboardingSurfaceChipLabel = onboardingSurfaceLabels.onboardingSurfaceChipLabel;
     baseResult.onboardingSurfaceCardTitle = onboardingSurfaceLabels.onboardingSurfaceCardTitle;
+    const activeTaskRuntimeLabels = await waitForRendererCondition(
+      () => {
+        const taskRows = Array.from(document.querySelectorAll(".tree-row"));
+        const activeTaskRow = taskRows.find((row) => row.querySelector("strong")?.textContent?.trim() === "Active Modification Task") ?? null;
+        const activeTaskRuntimeChipLabel = activeTaskRow?.querySelector(".chip-row span:nth-child(3)")?.textContent?.trim() ?? null;
+        const activeTaskRuntimeContextLine = Array.from(activeTaskRow?.querySelectorAll("small") ?? [])
+          .map((node) => node.textContent?.trim() ?? "")
+          .find((text) => text.startsWith("Runtime context · "))
+          ?? null;
+        return activeTaskRuntimeChipLabel && activeTaskRuntimeContextLine
+          ? {
+            activeTaskRuntimeChipLabel,
+            activeTaskRuntimeContextLine
+          }
+          : null;
+      },
+      "selected-project active task runtime labels"
+    );
+    baseResult.activeTaskRuntimeChipLabel = activeTaskRuntimeLabels.activeTaskRuntimeChipLabel;
+    baseResult.activeTaskRuntimeContextLine = activeTaskRuntimeLabels.activeTaskRuntimeContextLine;
     const runtimeStatusText = elements.runtimeStatus?.textContent?.replace(/\s+/g, " ").trim() ?? "";
     baseResult.runtimeStatusMentionsOfficialDailyPath = /official daily path/i.test(runtimeStatusText);
     if (baseResult.runtimeDebugHostActionVisible || baseResult.runtimeSourceDebugHostActionVisible) {
@@ -11678,6 +11700,7 @@ function renderActiveProjectModificationTaskCard() {
   }
 
   const runtimeEntry = getRuntimeWorkbenchEntryForModificationTask(task);
+  const runtimeEntrySurface = getRuntimeWorkbenchEntrySurface(runtimeEntry);
   const taskKitGroupSummary = getProjectModificationTaskKitGroupSummary(task);
   const importedSceneSection = getProjectModificationTaskSceneSection(task);
   const reconstructionPages = getProjectModificationTaskReconstructionPages(task);
@@ -11685,7 +11708,7 @@ function renderActiveProjectModificationTaskCard() {
     ? `${reconstructionPages.length} page cue${reconstructionPages.length === 1 ? "" : "s"} ready. Lead page ${reconstructionPages[0].pageName}${reconstructionPages[0].selectedMode ? ` uses ${reconstructionPages[0].selectedMode}` : ""}.`
     : "No page-aware reconstruction guide is available for this task yet.";
   const runtimeSummary = runtimeEntry
-    ? (runtimeEntry.relativePath ?? runtimeEntry.localMirrorRepoRelativePath ?? runtimeEntry.sourceUrl)
+    ? `${runtimeEntrySurface.title} · ${runtimeEntry.relativePath ?? runtimeEntry.localMirrorRepoRelativePath ?? runtimeEntry.sourceUrl}`
     : "No grounded runtime workbench source is matched yet.";
 
   return `
@@ -11695,7 +11718,7 @@ function renderActiveProjectModificationTaskCard() {
       <div class="chip-row">
         <span>${escapeHtml(task.taskStatus)}</span>
         <span>${escapeHtml(task.preferredWorkflowPanel)}</span>
-        <span>${runtimeEntry ? "runtime matched" : "runtime not matched"}</span>
+        <span>${escapeHtml(runtimeEntry ? runtimeEntrySurface.kind : "runtime not matched")}</span>
         <span>${taskKitGroupSummary ? `${escapeHtml(String(taskKitGroupSummary.count))} task-kit source${taskKitGroupSummary.count === 1 ? "" : "s"}` : "no task kit"}</span>
         <span>${importedSceneSection ? "scene kit imported" : "scene kit not imported"}</span>
       </div>
@@ -21692,6 +21715,25 @@ function renderActivityLog() {
     .join("");
 }
 
+function getRuntimeWorkbenchEntrySurface(entry) {
+  const kind = entry?.kind === "resource-map" && entry?.requestBacked
+    ? "request-backed"
+    : entry?.kind === "local-mirror-manifest"
+      ? "local-mirror"
+      : entry?.kind === "page-runtime-proof"
+        ? "page-proof"
+        : "grounded";
+  const title = kind === "request-backed"
+    ? "Request-backed runtime workbench"
+    : kind === "local-mirror"
+      ? "Local-mirror runtime workbench"
+      : kind === "page-proof"
+        ? "Page-proof runtime workbench"
+        : "Grounded runtime workbench";
+
+  return { kind, title };
+}
+
 function getActiveRuntimeWorkbenchSurface(preferredSourceUrl = null) {
   const workbenchEntries = getRuntimeWorkbenchEntries();
   const activeWorkbenchSourceUrl = getRuntimeCanonicalSourceUrl(preferredSourceUrl)
@@ -21699,20 +21741,10 @@ function getActiveRuntimeWorkbenchSurface(preferredSourceUrl = null) {
     ?? workbenchEntries[0]?.sourceUrl
     ?? null;
   const activeWorkbenchEntry = workbenchEntries.find((entry) => entry.sourceUrl === activeWorkbenchSourceUrl) ?? workbenchEntries[0] ?? null;
-  const activeWorkbenchSurfaceKind = activeWorkbenchEntry?.kind === "resource-map" && activeWorkbenchEntry?.requestBacked
-    ? "request-backed"
-    : activeWorkbenchEntry?.kind === "local-mirror-manifest"
-      ? "local-mirror"
-      : activeWorkbenchEntry?.kind === "page-runtime-proof"
-        ? "page-proof"
-        : "grounded";
-  const activeWorkbenchSurfaceTitle = activeWorkbenchSurfaceKind === "request-backed"
-    ? "Request-backed runtime workbench"
-    : activeWorkbenchSurfaceKind === "local-mirror"
-      ? "Local-mirror runtime workbench"
-      : activeWorkbenchSurfaceKind === "page-proof"
-        ? "Page-proof runtime workbench"
-        : "Grounded runtime workbench";
+  const {
+    kind: activeWorkbenchSurfaceKind,
+    title: activeWorkbenchSurfaceTitle
+  } = getRuntimeWorkbenchEntrySurface(activeWorkbenchEntry);
 
   return {
     activeWorkbenchEntry,

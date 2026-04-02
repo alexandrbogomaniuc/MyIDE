@@ -37,6 +37,8 @@ interface ReopenPayload {
   inspectorSurfaceChipLabel?: string | null;
   onboardingSurfaceChipLabel?: string | null;
   onboardingSurfaceCardTitle?: string | null;
+  activeTaskRuntimeChipLabel?: string | null;
+  activeTaskRuntimeContextLine?: string | null;
   runtimeStatusMentionsOfficialDailyPath?: boolean;
   embeddedRuntimeLaunched?: boolean;
   previewStatus?: string | null;
@@ -434,6 +436,8 @@ async function main(): Promise<void> {
     assert.equal(payload.inspectorSurfaceChipLabel, "request-backed", "Selected-project reopen smoke should expose the exact request-backed inspector chip.");
     assert.equal(payload.onboardingSurfaceChipLabel, "request-backed", "Selected-project reopen smoke should expose the exact request-backed onboarding chip.");
     assert.equal(payload.onboardingSurfaceCardTitle, "Request-backed runtime workbench", "Selected-project reopen smoke should expose the exact request-backed onboarding card title.");
+    assert.equal(payload.activeTaskRuntimeChipLabel, "request-backed", "Selected-project reopen smoke should expose the exact request-backed active task chip.");
+    assert(payload.activeTaskRuntimeContextLine?.includes("Request-backed runtime workbench"), "Selected-project reopen smoke should expose the exact request-backed active task runtime context.");
     assert.equal(payload.runtimeStatusMentionsOfficialDailyPath, false, "Selected-project reopen smoke should not claim project_002 is on the official daily runtime path.");
     assert.equal(payload.embeddedRuntimeLaunched, false, "Selected-project reopen smoke should not launch the embedded runtime.");
 

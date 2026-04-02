@@ -38,6 +38,8 @@ interface MirrorReopenPayload {
   inspectorSurfaceChipLabel?: string | null;
   onboardingSurfaceChipLabel?: string | null;
   onboardingSurfaceCardTitle?: string | null;
+  activeTaskRuntimeChipLabel?: string | null;
+  activeTaskRuntimeContextLine?: string | null;
   runtimeStatusMentionsOfficialDailyPath?: boolean;
   embeddedRuntimeLaunched?: boolean;
   previewStatus?: string | null;
@@ -433,6 +435,8 @@ async function main(): Promise<void> {
     assert.equal(payload.inspectorSurfaceChipLabel, "local-mirror", "Selected-project mirror reopen smoke should expose the exact local-mirror inspector chip.");
     assert.equal(payload.onboardingSurfaceChipLabel, "local-mirror", "Selected-project mirror reopen smoke should expose the exact local-mirror onboarding chip.");
     assert.equal(payload.onboardingSurfaceCardTitle, "Local-mirror runtime workbench", "Selected-project mirror reopen smoke should expose the exact local-mirror onboarding card title.");
+    assert.equal(payload.activeTaskRuntimeChipLabel, "local-mirror", "Selected-project mirror reopen smoke should expose the exact local-mirror active task chip.");
+    assert(payload.activeTaskRuntimeContextLine?.includes("Local-mirror runtime workbench"), "Selected-project mirror reopen smoke should expose the exact local-mirror active task runtime context.");
     assert.equal(payload.runtimeStatusMentionsOfficialDailyPath, false, "Selected-project mirror reopen smoke should not claim project_002 is on the official daily runtime path.");
     assert.equal(payload.embeddedRuntimeLaunched, false, "Selected-project mirror reopen smoke should not launch the embedded runtime.");
 
