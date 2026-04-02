@@ -43,6 +43,8 @@ That proved page-scoped runtime link now also survives both workspace reload and
 
 Blocked-launch projects now also keep the runtime workbench truthful instead of collapsing back to Compose: if a selected project has grounded page proofs or request-backed runtime traces but no grounded launch URL yet, **Open Runtime** can still reopen that runtime evidence surface while embedded launch and Debug Host stay explicitly blocked for that project.
 
+Those same blocked-launch runtime surfaces can now also carry bounded project-local override work when the reopened runtime trace is backed by a grounded task-kit donor asset: **Create Override** and **Clear Override** stay usable from the runtime workbench without pretending that embedded launch or Debug Host resumed for that project.
+
 ## Current Phase
 - Current milestone: IDE-LIFECYCLE-A lifecycle backbone on top of the existing runtime-first shell, donor scan, and compose/runtime proving slices.
 - Active validated donor slice: `donor_001_mystery_garden`.

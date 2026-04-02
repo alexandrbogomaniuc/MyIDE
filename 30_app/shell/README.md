@@ -39,6 +39,7 @@ The operational workflow is now:
 14. After that page-scoped proof succeeds, the same page-aware card now upgrades into a direct **Open Page Runtime** action for the proved source, and the task-level **Open Runtime** action reuses that same page-scoped runtime trace.
 15. That proved page-scoped runtime trace now survives both workspace reload and a fresh app relaunch: once the task import has been saved, reopening the same task page should still expose the direct **Open Page Runtime** action and the task-level **Open Runtime** action should still land on that proved source without another Debug Host pass.
 16. Even when integrated launch is still blocked for a non-validated project, the same task-level **Open Runtime** path can now keep the runtime workbench open on grounded page proofs and request-backed traces instead of silently dropping the operator back into Compose; launch and Debug Host remain explicitly blocked until that project has a grounded runtime entry.
+17. Those blocked-launch projects can now also use the same grounded runtime surface for bounded project-local override work: when the reopened runtime entry is backed by a grounded task-kit donor asset, **Create Override** and **Clear Override** stay available without pretending that embedded launch or Debug Host resumed for that project.
 
 ## Preferred Launchers
 - `./run/start-workbench.sh`

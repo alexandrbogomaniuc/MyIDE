@@ -130,6 +130,9 @@ contextBridge.exposeInMainWorld("myideApi", {
   reportLiveRuntimeSelectedProjectReopenSmokeResult: (payload: unknown): void => {
     ipcRenderer.send("myide:live-runtime-selected-project-reopen-smoke-result", payload);
   },
+  reportLiveRuntimeSelectedProjectOverrideSmokeResult: (payload: unknown): void => {
+    ipcRenderer.send("myide:live-runtime-selected-project-override-smoke-result", payload);
+  },
   reportLiveRuntimeSmokeResult: (payload: unknown): void => {
     ipcRenderer.send("myide:live-runtime-smoke-result", payload);
   },

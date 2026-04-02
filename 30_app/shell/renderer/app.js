@@ -300,6 +300,15 @@ function isLiveRuntimeSelectedProjectReopenSmokeMode() {
   }
 }
 
+function isLiveRuntimeSelectedProjectOverrideSmokeMode() {
+  try {
+    const search = typeof window.location?.search === "string" ? window.location.search : "";
+    return new URLSearchParams(search).get("liveRuntimeSelectedProjectOverrideSmoke") === "1";
+  } catch {
+    return false;
+  }
+}
+
 function isLiveRuntimeSmokeMode() {
   try {
     const search = typeof window.location?.search === "string" ? window.location.search : "";
@@ -578,6 +587,20 @@ async function emitLiveRuntimeSelectedProjectReopenSmoke(payload) {
   }
 }
 
+async function emitLiveRuntimeSelectedProjectOverrideSmoke(payload) {
+  try {
+    if (window.myideApi && typeof window.myideApi.reportLiveRuntimeSelectedProjectOverrideSmokeResult === "function") {
+      window.myideApi.reportLiveRuntimeSelectedProjectOverrideSmokeResult(payload);
+      return;
+    }
+
+    console.log(`MYIDE_LIVE_RUNTIME_SELECTED_PROJECT_OVERRIDE:${JSON.stringify(payload)}`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.log(`MYIDE_LIVE_RUNTIME_SELECTED_PROJECT_OVERRIDE:${JSON.stringify({ status: "fail", error: `live selected-project runtime override payload serialization failed: ${message}` })}`);
+  }
+}
+
 async function emitLiveRuntimeSmoke(payload) {
   try {
     if (window.myideApi && typeof window.myideApi.reportLiveRuntimeSmokeResult === "function") {
@@ -843,6 +866,11 @@ async function bootRenderer() {
 
   if (isLiveRuntimeSelectedProjectReopenSmokeMode()) {
     await runLiveRuntimeSelectedProjectReopenSmoke();
+    return;
+  }
+
+  if (isLiveRuntimeSelectedProjectOverrideSmokeMode()) {
+    await runLiveRuntimeSelectedProjectOverrideSmoke();
     return;
   }
 
@@ -3104,10 +3132,46 @@ async function createRuntimeOverrideFromCurrentBridge() {
     state.bundle.runtimeOverrides = status ?? null;
   }
   renderAll();
-  setPreviewStatus(`Created a project-local runtime override for ${candidate.runtimeRelativePath ?? candidate.runtimeSourceUrl} from donor asset ${candidate.donorAsset.assetId}. Reloading the embedded runtime now; use Debug Host again when you want the strongest override-hit confirmation.`);
+  setPreviewStatus(
+    appendRuntimeOverrideStatusFollowup(
+      `Created a project-local runtime override for ${candidate.runtimeRelativePath ?? candidate.runtimeSourceUrl} from donor asset ${candidate.donorAsset.assetId}.`,
+      buildRuntimeOverrideFollowupMessage("create")
+    )
+  );
   if (state.runtimeUi.launched) {
     await handleRuntimeReload();
   }
+}
+
+function buildRuntimeOverrideFollowupMessage(action = "create") {
+  const normalizedAction = action === "clear" ? "clear" : "create";
+  if (state.runtimeUi.launched) {
+    return normalizedAction === "clear"
+      ? "Reloading the embedded runtime now; re-open Debug Host if you want to confirm the clean runtime path again."
+      : "Reloading the embedded runtime now; use Debug Host again when you want the strongest override-hit confirmation.";
+  }
+
+  if (getRuntimeLaunchInfo()?.entryUrl) {
+    return normalizedAction === "clear"
+      ? "Launch or reopen the embedded runtime when you want to confirm the clean runtime path again."
+      : "Launch or reopen the embedded runtime when you want to confirm reload-time hits for this source.";
+  }
+
+  return normalizedAction === "clear"
+    ? "Embedded launch stays blocked for this project, so the cleared runtime source will stay truthful the next time that grounded runtime entry is reopened."
+    : "Embedded launch stays blocked for this project, so the override is recorded for the grounded runtime source and will apply the next time that runtime entry is reopened.";
+}
+
+function appendRuntimeOverrideStatusFollowup(statusMessage, followupMessage) {
+  const base = String(statusMessage ?? "").trim();
+  const followup = String(followupMessage ?? "").trim();
+  if (!base) {
+    return followup;
+  }
+  if (!followup) {
+    return base;
+  }
+  return `${/[.!?]$/.test(base) ? base : `${base}.`} ${followup}`;
 }
 
 async function createRuntimeOverrideForSource(sourceUrl, options = {}) {
@@ -3147,8 +3211,13 @@ async function createRuntimeOverrideForSource(sourceUrl, options = {}) {
     state.bundle.runtimeOverrides = status ?? null;
   }
   renderAll();
-  setPreviewStatus(options.statusMessage
-    ?? `Created a project-local runtime override for ${candidate.runtimeRelativePath ?? candidate.runtimeSourceUrl} from donor asset ${candidate.donorAsset.assetId}. Reloading the embedded runtime now; use Debug Host again when you want the strongest override-hit confirmation.`);
+  setPreviewStatus(
+    appendRuntimeOverrideStatusFollowup(
+      options.statusMessage
+        ?? `Created a project-local runtime override for ${candidate.runtimeRelativePath ?? candidate.runtimeSourceUrl} from donor asset ${candidate.donorAsset.assetId}.`,
+      buildRuntimeOverrideFollowupMessage("create")
+    )
+  );
   if (state.runtimeUi.launched) {
     await handleRuntimeReload();
   }
@@ -3173,7 +3242,12 @@ async function clearRuntimeOverrideForCurrentCandidate() {
     state.bundle.runtimeOverrides = status ?? null;
   }
   renderAll();
-  setPreviewStatus(`Cleared the project-local runtime override for ${candidate.runtimeRelativePath ?? candidate.runtimeSourceUrl}. Reloading the embedded runtime now; re-open Debug Host if you want to confirm the clean runtime path again.`);
+  setPreviewStatus(
+    appendRuntimeOverrideStatusFollowup(
+      `Cleared the project-local runtime override for ${candidate.runtimeRelativePath ?? candidate.runtimeSourceUrl}.`,
+      buildRuntimeOverrideFollowupMessage("clear")
+    )
+  );
   if (state.runtimeUi.launched) {
     await handleRuntimeReload();
   }
@@ -3212,8 +3286,13 @@ async function clearRuntimeOverrideForSource(sourceUrl, options = {}) {
     state.bundle.runtimeOverrides = status ?? null;
   }
   renderAll();
-  setPreviewStatus(options.statusMessage
-    ?? `Cleared the project-local runtime override for ${candidate.runtimeRelativePath ?? candidate.runtimeSourceUrl}. Reloading the embedded runtime now; re-open Debug Host if you want to confirm the clean runtime path again.`);
+  setPreviewStatus(
+    appendRuntimeOverrideStatusFollowup(
+      options.statusMessage
+        ?? `Cleared the project-local runtime override for ${candidate.runtimeRelativePath ?? candidate.runtimeSourceUrl}.`,
+      buildRuntimeOverrideFollowupMessage("clear")
+    )
+  );
   if (state.runtimeUi.launched) {
     await handleRuntimeReload();
   }
@@ -6419,6 +6498,196 @@ async function runLiveRuntimeSelectedProjectReopenSmoke() {
       status: "fail",
       error: message,
       previewStatus: failureMessage
+    });
+  }
+}
+
+async function runLiveRuntimeSelectedProjectOverrideSmoke() {
+  const targetProjectId = "project_002";
+  const startedAt = new Date().toISOString();
+  const baseResult = {
+    startedAt,
+    projectId: targetProjectId,
+    preloadExecuted: Boolean(window.myideApi),
+    myideApiExposed: Boolean(window.myideApi && typeof window.myideApi.loadProjectSlice === "function"),
+    projectLoaded: false,
+    runtimeLaunchBlocked: false,
+    runtimeLaunchEntryUrl: null,
+    donorAssetCount: 0,
+    taskId: null,
+    pageName: null,
+    taskRuntimeEntryKind: null,
+    taskRuntimeEntrySourceUrl: null,
+    runtimeOverrideEligible: false,
+    runtimeOverrideDonorAssetId: null,
+    createOverrideButtonEnabled: false,
+    runtimeOverrideCreated: false,
+    runtimeOverrideCleared: false,
+    runtimeOverrideManifestRepoRelativePath: null,
+    runtimeOverrideRepoRelativePath: null,
+    previewStatusAfterCreate: null,
+    previewStatusAfterClear: null,
+    embeddedRuntimeLaunched: false
+  };
+
+  try {
+    const api = window.myideApi;
+    if (
+      !api
+      || typeof api.loadProjectSlice !== "function"
+      || typeof api.reportRendererReady !== "function"
+    ) {
+      throw new Error("Renderer selected-project runtime override smoke could not access the required desktop bridge helpers.");
+    }
+
+    await waitForRendererCondition(
+      () => Boolean(state.bundle && getWorkspaceProjects().length > 0),
+      "workspace discovery for selected-project runtime override smoke"
+    );
+
+    if (state.selectedProjectId !== targetProjectId) {
+      const projectButton = await waitForRendererCondition(
+        () => elements.projectBrowser?.querySelector(`[data-project-id="${targetProjectId}"]`) ?? null,
+        `project browser entry for ${targetProjectId}`
+      );
+      clickRendererElement(projectButton);
+    }
+
+    await waitForRendererCondition(
+      () => state.selectedProjectId === targetProjectId && Boolean(state.bundle),
+      `${targetProjectId} to load for the selected-project runtime override smoke`
+    );
+    baseResult.projectLoaded = true;
+    baseResult.donorAssetCount = Number(state.bundle?.donorAssetCatalog?.assetCount ?? 0);
+
+    const runtimeLaunch = getRuntimeLaunchInfo();
+    baseResult.runtimeLaunchEntryUrl = runtimeLaunch?.entryUrl ?? null;
+    baseResult.runtimeLaunchBlocked = !Boolean(runtimeLaunch?.entryUrl) && Boolean(runtimeLaunch?.blocker);
+    if (runtimeLaunch?.entryUrl) {
+      throw new Error(`Selected-project runtime override smoke expected launch to stay blocked, but ${targetProjectId} exposed ${runtimeLaunch.entryUrl}.`);
+    }
+    if (baseResult.donorAssetCount <= 0) {
+      throw new Error(`Selected-project runtime override smoke did not load any donor/task-kit assets for ${targetProjectId}.`);
+    }
+
+    const tasksWithPageProof = getProjectModificationTasks()
+      .map((task) => {
+        const matchedPage = getProjectModificationTaskReconstructionPages(task)
+          .find((page) => getProjectModificationTaskPageRuntimeProofEntry(task.taskId, page.pageName)?.entry) ?? null;
+        if (!matchedPage) {
+          return null;
+        }
+
+        const pageProofEntry = getProjectModificationTaskPageRuntimeProofEntry(task.taskId, matchedPage.pageName);
+        return pageProofEntry?.entry
+          ? {
+            task,
+            page: matchedPage,
+            pageProofEntry
+          }
+          : null;
+      })
+      .filter(Boolean);
+    const matchedTaskProof = tasksWithPageProof[0] ?? null;
+    if (!matchedTaskProof?.pageProofEntry?.entry?.sourceUrl) {
+      throw new Error("No persisted page runtime proof is available for the selected-project runtime override smoke.");
+    }
+
+    baseResult.taskId = matchedTaskProof.task.taskId;
+    baseResult.pageName = matchedTaskProof.page.pageName;
+
+    openProjectModificationTask(matchedTaskProof.task.taskId, "runtime");
+    await waitForRendererCondition(
+      () => state.workflowUi?.activePanel === "runtime"
+        && state.workbenchMode === "runtime"
+        && getRuntimeWorkbenchSourceUrl() === matchedTaskProof.pageProofEntry.entry.sourceUrl
+        && state.runtimeUi.launched === false,
+      `${matchedTaskProof.task.taskId} task runtime open to stay on the blocked-launch runtime surface before override creation`
+    );
+
+    const taskRuntimeMatch = getProjectModificationTaskRuntimeMatchForPage(matchedTaskProof.task, matchedTaskProof.page);
+    baseResult.taskRuntimeEntryKind = taskRuntimeMatch?.matchKind ?? null;
+    const taskRuntimeEntry = getRuntimeWorkbenchEntryForModificationTask(matchedTaskProof.task);
+    if (!taskRuntimeEntry?.sourceUrl) {
+      throw new Error(`Task ${matchedTaskProof.task.taskId} did not resolve to a runtime workbench entry for override creation.`);
+    }
+    baseResult.taskRuntimeEntrySourceUrl = taskRuntimeEntry.sourceUrl;
+
+    const runtimeOverrideCandidate = getRuntimeOverrideCandidate();
+    baseResult.runtimeOverrideEligible = Boolean(runtimeOverrideCandidate.eligible);
+    baseResult.runtimeOverrideDonorAssetId = runtimeOverrideCandidate.donorAsset?.assetId ?? null;
+    if (!runtimeOverrideCandidate.eligible || !runtimeOverrideCandidate.donorAsset?.assetId) {
+      throw new Error(runtimeOverrideCandidate.note ?? "Selected-project runtime override candidate was not eligible.");
+    }
+
+    const createOverrideButton = await waitForRendererCondition(
+      () => {
+        const button = elements.runtimeToolbar?.querySelector('[data-runtime-action="create-override"]')
+          ?? elements.inspector?.querySelector('[data-runtime-action="create-override"]');
+        return button instanceof HTMLButtonElement ? button : null;
+      },
+      "selected-project runtime override action button"
+    );
+    baseResult.createOverrideButtonEnabled = !createOverrideButton.disabled;
+    if (createOverrideButton.disabled) {
+      throw new Error("Selected-project runtime override action button stayed disabled even though the grounded candidate was eligible.");
+    }
+
+    clickRendererElement(createOverrideButton);
+    const activeOverrideEntry = await waitForRendererCondition(
+      () => state.runtimeUi.overrideStatus?.entries?.find((entry) => entry.runtimeSourceUrl === taskRuntimeEntry.sourceUrl) ?? null,
+      "selected-project runtime override manifest entry creation",
+      { timeoutMs: 20000 }
+    );
+    baseResult.runtimeOverrideCreated = true;
+    baseResult.runtimeOverrideManifestRepoRelativePath = state.runtimeUi.overrideStatus?.manifestRepoRelativePath ?? null;
+    baseResult.runtimeOverrideRepoRelativePath = activeOverrideEntry?.overrideRepoRelativePath ?? null;
+    baseResult.previewStatusAfterCreate = elements.previewStatus?.textContent?.trim() ?? null;
+    baseResult.embeddedRuntimeLaunched = Boolean(state.runtimeUi.launched);
+
+    if (!baseResult.previewStatusAfterCreate || !baseResult.previewStatusAfterCreate.includes("Embedded launch stays blocked")) {
+      throw new Error("Selected-project runtime override create status did not stay honest about blocked embedded launch.");
+    }
+    if (baseResult.previewStatusAfterCreate.includes("Reloading the embedded runtime now")) {
+      throw new Error("Selected-project runtime override create status still claimed a blocked embedded runtime would reload.");
+    }
+    if (baseResult.embeddedRuntimeLaunched) {
+      throw new Error("Selected-project runtime override smoke should not launch the embedded runtime.");
+    }
+
+    const clearOverrideButton = await waitForRendererCondition(
+      () => {
+        const button = elements.runtimeToolbar?.querySelector('[data-runtime-action="clear-override"]')
+          ?? elements.inspector?.querySelector('[data-runtime-action="clear-override"]');
+        return button instanceof HTMLButtonElement && !button.disabled ? button : null;
+      },
+      "selected-project runtime clear-override action button",
+      { timeoutMs: 20000 }
+    );
+    clickRendererElement(clearOverrideButton);
+    await waitForRendererCondition(
+      () => !state.runtimeUi.overrideStatus?.entries?.some((entry) => entry.runtimeSourceUrl === taskRuntimeEntry.sourceUrl),
+      "selected-project runtime override cleanup",
+      { timeoutMs: 20000 }
+    );
+    baseResult.runtimeOverrideCleared = true;
+    baseResult.previewStatusAfterClear = elements.previewStatus?.textContent?.trim() ?? null;
+    baseResult.embeddedRuntimeLaunched = Boolean(state.runtimeUi.launched);
+    document.body.dataset.liveRuntimeSelectedProjectOverrideSmoke = "pass";
+    await emitLiveRuntimeSelectedProjectOverrideSmoke({
+      ...baseResult,
+      status: "pass"
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const failureMessage = `Live selected-project runtime override smoke failed: ${message}`;
+    setPreviewStatus(failureMessage);
+    document.body.dataset.liveRuntimeSelectedProjectOverrideSmoke = "fail";
+    await emitLiveRuntimeSelectedProjectOverrideSmoke({
+      ...baseResult,
+      status: "fail",
+      error: message,
+      previewStatusAfterClear: failureMessage
     });
   }
 }

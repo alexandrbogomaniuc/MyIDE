@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { existsSync, promises as fs } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -7,6 +8,7 @@ import {
   type IndexedDonorAsset,
   type SupportedDonorAssetType
 } from "../../tools/donor-assets/shared";
+import { readProjectModificationHandoff, type ProjectModificationTask } from "./modificationHandoff";
 
 export interface RuntimeAssetOverrideEntry {
   overrideId: string;
@@ -68,6 +70,13 @@ interface RuntimeAssetOverridePaths {
   overrideDirectoryPath: string;
 }
 
+interface ModificationTaskKitCandidate {
+  localPath: string;
+  title: string;
+  notes: string;
+  sourceUrl: string | null;
+}
+
 const workspaceRoot = path.resolve(__dirname, "../../..");
 const supportedFileTypes = new Set<SupportedDonorAssetType>(["png", "webp", "jpg", "jpeg", "svg"]);
 
@@ -87,6 +96,20 @@ function sanitizeSlug(value: string): string {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 80) || "runtime-asset";
+}
+
+function buildModificationTaskAssetId(projectId: string, taskId: string, localPath: string): string {
+  const raw = `${projectId}::${taskId}::${localPath}`;
+  const hash = createHash("sha1").update(raw).digest("hex").slice(0, 18);
+  return `donor.asset.task-${hash}`;
+}
+
+function buildModificationTaskAssetTitle(
+  task: Pick<ProjectModificationTask, "displayName" | "sectionKey" | "familyName">,
+  suffix: string
+): string {
+  const prefix = [task.displayName, task.sectionKey ?? task.familyName].filter(Boolean).join(" · ");
+  return `${prefix} · ${suffix}`;
 }
 
 function getRuntimeAssetOverridePaths(projectId: string): RuntimeAssetOverridePaths {
@@ -112,6 +135,115 @@ function getSupportedFileType(value: string): SupportedDonorAssetType | null {
   return supportedFileTypes.has(extension as SupportedDonorAssetType)
     ? extension as SupportedDonorAssetType
     : null;
+}
+
+async function readOptionalJsonFile(filePath: string): Promise<unknown | null> {
+  try {
+    const raw = await fs.readFile(filePath, "utf8");
+    return JSON.parse(raw) as unknown;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException | undefined)?.code === "ENOENT") {
+      return null;
+    }
+    throw error;
+  }
+}
+
+function collectImageStrings(value: unknown, sink: Set<string>): void {
+  if (typeof value === "string") {
+    if (getSupportedFileType(value)) {
+      sink.add(value);
+    }
+    return;
+  }
+
+  if (Array.isArray(value)) {
+    value.forEach((entry) => collectImageStrings(entry, sink));
+    return;
+  }
+
+  if (value && typeof value === "object") {
+    Object.values(value).forEach((entry) => collectImageStrings(entry, sink));
+  }
+}
+
+function collectModificationTaskKitCandidatesFromBundle(
+  task: Pick<ProjectModificationTask, "displayName" | "sectionKey" | "familyName">,
+  bundle: unknown
+): ModificationTaskKitCandidate[] {
+  const candidates: ModificationTaskKitCandidate[] = [];
+  const seen = new Set<string>();
+  const pushCandidate = (localPath: string | null, title: string, notes: string, sourceUrl: string | null = null) => {
+    if (typeof localPath !== "string" || !getSupportedFileType(localPath) || seen.has(localPath)) {
+      return;
+    }
+    seen.add(localPath);
+    candidates.push({
+      localPath,
+      title,
+      notes,
+      sourceUrl
+    });
+  };
+
+  const pages = Array.isArray((bundle as { pages?: unknown[] } | null)?.pages)
+    ? ((bundle as { pages: Array<Record<string, unknown>> }).pages)
+    : [];
+  pages.forEach((page, index) => {
+    const localPath = typeof page.selectedLocalPath === "string"
+      ? page.selectedLocalPath
+      : typeof page.atlasPageLocalPath === "string"
+        ? page.atlasPageLocalPath
+        : null;
+    const pageLabel = typeof page.pageName === "string" && page.pageName.length > 0
+      ? page.pageName
+      : `page-${index + 1}`;
+    const selectedMode = typeof page.selectedMode === "string" && page.selectedMode.length > 0
+      ? ` · ${page.selectedMode}`
+      : "";
+    const pageState = typeof page.pageState === "string" ? page.pageState : "task page source";
+    pushCandidate(
+      localPath,
+      buildModificationTaskAssetTitle(task, pageLabel),
+      `${pageState}${selectedMode}`,
+      null
+    );
+  });
+
+  const localSources = Array.isArray((bundle as { localSources?: unknown[] } | null)?.localSources)
+    ? ((bundle as { localSources: Array<Record<string, unknown>> }).localSources)
+    : [];
+  localSources.forEach((source, index) => {
+    const localPath = typeof source.localPath === "string" ? source.localPath : null;
+    const familyLabel = typeof source.familyName === "string" && source.familyName.length > 0
+      ? source.familyName
+      : path.basename(localPath ?? "", path.extname(localPath ?? "")) || `source-${index + 1}`;
+    const sourceKind = typeof source.sourceKind === "string" ? source.sourceKind : "local-source";
+    const relation = typeof source.relation === "string" ? ` · ${source.relation}` : "";
+    pushCandidate(
+      localPath,
+      buildModificationTaskAssetTitle(task, familyLabel),
+      `${sourceKind}${relation}`,
+      typeof source.sourceUrl === "string" ? source.sourceUrl : null
+    );
+  });
+
+  if (candidates.length > 0) {
+    return candidates;
+  }
+
+  const fallbackPaths = new Set<string>();
+  collectImageStrings(bundle, fallbackPaths);
+  Array.from(fallbackPaths).forEach((localPath) => {
+    pushCandidate(
+      localPath,
+      buildModificationTaskAssetTitle(task, path.basename(localPath)),
+      "task bundle local image",
+      null
+    );
+  });
+
+  return candidates;
 }
 
 function resolveCanonicalRuntimeSourceUrl(runtimeSourceUrl: string): string {
@@ -187,8 +319,98 @@ async function writeManifest(projectId: string, manifest: RuntimeAssetOverrideMa
 }
 
 async function loadDonorAsset(projectId: string, donorAssetId: string): Promise<IndexedDonorAsset> {
-  const donorIndex = await readProjectDonorAssetIndex(projectId) ?? await buildProjectDonorAssetIndex(projectId);
-  const donorAsset = donorIndex.assets.find((entry) => entry.assetId === donorAssetId);
+  let donorAsset: IndexedDonorAsset | null = null;
+
+  try {
+    const donorIndex = await readProjectDonorAssetIndex(projectId) ?? await buildProjectDonorAssetIndex(projectId);
+    donorAsset = donorIndex.assets.find((entry) => entry.assetId === donorAssetId) ?? null;
+  } catch (error) {
+    if (projectId === "project_001") {
+      throw error;
+    }
+  }
+
+  if (!donorAsset) {
+    const handoff = await readProjectModificationHandoff(projectId);
+    const donorId = handoff?.donorId ?? projectId;
+    const donorName = handoff?.donorName ?? projectId;
+    const tasks = Array.isArray(handoff?.tasks) ? handoff.tasks : [];
+
+    for (const task of tasks) {
+      const artifactPaths = [
+        task.sourceArtifactPath,
+        ...(Array.isArray(task.supportingArtifactPaths) ? task.supportingArtifactPaths : [])
+      ].filter((value): value is string => typeof value === "string" && value.length > 0);
+      const candidates: ModificationTaskKitCandidate[] = [];
+      const seenCandidatePaths = new Set<string>();
+      const pushCandidates = (nextCandidates: readonly ModificationTaskKitCandidate[]) => {
+        nextCandidates.forEach((candidate) => {
+          if (seenCandidatePaths.has(candidate.localPath)) {
+            return;
+          }
+          seenCandidatePaths.add(candidate.localPath);
+          candidates.push(candidate);
+        });
+      };
+
+      for (const artifactPath of artifactPaths) {
+        const normalizedPath = artifactPath.replace(/\\/g, "/");
+        if (getSupportedFileType(normalizedPath)) {
+          pushCandidates([{
+            localPath: normalizedPath,
+            title: buildModificationTaskAssetTitle(task, path.basename(normalizedPath)),
+            notes: "task-local grounded image",
+            sourceUrl: null
+          }]);
+          continue;
+        }
+        if (path.extname(normalizedPath).toLowerCase() !== ".json") {
+          continue;
+        }
+
+        const bundle = await readOptionalJsonFile(path.join(workspaceRoot, normalizedPath));
+        if (!bundle) {
+          continue;
+        }
+        pushCandidates(collectModificationTaskKitCandidatesFromBundle(task, bundle));
+      }
+
+      const matchedCandidate = candidates.find(
+        (candidate) => buildModificationTaskAssetId(projectId, task.taskId, candidate.localPath) === donorAssetId
+      );
+      if (!matchedCandidate) {
+        continue;
+      }
+
+      const fileType = getSupportedFileType(matchedCandidate.localPath);
+      const donorAbsolutePath = path.join(workspaceRoot, matchedCandidate.localPath);
+      if (!fileType || !existsSync(donorAbsolutePath)) {
+        continue;
+      }
+
+      donorAsset = {
+        assetId: donorAssetId,
+        evidenceId: `modification-task:${task.taskId}`,
+        captureSessionId: `modification-task:${task.taskId}`,
+        donorId,
+        donorName,
+        title: matchedCandidate.title,
+        filename: path.basename(matchedCandidate.localPath),
+        fileType,
+        sourceCategory: "modification task kit",
+        sourceUrl: matchedCandidate.sourceUrl,
+        notes: matchedCandidate.notes,
+        repoRelativePath: matchedCandidate.localPath,
+        donorRelativePath: matchedCandidate.localPath,
+        localExists: true,
+        previewAvailable: true,
+        width: null,
+        height: null
+      };
+      break;
+    }
+  }
+
   if (!donorAsset) {
     throw new Error(`Unknown donor asset for runtime override: ${donorAssetId}`);
   }
