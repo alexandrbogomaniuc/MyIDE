@@ -36,6 +36,7 @@ The operational workflow is now:
 11. The same page-aware guide cards can also jump straight to the grounded donor asset or donor evidence for that page cue, then return to the active grouped Compose section without losing the task context.
 12. Those same page-aware guide cards can now also jump into Runtime Mode: if the page cue already has a grounded runtime workbench source, the card opens that exact trace; otherwise it can launch the dedicated Runtime Debug Host as the stronger request-backed runtime proof path.
 13. That Debug Host fallback is now page-scoped too: for the active `big_win/BW` task it can target the hinted `big-win` page asset, recover the upstream runtime source when the local mirror manifest does not already contain that page file, and still prove the bounded override hit after reload.
+14. After that page-scoped proof succeeds, the same page-aware card now upgrades into a direct **Open Page Runtime** action for the proved source, and the task-level **Open Runtime** action reuses that same page-scoped runtime trace.
 
 ## Preferred Launchers
 - `./run/start-workbench.sh`

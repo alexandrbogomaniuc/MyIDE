@@ -49,7 +49,8 @@ const state = {
     activePanel: "runtime"
   },
   modificationTaskUi: {
-    activeTaskId: null
+    activeTaskId: null,
+    pageRuntimeProofs: {}
   },
   runtimeUi: {
     launched: false,
@@ -4613,6 +4614,9 @@ async function runLiveDonorImportSmoke() {
     taskKitPageRuntimeSourceUrl: null,
     taskKitPageRuntimeSourceLabel: null,
     taskKitPageRuntimeBlocked: null,
+    taskKitPageRuntimePromotedToDirectLink: false,
+    taskKitPageRuntimePromotedSourceUrl: null,
+    taskKitTaskRuntimeOpenUsesPageProof: false,
     importedAssetCount: 0,
     importedFileTypes: [],
     importModes: [],
@@ -4947,6 +4951,56 @@ async function runLiveDonorImportSmoke() {
     await waitForRendererCondition(
       () => state.selectedObjectId === taskKitEditableMemberId && getSelectedObjectIds().length === 1,
       `${taskKitEditableMemberId} to become the single selected task member after runtime trace jump`
+    );
+
+    const taskReconstructionGuideCardAfterRuntimeTrace = await waitForRendererCondition(
+      () => elements.inspector?.querySelector(`[data-task-reconstruction-page="${CSS.escape(baseResult.taskKitPageGuideName)}"]`) ?? elements.inspector?.querySelector('[data-task-reconstruction-related="1"], [data-task-reconstruction-page]') ?? null,
+      `${preparedModificationTask.taskId} page-aware reconstruction guide after runtime trace jump`
+    );
+    if (!(taskReconstructionGuideCardAfterRuntimeTrace instanceof HTMLElement)) {
+      throw new Error(`Page-aware reconstruction guidance did not return after the runtime trace for ${preparedModificationTask.taskId}.`);
+    }
+
+    const promotedRuntimeTraceButton = taskReconstructionGuideCardAfterRuntimeTrace.querySelector("[data-task-reconstruction-runtime-source-url]");
+    if (!(promotedRuntimeTraceButton instanceof HTMLElement) || !promotedRuntimeTraceButton.dataset.taskReconstructionRuntimeSourceUrl) {
+      throw new Error(`Page-aware runtime trace was not promoted to a direct runtime link for ${preparedModificationTask.taskId}.`);
+    }
+    baseResult.taskKitPageRuntimePromotedToDirectLink = true;
+    baseResult.taskKitPageRuntimePromotedSourceUrl = promotedRuntimeTraceButton.dataset.taskReconstructionRuntimeSourceUrl;
+    if (baseResult.taskKitPageRuntimeTraceMode === "debug-host-pass"
+      && baseResult.taskKitPageRuntimeSourceUrl
+      && promotedRuntimeTraceButton.dataset.taskReconstructionRuntimeSourceUrl !== baseResult.taskKitPageRuntimeSourceUrl) {
+      throw new Error(`Promoted runtime trace for ${preparedModificationTask.taskId} did not reuse the proved page runtime source.`);
+    }
+
+    openProjectModificationTask(preparedModificationTask.taskId, "runtime");
+    await waitForRendererCondition(
+      () => state.workflowUi?.activePanel === "runtime"
+        && state.workbenchMode === "runtime"
+        && getRuntimeWorkbenchSourceUrl() === baseResult.taskKitPageRuntimePromotedSourceUrl,
+      `${preparedModificationTask.taskId} task runtime open to use the promoted page runtime proof`
+    );
+    baseResult.taskKitTaskRuntimeOpenUsesPageProof = true;
+
+    openProjectModificationTask(preparedModificationTask.taskId, "compose");
+    await waitForRendererCondition(
+      () => {
+        const entry = getSceneSectionEntryForDonorAssetGroupKey(preparedTaskKitGroup.key);
+        return entry
+          && state.modificationTaskUi?.activeTaskId === preparedModificationTask.taskId
+          && state.workflowUi?.activePanel === "compose"
+          && getSelectedObjectIds().some((objectId) => entry.memberObjectIds.includes(objectId))
+          ? entry
+          : null;
+      },
+      `${preparedModificationTask.taskId} to reopen on the imported scene section after promoted runtime open`
+    );
+    focusSceneObjectInWorkflow(taskKitEditableMemberId, {
+      statusMessage: `Re-selected ${taskKitEditableMemberId} after confirming the promoted page runtime proof.`
+    });
+    await waitForRendererCondition(
+      () => state.selectedObjectId === taskKitEditableMemberId && getSelectedObjectIds().length === 1,
+      `${taskKitEditableMemberId} to become the single selected task member after promoted runtime open`
     );
 
     const taskLeadMemberButton = await waitForRendererCondition(
@@ -9534,6 +9588,80 @@ function getProjectModificationTaskReconstructionPages(task) {
     : [];
 }
 
+function getProjectModificationTaskPageRuntimeProofKey(taskId, pageName) {
+  if (typeof taskId !== "string" || taskId.length === 0 || typeof pageName !== "string" || pageName.length === 0) {
+    return null;
+  }
+
+  return `${taskId}::${pageName.trim().toLowerCase()}`;
+}
+
+function getProjectModificationTaskPageRuntimeProof(taskId, pageName) {
+  const proofKey = getProjectModificationTaskPageRuntimeProofKey(taskId, pageName);
+  if (!proofKey) {
+    return null;
+  }
+
+  return state.modificationTaskUi?.pageRuntimeProofs?.[proofKey] ?? null;
+}
+
+function setProjectModificationTaskPageRuntimeProof(taskId, pageName, proof, options = {}) {
+  const proofKey = getProjectModificationTaskPageRuntimeProofKey(taskId, pageName);
+  if (!proofKey) {
+    return null;
+  }
+
+  const nextProofs = {
+    ...(state.modificationTaskUi?.pageRuntimeProofs ?? {})
+  };
+  if (proof && typeof proof.sourceUrl === "string" && proof.sourceUrl.length > 0) {
+    const canonicalSourceUrl = getRuntimeCanonicalSourceUrl(proof.sourceUrl) ?? proof.sourceUrl;
+    nextProofs[proofKey] = {
+      ...proof,
+      sourceUrl: canonicalSourceUrl
+    };
+  } else {
+    delete nextProofs[proofKey];
+  }
+  state.modificationTaskUi.pageRuntimeProofs = nextProofs;
+  if (options.render !== false) {
+    renderAll();
+  }
+
+  return nextProofs[proofKey] ?? null;
+}
+
+function getRuntimeWorkbenchEntryBySourceUrl(sourceUrl) {
+  const canonicalSourceUrl = typeof sourceUrl === "string" && sourceUrl.length > 0
+    ? (getRuntimeCanonicalSourceUrl(sourceUrl) ?? sourceUrl)
+    : null;
+  if (!canonicalSourceUrl) {
+    return null;
+  }
+
+  return getRuntimeWorkbenchEntries().find((entry) => {
+    const entrySourceUrl = getRuntimeCanonicalSourceUrl(entry?.sourceUrl) ?? entry?.sourceUrl ?? null;
+    return entrySourceUrl === canonicalSourceUrl;
+  }) ?? null;
+}
+
+function getProjectModificationTaskPageRuntimeProofEntry(taskId, pageName) {
+  const proof = getProjectModificationTaskPageRuntimeProof(taskId, pageName);
+  if (!proof?.sourceUrl) {
+    return null;
+  }
+
+  const entry = getRuntimeWorkbenchEntryBySourceUrl(proof.sourceUrl);
+  if (!entry) {
+    return null;
+  }
+
+  return {
+    proof,
+    entry
+  };
+}
+
 function getProjectModificationTaskPageMatchTokens(page) {
   return uniqueStrings([
     page?.pageName,
@@ -9666,7 +9794,16 @@ function getProjectModificationTaskLeadSceneMemberForPage(page) {
   return bestMember;
 }
 
-function getProjectModificationTaskRuntimeMatchForPage(page) {
+function getProjectModificationTaskRuntimeMatchForPage(task, page) {
+  const pageProofEntry = getProjectModificationTaskPageRuntimeProofEntry(task?.taskId, page?.pageName);
+  if (pageProofEntry?.entry) {
+    return {
+      entry: pageProofEntry.entry,
+      matchKind: "page-proof",
+      matchScore: 240
+    };
+  }
+
   const pageSourceBasename = getPathBasename(page?.selectedLocalPath);
   const matchedAssetId = page?.matchedTaskKitAsset?.assetId ?? null;
   const pageTokens = getProjectModificationTaskPageMatchTokens(page);
@@ -9784,7 +9921,7 @@ function getProjectModificationTaskContextForSceneKit(sceneKitContext, {
   for (const page of reconstructionPages) {
     page.matchedSceneMembers = getProjectModificationTaskSceneMembersForPage(sceneKitContext, page);
     page.leadSceneMember = getProjectModificationTaskLeadSceneMemberForPage(page);
-    const runtimeMatch = getProjectModificationTaskRuntimeMatchForPage(page);
+    const runtimeMatch = getProjectModificationTaskRuntimeMatchForPage(task, page);
     page.matchedRuntimeWorkbenchEntry = runtimeMatch.entry;
     page.runtimeMatchKind = runtimeMatch.matchKind;
     page.runtimeMatchScore = runtimeMatch.matchScore;
@@ -9835,6 +9972,13 @@ function getProjectModificationTaskContextForSceneKit(sceneKitContext, {
 function getRuntimeWorkbenchEntryForModificationTask(task) {
   if (!task) {
     return null;
+  }
+
+  const pageProofEntry = getProjectModificationTaskReconstructionPages(task)
+    .map((page) => getProjectModificationTaskPageRuntimeProofEntry(task.taskId, page.pageName))
+    .find((entry) => entry?.entry) ?? null;
+  if (pageProofEntry?.entry) {
+    return pageProofEntry.entry;
   }
 
   const artifactPaths = getModificationTaskArtifactPaths(task)
@@ -9889,6 +10033,34 @@ function getRuntimeWorkbenchEntryForModificationTask(task) {
   }
 
   return bestScore > Number.NEGATIVE_INFINITY ? bestEntry : null;
+}
+
+async function proveProjectModificationTaskPageRuntime({
+  taskId = null,
+  pageName = null,
+  runtimeLabel = null,
+  runtimeProfileId = null,
+  candidateHintTokens = []
+} = {}) {
+  const result = await openRuntimeDebugHostWindow({
+    proofMode: true,
+    profileId: runtimeProfileId,
+    candidateHintTokens,
+    switchToRuntime: true,
+    statusPrefix: `${runtimeLabel ?? pageName ?? "Page cue"} requested the stronger Runtime Debug Host proof path using ${labelizeStatus(runtimeProfileId ?? "autoplay")}`
+  });
+  if (taskId && pageName && result?.status === "pass" && typeof result?.candidateRuntimeSourceUrl === "string" && result.candidateRuntimeSourceUrl.length > 0) {
+    setProjectModificationTaskPageRuntimeProof(taskId, pageName, {
+      sourceUrl: result.candidateRuntimeSourceUrl,
+      runtimeLabel: runtimeLabel ?? pageName,
+      profileId: typeof result?.proofProfileId === "string" ? result.proofProfileId : (runtimeProfileId ?? null),
+      requestSource: typeof result?.candidateRequestSource === "string" ? result.candidateRequestSource : null,
+      requestBacked: true,
+      savedAt: new Date().toISOString()
+    });
+  }
+
+  return result ?? null;
 }
 
 function setActiveProjectModificationTask(taskId, options = {}) {
@@ -12936,6 +13108,14 @@ function handleNavigationClick(event) {
   if (taskDebugHostButton instanceof HTMLElement) {
     event.preventDefault();
     const runtimeLabel = taskDebugHostButton.dataset.taskReconstructionRuntimeLabel ?? "Page cue";
+    const taskId = typeof taskDebugHostButton.dataset.taskReconstructionTaskId === "string"
+      && taskDebugHostButton.dataset.taskReconstructionTaskId.length > 0
+      ? taskDebugHostButton.dataset.taskReconstructionTaskId
+      : null;
+    const pageName = typeof taskDebugHostButton.dataset.taskReconstructionPageName === "string"
+      && taskDebugHostButton.dataset.taskReconstructionPageName.length > 0
+      ? taskDebugHostButton.dataset.taskReconstructionPageName
+      : null;
     const runtimeProfileId = typeof taskDebugHostButton.dataset.taskReconstructionRuntimeProfileId === "string"
       && taskDebugHostButton.dataset.taskReconstructionRuntimeProfileId.length > 0
       ? taskDebugHostButton.dataset.taskReconstructionRuntimeProfileId
@@ -12952,12 +13132,12 @@ function handleNavigationClick(event) {
         candidateHintTokens = [];
       }
     }
-    void openRuntimeDebugHostWindow({
-      proofMode: true,
-      profileId: runtimeProfileId,
+    void proveProjectModificationTaskPageRuntime({
+      taskId,
+      pageName,
+      runtimeLabel,
+      runtimeProfileId,
       candidateHintTokens,
-      switchToRuntime: true,
-      statusPrefix: `${runtimeLabel} requested the stronger Runtime Debug Host proof path using ${labelizeStatus(runtimeProfileId)}`
     });
     return true;
   }
@@ -15423,7 +15603,8 @@ async function reloadWorkspace(isInitialLoad, requestedProjectId = null) {
         : "compose"
   };
   state.modificationTaskUi = {
-    activeTaskId: null
+    activeTaskId: null,
+    pageRuntimeProofs: {}
   };
   reconcileSelectedObject();
   ensureSyncStatusForSelectedProject();
@@ -19536,7 +19717,9 @@ function renderInspector() {
                     ? `slot · ${page.topAffectedSlotName}`
                     : "No top slot or attachment cue recorded yet";
                 const cueSummary = `${page.affectedLayerCount} affected layer${page.affectedLayerCount === 1 ? "" : "s"} · ${page.affectedSlotNames.length} slot cue${page.affectedSlotNames.length === 1 ? "" : "s"} · ${page.affectedAttachmentNames.length} attachment cue${page.affectedAttachmentNames.length === 1 ? "" : "s"}`;
-                const runtimeMatchLabel = page?.runtimeMatchKind === "debug-host-fallback"
+                const runtimeMatchLabel = page?.runtimeMatchKind === "page-proof"
+                  ? "page proof"
+                  : page?.runtimeMatchKind === "debug-host-fallback"
                   ? "debug host proof (unscoped)"
                   : page?.runtimeMatchKind === "donor-asset"
                     ? "donor asset match"
@@ -19615,6 +19798,8 @@ function renderInspector() {
                           type="button"
                           class="copy-button"
                           data-task-reconstruction-open-debug-host="1"
+                          data-task-reconstruction-task-id="${escapeAttribute(taskSectionContext.task.taskId)}"
+                          data-task-reconstruction-page-name="${escapeAttribute(page.pageName)}"
                           data-task-reconstruction-runtime-label="${escapeAttribute(page.pageName)}"
                           data-task-reconstruction-runtime-profile-id="${escapeAttribute(taskSectionContext.task.recommendedRuntimeProfile ?? "autoplay")}"
                           data-task-reconstruction-runtime-hint-tokens="${escapeAttribute(JSON.stringify(getProjectModificationTaskPageMatchTokens(page)))}"

@@ -37,6 +37,8 @@ Those same page-aware cards can now also jump into runtime proof from the active
 
 That dedicated Debug Host path is now also page-scoped for the active task cue, so the `big_win/BW` guide can land on an upstream `big-win` runtime asset such as `big-win-ribbon.png_80_80.webp` and prove the bounded override hit after reload even when that page asset was not part of the original local mirror manifest.
 
+After that page-scoped proof succeeds, the same page card now upgrades into a direct **Open Page Runtime** link for that proved source, and task-level **Open Runtime** reuses the same page-scoped runtime trace instead of sending the operator back through Debug Host again.
+
 ## Current Phase
 - Current milestone: IDE-LIFECYCLE-A lifecycle backbone on top of the existing runtime-first shell, donor scan, and compose/runtime proving slices.
 - Active validated donor slice: `donor_001_mystery_garden`.
