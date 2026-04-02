@@ -26,6 +26,7 @@ import {
   buildLocalRuntimeMirrorRedirectMap,
   findLocalRuntimeMirrorEntry,
   findLocalRuntimeMirrorEntryByRelativePath,
+  getLocalRuntimeMirrorRelativePath,
   buildLocalRuntimeMirrorStatus,
   getLocalRuntimeMirrorPort,
   getMirrorLaunchUrl,
@@ -574,6 +575,7 @@ function getRuntimeHarvestCandidateEntries(status: LocalRuntimeMirrorStatus | nu
     "launch-script",
     "runtime-loader",
     "runtime-bundle",
+    "static-image",
     "support-script",
     "runtime-metadata",
     "translation-payload"
@@ -587,6 +589,20 @@ function getRuntimeHarvestCandidateEntries(status: LocalRuntimeMirrorStatus | nu
       && allowedKinds.has(entry.kind)
     ))
     .slice(0, 8);
+}
+
+function getRuntimeHarvestRequestUrl(
+  projectId: string,
+  entry: { kind: string; sourceUrl: string }
+): string {
+  if (entry.kind === "static-image") {
+    const relativePath = getLocalRuntimeMirrorRelativePath(entry.sourceUrl);
+    if (relativePath && !relativePath.includes("?")) {
+      return buildLocalRuntimeMirrorAssetUrl(projectId, relativePath);
+    }
+  }
+
+  return buildLocalRuntimeMirrorProxyUrl(projectId, entry.sourceUrl);
 }
 
 async function harvestRuntimeRequestEvidence(projectId: string): Promise<{
@@ -629,7 +645,7 @@ async function harvestRuntimeRequestEvidence(projectId: string): Promise<{
 
     for (const entry of candidates) {
       try {
-        const response = await fetch(buildLocalRuntimeMirrorProxyUrl(projectId, entry.sourceUrl), {
+        const response = await fetch(getRuntimeHarvestRequestUrl(projectId, entry), {
           headers: {
             "user-agent": "Mozilla/5.0 (MyIDE selected-project runtime harvest)"
           },

@@ -1000,6 +1000,7 @@ function getSelectedProjectRuntimeHarvestCandidateCount() {
       "launch-script",
       "runtime-loader",
       "runtime-bundle",
+      "static-image",
       "support-script",
       "runtime-metadata",
       "translation-payload"
@@ -6656,6 +6657,7 @@ async function runLiveRuntimeSelectedProjectReopenSmoke() {
 async function runLiveRuntimeSelectedProjectHarvestSmoke() {
   const targetProjectId = "project_002";
   const runtimeSourceUrl = "https://example.invalid/runtime/big-win.bundle.js";
+  const runtimeStaticSourceUrl = "https://example.invalid/runtime/img/big-win-ribbon.png";
   const startedAt = new Date().toISOString();
   const baseResult = {
     startedAt,
@@ -6675,6 +6677,9 @@ async function runLiveRuntimeSelectedProjectHarvestSmoke() {
     harvestedEntryCount: 0,
     harvestedRequestCategory: null,
     harvestedRequestSource: null,
+    harvestedStaticAssetSourceUrl: null,
+    harvestedStaticAssetRequestCategory: null,
+    harvestedStaticAssetRequestSource: null,
     taskId: null,
     pageName: null,
     preHarvestRuntimeWorkbenchEntryKind: null,
@@ -6802,6 +6807,17 @@ async function runLiveRuntimeSelectedProjectHarvestSmoke() {
       .length;
     baseResult.harvestedRequestCategory = harvestedEntry?.requestCategory ?? null;
     baseResult.harvestedRequestSource = harvestedEntry?.requestSource ?? null;
+
+    const harvestedStaticAssetEntry = await waitForRendererCondition(
+      () => {
+        const entry = getRuntimeResourceMapEntry(runtimeStaticSourceUrl);
+        return entry && Number(entry.stageHitCounts?.["selected-project-harvest"] ?? 0) > 0 ? entry : null;
+      },
+      `${targetProjectId} bounded runtime harvest request to record the selected static image`
+    );
+    baseResult.harvestedStaticAssetSourceUrl = harvestedStaticAssetEntry?.canonicalSourceUrl ?? runtimeStaticSourceUrl;
+    baseResult.harvestedStaticAssetRequestCategory = harvestedStaticAssetEntry?.requestCategory ?? null;
+    baseResult.harvestedStaticAssetRequestSource = harvestedStaticAssetEntry?.requestSource ?? null;
 
     const taskRuntimeMatch = getProjectModificationTaskRuntimeMatchForPage(matchedTask, matchedPage);
     baseResult.taskRuntimeEntryKind = taskRuntimeMatch?.matchKind ?? null;
@@ -21284,16 +21300,16 @@ function renderRuntimeWorkbenchAssetList() {
     && ["png", "webp", "jpg", "jpeg", "svg"].includes(String(entry.fileType ?? "").toLowerCase())
   ));
   const workbenchMessage = entries.length === 0
-    ? debugHostAvailable
-      ? "Open Debug Host to populate the official runtime workbench. The embedded path has not recorded any usable runtime source entries in this session yet."
-      : harvestAvailable
-        ? "This selected project does not yet have any request-backed runtime workbench items. Use Harvest Request-backed Sources to refresh grounded local-mirror traces without pretending embedded launch is ready."
-        : "This selected project does not yet have any grounded runtime workbench items. Stay in Compose or seed grounded runtime evidence before expecting a live runtime reopen path."
+      ? debugHostAvailable
+        ? "Open Debug Host to populate the official runtime workbench. The embedded path has not recorded any usable runtime source entries in this session yet."
+        : harvestAvailable
+          ? "This selected project does not yet have any request-backed runtime workbench items. Use Harvest Request-backed Sources to refresh grounded local-mirror traces without pretending embedded launch is ready."
+          : "This selected project does not yet have any grounded runtime workbench items. Stay in Compose or seed grounded runtime evidence before expecting a live runtime reopen path."
     : embeddedRequestBackedImages.length === 0
       ? debugHostAvailable
         ? "No request-backed static image is available from the weaker embedded runtime path yet. The dedicated Runtime Debug Host result is ranked first and should be treated as the official daily runtime path."
         : harvestAvailable
-          ? "The current selected project still has no request-backed static image candidate, but Harvest Request-backed Sources can refresh grounded non-static runtime traces while Debug Host stays unavailable here."
+          ? "The current selected project still has no request-backed static image candidate, but Harvest Request-backed Sources can refresh grounded local-mirror runtime traces, including static assets, while Debug Host stays unavailable here."
           : "The current selected project still has no request-backed static image candidate. Use the grounded runtime workbench evidence that exists here without pretending Debug Host is available for this project."
       : debugHostAvailable
         ? "Request-backed runtime items are ranked with the strongest debug-host/static candidates first so you can jump quickly into source, evidence, compose, and override actions."

@@ -202,6 +202,10 @@ function getSourceUrlRelativePath(sourceUrl: string): string | null {
   }
 }
 
+export function getLocalRuntimeMirrorRelativePath(sourceUrl: string): string | null {
+  return getSourceUrlRelativePath(sourceUrl);
+}
+
 async function collectObservedRuntimeRequestUrls(projectId: string): Promise<string[]> {
   const snapshot = await readRuntimeResourceMapSnapshot(projectId);
   if (!snapshot?.entries?.length) {

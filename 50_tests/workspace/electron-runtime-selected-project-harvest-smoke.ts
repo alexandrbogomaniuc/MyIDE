@@ -21,6 +21,9 @@ interface HarvestPayload {
   harvestedEntryCount?: number;
   harvestedRequestCategory?: string | null;
   harvestedRequestSource?: string | null;
+  harvestedStaticAssetSourceUrl?: string | null;
+  harvestedStaticAssetRequestCategory?: string | null;
+  harvestedStaticAssetRequestSource?: string | null;
   taskId?: string | null;
   pageName?: string | null;
   preHarvestRuntimeWorkbenchEntryKind?: string | null;
@@ -193,6 +196,18 @@ async function readOptionalUtf8(filePath: string): Promise<string | null> {
   }
 }
 
+async function readOptionalBuffer(filePath: string): Promise<Buffer | null> {
+  try {
+    return await fs.readFile(filePath);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException | undefined)?.code === "ENOENT") {
+      return null;
+    }
+
+    throw error;
+  }
+}
+
 async function restoreOptionalUtf8(filePath: string, originalRaw: string | null): Promise<void> {
   if (originalRaw === null) {
     await fs.rm(filePath, { force: true });
@@ -201,6 +216,16 @@ async function restoreOptionalUtf8(filePath: string, originalRaw: string | null)
 
   await fs.mkdir(path.dirname(filePath), { recursive: true });
   await fs.writeFile(filePath, originalRaw, "utf8");
+}
+
+async function restoreOptionalBuffer(filePath: string, originalBuffer: Buffer | null): Promise<void> {
+  if (originalBuffer === null) {
+    await fs.rm(filePath, { force: true });
+    return;
+  }
+
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
+  await fs.writeFile(filePath, originalBuffer);
 }
 
 async function cleanupEmptyDirectory(directoryPath: string): Promise<void> {
@@ -234,22 +259,29 @@ async function main(): Promise<void> {
   const handoffPath = path.join(reportsRoot, "modification-handoff.json");
   const sourceBundlePath = path.join(reportsRoot, "selected-project-runtime-harvest.smoke.json");
   const sourceRuntimeBundlePath = path.join(reportsRoot, "selected-project-runtime-harvest", "big-win.bundle.js");
+  const sourceRuntimeImagePath = path.join(reportsRoot, "selected-project-runtime-harvest", "big-win-ribbon.png");
   const mirrorManifestPath = path.join(runtimeRoot, "local-mirror", "manifest.json");
   const mirrorBundlePath = path.join(runtimeRoot, "local-mirror", "files", "example.invalid", "big-win.bundle.js");
+  const mirrorImagePath = path.join(runtimeRoot, "local-mirror", "files", "example.invalid", "big-win-ribbon.png");
   const requestLogPath = path.join(runtimeRoot, "local-mirror", "request-log.latest.json");
   const runtimeProofPath = path.join(runtimeRoot, "page-runtime-proofs.latest.json");
   const repoSourceBundlePath = path.relative(workspaceRoot, sourceBundlePath).replace(/\\/g, "/");
   const repoSourceRuntimeBundlePath = path.relative(workspaceRoot, sourceRuntimeBundlePath).replace(/\\/g, "/");
+  const repoSourceRuntimeImagePath = path.relative(workspaceRoot, sourceRuntimeImagePath).replace(/\\/g, "/");
   const repoMirrorBundlePath = path.relative(workspaceRoot, mirrorBundlePath).replace(/\\/g, "/");
+  const repoMirrorImagePath = path.relative(workspaceRoot, mirrorImagePath).replace(/\\/g, "/");
   const baselineStatus = await captureGitStatus(workspaceRoot);
   const originalHandoffRaw = await readOptionalUtf8(handoffPath);
   const originalSourceBundleRaw = await readOptionalUtf8(sourceBundlePath);
   const originalSourceRuntimeBundleRaw = await readOptionalUtf8(sourceRuntimeBundlePath);
+  const originalSourceRuntimeImageRaw = await readOptionalBuffer(sourceRuntimeImagePath);
   const originalMirrorManifestRaw = await readOptionalUtf8(mirrorManifestPath);
   const originalMirrorBundleRaw = await readOptionalUtf8(mirrorBundlePath);
+  const originalMirrorImageRaw = await readOptionalBuffer(mirrorImagePath);
   const originalRequestLogRaw = await readOptionalUtf8(requestLogPath);
   const originalRuntimeProofRaw = await readOptionalUtf8(runtimeProofPath);
   const runtimeSourceUrl = "https://example.invalid/runtime/big-win.bundle.js";
+  const runtimeStaticSourceUrl = "https://example.invalid/runtime/img/big-win-ribbon.png";
   const taskId = "task.runtime.harvest.project_002.smoke";
   const pageName = "big_win_bundle";
 
@@ -260,10 +292,14 @@ async function main(): Promise<void> {
     await fs.mkdir(path.dirname(sourceRuntimeBundlePath), { recursive: true });
     await fs.mkdir(path.dirname(mirrorManifestPath), { recursive: true });
     await fs.mkdir(path.dirname(mirrorBundlePath), { recursive: true });
+    await fs.mkdir(path.dirname(mirrorImagePath), { recursive: true });
 
     const generatedAt = new Date().toISOString();
+    const png1x1 = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+k6X8AAAAASUVORK5CYII=", "base64");
     await fs.writeFile(sourceRuntimeBundlePath, "console.log('project_002_runtime_harvest_source_placeholder');\n", "utf8");
+    await fs.writeFile(sourceRuntimeImagePath, png1x1);
     await fs.writeFile(mirrorBundlePath, "console.log('project_002_runtime_harvest_bundle_placeholder');\n", "utf8");
+    await fs.writeFile(mirrorImagePath, png1x1);
 
     await fs.writeFile(
       sourceBundlePath,
@@ -324,8 +360,8 @@ async function main(): Promise<void> {
             sourceArtifactState: "ready",
             sourceArtifactPath: repoSourceBundlePath,
             supportingArtifactPaths: [repoSourceRuntimeBundlePath, repoMirrorBundlePath],
-            rationale: "Smoke-seeded modification task proving selected-project runtime harvest can upgrade grounded local-mirror bundle evidence into a fresh request-backed runtime workbench trace while live launch stays blocked.",
-            nextAction: "Harvest Runtime requests and verify the task reopens on the harvested bundle trace.",
+            rationale: "Smoke-seeded modification task proving selected-project runtime harvest can upgrade grounded local-mirror bundle and static-image evidence into fresh request-backed runtime workbench traces while live launch stays blocked.",
+            nextAction: "Harvest Runtime requests and verify the task reopens on the harvested bundle trace while the static image also becomes request-backed.",
             canOpenCompose: true,
             canOpenRuntime: true
           }
@@ -352,6 +388,12 @@ async function main(): Promise<void> {
             kind: "runtime-bundle",
             repoRelativePath: repoMirrorBundlePath,
             fileType: "js"
+          },
+          {
+            sourceUrl: runtimeStaticSourceUrl,
+            kind: "static-image",
+            repoRelativePath: repoMirrorImagePath,
+            fileType: "png"
           }
         ]
       }, null, 2)}\n`,
@@ -390,8 +432,11 @@ async function main(): Promise<void> {
     assert.equal(payload.runtimeLaunchEntryUrl, null, "Selected-project harvest smoke should not fake an embedded launch URL.");
     assert.equal(payload.harvestActionVisible, true, "Selected-project harvest smoke should expose the bounded harvest action.");
     assert.equal(payload.harvestSucceeded, true, "Selected-project harvest smoke should record fresh request-backed runtime evidence.");
-    assert((payload.harvestedEntryCount ?? 0) > 0, "Selected-project harvest smoke should record at least one harvested runtime entry.");
+    assert((payload.harvestedEntryCount ?? 0) >= 2, "Selected-project harvest smoke should record both the bundle and static-image runtime entries.");
     assert.equal(payload.harvestedRequestCategory, "html-bootstrap", "Selected-project harvest smoke should record the bundle as a runtime dependency.");
+    assert.equal(payload.harvestedStaticAssetSourceUrl, runtimeStaticSourceUrl, "Selected-project harvest smoke should record the seeded static-image source.");
+    assert.equal(payload.harvestedStaticAssetRequestCategory, "static-asset", "Selected-project harvest smoke should record the static image as a static asset.");
+    assert.equal(payload.harvestedStaticAssetRequestSource, "local-mirror-asset", "Selected-project harvest smoke should harvest static images through the local asset route.");
     assert.equal(payload.taskId, taskId, "Selected-project harvest smoke should keep the prepared task active.");
     assert.equal(payload.pageName, pageName, "Selected-project harvest smoke should keep the prepared page name.");
     assert.equal(payload.preHarvestRuntimeWorkbenchEntryKind, "local-mirror-manifest", "Selected-project harvest smoke should start from grounded local-mirror evidence.");
@@ -414,8 +459,10 @@ async function main(): Promise<void> {
     await restoreOptionalUtf8(handoffPath, originalHandoffRaw);
     await restoreOptionalUtf8(sourceBundlePath, originalSourceBundleRaw);
     await restoreOptionalUtf8(sourceRuntimeBundlePath, originalSourceRuntimeBundleRaw);
+    await restoreOptionalBuffer(sourceRuntimeImagePath, originalSourceRuntimeImageRaw);
     await restoreOptionalUtf8(mirrorManifestPath, originalMirrorManifestRaw);
     await restoreOptionalUtf8(mirrorBundlePath, originalMirrorBundleRaw);
+    await restoreOptionalBuffer(mirrorImagePath, originalMirrorImageRaw);
     await restoreOptionalUtf8(requestLogPath, originalRequestLogRaw);
     await restoreOptionalUtf8(runtimeProofPath, originalRuntimeProofRaw);
 
