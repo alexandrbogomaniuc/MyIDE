@@ -6689,6 +6689,17 @@ async function runLiveRuntimeSelectedProjectHarvestSmoke() {
     runtimeWorkbenchEntryRequestSource: null,
     runtimeModeSelected: false,
     taskRuntimeOpenUsesHarvestedRequestWorkbenchEntry: false,
+    runtimeOverrideEligible: false,
+    runtimeOverrideSourceUrl: null,
+    runtimeOverrideRequestSource: null,
+    runtimeOverrideDonorAssetId: null,
+    createOverrideButtonEnabled: false,
+    runtimeOverrideCreated: false,
+    runtimeOverrideCleared: false,
+    runtimeOverrideManifestRepoRelativePath: null,
+    runtimeOverrideRepoRelativePath: null,
+    previewStatusAfterCreate: null,
+    previewStatusAfterClear: null,
     runtimeDebugHostActionVisible: false,
     runtimeSourceDebugHostActionVisible: false,
     runtimeStatusHeading: null,
@@ -6850,6 +6861,66 @@ async function runLiveRuntimeSelectedProjectHarvestSmoke() {
     baseResult.runtimeModeSelected = state.workbenchMode === "runtime";
     baseResult.taskRuntimeOpenUsesHarvestedRequestWorkbenchEntry = getRuntimeWorkbenchSourceUrl() === taskRuntimeEntry.sourceUrl
       && taskRuntimeEntry.kind === "resource-map";
+
+    const runtimeOverrideCandidate = getRuntimeOverrideCandidate();
+    baseResult.runtimeOverrideEligible = Boolean(runtimeOverrideCandidate.eligible);
+    baseResult.runtimeOverrideSourceUrl = runtimeOverrideCandidate.runtimeSourceUrl ?? null;
+    baseResult.runtimeOverrideRequestSource = runtimeOverrideCandidate.resourceMapEntry?.requestSource ?? null;
+    baseResult.runtimeOverrideDonorAssetId = runtimeOverrideCandidate.donorAsset?.assetId ?? null;
+    if (!runtimeOverrideCandidate.eligible || !runtimeOverrideCandidate.donorAsset?.assetId) {
+      throw new Error(runtimeOverrideCandidate.note ?? "Selected-project runtime harvest did not expose an override-eligible harvested static image.");
+    }
+    if (runtimeOverrideCandidate.runtimeSourceUrl !== runtimeStaticSourceUrl) {
+      throw new Error(`Selected-project runtime harvest smoke expected the override candidate to use ${runtimeStaticSourceUrl}, received ${runtimeOverrideCandidate.runtimeSourceUrl ?? "none"}.`);
+    }
+
+    const createOverrideButton = await waitForRendererCondition(
+      () => {
+        const button = elements.runtimeToolbar?.querySelector('[data-runtime-action="create-override"]')
+          ?? elements.inspector?.querySelector('[data-runtime-action="create-override"]');
+        return button instanceof HTMLButtonElement ? button : null;
+      },
+      "selected-project harvested runtime override action button"
+    );
+    baseResult.createOverrideButtonEnabled = !createOverrideButton.disabled;
+    if (createOverrideButton.disabled) {
+      throw new Error("Selected-project runtime harvest kept the override action disabled even though the harvested static image was grounded.");
+    }
+
+    clickRendererElement(createOverrideButton);
+    const activeOverrideEntry = await waitForRendererCondition(
+      () => state.runtimeUi.overrideStatus?.entries?.find((entry) => entry.runtimeSourceUrl === runtimeStaticSourceUrl) ?? null,
+      "selected-project harvested runtime override manifest entry creation",
+      { timeoutMs: 20000 }
+    );
+    baseResult.runtimeOverrideCreated = true;
+    baseResult.runtimeOverrideManifestRepoRelativePath = state.runtimeUi.overrideStatus?.manifestRepoRelativePath ?? null;
+    baseResult.runtimeOverrideRepoRelativePath = activeOverrideEntry?.overrideRepoRelativePath ?? null;
+    baseResult.previewStatusAfterCreate = elements.previewStatus?.textContent?.trim() ?? null;
+    if (!baseResult.previewStatusAfterCreate || !baseResult.previewStatusAfterCreate.includes("Embedded launch stays blocked")) {
+      throw new Error("Selected-project runtime harvest override status did not stay honest about blocked embedded launch.");
+    }
+    if (baseResult.previewStatusAfterCreate.includes("Reloading the embedded runtime now")) {
+      throw new Error("Selected-project runtime harvest override status still claimed a blocked embedded runtime reload.");
+    }
+
+    const clearOverrideButton = await waitForRendererCondition(
+      () => {
+        const button = elements.runtimeToolbar?.querySelector('[data-runtime-action="clear-override"]')
+          ?? elements.inspector?.querySelector('[data-runtime-action="clear-override"]');
+        return button instanceof HTMLButtonElement && !button.disabled ? button : null;
+      },
+      "selected-project harvested runtime clear-override action button",
+      { timeoutMs: 20000 }
+    );
+    clickRendererElement(clearOverrideButton);
+    await waitForRendererCondition(
+      () => !state.runtimeUi.overrideStatus?.entries?.some((entry) => entry.runtimeSourceUrl === runtimeStaticSourceUrl),
+      "selected-project harvested runtime override cleanup",
+      { timeoutMs: 20000 }
+    );
+    baseResult.runtimeOverrideCleared = true;
+    baseResult.previewStatusAfterClear = elements.previewStatus?.textContent?.trim() ?? null;
     baseResult.embeddedRuntimeLaunched = Boolean(state.runtimeUi.launched);
     baseResult.runtimeDebugHostActionVisible = Boolean(document.querySelector('button[data-runtime-action="open-debug-host"]:not([hidden])'));
     baseResult.runtimeSourceDebugHostActionVisible = Boolean(document.querySelector('button[data-runtime-source-action="open-debug-host"]'));
@@ -12292,11 +12363,72 @@ function getRuntimeWorkflowBridge() {
   };
 }
 
+function getActiveProjectModificationTaskRuntimeOverrideBridge(selectedWorkbenchSourceUrl) {
+  const canonicalSelectedSourceUrl = getRuntimeCanonicalSourceUrl(selectedWorkbenchSourceUrl) ?? selectedWorkbenchSourceUrl;
+  if (typeof canonicalSelectedSourceUrl !== "string" || canonicalSelectedSourceUrl.length === 0) {
+    return null;
+  }
+
+  const selectedFileType = getRuntimeResourceFileType(canonicalSelectedSourceUrl);
+  if (["png", "webp", "jpg", "jpeg", "svg"].includes(String(selectedFileType ?? "").toLowerCase())) {
+    return null;
+  }
+
+  const activeTask = getActiveProjectModificationTask();
+  if (!activeTask) {
+    return null;
+  }
+
+  const taskRuntimeEntry = getRuntimeWorkbenchEntryForModificationTask(activeTask);
+  const canonicalTaskRuntimeSourceUrl = getRuntimeCanonicalSourceUrl(taskRuntimeEntry?.sourceUrl) ?? taskRuntimeEntry?.sourceUrl ?? null;
+  if (canonicalTaskRuntimeSourceUrl !== canonicalSelectedSourceUrl) {
+    return null;
+  }
+
+  const taskKitGroupSummary = getProjectModificationTaskKitGroupSummary(activeTask);
+  const taskKitAssets = taskKitGroupSummary ? getDonorAssetItemsForGroup(taskKitGroupSummary.key) : [];
+  if (taskKitAssets.length === 0) {
+    return null;
+  }
+
+  const reconstructionPages = getProjectModificationTaskReconstructionPages(activeTask)
+    .map((page) => {
+      const matchedTaskKitAsset = getProjectModificationTaskKitAssetForPage(taskKitAssets, page);
+      const runtimeMatch = getProjectModificationTaskRuntimeMatchForPage(activeTask, page);
+      return {
+        page,
+        matchedTaskKitAsset,
+        runtimeMatch
+      };
+    });
+
+  const matchedPageContext = reconstructionPages.find((entry) => {
+    const pageSourceUrl = getRuntimeCanonicalSourceUrl(entry.runtimeMatch?.entry?.sourceUrl)
+      ?? entry.runtimeMatch?.entry?.sourceUrl
+      ?? null;
+    return pageSourceUrl === canonicalSelectedSourceUrl && entry.matchedTaskKitAsset?.assetId;
+  }) ?? reconstructionPages.find((entry) => entry.matchedTaskKitAsset?.assetId) ?? null;
+
+  if (!matchedPageContext?.matchedTaskKitAsset?.assetId) {
+    return null;
+  }
+
+  return {
+    task: activeTask,
+    taskRuntimeEntry,
+    matchedPage: matchedPageContext.page,
+    donorAsset: matchedPageContext.matchedTaskKitAsset
+  };
+}
+
 function getRuntimeOverrideCandidate(options = {}) {
   const selectedWorkbenchSourceUrl = options.sourceUrl
     ? (getRuntimeCanonicalSourceUrl(options.sourceUrl) ?? options.sourceUrl)
     : getRuntimeWorkbenchSourceUrl();
   const workflowBridge = selectedWorkbenchSourceUrl ? null : getRuntimeWorkflowBridge();
+  const taskRuntimeOverrideBridge = selectedWorkbenchSourceUrl
+    ? getActiveProjectModificationTaskRuntimeOverrideBridge(selectedWorkbenchSourceUrl)
+    : null;
   const donorAsset = options.donorAsset
     ?? (selectedWorkbenchSourceUrl
     ? (matchDonorAssetFromRuntimeSource(
@@ -12305,7 +12437,7 @@ function getRuntimeOverrideCandidate(options = {}) {
         state.runtimeUi.debugHost?.candidateRuntimeSourceUrl === selectedWorkbenchSourceUrl
           ? state.runtimeUi.debugHost?.overrideDonorAssetId
           : null
-      ) ?? workflowBridge?.donorAsset ?? null)
+      ) ?? taskRuntimeOverrideBridge?.donorAsset ?? workflowBridge?.donorAsset ?? null)
     : workflowBridge?.donorAsset ?? null);
   const preferredFileType = donorAsset?.fileType ?? null;
   const pickedRuntimeAsset = (() => {
@@ -12562,7 +12694,9 @@ function getRuntimeOverrideCandidate(options = {}) {
           : `A grounded runtime-loaded ${requestBackedEntry.fileType} resource was observed for the current runtime phase and matches the bridged donor asset file type.`
       : localMirrorEntry
         ? `The current runtime cycle matched this source through the local runtime mirror at ${localMirrorEntry.repoRelativePath}.`
-        : "The current runtime cycle matched this source through the strongest grounded runtime request record."
+        : taskRuntimeOverrideBridge?.donorAsset?.assetId
+          ? `The current runtime cycle matched this source through the strongest grounded runtime request record while preserving the active task kit donor asset bridge ${taskRuntimeOverrideBridge.donorAsset.assetId}.`
+          : "The current runtime cycle matched this source through the strongest grounded runtime request record."
   };
 }
 

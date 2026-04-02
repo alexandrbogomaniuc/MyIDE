@@ -1,4 +1,5 @@
 import { strict as assert } from "node:assert";
+import { createHash } from "node:crypto";
 import { existsSync, promises as fs, writeFileSync } from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
@@ -33,6 +34,17 @@ interface HarvestPayload {
   runtimeWorkbenchEntryRequestSource?: string | null;
   runtimeModeSelected?: boolean;
   taskRuntimeOpenUsesHarvestedRequestWorkbenchEntry?: boolean;
+  runtimeOverrideEligible?: boolean;
+  runtimeOverrideSourceUrl?: string | null;
+  runtimeOverrideRequestSource?: string | null;
+  runtimeOverrideDonorAssetId?: string | null;
+  createOverrideButtonEnabled?: boolean;
+  runtimeOverrideCreated?: boolean;
+  runtimeOverrideCleared?: boolean;
+  runtimeOverrideManifestRepoRelativePath?: string | null;
+  runtimeOverrideRepoRelativePath?: string | null;
+  previewStatusAfterCreate?: string | null;
+  previewStatusAfterClear?: string | null;
   runtimeDebugHostActionVisible?: boolean;
   runtimeSourceDebugHostActionVisible?: boolean;
   runtimeStatusHeading?: string | null;
@@ -91,6 +103,20 @@ function summarizeOutput(output: string): string {
   }
 
   return trimmed.split(/\r?\n/).slice(-40).join("\n");
+}
+
+function sanitizeSlug(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80) || "runtime-asset";
+}
+
+function buildModificationTaskAssetId(projectId: string, taskId: string, localPath: string): string {
+  const raw = `${projectId}::${taskId}::${localPath}`;
+  const hash = createHash("sha1").update(raw).digest("hex").slice(0, 18);
+  return `donor.asset.task-${hash}`;
 }
 
 function runCommand(
@@ -265,6 +291,7 @@ async function main(): Promise<void> {
   const mirrorImagePath = path.join(runtimeRoot, "local-mirror", "files", "example.invalid", "big-win-ribbon.png");
   const requestLogPath = path.join(runtimeRoot, "local-mirror", "request-log.latest.json");
   const runtimeProofPath = path.join(runtimeRoot, "page-runtime-proofs.latest.json");
+  const overrideManifestPath = path.join(workspaceRoot, "40_projects", projectId, "overrides", "runtime-asset-overrides.json");
   const repoSourceBundlePath = path.relative(workspaceRoot, sourceBundlePath).replace(/\\/g, "/");
   const repoSourceRuntimeBundlePath = path.relative(workspaceRoot, sourceRuntimeBundlePath).replace(/\\/g, "/");
   const repoSourceRuntimeImagePath = path.relative(workspaceRoot, sourceRuntimeImagePath).replace(/\\/g, "/");
@@ -280,10 +307,21 @@ async function main(): Promise<void> {
   const originalMirrorImageRaw = await readOptionalBuffer(mirrorImagePath);
   const originalRequestLogRaw = await readOptionalUtf8(requestLogPath);
   const originalRuntimeProofRaw = await readOptionalUtf8(runtimeProofPath);
+  const originalOverrideManifestRaw = await readOptionalUtf8(overrideManifestPath);
   const runtimeSourceUrl = "https://example.invalid/runtime/big-win.bundle.js";
   const runtimeStaticSourceUrl = "https://example.invalid/runtime/img/big-win-ribbon.png";
   const taskId = "task.runtime.harvest.project_002.smoke";
   const pageName = "big_win_bundle";
+  const donorAssetId = buildModificationTaskAssetId(projectId, taskId, repoSourceRuntimeImagePath);
+  const overrideFilePath = path.join(
+    workspaceRoot,
+    "40_projects",
+    projectId,
+    "overrides",
+    "runtime-assets",
+    `${sanitizeSlug("big-win-ribbon")}--${sanitizeSlug(donorAssetId)}.png`
+  );
+  const originalOverrideFileRaw = await readOptionalBuffer(overrideFilePath);
 
   let run: SmokeRunResult | null = null;
   let payload: HarvestPayload | null = null;
@@ -320,6 +358,29 @@ async function main(): Promise<void> {
             affectedAttachmentNames: ["smoke.attachment.big_win_bundle"],
             regionNames: ["big-win-bundle"],
             nextFitApplyStep: "Harvest request-backed runtime evidence and keep the selected-project runtime workbench on that bundle trace while launch stays blocked."
+          },
+          {
+            pageName: "big_win_image",
+            pageState: "ready",
+            selectedMode: "page-source",
+            selectedReason: "Smoke-seeded task-kit image bridge for harvested selected-project static-image override proof.",
+            selectedLocalPath: repoSourceRuntimeImagePath,
+            topAffectedSlotName: "smoke.slot.big_win_image",
+            topAffectedAttachmentName: "smoke.attachment.big_win_image",
+            affectedLayerCount: 1,
+            affectedSlotNames: ["smoke.slot.big_win_image"],
+            affectedAttachmentNames: ["smoke.attachment.big_win_image"],
+            regionNames: ["big-win-ribbon"],
+            nextFitApplyStep: "Use the harvested static image as the bounded override candidate while the task runtime entry stays on the bundle."
+          }
+        ],
+        localSources: [
+          {
+            localPath: repoSourceRuntimeImagePath,
+            sourceUrl: runtimeStaticSourceUrl,
+            familyName: "big_win",
+            sourceKind: "task-kit-image",
+            relation: "harvested-static-override"
           }
         ]
       }, null, 2)}\n`,
@@ -342,7 +403,7 @@ async function main(): Promise<void> {
         queueItemCount: 1,
         readyTaskCount: 1,
         blockedTaskCount: 0,
-        nextOperatorAction: "Harvest request-backed runtime traces from the local mirror, then open Runtime from the modification board on that harvested bundle entry.",
+        nextOperatorAction: "Harvest request-backed runtime traces from the local mirror, open Runtime from the modification board on that harvested bundle entry, then create a bounded override from the harvested static image.",
         tasks: [
           {
             taskId,
@@ -360,8 +421,8 @@ async function main(): Promise<void> {
             sourceArtifactState: "ready",
             sourceArtifactPath: repoSourceBundlePath,
             supportingArtifactPaths: [repoSourceRuntimeBundlePath, repoMirrorBundlePath],
-            rationale: "Smoke-seeded modification task proving selected-project runtime harvest can upgrade grounded local-mirror bundle and static-image evidence into fresh request-backed runtime workbench traces while live launch stays blocked.",
-            nextAction: "Harvest Runtime requests and verify the task reopens on the harvested bundle trace while the static image also becomes request-backed.",
+            rationale: "Smoke-seeded modification task proving selected-project runtime harvest can upgrade grounded local-mirror bundle and static-image evidence into fresh request-backed runtime workbench traces, then use the harvested static image for a bounded project-local override while live launch stays blocked.",
+            nextAction: "Harvest Runtime requests, verify the task reopens on the harvested bundle trace, and create/clear the bounded override from the harvested static image.",
             canOpenCompose: true,
             canOpenRuntime: true
           }
@@ -445,6 +506,17 @@ async function main(): Promise<void> {
     assert.equal(payload.runtimeWorkbenchEntryKind, "resource-map", "Selected-project harvest smoke should upgrade to a request-backed runtime workbench entry.");
     assert.equal(payload.runtimeModeSelected, true, "Selected-project harvest smoke did not keep the runtime workbench active.");
     assert.equal(payload.taskRuntimeOpenUsesHarvestedRequestWorkbenchEntry, true, "Selected-project harvest smoke did not reopen from the harvested request-backed workbench entry.");
+    assert.equal(payload.runtimeOverrideEligible, true, "Selected-project harvest smoke should expose an override-eligible harvested static image.");
+    assert.equal(payload.runtimeOverrideSourceUrl, runtimeStaticSourceUrl, "Selected-project harvest smoke should promote the harvested static image as the override target.");
+    assert.equal(payload.runtimeOverrideRequestSource, "local-mirror-asset", "Selected-project harvest smoke should preserve the harvested static image request source.");
+    assert.equal(payload.runtimeOverrideDonorAssetId, donorAssetId, "Selected-project harvest smoke should bridge the harvested static image back to the task-kit donor asset.");
+    assert.equal(payload.createOverrideButtonEnabled, true, "Selected-project harvest smoke should enable Create Override after harvest.");
+    assert.equal(payload.runtimeOverrideCreated, true, "Selected-project harvest smoke did not create the bounded override from harvested evidence.");
+    assert.equal(payload.runtimeOverrideManifestRepoRelativePath, "40_projects/project_002/overrides/runtime-asset-overrides.json", "Selected-project harvest smoke wrote the wrong override manifest path.");
+    assert.equal(payload.runtimeOverrideRepoRelativePath, path.relative(workspaceRoot, overrideFilePath).replace(/\\/g, "/"), "Selected-project harvest smoke wrote the wrong override file path.");
+    assert.equal(payload.runtimeOverrideCleared, true, "Selected-project harvest smoke did not clear the bounded override.");
+    assert(payload.previewStatusAfterCreate?.includes("Embedded launch stays blocked"), "Selected-project harvest smoke create status should mention blocked embedded launch.");
+    assert(!payload.previewStatusAfterCreate?.includes("Reloading the embedded runtime now"), "Selected-project harvest smoke create status should not claim a blocked embedded runtime reload.");
     assert.equal(payload.runtimeDebugHostActionVisible, false, "Selected-project harvest smoke should not expose the runtime Debug Host action for project_002.");
     assert.equal(payload.runtimeSourceDebugHostActionVisible, false, "Selected-project harvest smoke should not expose source-level Debug Host actions for project_002.");
     assert.equal(payload.runtimeStatusHeading, "Selected-project runtime surface", "Selected-project harvest smoke should keep the runtime status heading project-aware.");
@@ -465,11 +537,15 @@ async function main(): Promise<void> {
     await restoreOptionalBuffer(mirrorImagePath, originalMirrorImageRaw);
     await restoreOptionalUtf8(requestLogPath, originalRequestLogRaw);
     await restoreOptionalUtf8(runtimeProofPath, originalRuntimeProofRaw);
+    await restoreOptionalUtf8(overrideManifestPath, originalOverrideManifestRaw);
+    await restoreOptionalBuffer(overrideFilePath, originalOverrideFileRaw);
 
     await cleanupEmptyDirectory(path.join(reportsRoot, "selected-project-runtime-harvest"));
     await cleanupEmptyDirectory(path.join(runtimeRoot, "local-mirror", "files", "example.invalid"));
     await cleanupEmptyDirectory(path.join(runtimeRoot, "local-mirror", "files"));
     await cleanupEmptyDirectory(path.join(runtimeRoot, "local-mirror"));
+    await cleanupEmptyDirectory(path.join(workspaceRoot, "40_projects", projectId, "overrides", "runtime-assets"));
+    await cleanupEmptyDirectory(path.join(workspaceRoot, "40_projects", projectId, "overrides"));
     await cleanupEmptyDirectory(reportsRoot);
     await cleanupEmptyDirectory(runtimeRoot);
     const restoredStatus = await captureGitStatus(workspaceRoot);
