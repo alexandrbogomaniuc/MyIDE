@@ -172,9 +172,113 @@ async function main(): Promise<void> {
       workspace.projects.some((project) => project.projectId === created.projectId),
       "workspace bundle must include the smoke project after rescan"
     );
+    const createdWorkspaceProject = workspace.projects.find((project) => project.projectId === created.projectId);
+    assert(createdWorkspaceProject, "workspace bundle must expose key paths for the created project");
+
+    const sentinelMarker = `selected-project-slice-${smokeSlug}`;
+    const sentinelProject = {
+      projectId: created.projectId,
+      smokeProjectSliceMarker: sentinelMarker,
+      displayName: "Smoke Selected Project Slice"
+    };
+    const sentinelImportArtifact = {
+      importId: `smoke-import-${smokeSlug}`,
+      sourceDonorId: typeof donor.donorId === "string" ? donor.donorId : donorReference,
+      smokeProjectSliceMarker: sentinelMarker
+    };
+    const sentinelNormalSpin = {
+      smokeProjectSliceMarker: sentinelMarker,
+      fixtureKind: "normal-spin"
+    };
+    const sentinelFreeSpinsTrigger = {
+      smokeProjectSliceMarker: sentinelMarker,
+      fixtureKind: "free-spins-trigger"
+    };
+    const sentinelRestartRestore = {
+      smokeProjectSliceMarker: sentinelMarker,
+      fixtureKind: "restart-restore"
+    };
+    const sentinelMockedGameState = {
+      smokeProjectSliceMarker: sentinelMarker,
+      runtimeKind: "mock-game-state"
+    };
+    const sentinelMockedLastAction = {
+      smokeProjectSliceMarker: sentinelMarker,
+      runtimeKind: "mock-last-action"
+    };
+    const sentinelImportArtifactPath = createdWorkspaceProject.keyPaths.importArtifactPath
+      ? path.join(workspaceRoot, createdWorkspaceProject.keyPaths.importArtifactPath)
+      : path.join(smokeProjectRoot, "imports", "mystery-garden-import.json");
+    await fs.mkdir(path.join(smokeProjectRoot, "imports"), { recursive: true });
+    await fs.mkdir(path.join(smokeProjectRoot, "fixtures"), { recursive: true });
+    await fs.mkdir(path.join(smokeProjectRoot, "runtime"), { recursive: true });
+    await Promise.all([
+      fs.writeFile(path.join(smokeProjectRoot, "project.json"), `${JSON.stringify(sentinelProject, null, 2)}\n`, "utf8"),
+      fs.writeFile(
+        sentinelImportArtifactPath,
+        `${JSON.stringify(sentinelImportArtifact, null, 2)}\n`,
+        "utf8"
+      ),
+      fs.writeFile(path.join(smokeProjectRoot, "fixtures", "normal_spin.json"), `${JSON.stringify(sentinelNormalSpin, null, 2)}\n`, "utf8"),
+      fs.writeFile(
+        path.join(smokeProjectRoot, "fixtures", "free_spins_trigger.json"),
+        `${JSON.stringify(sentinelFreeSpinsTrigger, null, 2)}\n`,
+        "utf8"
+      ),
+      fs.writeFile(
+        path.join(smokeProjectRoot, "fixtures", "restart_restore.json"),
+        `${JSON.stringify(sentinelRestartRestore, null, 2)}\n`,
+        "utf8"
+      ),
+      fs.writeFile(
+        path.join(smokeProjectRoot, "runtime", "mock-game-state.json"),
+        `${JSON.stringify(sentinelMockedGameState, null, 2)}\n`,
+        "utf8"
+      ),
+      fs.writeFile(
+        path.join(smokeProjectRoot, "runtime", "mock-last-action.json"),
+        `${JSON.stringify(sentinelMockedLastAction, null, 2)}\n`,
+        "utf8"
+      )
+    ]);
 
     const createdProjectSlice = await loadProjectSlice(created.projectId);
     assert.equal(createdProjectSlice.selectedProjectId, created.projectId, "project slice should load the created project");
+    assert.equal(
+      createdProjectSlice.project.smokeProjectSliceMarker,
+      sentinelMarker,
+      "project slice should load project.json from the selected project root"
+    );
+    assert.equal(
+      createdProjectSlice.importArtifact?.smokeProjectSliceMarker,
+      sentinelMarker,
+      "project slice should load the import artifact from the selected project root"
+    );
+    assert.equal(
+      createdProjectSlice.fixtures.normalSpin.smokeProjectSliceMarker,
+      sentinelMarker,
+      "project slice should load normal spin fixtures from the selected project root"
+    );
+    assert.equal(
+      createdProjectSlice.fixtures.freeSpinsTrigger.smokeProjectSliceMarker,
+      sentinelMarker,
+      "project slice should load free spins trigger fixtures from the selected project root"
+    );
+    assert.equal(
+      createdProjectSlice.fixtures.restartRestore.smokeProjectSliceMarker,
+      sentinelMarker,
+      "project slice should load restart/restore fixtures from the selected project root"
+    );
+    assert.equal(
+      createdProjectSlice.runtime.mockedGameState.smokeProjectSliceMarker,
+      sentinelMarker,
+      "project slice should load mocked game state from the selected project root"
+    );
+    assert.equal(
+      createdProjectSlice.runtime.mockedLastAction.smokeProjectSliceMarker,
+      sentinelMarker,
+      "project slice should load mocked last action from the selected project root"
+    );
     assert.equal(createdProjectSlice.donorScan?.scanState, "scanned", "project slice should expose donor scan state");
     assert.ok((createdProjectSlice.donorScan?.runtimeCandidateCount ?? 0) >= 1, "project slice should expose donor scan runtime candidate counts");
     assert.ok((createdProjectSlice.donorScan?.nextCaptureTargetCount ?? 0) >= 1, "project slice should expose donor scan next capture target counts");

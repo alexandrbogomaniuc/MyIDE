@@ -1138,7 +1138,6 @@ export interface ProjectSliceBundle {
 
 const workspaceRoot = path.resolve(__dirname, "../../..");
 const replayProjectRoot = path.join(workspaceRoot, "40_projects", "project_001");
-const importArtifactPath = path.join(replayProjectRoot, "imports", "mystery-garden-import.json");
 const donorEvidenceRoot = path.join(workspaceRoot, "10_donors", "donor_001_mystery_garden", "evidence");
 const evidenceHashesPath = path.join(donorEvidenceRoot, "HASHES.csv");
 const donorRuntimeSessionId = "MG-CS-20260320-LIVE-A";
@@ -1157,14 +1156,33 @@ const donorRuntimeInitResponsePath = path.join(
   "MG-EV-20260320-LIVE-A-005__runtime_init_response.json"
 );
 
-export function getProjectSlicePaths(): readonly string[] {
+function getProjectRootForSlice(
+  selectedProjectId: string,
+  selectedProject: WorkspaceProjectSummary | null
+): string {
+  if (selectedProject) {
+    return path.resolve(workspaceRoot, selectedProject.keyPaths.projectRoot);
+  }
+
+  return path.join(workspaceRoot, "40_projects", selectedProjectId);
+}
+
+function getProjectImportArtifactPath(projectRoot: string, selectedProject: WorkspaceProjectSummary | null): string {
+  if (selectedProject?.keyPaths.importArtifactPath) {
+    return path.resolve(workspaceRoot, selectedProject.keyPaths.importArtifactPath);
+  }
+
+  return path.join(projectRoot, "imports", "mystery-garden-import.json");
+}
+
+export function getProjectSlicePaths(projectRoot: string = replayProjectRoot): readonly string[] {
   return [
-    path.join(replayProjectRoot, "project.json"),
-    path.join(replayProjectRoot, "fixtures", "normal_spin.json"),
-    path.join(replayProjectRoot, "fixtures", "free_spins_trigger.json"),
-    path.join(replayProjectRoot, "fixtures", "restart_restore.json"),
-    path.join(replayProjectRoot, "runtime", "mock-game-state.json"),
-    path.join(replayProjectRoot, "runtime", "mock-last-action.json")
+    path.join(projectRoot, "project.json"),
+    path.join(projectRoot, "fixtures", "normal_spin.json"),
+    path.join(projectRoot, "fixtures", "free_spins_trigger.json"),
+    path.join(projectRoot, "fixtures", "restart_restore.json"),
+    path.join(projectRoot, "runtime", "mock-game-state.json"),
+    path.join(projectRoot, "runtime", "mock-last-action.json")
   ];
 }
 
@@ -1191,6 +1209,10 @@ async function readOptionalJsonFile(filePath: string): Promise<JsonObject | null
 
     throw error;
   }
+}
+
+async function readOptionalJsonObject(filePath: string): Promise<JsonObject> {
+  return (await readOptionalJsonFile(filePath)) ?? {};
 }
 
 async function readOptionalTextFile(filePath: string): Promise<string | null> {
@@ -3721,7 +3743,7 @@ function assertPreviewAssetsStayInternal(project: JsonObject): void {
 
     const sourcePath = source.path;
     if (typeof sourcePath === "string" && sourcePath.startsWith("10_donors/")) {
-      throw new Error(`Preview asset path must stay internal to project_001: ${sourcePath}`);
+      throw new Error(`Preview asset path must stay internal to the selected project: ${sourcePath}`);
     }
   }
 }
@@ -3744,22 +3766,24 @@ async function loadSelectedEditableProject(workspace: WorkspaceSliceBundle, sele
 }
 
 export async function loadProjectSlice(requestedProjectId?: string): Promise<ProjectSliceBundle> {
-  const [projectPath, normalSpinPath, freeSpinsTriggerPath, restartRestorePath, mockedGameStatePath, mockedLastActionPath] = getProjectSlicePaths();
-  const [workspace, project, importArtifact, normalSpin, freeSpinsTrigger, restartRestore, mockedGameState, mockedLastAction] = await Promise.all([
-    loadWorkspaceSlice(),
-    readJsonFile(projectPath),
-    readOptionalJsonFile(importArtifactPath),
-    readJsonFile(normalSpinPath),
-    readJsonFile(freeSpinsTriggerPath),
-    readJsonFile(restartRestorePath),
-    readJsonFile(mockedGameStatePath),
-    readJsonFile(mockedLastActionPath)
+  const workspace = await loadWorkspaceSlice();
+  const selectedProjectId = resolveSelectedProjectId(workspace, requestedProjectId);
+  const selectedProject = workspace.projects.find((entry) => entry.projectId === selectedProjectId) ?? null;
+  const selectedProjectRoot = getProjectRootForSlice(selectedProjectId, selectedProject);
+  const selectedImportArtifactPath = getProjectImportArtifactPath(selectedProjectRoot, selectedProject);
+  const [projectPath, normalSpinPath, freeSpinsTriggerPath, restartRestorePath, mockedGameStatePath, mockedLastActionPath] = getProjectSlicePaths(selectedProjectRoot);
+  const [project, importArtifact, normalSpin, freeSpinsTrigger, restartRestore, mockedGameState, mockedLastAction] = await Promise.all([
+    readOptionalJsonObject(projectPath),
+    readOptionalJsonFile(selectedImportArtifactPath),
+    readOptionalJsonObject(normalSpinPath),
+    readOptionalJsonObject(freeSpinsTriggerPath),
+    readOptionalJsonObject(restartRestorePath),
+    readOptionalJsonObject(mockedGameStatePath),
+    readOptionalJsonObject(mockedLastActionPath)
   ]);
 
   assertPreviewAssetsStayInternal(project);
 
-  const selectedProjectId = resolveSelectedProjectId(workspace, requestedProjectId);
-  const selectedProject = workspace.projects.find((entry) => entry.projectId === selectedProjectId) ?? null;
   const evidenceCatalog = await loadDonorEvidenceCatalog(importArtifact);
   const donorAssetCatalog = await loadDonorAssetCatalog(selectedProject, selectedProjectId);
   const donorScan = await loadDonorScanStatus(selectedProject);
