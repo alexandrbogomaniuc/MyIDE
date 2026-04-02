@@ -172,6 +172,7 @@ export interface DonorScanStatus {
   sectionSkinPageMatchBundleProfilesPath: string | null;
   sectionSkinPageLockBundleProfilesPath: string | null;
   sectionSkinPageLockAuditBundleProfilesPath: string | null;
+  sectionSkinPageLockResolutionBundleProfilesPath: string | null;
   sectionSkinTextureInputBundleProfilesPath: string | null;
   sectionSkinTextureSourcePlanProfilesPath: string | null;
   sectionSkinTextureReconstructionBundleProfilesPath: string | null;
@@ -210,6 +211,8 @@ export interface DonorScanStatus {
   topSectionSkinPageLockBundleKeys: string[];
   sectionSkinPageLockAuditBundleCount: number;
   topSectionSkinPageLockAuditBundleKeys: string[];
+  sectionSkinPageLockResolutionBundleCount: number;
+  topSectionSkinPageLockResolutionBundleKeys: string[];
   sectionSkinTextureInputBundleCount: number;
   topSectionSkinTextureInputBundleKeys: string[];
   sectionSkinTextureSourcePlanCount: number;
@@ -246,6 +249,7 @@ export interface DonorScanStatus {
   sectionActionSkinPageMatchBundlePath: string | null;
   sectionActionSkinPageLockBundlePath: string | null;
   sectionActionSkinPageLockAuditBundlePath: string | null;
+  sectionActionSkinPageLockResolutionBundlePath: string | null;
   sectionActionSkinTextureInputBundlePath: string | null;
   sectionActionSkinTextureSourcePlanPath: string | null;
   sectionActionSkinTextureReconstructionBundlePath: string | null;
@@ -463,6 +467,26 @@ export interface DonorScanStatus {
     atlasSourcePath: string | null;
     pageLockAuditBundlePath: string;
     nextPageLockAuditStep: string;
+  }>;
+  topSectionSkinPageLockResolutionBundleProfiles: Array<{
+    familyName: string;
+    sectionKey: string;
+    skinName: string;
+    pageLockResolutionState: string;
+    pageCount: number;
+    exactPageLockCount: number;
+    proposedPageLockCount: number;
+    missingPageLockCount: number;
+    resolvedConflictPageCount: number;
+    unresolvedConflictPageCount: number;
+    uniqueResolvedLocalPathCount: number;
+    duplicateSourceGroupCount: number;
+    duplicateSourcePageCount: number;
+    topResolvedLocalPath: string | null;
+    sampleLocalSourcePath: string | null;
+    atlasSourcePath: string | null;
+    pageLockResolutionBundlePath: string;
+    nextPageLockResolutionStep: string;
   }>;
   topSectionSkinTextureInputBundleProfiles: Array<{
     familyName: string;
@@ -1182,13 +1206,14 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
   const sectionSkinPageMatchBundleProfilesPath = `10_donors/${donorId}/evidence/local_only/harvest/section-skin-page-match-bundle-profiles.json`;
   const sectionSkinPageLockBundleProfilesPath = `10_donors/${donorId}/evidence/local_only/harvest/section-skin-page-lock-bundle-profiles.json`;
   const sectionSkinPageLockAuditBundleProfilesPath = `10_donors/${donorId}/evidence/local_only/harvest/section-skin-page-lock-audit-bundle-profiles.json`;
+  const sectionSkinPageLockResolutionBundleProfilesPath = `10_donors/${donorId}/evidence/local_only/harvest/section-skin-page-lock-resolution-bundle-profiles.json`;
   const sectionSkinTextureInputBundleProfilesPath = `10_donors/${donorId}/evidence/local_only/harvest/section-skin-texture-input-bundle-profiles.json`;
   const sectionSkinTextureSourcePlanProfilesPath = `10_donors/${donorId}/evidence/local_only/harvest/section-skin-texture-source-plan-profiles.json`;
   const sectionSkinTextureReconstructionBundleProfilesPath = `10_donors/${donorId}/evidence/local_only/harvest/section-skin-texture-reconstruction-bundle-profiles.json`;
   const captureRunPath = `10_donors/${donorId}/evidence/local_only/harvest/next-capture-run.json`;
   const familyActionRunPath = `10_donors/${donorId}/evidence/local_only/harvest/family-action-run.json`;
   const sectionActionRunPath = `10_donors/${donorId}/evidence/local_only/harvest/section-action-run.json`;
-  const [scanSummary, blockerSummaryMarkdown, nextCaptureTargetsFile, captureRunSummary, captureTargetFamiliesFile, captureFamilySourceProfilesFile, captureFamilyActionsFile, familyReconstructionProfilesFile, familyReconstructionMapsFile, familyReconstructionSectionsFile, familyReconstructionSectionBundlesFile, sectionReconstructionProfilesFile, sectionSkinBlueprintProfilesFile, sectionSkinRenderPlanProfilesFile, sectionSkinMaterialPlanProfilesFile, sectionSkinMaterialReviewBundleProfilesFile, sectionSkinPageMatchBundleProfilesFile, sectionSkinPageLockBundleProfilesFile, sectionSkinPageLockAuditBundleProfilesFile, sectionSkinTextureInputBundleProfilesFile, sectionSkinTextureSourcePlanProfilesFile, sectionSkinTextureReconstructionBundleProfilesFile, familyActionRunSummary, sectionActionRunSummary] = await Promise.all([
+  const [scanSummary, blockerSummaryMarkdown, nextCaptureTargetsFile, captureRunSummary, captureTargetFamiliesFile, captureFamilySourceProfilesFile, captureFamilyActionsFile, familyReconstructionProfilesFile, familyReconstructionMapsFile, familyReconstructionSectionsFile, familyReconstructionSectionBundlesFile, sectionReconstructionProfilesFile, sectionSkinBlueprintProfilesFile, sectionSkinRenderPlanProfilesFile, sectionSkinMaterialPlanProfilesFile, sectionSkinMaterialReviewBundleProfilesFile, sectionSkinPageMatchBundleProfilesFile, sectionSkinPageLockBundleProfilesFile, sectionSkinPageLockAuditBundleProfilesFile, sectionSkinPageLockResolutionBundleProfilesFile, sectionSkinTextureInputBundleProfilesFile, sectionSkinTextureSourcePlanProfilesFile, sectionSkinTextureReconstructionBundleProfilesFile, familyActionRunSummary, sectionActionRunSummary] = await Promise.all([
     readOptionalJsonFile(path.join(workspaceRoot, scanSummaryPath)) as Promise<JsonObject | null>,
     readOptionalTextFile(path.join(workspaceRoot, blockerSummaryPath)),
     readOptionalJsonFile(path.join(workspaceRoot, nextCaptureTargetsPath)) as Promise<JsonObject | null>,
@@ -1208,6 +1233,7 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
     readOptionalJsonFile(path.join(workspaceRoot, sectionSkinPageMatchBundleProfilesPath)) as Promise<JsonObject | null>,
     readOptionalJsonFile(path.join(workspaceRoot, sectionSkinPageLockBundleProfilesPath)) as Promise<JsonObject | null>,
     readOptionalJsonFile(path.join(workspaceRoot, sectionSkinPageLockAuditBundleProfilesPath)) as Promise<JsonObject | null>,
+    readOptionalJsonFile(path.join(workspaceRoot, sectionSkinPageLockResolutionBundleProfilesPath)) as Promise<JsonObject | null>,
     readOptionalJsonFile(path.join(workspaceRoot, sectionSkinTextureInputBundleProfilesPath)) as Promise<JsonObject | null>,
     readOptionalJsonFile(path.join(workspaceRoot, sectionSkinTextureSourcePlanProfilesPath)) as Promise<JsonObject | null>,
     readOptionalJsonFile(path.join(workspaceRoot, sectionSkinTextureReconstructionBundleProfilesPath)) as Promise<JsonObject | null>,
@@ -1597,6 +1623,32 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
         .filter((section) => section.sectionKey.length > 0 && section.pageLockAuditBundlePath.length > 0)
         .slice(0, 6)
     : [];
+  const topSectionSkinPageLockResolutionBundleProfiles = Array.isArray(sectionSkinPageLockResolutionBundleProfilesFile?.sections)
+    ? sectionSkinPageLockResolutionBundleProfilesFile.sections
+        .filter((value): value is JsonObject => Boolean(value) && typeof value === "object" && !Array.isArray(value))
+        .map((section) => ({
+          familyName: typeof section.familyName === "string" ? section.familyName : "",
+          sectionKey: typeof section.sectionKey === "string" ? section.sectionKey : "",
+          skinName: typeof section.skinName === "string" ? section.skinName : "",
+          pageLockResolutionState: typeof section.pageLockResolutionState === "string" ? section.pageLockResolutionState : "unknown",
+          pageCount: typeof section.pageCount === "number" ? section.pageCount : 0,
+          exactPageLockCount: typeof section.exactPageLockCount === "number" ? section.exactPageLockCount : 0,
+          proposedPageLockCount: typeof section.proposedPageLockCount === "number" ? section.proposedPageLockCount : 0,
+          missingPageLockCount: typeof section.missingPageLockCount === "number" ? section.missingPageLockCount : 0,
+          resolvedConflictPageCount: typeof section.resolvedConflictPageCount === "number" ? section.resolvedConflictPageCount : 0,
+          unresolvedConflictPageCount: typeof section.unresolvedConflictPageCount === "number" ? section.unresolvedConflictPageCount : 0,
+          uniqueResolvedLocalPathCount: typeof section.uniqueResolvedLocalPathCount === "number" ? section.uniqueResolvedLocalPathCount : 0,
+          duplicateSourceGroupCount: typeof section.duplicateSourceGroupCount === "number" ? section.duplicateSourceGroupCount : 0,
+          duplicateSourcePageCount: typeof section.duplicateSourcePageCount === "number" ? section.duplicateSourcePageCount : 0,
+          topResolvedLocalPath: typeof section.topResolvedLocalPath === "string" ? section.topResolvedLocalPath : null,
+          sampleLocalSourcePath: typeof section.sampleLocalSourcePath === "string" ? section.sampleLocalSourcePath : null,
+          atlasSourcePath: typeof section.atlasSourcePath === "string" ? section.atlasSourcePath : null,
+          pageLockResolutionBundlePath: typeof section.pageLockResolutionBundlePath === "string" ? section.pageLockResolutionBundlePath : "",
+          nextPageLockResolutionStep: typeof section.nextPageLockResolutionStep === "string" ? section.nextPageLockResolutionStep : "Review the section skin page-lock resolution bundle."
+        }))
+        .filter((section) => section.sectionKey.length > 0 && section.pageLockResolutionBundlePath.length > 0)
+        .slice(0, 6)
+    : [];
   const topSectionSkinTextureInputBundleProfiles = Array.isArray(sectionSkinTextureInputBundleProfilesFile?.sections)
     ? sectionSkinTextureInputBundleProfilesFile.sections
         .filter((value): value is JsonObject => Boolean(value) && typeof value === "object" && !Array.isArray(value))
@@ -1692,6 +1744,7 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
     sectionSkinPageMatchBundleProfilesPath: sectionSkinPageMatchBundleProfilesFile ? sectionSkinPageMatchBundleProfilesPath : null,
     sectionSkinPageLockBundleProfilesPath: sectionSkinPageLockBundleProfilesFile ? sectionSkinPageLockBundleProfilesPath : null,
     sectionSkinPageLockAuditBundleProfilesPath: sectionSkinPageLockAuditBundleProfilesFile ? sectionSkinPageLockAuditBundleProfilesPath : null,
+    sectionSkinPageLockResolutionBundleProfilesPath: sectionSkinPageLockResolutionBundleProfilesFile ? sectionSkinPageLockResolutionBundleProfilesPath : null,
     sectionSkinTextureInputBundleProfilesPath: sectionSkinTextureInputBundleProfilesFile ? sectionSkinTextureInputBundleProfilesPath : null,
     sectionSkinTextureSourcePlanProfilesPath: sectionSkinTextureSourcePlanProfilesFile ? sectionSkinTextureSourcePlanProfilesPath : null,
     sectionSkinTextureReconstructionBundleProfilesPath: sectionSkinTextureReconstructionBundleProfilesFile ? sectionSkinTextureReconstructionBundleProfilesPath : null,
@@ -1752,6 +1805,10 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
     topSectionSkinPageLockAuditBundleKeys: Array.isArray(scanSummary.topSectionSkinPageLockAuditBundleKeys)
       ? scanSummary.topSectionSkinPageLockAuditBundleKeys.filter((value): value is string => typeof value === "string")
       : topSectionSkinPageLockAuditBundleProfiles.map((section) => section.sectionKey),
+    sectionSkinPageLockResolutionBundleCount: typeof scanSummary.sectionSkinPageLockResolutionBundleCount === "number" ? scanSummary.sectionSkinPageLockResolutionBundleCount : topSectionSkinPageLockResolutionBundleProfiles.length,
+    topSectionSkinPageLockResolutionBundleKeys: Array.isArray(scanSummary.topSectionSkinPageLockResolutionBundleKeys)
+      ? scanSummary.topSectionSkinPageLockResolutionBundleKeys.filter((value): value is string => typeof value === "string")
+      : topSectionSkinPageLockResolutionBundleProfiles.map((section) => section.sectionKey),
     sectionSkinTextureInputBundleCount: typeof scanSummary.sectionSkinTextureInputBundleCount === "number" ? scanSummary.sectionSkinTextureInputBundleCount : topSectionSkinTextureInputBundleProfiles.length,
     topSectionSkinTextureInputBundleKeys: Array.isArray(scanSummary.topSectionSkinTextureInputBundleKeys)
       ? scanSummary.topSectionSkinTextureInputBundleKeys.filter((value): value is string => typeof value === "string")
@@ -1796,6 +1853,7 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
     sectionActionSkinPageMatchBundlePath: typeof sectionActionRunSummary?.skinPageMatchBundlePath === "string" ? sectionActionRunSummary.skinPageMatchBundlePath : null,
     sectionActionSkinPageLockBundlePath: typeof sectionActionRunSummary?.skinPageLockBundlePath === "string" ? sectionActionRunSummary.skinPageLockBundlePath : null,
     sectionActionSkinPageLockAuditBundlePath: typeof sectionActionRunSummary?.skinPageLockAuditBundlePath === "string" ? sectionActionRunSummary.skinPageLockAuditBundlePath : null,
+    sectionActionSkinPageLockResolutionBundlePath: typeof sectionActionRunSummary?.skinPageLockResolutionBundlePath === "string" ? sectionActionRunSummary.skinPageLockResolutionBundlePath : null,
     sectionActionSkinTextureInputBundlePath: typeof sectionActionRunSummary?.skinTextureInputBundlePath === "string" ? sectionActionRunSummary.skinTextureInputBundlePath : null,
     sectionActionSkinTextureSourcePlanPath: typeof sectionActionRunSummary?.skinTextureSourcePlanPath === "string" ? sectionActionRunSummary.skinTextureSourcePlanPath : null,
     sectionActionSkinTextureReconstructionBundlePath: typeof sectionActionRunSummary?.skinTextureReconstructionBundlePath === "string" ? sectionActionRunSummary.skinTextureReconstructionBundlePath : null,
@@ -1818,6 +1876,7 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
     topSectionSkinPageMatchBundleProfiles,
     topSectionSkinPageLockBundleProfiles,
     topSectionSkinPageLockAuditBundleProfiles,
+    topSectionSkinPageLockResolutionBundleProfiles,
     topSectionSkinTextureInputBundleProfiles,
     topSectionSkinTextureSourcePlanProfiles,
     topSectionSkinTextureReconstructionBundleProfiles,
