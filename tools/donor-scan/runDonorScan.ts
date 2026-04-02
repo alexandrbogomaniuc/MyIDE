@@ -13,6 +13,7 @@ import { summarizeCaptureFamilyActions } from "./summarizeCaptureFamilyActions";
 import { summarizeFamilyReconstructionProfiles } from "./summarizeFamilyReconstructionProfiles";
 import { summarizeFamilyReconstructionMaps } from "./summarizeFamilyReconstructionMaps";
 import { summarizeFamilyReconstructionSections } from "./summarizeFamilyReconstructionSections";
+import { summarizeFamilyReconstructionSectionBundles } from "./summarizeFamilyReconstructionSectionBundles";
 import {
   type CaptureRunFile,
   type DiscoveredDonorUrl,
@@ -434,6 +435,8 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
       topFamilyReconstructionMapNames: [],
       familyReconstructionSectionCount: 0,
       topFamilyReconstructionSectionKeys: [],
+      familyReconstructionSectionBundleCount: 0,
+      topFamilyReconstructionSectionBundleKeys: [],
       nextCaptureTargetCount: 0,
       rawPayloadBlockedCaptureTargetCount: 0,
       rawPayloadBlockedFamilyCount: 0,
@@ -481,6 +484,8 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
       topFamilyReconstructionMapNames: [],
       familyReconstructionSectionCount: 0,
       topFamilyReconstructionSectionKeys: [],
+      familyReconstructionSectionBundleCount: 0,
+      topFamilyReconstructionSectionBundleKeys: [],
       nextCaptureTargetCount: 0,
       rawPayloadBlockedCaptureTargetCount: 0,
       rawPayloadBlockedFamilyCount: 0,
@@ -602,6 +607,13 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
     familyReconstructionMaps
   });
   await writeJsonFile(paths.familyReconstructionSectionsPath, familyReconstructionSections);
+  const familyReconstructionSectionBundles = await summarizeFamilyReconstructionSectionBundles({
+    donorId: options.donorId,
+    donorName: options.donorName,
+    familyReconstructionMaps,
+    familyReconstructionSections
+  });
+  await writeJsonFile(paths.familyReconstructionSectionBundlesPath, familyReconstructionSectionBundles);
   const prioritizedFamilySourceProfiles = captureFamilySourceProfiles.families.filter((family) =>
     family.blockedTargetCount > 0
     || family.atlasManifestKinds.length > 0
@@ -631,6 +643,11 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
   const prioritizedFamilyReconstructionSections = familyReconstructionSections.sections.filter((section) =>
     section.mappedAttachmentCount > 0
     || section.attachmentCount > 0
+  );
+  const prioritizedFamilyReconstructionSectionBundles = familyReconstructionSectionBundles.sections.filter((section) =>
+    section.mappedAttachmentCount > 0
+    || section.attachmentCount > 0
+    || section.exactLocalSourceCount > 0
   );
   const rawPayloadBlockedFamilies = captureBlockerFamilies.families
     .filter((family) => family.blockerClass === "raw-payload-blocked");
@@ -705,6 +722,10 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
       .map((family) => family.familyName),
     familyReconstructionSectionCount: familyReconstructionSections.sectionCount,
     topFamilyReconstructionSectionKeys: prioritizedFamilyReconstructionSections
+      .slice(0, 8)
+      .map((section) => section.sectionKey),
+    familyReconstructionSectionBundleCount: familyReconstructionSectionBundles.sectionCount,
+    topFamilyReconstructionSectionBundleKeys: prioritizedFamilyReconstructionSectionBundles
       .slice(0, 8)
       .map((section) => section.sectionKey),
     rawPayloadBlockedCaptureTargetCount: nextCaptureTargets.targets.filter((target) => target.blockerClass === "raw-payload-blocked").length,
@@ -783,6 +804,10 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
       .map((family) => family.familyName),
     familyReconstructionSectionCount: familyReconstructionSections.sectionCount,
     topFamilyReconstructionSectionKeys: prioritizedFamilyReconstructionSections
+      .slice(0, 8)
+      .map((section) => section.sectionKey),
+    familyReconstructionSectionBundleCount: familyReconstructionSectionBundles.sectionCount,
+    topFamilyReconstructionSectionBundleKeys: prioritizedFamilyReconstructionSectionBundles
       .slice(0, 8)
       .map((section) => section.sectionKey),
     rawPayloadBlockedCaptureTargetCount: nextCaptureTargets.targets.filter((target) => target.blockerClass === "raw-payload-blocked").length,

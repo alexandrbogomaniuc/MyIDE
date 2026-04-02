@@ -223,6 +223,29 @@ async function main(): Promise<void> {
     assert.ok(typeof reconstructionSections.sectionCount === "number", "reconstruction sections summary should record a section count");
     assert.ok(Array.isArray(reconstructionSections.sections), "reconstruction sections summary should expose a section list");
 
+    const reconstructionSectionBundlesPath = path.join(donorRoot, "evidence", "local_only", "harvest", "family-reconstruction-section-bundles.json");
+    const reconstructionSectionBundles = JSON.parse(await fs.readFile(reconstructionSectionBundlesPath, "utf8")) as {
+      sectionCount?: number;
+      sections?: Array<{
+        familyName?: string;
+        sectionKey?: string;
+        bundleState?: string;
+        exactLocalSourceCount?: number;
+        reconstructionBundlePath?: string;
+      }>;
+    };
+    assert.ok(typeof reconstructionSectionBundles.sectionCount === "number", "reconstruction section bundle summary should record a section count");
+    assert.ok(Array.isArray(reconstructionSectionBundles.sections), "reconstruction section bundle summary should expose a section list");
+    if ((reconstructionSectionBundles.sectionCount ?? 0) > 0) {
+      const uiSectionBundle = Array.isArray(reconstructionSectionBundles.sections)
+        ? reconstructionSectionBundles.sections.find((section) => typeof section?.familyName === "string" && section.familyName === "ui")
+        : null;
+      assert.ok(uiSectionBundle, "reconstruction section bundle summary should include the prepared family when section bundles exist");
+      assert.equal(uiSectionBundle?.bundleState, "ready-with-grounded-attachments", "reconstruction section bundle should preserve grounded section readiness");
+      assert.ok((uiSectionBundle?.exactLocalSourceCount ?? 0) >= 1, "reconstruction section bundle should carry grounded local source counts");
+      assert.equal(uiSectionBundle?.reconstructionBundlePath, familyActionRun.reconstructionBundlePath ?? null, "reconstruction section bundle should link back to the family reconstruction bundle");
+    }
+
     console.log("PASS donor-scan:family-action");
     console.log(`Donor: ${donorId}`);
     console.log(`Prepared workset: ${familyActionRun.worksetPath}`);

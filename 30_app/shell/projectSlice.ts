@@ -162,6 +162,7 @@ export interface DonorScanStatus {
   familyReconstructionProfilesPath: string | null;
   familyReconstructionMapsPath: string | null;
   familyReconstructionSectionsPath: string | null;
+  familyReconstructionSectionBundlesPath: string | null;
   runtimeCandidateCount: number;
   atlasManifestCount: number;
   bundleAssetMapStatus: string;
@@ -187,6 +188,8 @@ export interface DonorScanStatus {
   topFamilyReconstructionMapNames: string[];
   familyReconstructionSectionCount: number;
   topFamilyReconstructionSectionKeys: string[];
+  familyReconstructionSectionBundleCount: number;
+  topFamilyReconstructionSectionBundleKeys: string[];
   rawPayloadBlockedCaptureTargetCount: number;
   rawPayloadBlockedFamilyCount: number;
   rawPayloadBlockedFamilyNames: string[];
@@ -280,11 +283,14 @@ export interface DonorScanStatus {
     sectionKey: string;
     skinName: string;
     sectionState: string;
+    bundleState: string;
     attachmentCount: number;
     mappedAttachmentCount: number;
     unmappedAttachmentCount: number;
     atlasPageCount: number;
+    exactLocalSourceCount: number;
     sampleLocalSourcePath: string | null;
+    sectionBundlePath: string | null;
     nextSectionStep: string;
   }>;
   nextCaptureTargets: Array<{
@@ -945,9 +951,10 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
   const familyReconstructionProfilesPath = `10_donors/${donorId}/evidence/local_only/harvest/family-reconstruction-profiles.json`;
   const familyReconstructionMapsPath = `10_donors/${donorId}/evidence/local_only/harvest/family-reconstruction-maps.json`;
   const familyReconstructionSectionsPath = `10_donors/${donorId}/evidence/local_only/harvest/family-reconstruction-sections.json`;
+  const familyReconstructionSectionBundlesPath = `10_donors/${donorId}/evidence/local_only/harvest/family-reconstruction-section-bundles.json`;
   const captureRunPath = `10_donors/${donorId}/evidence/local_only/harvest/next-capture-run.json`;
   const familyActionRunPath = `10_donors/${donorId}/evidence/local_only/harvest/family-action-run.json`;
-  const [scanSummary, blockerSummaryMarkdown, nextCaptureTargetsFile, captureRunSummary, captureTargetFamiliesFile, captureFamilySourceProfilesFile, captureFamilyActionsFile, familyReconstructionProfilesFile, familyReconstructionMapsFile, familyReconstructionSectionsFile, familyActionRunSummary] = await Promise.all([
+  const [scanSummary, blockerSummaryMarkdown, nextCaptureTargetsFile, captureRunSummary, captureTargetFamiliesFile, captureFamilySourceProfilesFile, captureFamilyActionsFile, familyReconstructionProfilesFile, familyReconstructionMapsFile, familyReconstructionSectionsFile, familyReconstructionSectionBundlesFile, familyActionRunSummary] = await Promise.all([
     readOptionalJsonFile(path.join(workspaceRoot, scanSummaryPath)) as Promise<JsonObject | null>,
     readOptionalTextFile(path.join(workspaceRoot, blockerSummaryPath)),
     readOptionalJsonFile(path.join(workspaceRoot, nextCaptureTargetsPath)) as Promise<JsonObject | null>,
@@ -958,6 +965,7 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
     readOptionalJsonFile(path.join(workspaceRoot, familyReconstructionProfilesPath)) as Promise<JsonObject | null>,
     readOptionalJsonFile(path.join(workspaceRoot, familyReconstructionMapsPath)) as Promise<JsonObject | null>,
     readOptionalJsonFile(path.join(workspaceRoot, familyReconstructionSectionsPath)) as Promise<JsonObject | null>,
+    readOptionalJsonFile(path.join(workspaceRoot, familyReconstructionSectionBundlesPath)) as Promise<JsonObject | null>,
     readOptionalJsonFile(path.join(workspaceRoot, familyActionRunPath)) as Promise<JsonObject | null>
   ]);
 
@@ -1117,21 +1125,47 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
         )
         .slice(0, 5)
     : [];
+  const sectionBundleLookup = new Map<string, {
+    bundleState: string;
+    exactLocalSourceCount: number;
+    sectionBundlePath: string | null;
+  }>(
+    Array.isArray(familyReconstructionSectionBundlesFile?.sections)
+      ? familyReconstructionSectionBundlesFile.sections
+          .filter((value): value is JsonObject => Boolean(value) && typeof value === "object" && !Array.isArray(value))
+          .map((section): [string, { bundleState: string; exactLocalSourceCount: number; sectionBundlePath: string | null }] => [
+            typeof section.sectionKey === "string" ? section.sectionKey : "",
+            {
+              bundleState: typeof section.bundleState === "string" ? section.bundleState : "unknown",
+              exactLocalSourceCount: typeof section.exactLocalSourceCount === "number" ? section.exactLocalSourceCount : 0,
+              sectionBundlePath: typeof section.reconstructionBundlePath === "string" ? section.reconstructionBundlePath : null
+            }
+          ])
+          .filter((entry): entry is [string, { bundleState: string; exactLocalSourceCount: number; sectionBundlePath: string | null }] => entry[0].length > 0)
+      : []
+  );
   const topFamilyReconstructionSections = Array.isArray(familyReconstructionSectionsFile?.sections)
     ? familyReconstructionSectionsFile.sections
         .filter((value): value is JsonObject => Boolean(value) && typeof value === "object" && !Array.isArray(value))
-        .map((section) => ({
-          familyName: typeof section.familyName === "string" ? section.familyName : "",
-          sectionKey: typeof section.sectionKey === "string" ? section.sectionKey : "",
-          skinName: typeof section.skinName === "string" ? section.skinName : "",
-          sectionState: typeof section.sectionState === "string" ? section.sectionState : "unknown",
-          attachmentCount: typeof section.attachmentCount === "number" ? section.attachmentCount : 0,
-          mappedAttachmentCount: typeof section.mappedAttachmentCount === "number" ? section.mappedAttachmentCount : 0,
-          unmappedAttachmentCount: typeof section.unmappedAttachmentCount === "number" ? section.unmappedAttachmentCount : 0,
-          atlasPageCount: typeof section.atlasPageCount === "number" ? section.atlasPageCount : 0,
-          sampleLocalSourcePath: typeof section.sampleLocalSourcePath === "string" ? section.sampleLocalSourcePath : null,
-          nextSectionStep: typeof section.nextSectionStep === "string" ? section.nextSectionStep : "Review the reconstruction section."
-        }))
+        .map((section) => {
+          const sectionKey = typeof section.sectionKey === "string" ? section.sectionKey : "";
+          const sectionBundle = sectionBundleLookup.get(sectionKey);
+          return {
+            familyName: typeof section.familyName === "string" ? section.familyName : "",
+            sectionKey,
+            skinName: typeof section.skinName === "string" ? section.skinName : "",
+            sectionState: typeof section.sectionState === "string" ? section.sectionState : "unknown",
+            bundleState: sectionBundle?.bundleState ?? "unknown",
+            attachmentCount: typeof section.attachmentCount === "number" ? section.attachmentCount : 0,
+            mappedAttachmentCount: typeof section.mappedAttachmentCount === "number" ? section.mappedAttachmentCount : 0,
+            unmappedAttachmentCount: typeof section.unmappedAttachmentCount === "number" ? section.unmappedAttachmentCount : 0,
+            atlasPageCount: typeof section.atlasPageCount === "number" ? section.atlasPageCount : 0,
+            exactLocalSourceCount: sectionBundle?.exactLocalSourceCount ?? 0,
+            sampleLocalSourcePath: typeof section.sampleLocalSourcePath === "string" ? section.sampleLocalSourcePath : null,
+            sectionBundlePath: sectionBundle?.sectionBundlePath ?? null,
+            nextSectionStep: typeof section.nextSectionStep === "string" ? section.nextSectionStep : "Review the reconstruction section."
+          };
+        })
         .filter((section) =>
           section.sectionKey.length > 0
           && (
@@ -1157,6 +1191,7 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
     familyReconstructionProfilesPath: familyReconstructionProfilesFile ? familyReconstructionProfilesPath : null,
     familyReconstructionMapsPath: familyReconstructionMapsFile ? familyReconstructionMapsPath : null,
     familyReconstructionSectionsPath: familyReconstructionSectionsFile ? familyReconstructionSectionsPath : null,
+    familyReconstructionSectionBundlesPath: familyReconstructionSectionBundlesFile ? familyReconstructionSectionBundlesPath : null,
     runtimeCandidateCount: typeof scanSummary.runtimeCandidateCount === "number" ? scanSummary.runtimeCandidateCount : (donor.runtimeCandidateCount ?? 0),
     atlasManifestCount: typeof scanSummary.atlasManifestCount === "number" ? scanSummary.atlasManifestCount : (donor.atlasManifestCount ?? 0),
     bundleAssetMapStatus: typeof scanSummary.bundleAssetMapStatus === "string" ? scanSummary.bundleAssetMapStatus : (donor.bundleAssetMapStatus ?? "unknown"),
@@ -1193,6 +1228,10 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
     familyReconstructionSectionCount: typeof scanSummary.familyReconstructionSectionCount === "number" ? scanSummary.familyReconstructionSectionCount : 0,
     topFamilyReconstructionSectionKeys: Array.isArray(scanSummary.topFamilyReconstructionSectionKeys)
       ? scanSummary.topFamilyReconstructionSectionKeys.filter((value): value is string => typeof value === "string")
+      : [],
+    familyReconstructionSectionBundleCount: typeof scanSummary.familyReconstructionSectionBundleCount === "number" ? scanSummary.familyReconstructionSectionBundleCount : 0,
+    topFamilyReconstructionSectionBundleKeys: Array.isArray(scanSummary.topFamilyReconstructionSectionBundleKeys)
+      ? scanSummary.topFamilyReconstructionSectionBundleKeys.filter((value): value is string => typeof value === "string")
       : [],
     rawPayloadBlockedCaptureTargetCount: typeof scanSummary.rawPayloadBlockedCaptureTargetCount === "number" ? scanSummary.rawPayloadBlockedCaptureTargetCount : 0,
     rawPayloadBlockedFamilyCount: typeof scanSummary.rawPayloadBlockedFamilyCount === "number" ? scanSummary.rawPayloadBlockedFamilyCount : 0,

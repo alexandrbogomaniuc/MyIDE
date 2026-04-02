@@ -15441,9 +15441,9 @@ function renderProjectSummary() {
           <div class="detail-list">
             <small><strong>Reconstruction sections</strong></small>
             ${donorScan.topFamilyReconstructionSections.map((section) => `
-              <small><strong>${escapeHtml(section.sectionKey)}</strong> · ${escapeHtml(section.sectionState)} · ${escapeHtml(String(section.mappedAttachmentCount))}/${escapeHtml(String(section.attachmentCount))} mapped attachments${section.unmappedAttachmentCount > 0 ? ` · ${escapeHtml(String(section.unmappedAttachmentCount))} unmapped` : ""}${section.atlasPageCount > 0 ? ` · ${escapeHtml(String(section.atlasPageCount))} atlas page${section.atlasPageCount === 1 ? "" : "s"}` : ""}</small>
+              <small><strong>${escapeHtml(section.sectionKey)}</strong> · ${escapeHtml(section.sectionState)} · ${escapeHtml(section.bundleState ?? "unknown")} · ${escapeHtml(String(section.mappedAttachmentCount))}/${escapeHtml(String(section.attachmentCount))} mapped attachments${section.unmappedAttachmentCount > 0 ? ` · ${escapeHtml(String(section.unmappedAttachmentCount))} unmapped` : ""}${section.atlasPageCount > 0 ? ` · ${escapeHtml(String(section.atlasPageCount))} atlas page${section.atlasPageCount === 1 ? "" : "s"}` : ""}${section.exactLocalSourceCount > 0 ? ` · ${escapeHtml(String(section.exactLocalSourceCount))} local source${section.exactLocalSourceCount === 1 ? "" : "s"}` : ""}</small>
               <small>${escapeHtml(section.nextSectionStep)}</small>
-              ${section.sampleLocalSourcePath ? `<small>local source · <code>${escapeHtml(section.sampleLocalSourcePath)}</code></small>` : ""}
+              <small>${section.sectionBundlePath ? `bundle · <code>${escapeHtml(section.sectionBundlePath)}</code>${section.sampleLocalSourcePath ? " · " : ""}` : ""}${section.sampleLocalSourcePath ? `local source · <code>${escapeHtml(section.sampleLocalSourcePath)}</code>` : ""}</small>
             `).join("")}
           </div>
         ` : ""}
