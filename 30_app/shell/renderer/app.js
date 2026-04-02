@@ -3167,6 +3167,7 @@ async function openRuntimeDebugHostWindow(options = {}) {
 
   const result = await api.openRuntimeDebugHost();
   state.runtimeUi.debugHost = result ?? null;
+  await refreshRuntimeResourceMap({ silent: true });
   if (typeof result?.candidateRuntimeSourceUrl === "string" && result.candidateRuntimeSourceUrl.length > 0) {
     state.runtimeUi.workbenchSourceUrl = getRuntimeCanonicalSourceUrl(result.candidateRuntimeSourceUrl) ?? result.candidateRuntimeSourceUrl;
   }
@@ -9436,6 +9437,45 @@ function getPathBasename(value) {
   return segments.length > 0 ? segments[segments.length - 1] : null;
 }
 
+function getComparablePathNameTokens(value) {
+  const basename = getPathBasename(value);
+  if (!basename) {
+    return [];
+  }
+
+  const variants = new Set();
+  const pushVariant = (candidate) => {
+    if (typeof candidate !== "string") {
+      return;
+    }
+    const normalized = candidate.trim().toLowerCase();
+    if (!normalized) {
+      return;
+    }
+    variants.add(normalized);
+    variants.add(slugifyValue(normalized));
+  };
+
+  pushVariant(basename);
+  let current = basename.toLowerCase();
+  for (let index = 0; index < 4; index += 1) {
+    const withoutFinalExtension = current.replace(/\.[a-z0-9]+$/, "");
+    if (withoutFinalExtension === current) {
+      break;
+    }
+    current = withoutFinalExtension;
+    pushVariant(current);
+
+    const withoutSizeSuffix = current.replace(/(?:[_-]\d+){2,}$/, "");
+    if (withoutSizeSuffix !== current) {
+      current = withoutSizeSuffix;
+      pushVariant(current);
+    }
+  }
+
+  return uniqueStrings(Array.from(variants));
+}
+
 function getModificationTaskArtifactPaths(task) {
   return uniqueStrings([
     task?.sourceArtifactPath,
@@ -9478,11 +9518,14 @@ function getProjectModificationTaskReconstructionPages(task) {
 function getProjectModificationTaskPageMatchTokens(page) {
   return uniqueStrings([
     page?.pageName,
+    page?.selectedLocalPath,
     page?.topAffectedSlotName,
     page?.topAffectedAttachmentName,
     ...(Array.isArray(page?.affectedSlotNames) ? page.affectedSlotNames : []),
     ...(Array.isArray(page?.affectedAttachmentNames) ? page.affectedAttachmentNames : []),
-    ...(Array.isArray(page?.regionNames) ? page.regionNames : [])
+    ...(Array.isArray(page?.regionNames) ? page.regionNames : []),
+    ...getComparablePathNameTokens(page?.pageName),
+    ...getComparablePathNameTokens(page?.selectedLocalPath)
   ].map((value) => slugifyValue(value)).filter(Boolean));
 }
 
@@ -9604,28 +9647,44 @@ function getProjectModificationTaskLeadSceneMemberForPage(page) {
   return bestMember;
 }
 
-function getProjectModificationTaskRuntimeEntryForPage(page) {
+function getProjectModificationTaskRuntimeMatchForPage(page) {
   const pageSourceBasename = getPathBasename(page?.selectedLocalPath);
   const matchedAssetId = page?.matchedTaskKitAsset?.assetId ?? null;
   const pageTokens = getProjectModificationTaskPageMatchTokens(page);
+  const workbenchEntries = getRuntimeWorkbenchEntries();
   let bestEntry = null;
   let bestScore = Number.NEGATIVE_INFINITY;
+  let bestKind = null;
 
-  for (const entry of getRuntimeWorkbenchEntries()) {
+  for (const entry of workbenchEntries) {
     const entryBasenames = uniqueStrings([
       getPathBasename(entry?.relativePath),
       getPathBasename(entry?.localMirrorRepoRelativePath),
       getPathBasename(entry?.sourceUrl)
     ].filter(Boolean));
+    const entryNameTokens = uniqueStrings([
+      ...entryBasenames,
+      ...getComparablePathNameTokens(entry?.relativePath),
+      ...getComparablePathNameTokens(entry?.localMirrorRepoRelativePath),
+      ...getComparablePathNameTokens(entry?.sourceUrl)
+    ]);
     const entryHaystack = `${entry?.relativePath ?? ""} ${entry?.localMirrorRepoRelativePath ?? ""} ${entry?.sourceUrl ?? ""}`.toLowerCase();
+    const normalizedEntryHaystack = slugifyValue(entryHaystack);
     let score = Number.NEGATIVE_INFINITY;
+    let kind = null;
 
     if (matchedAssetId && entry?.donorAsset?.assetId === matchedAssetId) {
       score = 180;
+      kind = "donor-asset";
+    } else if (pageTokens.some((token) => entryNameTokens.includes(token))) {
+      score = 170;
+      kind = "page-name";
     } else if (pageSourceBasename && entryBasenames.includes(pageSourceBasename)) {
       score = 160;
-    } else if (pageTokens.some((token) => token.length >= 3 && entryHaystack.includes(token))) {
+      kind = "page-source";
+    } else if (pageTokens.some((token) => token.length >= 3 && (entryHaystack.includes(token) || normalizedEntryHaystack.includes(token)))) {
       score = 90;
+      kind = "cue-token";
     }
 
     if (score > Number.NEGATIVE_INFINITY && entry?.kind === "debug-host-proof") {
@@ -9641,10 +9700,32 @@ function getProjectModificationTaskRuntimeEntryForPage(page) {
     if (score > bestScore) {
       bestScore = score;
       bestEntry = entry;
+      bestKind = kind;
     }
   }
 
-  return bestScore > Number.NEGATIVE_INFINITY ? bestEntry : null;
+  if (bestScore > Number.NEGATIVE_INFINITY) {
+    return {
+      entry: bestEntry,
+      matchKind: bestKind,
+      matchScore: bestScore
+    };
+  }
+
+  const debugHostFallback = workbenchEntries.find((entry) => entry?.kind === "debug-host-proof") ?? null;
+  if (debugHostFallback) {
+    return {
+      entry: debugHostFallback,
+      matchKind: "debug-host-fallback",
+      matchScore: 0
+    };
+  }
+
+  return {
+    entry: null,
+    matchKind: null,
+    matchScore: null
+  };
 }
 
 function getProjectModificationTaskContextForSceneKit(sceneKitContext, {
@@ -9684,7 +9765,10 @@ function getProjectModificationTaskContextForSceneKit(sceneKitContext, {
   for (const page of reconstructionPages) {
     page.matchedSceneMembers = getProjectModificationTaskSceneMembersForPage(sceneKitContext, page);
     page.leadSceneMember = getProjectModificationTaskLeadSceneMemberForPage(page);
-    page.matchedRuntimeWorkbenchEntry = getProjectModificationTaskRuntimeEntryForPage(page);
+    const runtimeMatch = getProjectModificationTaskRuntimeMatchForPage(page);
+    page.matchedRuntimeWorkbenchEntry = runtimeMatch.entry;
+    page.runtimeMatchKind = runtimeMatch.matchKind;
+    page.runtimeMatchScore = runtimeMatch.matchScore;
   }
   const selectedReconstructionPage = reconstructionPages[0]?.matchScore > 0
     ? reconstructionPages[0]
@@ -19414,8 +19498,17 @@ function renderInspector() {
                     ? `slot · ${page.topAffectedSlotName}`
                     : "No top slot or attachment cue recorded yet";
                 const cueSummary = `${page.affectedLayerCount} affected layer${page.affectedLayerCount === 1 ? "" : "s"} · ${page.affectedSlotNames.length} slot cue${page.affectedSlotNames.length === 1 ? "" : "s"} · ${page.affectedAttachmentNames.length} attachment cue${page.affectedAttachmentNames.length === 1 ? "" : "s"}`;
+                const runtimeMatchLabel = page?.runtimeMatchKind === "debug-host-fallback"
+                  ? "debug host proof (unscoped)"
+                  : page?.runtimeMatchKind === "donor-asset"
+                    ? "donor asset match"
+                    : page?.runtimeMatchKind === "page-source"
+                      ? "page source match"
+                      : page?.runtimeMatchKind === "cue-token"
+                        ? "cue token match"
+                        : "";
                 const runtimeSummary = pageRuntimeEntry
-                  ? `runtime · ${pageRuntimeEntry.relativePath ?? pageRuntimeEntry.localMirrorRepoRelativePath ?? pageRuntimeEntry.sourceUrl}`
+                  ? `runtime · ${pageRuntimeEntry.relativePath ?? pageRuntimeEntry.localMirrorRepoRelativePath ?? pageRuntimeEntry.sourceUrl}${runtimeMatchLabel ? ` · ${runtimeMatchLabel}` : ""}`
                   : taskSectionContext.task.canOpenRuntime
                     ? "runtime · no page-linked runtime trace is loaded yet; use Debug Host for the stronger request-backed proof path."
                     : "runtime · runtime trace is not available for this task yet.";
@@ -19475,8 +19568,10 @@ function renderInspector() {
                           class="copy-button"
                           data-task-reconstruction-runtime-source-url="${escapeAttribute(pageRuntimeEntry.sourceUrl)}"
                           data-task-reconstruction-runtime-label="${escapeAttribute(page.pageName)}"
-                          title="Open Runtime Mode on the strongest runtime trace for ${escapeAttribute(page.pageName)}"
-                        >Open Page Runtime</button>
+                          title="${page?.runtimeMatchKind === "debug-host-fallback"
+                            ? "Open Runtime Mode on the best available Debug Host proof (not page-specific yet)"
+                            : `Open Runtime Mode on the strongest runtime trace for ${escapeAttribute(page.pageName)}`}"
+                        >${page?.runtimeMatchKind === "debug-host-fallback" ? "Open Runtime Proof" : "Open Page Runtime"}</button>
                       ` : taskSectionContext.task.canOpenRuntime ? `
                         <button
                           type="button"
