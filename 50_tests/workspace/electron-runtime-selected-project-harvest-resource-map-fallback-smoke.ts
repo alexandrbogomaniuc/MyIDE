@@ -522,6 +522,7 @@ async function main(): Promise<void> {
     assert.equal(payload.harvestedStaticAssetRequestSource, "local-mirror-proxy", "Selected-project harvest resource-map fallback smoke should refresh the static image through the proxy path without a manifest.");
     assert.equal(payload.taskId, taskId, "Selected-project harvest resource-map fallback smoke should keep the prepared task active.");
     assert.equal(payload.pageName, pageName, "Selected-project harvest resource-map fallback smoke should keep the prepared page name.");
+    assert.equal(payload.taskRuntimeEntryKind, "request-backed", "Selected-project harvest resource-map fallback smoke should report the stronger harvested request-backed trace after harvest.");
     assert.equal(payload.taskRuntimeEntrySourceUrl, runtimeSourceUrl, "Selected-project harvest resource-map fallback smoke used the wrong runtime source.");
     assert.equal(payload.runtimeWorkbenchEntryKind, "resource-map", "Selected-project harvest resource-map fallback smoke should stay on request-backed runtime workbench evidence.");
     assert.equal(payload.runtimeModeSelected, true, "Selected-project harvest resource-map fallback smoke should keep Runtime Mode active.");

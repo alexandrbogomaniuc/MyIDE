@@ -508,7 +508,7 @@ async function main(): Promise<void> {
     assert.equal(payload.taskId, taskId, "Selected-project harvest smoke should keep the prepared task active.");
     assert.equal(payload.pageName, pageName, "Selected-project harvest smoke should keep the prepared page name.");
     assert.equal(payload.preHarvestRuntimeWorkbenchEntryKind, "local-mirror-manifest", "Selected-project harvest smoke should start from grounded local-mirror evidence.");
-    assert(payload.taskRuntimeEntryKind, "Selected-project harvest smoke should still match the task through grounded runtime evidence.");
+    assert.equal(payload.taskRuntimeEntryKind, "request-backed", "Selected-project harvest smoke should report the stronger harvested request-backed trace after harvest.");
     assert.equal(payload.taskRuntimeEntrySourceUrl, runtimeSourceUrl, "Selected-project harvest smoke used the wrong runtime source.");
     assert.equal(payload.runtimeWorkbenchEntryKind, "resource-map", "Selected-project harvest smoke should upgrade to a request-backed runtime workbench entry.");
     assert.equal(payload.runtimeModeSelected, true, "Selected-project harvest smoke did not keep the runtime workbench active.");

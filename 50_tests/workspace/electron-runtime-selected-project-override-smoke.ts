@@ -442,7 +442,7 @@ async function main(): Promise<void> {
     assert((payload.harvestApiAttemptedSourceCount ?? 0) >= 1, "Selected-project runtime override smoke should attempt at least one bounded harvest source.");
     assert.equal(payload.harvestApiTopSourceUrl, runtimeSourceUrl, "Selected-project runtime override smoke should keep the harvested runtime source anchored to the seeded source URL.");
     assert.equal(payload.preHarvestRuntimeWorkbenchEntryKind, "page-runtime-proof", "Selected-project runtime override smoke should start from persisted page-proof evidence before harvest.");
-    assert.notEqual(payload.taskRuntimeEntryKind, "page-proof", "Selected-project runtime override smoke should upgrade beyond the weaker page-proof match after harvest.");
+    assert.equal(payload.taskRuntimeEntryKind, "request-backed", "Selected-project runtime override smoke should report the stronger harvested request-backed trace before override creation.");
     assert.equal(payload.taskRuntimeEntrySourceUrl, runtimeSourceUrl, "Selected-project runtime override smoke used the wrong runtime source.");
     assert.equal(payload.runtimeWorkbenchEntryKind, "resource-map", "Selected-project runtime override smoke should use the harvested request-backed runtime entry before override creation.");
     assert.equal(payload.runtimeWorkbenchEntryRequestSource, "local-mirror-proxy", "Selected-project runtime override smoke should reopen on the harvested request-backed source.");

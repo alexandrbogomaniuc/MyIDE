@@ -410,8 +410,7 @@ async function main(): Promise<void> {
     assert.equal(payload.runtimeLaunchEntryUrl, null, "Selected-project reopen smoke should not fake an embedded launch URL.");
     assert.equal(payload.pageRuntimeProofLoaded, false, "Selected-project reopen smoke should not rely on a persisted page proof.");
     assert.equal(payload.runtimeWorkbenchHasPageProofEntry, false, "Selected-project reopen smoke should not surface a page-proof runtime entry.");
-    assert(payload.taskRuntimeEntryKind, "Selected-project reopen smoke should match the task through broader runtime evidence.");
-    assert.notEqual(payload.taskRuntimeEntryKind, "page-proof", "Selected-project reopen smoke should not match the task through a persisted page proof.");
+    assert.equal(payload.taskRuntimeEntryKind, "request-backed", "Selected-project reopen smoke should report the stronger request-backed runtime trace.");
     assert.equal(payload.taskRuntimeEntrySourceUrl, runtimeSourceUrl, "Selected-project reopen smoke used the wrong runtime source.");
     assert.equal(payload.runtimeWorkbenchEntryKind, "resource-map", "Selected-project reopen smoke should reopen from a request-backed runtime resource-map entry.");
     assert.equal(payload.runtimeWorkbenchEntryRequestSource, "upstream-request", "Selected-project reopen smoke should preserve the selected-project request source.");
