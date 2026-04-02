@@ -29,6 +29,7 @@ import { summarizeSectionSkinTextureReconstructionBundleProfiles } from "./summa
 import { summarizeSectionSkinTextureLockBundleProfiles } from "./summarizeSectionSkinTextureLockBundleProfiles";
 import { summarizeSectionSkinTextureAssemblyBundleProfiles } from "./summarizeSectionSkinTextureAssemblyBundleProfiles";
 import { summarizeSectionSkinTextureRenderBundleProfiles } from "./summarizeSectionSkinTextureRenderBundleProfiles";
+import { summarizeSectionSkinTextureCanvasBundleProfiles } from "./summarizeSectionSkinTextureCanvasBundleProfiles";
 import {
   type CaptureRunFile,
   type DiscoveredDonorUrl,
@@ -828,6 +829,18 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
     || section.pageSizeCount > 0
     || section.unresolvedPageLockCount > 0
   );
+  const sectionSkinTextureCanvasBundleProfiles = await summarizeSectionSkinTextureCanvasBundleProfiles({
+    donorId: options.donorId,
+    donorName: options.donorName,
+    textureCanvasBundlesRoot: paths.sectionSkinTextureCanvasBundlesRoot
+  });
+  await writeJsonFile(paths.sectionSkinTextureCanvasBundleProfilesPath, sectionSkinTextureCanvasBundleProfiles);
+  const prioritizedSectionSkinTextureCanvasBundleProfiles = sectionSkinTextureCanvasBundleProfiles.sections.filter((section) =>
+    section.readyPageCount > 0
+    || section.blockedPageCount > 0
+    || section.pageSizeCount > 0
+    || section.unresolvedPageLockCount > 0
+  );
   const rawPayloadBlockedFamilies = captureBlockerFamilies.families
     .filter((family) => family.blockerClass === "raw-payload-blocked");
 
@@ -961,6 +974,10 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
       .map((section) => section.sectionKey),
     sectionSkinTextureRenderBundleCount: sectionSkinTextureRenderBundleProfiles.sectionCount,
     topSectionSkinTextureRenderBundleKeys: prioritizedSectionSkinTextureRenderBundleProfiles
+      .slice(0, 8)
+      .map((section) => section.sectionKey),
+    sectionSkinTextureCanvasBundleCount: sectionSkinTextureCanvasBundleProfiles.sectionCount,
+    topSectionSkinTextureCanvasBundleKeys: prioritizedSectionSkinTextureCanvasBundleProfiles
       .slice(0, 8)
       .map((section) => section.sectionKey),
     sectionSkinTextureInputBundleCount: sectionSkinTextureInputBundleProfiles.sectionCount,

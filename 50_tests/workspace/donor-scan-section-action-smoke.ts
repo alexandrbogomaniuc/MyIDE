@@ -167,6 +167,7 @@ async function main(): Promise<void> {
   assert.ok(result.skinTextureLockBundlePath, "section action should write a skin texture lock bundle");
   assert.ok(result.skinTextureAssemblyBundlePath, "section action should write a skin texture assembly bundle");
   assert.ok(result.skinTextureRenderBundlePath, "section action should write a skin texture render bundle");
+  assert.ok(result.skinTextureCanvasBundlePath, "section action should write a skin texture canvas bundle");
   assert.equal(result.mappedAttachmentCount, 4, "section action should preserve mapped attachment counts");
   assert.equal(result.exactLocalSourceCount, 2, "section action should preserve exact local source counts");
 
@@ -194,6 +195,7 @@ async function main(): Promise<void> {
     skinTextureLockBundlePath?: string | null;
     skinTextureAssemblyBundlePath?: string | null;
     skinTextureRenderBundlePath?: string | null;
+    skinTextureCanvasBundlePath?: string | null;
     mappedAttachmentCount?: number;
   };
   assert.equal(sectionActionRun.sectionKey, "big_win/BW", "section action run should preserve section key");
@@ -218,6 +220,7 @@ async function main(): Promise<void> {
   assert.ok(sectionActionRun.skinTextureLockBundlePath, "section action run should point at the prepared skin texture lock bundle");
   assert.ok(sectionActionRun.skinTextureAssemblyBundlePath, "section action run should point at the prepared skin texture assembly bundle");
   assert.ok(sectionActionRun.skinTextureRenderBundlePath, "section action run should point at the prepared skin texture render bundle");
+  assert.ok(sectionActionRun.skinTextureCanvasBundlePath, "section action run should point at the prepared skin texture canvas bundle");
   assert.equal(sectionActionRun.mappedAttachmentCount, 4, "section action run should persist mapped attachment counts");
 
   const worksetPath = result.worksetPath ?? "";
@@ -355,6 +358,41 @@ async function main(): Promise<void> {
     : null;
   assert.ok(textureRenderProfile, "section skin texture render bundle profiles should include the prepared section");
   assert.equal(textureRenderProfile?.pageSizeCount, 2, "section skin texture render bundle profiles should preserve atlas page size counts");
+
+  const skinTextureCanvasBundlePath = result.skinTextureCanvasBundlePath ?? "";
+  const resolvedSkinTextureCanvasBundlePath = path.isAbsolute(skinTextureCanvasBundlePath)
+    ? skinTextureCanvasBundlePath
+    : path.join(workspaceRoot, skinTextureCanvasBundlePath);
+  const skinTextureCanvasBundle = JSON.parse(await fs.readFile(resolvedSkinTextureCanvasBundlePath, "utf8")) as {
+    sectionKey?: string;
+    textureCanvasState?: string;
+    pageCount?: number;
+    pageSizeCount?: number;
+    drawOperationCount?: number;
+    readyDrawOperationCount?: number;
+    pages?: Array<{ pageName?: string; canvasWidth?: number | null; operations?: Array<{ targetWidth?: number | null }> }>;
+  };
+  assert.equal(skinTextureCanvasBundle.sectionKey, "big_win/BW", "section skin texture canvas bundle should preserve section key");
+  assert.equal(skinTextureCanvasBundle.pageCount, 2, "section skin texture canvas bundle should preserve atlas page counts");
+  assert.equal(skinTextureCanvasBundle.pageSizeCount, 2, "section skin texture canvas bundle should preserve atlas page sizes");
+  assert.equal(skinTextureCanvasBundle.drawOperationCount, 4, "section skin texture canvas bundle should preserve draw operation counts");
+  assert.ok((skinTextureCanvasBundle.readyDrawOperationCount ?? 0) >= 1, "section skin texture canvas bundle should keep grounded draw operations ready");
+  assert.ok(typeof skinTextureCanvasBundle.textureCanvasState === "string" && skinTextureCanvasBundle.textureCanvasState.length > 0, "section skin texture canvas bundle should record a canvas state");
+  assert.ok(Array.isArray(skinTextureCanvasBundle.pages) && skinTextureCanvasBundle.pages.length === 2, "section skin texture canvas bundle should expose per-page canvas rows");
+  assert.equal(skinTextureCanvasBundle.pages?.[0]?.canvasWidth, 1024, "section skin texture canvas bundle should preserve atlas page width");
+  assert.equal(skinTextureCanvasBundle.pages?.[0]?.operations?.[0]?.targetWidth, 220, "section skin texture canvas bundle should preserve draw target geometry");
+
+  const skinTextureCanvasBundleProfilesPath = path.join(donorRoot, "section-skin-texture-canvas-bundle-profiles.json");
+  const skinTextureCanvasBundleProfiles = JSON.parse(await fs.readFile(skinTextureCanvasBundleProfilesPath, "utf8")) as {
+    sectionCount?: number;
+    sections?: Array<{ sectionKey?: string; textureCanvasState?: string; drawOperationCount?: number; textureCanvasBundlePath?: string }>;
+  };
+  assert.ok((skinTextureCanvasBundleProfiles.sectionCount ?? 0) >= 1, "section skin texture canvas bundle profiles should record prepared sections");
+  const textureCanvasProfile = Array.isArray(skinTextureCanvasBundleProfiles.sections)
+    ? skinTextureCanvasBundleProfiles.sections.find((section) => section?.sectionKey === "big_win/BW")
+    : null;
+  assert.ok(textureCanvasProfile, "section skin texture canvas bundle profiles should include the prepared section");
+  assert.equal(textureCanvasProfile?.drawOperationCount, 4, "section skin texture canvas bundle profiles should preserve draw operation counts");
 
   const skinMaterialPlanPath = result.skinMaterialPlanPath ?? "";
   const resolvedSkinMaterialPlanPath = path.isAbsolute(skinMaterialPlanPath) ? skinMaterialPlanPath : path.join(workspaceRoot, skinMaterialPlanPath);
