@@ -139,7 +139,7 @@ That same section action now also writes `section-skin-blueprints/<family>--<sec
 
 When a grounded local `.atlas` is present for that same section, the action now also writes `section-skin-render-plans/<family>--<section>.json`, which turns the ordered blueprint into layered render records with real atlas bounds, offsets, rotation, and page ownership. `section-skin-render-plan-profiles.json` is the compact donor-wide summary of those prepared section render plans.
 
-That same section action now also writes `section-skin-material-plans/<family>--<section>.json`, which answers the next practical reconstruction question: does this section already have the exact atlas page images locally, or only related local image candidates? `section-skin-material-plan-profiles.json` is the compact donor-wide summary of those page-material readiness states.
+That same section action now also writes `section-skin-material-plans/<family>--<section>.json`, which answers the next practical reconstruction question: does this section already have the exact atlas page images locally, or only ranked related local image candidates for each missing page? `section-skin-material-plan-profiles.json` is the compact donor-wide summary of those page-material readiness states.
 
 `donor-scan:capture-family-sources` is the next step after that dossier. It does not invent new URLs. Instead, it turns the grounded family evidence back into a family-specific source-material queue, prioritizes optimized variant-backed and bundle-backed family assets before raw atlas-page retries, and refreshes donor scan after the run.
 

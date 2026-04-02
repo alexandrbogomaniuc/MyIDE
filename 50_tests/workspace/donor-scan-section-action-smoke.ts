@@ -282,21 +282,31 @@ async function main(): Promise<void> {
     pageCount?: number;
     exactPageImageCount?: number;
     missingPageImageCount?: number;
+    pageCandidateReadyCount?: number;
     relatedImageCandidateCount?: number;
-    pages?: Array<{ pageName?: string; exactPageLocalPath?: string | null }>;
+    topCandidateLocalPath?: string | null;
+    pages?: Array<{
+      pageName?: string;
+      exactPageLocalPath?: string | null;
+      topRelatedImageCandidates?: Array<{ localPath?: string; score?: number; matchedTokens?: string[] }>;
+    }>;
   };
   assert.equal(skinMaterialPlan.sectionKey, "big_win/BW", "section skin material plan should preserve section key");
   assert.equal(skinMaterialPlan.materialState, "needs-related-image-review", "section skin material plan should explain when only related images are local");
   assert.equal(skinMaterialPlan.pageCount, 2, "section skin material plan should expose atlas page coverage");
   assert.equal(skinMaterialPlan.exactPageImageCount, 0, "section skin material plan should record missing exact page images in the smoke fixture");
   assert.equal(skinMaterialPlan.missingPageImageCount, 2, "section skin material plan should count missing atlas pages");
+  assert.equal(skinMaterialPlan.pageCandidateReadyCount, 2, "section skin material plan should record pages with ranked candidates");
   assert.ok((skinMaterialPlan.relatedImageCandidateCount ?? 0) >= 1, "section skin material plan should preserve related image candidates");
+  assert.ok(typeof skinMaterialPlan.topCandidateLocalPath === "string" && skinMaterialPlan.topCandidateLocalPath.length > 0, "section skin material plan should preserve a top candidate preview path");
   assert.ok(Array.isArray(skinMaterialPlan.pages) && skinMaterialPlan.pages.length === 2, "section skin material plan should expose page material records");
+  assert.ok(Array.isArray(skinMaterialPlan.pages?.[0]?.topRelatedImageCandidates) && (skinMaterialPlan.pages?.[0]?.topRelatedImageCandidates?.length ?? 0) >= 1, "section skin material plan should rank page candidates");
+  assert.ok((skinMaterialPlan.pages?.[0]?.topRelatedImageCandidates?.[0]?.score ?? 0) > 0, "section skin material plan should score ranked candidates");
 
   const skinMaterialPlanProfilesPath = path.join(donorRoot, "section-skin-material-plan-profiles.json");
   const skinMaterialPlanProfiles = JSON.parse(await fs.readFile(skinMaterialPlanProfilesPath, "utf8")) as {
     sectionCount?: number;
-    sections?: Array<{ sectionKey?: string; materialState?: string; materialPlanPath?: string }>;
+    sections?: Array<{ sectionKey?: string; materialState?: string; materialPlanPath?: string; pageCandidateReadyCount?: number; topCandidateLocalPath?: string | null }>;
   };
   assert.ok((skinMaterialPlanProfiles.sectionCount ?? 0) >= 1, "section skin material plan profiles should record prepared sections");
   const materialProfile = Array.isArray(skinMaterialPlanProfiles.sections)
@@ -304,6 +314,8 @@ async function main(): Promise<void> {
     : null;
   assert.ok(materialProfile, "section skin material plan profiles should include the prepared section");
   assert.equal(materialProfile?.materialState, "needs-related-image-review", "section skin material plan profiles should preserve material readiness");
+  assert.equal(materialProfile?.pageCandidateReadyCount, 2, "section skin material plan profiles should preserve ranked page coverage");
+  assert.ok(typeof materialProfile?.topCandidateLocalPath === "string" && materialProfile.topCandidateLocalPath.length > 0, "section skin material plan profiles should preserve a top candidate preview path");
 
   console.log("PASS donor-scan:section-action");
   console.log(`Donor: ${donorId}`);

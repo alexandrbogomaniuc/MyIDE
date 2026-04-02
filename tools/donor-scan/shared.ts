@@ -1135,6 +1135,9 @@ export interface SectionSkinMaterialCandidateRecord {
   sourceKind: FamilyReconstructionLocalSourceRecord["sourceKind"];
   relation: FamilyReconstructionLocalSourceRecord["relation"];
   familyName: string;
+  score: number;
+  matchedTokens: string[];
+  reasons: string[];
 }
 
 export interface SectionSkinMaterialPageRecord {
@@ -1144,7 +1147,7 @@ export interface SectionSkinMaterialPageRecord {
   slotNames: string[];
   exactPageLocalPath: string | null;
   relatedImageCandidateCount: number;
-  relatedImageCandidates: SectionSkinMaterialCandidateRecord[];
+  topRelatedImageCandidates: SectionSkinMaterialCandidateRecord[];
 }
 
 export interface SectionSkinMaterialPlanFile {
@@ -1162,7 +1165,9 @@ export interface SectionSkinMaterialPlanFile {
   pageCount: number;
   exactPageImageCount: number;
   missingPageImageCount: number;
+  pageCandidateReadyCount: number;
   relatedImageCandidateCount: number;
+  topCandidateLocalPath: string | null;
   exactLocalSourceCount: number;
   relatedLocalSourceCount: number;
   sampleLocalSourcePath: string | null;
@@ -1183,7 +1188,9 @@ export interface SectionSkinMaterialPlanProfileRecord {
   pageCount: number;
   exactPageImageCount: number;
   missingPageImageCount: number;
+  pageCandidateReadyCount: number;
   relatedImageCandidateCount: number;
+  topCandidateLocalPath: string | null;
   sampleLocalSourcePath: string | null;
   atlasSourcePath: string | null;
   materialPlanPath: string;

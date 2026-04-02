@@ -358,7 +358,9 @@ export interface DonorScanStatus {
     pageCount: number;
     exactPageImageCount: number;
     missingPageImageCount: number;
+    pageCandidateReadyCount: number;
     relatedImageCandidateCount: number;
+    topCandidateLocalPath: string | null;
     sampleLocalSourcePath: string | null;
     atlasSourcePath: string | null;
     materialPlanPath: string;
@@ -1327,7 +1329,9 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
           pageCount: typeof section.pageCount === "number" ? section.pageCount : 0,
           exactPageImageCount: typeof section.exactPageImageCount === "number" ? section.exactPageImageCount : 0,
           missingPageImageCount: typeof section.missingPageImageCount === "number" ? section.missingPageImageCount : 0,
+          pageCandidateReadyCount: typeof section.pageCandidateReadyCount === "number" ? section.pageCandidateReadyCount : 0,
           relatedImageCandidateCount: typeof section.relatedImageCandidateCount === "number" ? section.relatedImageCandidateCount : 0,
+          topCandidateLocalPath: typeof section.topCandidateLocalPath === "string" ? section.topCandidateLocalPath : null,
           sampleLocalSourcePath: typeof section.sampleLocalSourcePath === "string" ? section.sampleLocalSourcePath : null,
           atlasSourcePath: typeof section.atlasSourcePath === "string" ? section.atlasSourcePath : null,
           materialPlanPath: typeof section.materialPlanPath === "string" ? section.materialPlanPath : "",
