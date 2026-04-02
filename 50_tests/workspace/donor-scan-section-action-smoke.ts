@@ -166,6 +166,7 @@ async function main(): Promise<void> {
   assert.ok(result.skinTextureReconstructionBundlePath, "section action should write a skin texture reconstruction bundle");
   assert.ok(result.skinTextureLockBundlePath, "section action should write a skin texture lock bundle");
   assert.ok(result.skinTextureAssemblyBundlePath, "section action should write a skin texture assembly bundle");
+  assert.ok(result.skinTextureRenderBundlePath, "section action should write a skin texture render bundle");
   assert.equal(result.mappedAttachmentCount, 4, "section action should preserve mapped attachment counts");
   assert.equal(result.exactLocalSourceCount, 2, "section action should preserve exact local source counts");
 
@@ -192,6 +193,7 @@ async function main(): Promise<void> {
     skinTextureReconstructionBundlePath?: string | null;
     skinTextureLockBundlePath?: string | null;
     skinTextureAssemblyBundlePath?: string | null;
+    skinTextureRenderBundlePath?: string | null;
     mappedAttachmentCount?: number;
   };
   assert.equal(sectionActionRun.sectionKey, "big_win/BW", "section action run should preserve section key");
@@ -215,6 +217,7 @@ async function main(): Promise<void> {
   assert.ok(sectionActionRun.skinTextureReconstructionBundlePath, "section action run should point at the prepared skin texture reconstruction bundle");
   assert.ok(sectionActionRun.skinTextureLockBundlePath, "section action run should point at the prepared skin texture lock bundle");
   assert.ok(sectionActionRun.skinTextureAssemblyBundlePath, "section action run should point at the prepared skin texture assembly bundle");
+  assert.ok(sectionActionRun.skinTextureRenderBundlePath, "section action run should point at the prepared skin texture render bundle");
   assert.equal(sectionActionRun.mappedAttachmentCount, 4, "section action run should persist mapped attachment counts");
 
   const worksetPath = result.worksetPath ?? "";
@@ -289,16 +292,21 @@ async function main(): Promise<void> {
   const skinRenderPlan = JSON.parse(await fs.readFile(resolvedSkinRenderPlanPath, "utf8")) as {
     sectionKey?: string;
     renderState?: string;
+    pageSizeCount?: number;
     layerCount?: number;
     mappedLayerCount?: number;
     atlasSourcePath?: string | null;
+    pages?: Array<{ pageName?: string; pageSize?: { width?: number; height?: number } | null }>;
     layers?: Array<{ slotName?: string; layerState?: string; bounds?: { width?: number } | null }>;
   };
   assert.equal(skinRenderPlan.sectionKey, "big_win/BW", "section skin render plan should preserve section key");
   assert.equal(skinRenderPlan.renderState, "ready-for-layered-render-reconstruction", "section skin render plan should mark atlas-grounded sections as render ready");
+  assert.equal(skinRenderPlan.pageSizeCount, 2, "section skin render plan should preserve atlas page sizes when the atlas exposes them");
   assert.equal(skinRenderPlan.layerCount, 4, "section skin render plan should preserve ordered layer counts");
   assert.equal(skinRenderPlan.mappedLayerCount, 4, "section skin render plan should map each grounded layer");
   assert.equal(skinRenderPlan.atlasSourcePath, `10_donors/${donorId}/evidence/local_only/harvest/files/cdn.example.invalid/big_win.atlas`, "section skin render plan should retain the local atlas source path");
+  assert.ok(Array.isArray(skinRenderPlan.pages) && skinRenderPlan.pages.length === 2, "section skin render plan should expose atlas page records");
+  assert.equal(skinRenderPlan.pages?.[0]?.pageSize?.width, 1024, "section skin render plan should preserve atlas page width");
   assert.ok(Array.isArray(skinRenderPlan.layers) && skinRenderPlan.layers.length === 4, "section skin render plan should expose ordered layers");
   assert.equal(skinRenderPlan.layers?.[0]?.slotName, "background", "section skin render plan should preserve slot order");
   assert.equal(skinRenderPlan.layers?.[0]?.layerState, "atlas-region-exact", "section skin render plan should record atlas-region matches");
@@ -315,6 +323,38 @@ async function main(): Promise<void> {
     : null;
   assert.ok(renderProfile, "section skin render plan profiles should include the prepared section");
   assert.equal(renderProfile?.renderState, "ready-for-layered-render-reconstruction", "section skin render plan profiles should preserve render readiness");
+
+  const skinTextureRenderBundlePath = result.skinTextureRenderBundlePath ?? "";
+  const resolvedSkinTextureRenderBundlePath = path.isAbsolute(skinTextureRenderBundlePath)
+    ? skinTextureRenderBundlePath
+    : path.join(workspaceRoot, skinTextureRenderBundlePath);
+  const skinTextureRenderBundle = JSON.parse(await fs.readFile(resolvedSkinTextureRenderBundlePath, "utf8")) as {
+    sectionKey?: string;
+    textureRenderState?: string;
+    pageCount?: number;
+    pageSizeCount?: number;
+    missingPageSizeCount?: number;
+    pages?: Array<{ pageName?: string; pageWidth?: number | null; pageHeight?: number | null; selectedLocalPath?: string | null }>;
+  };
+  assert.equal(skinTextureRenderBundle.sectionKey, "big_win/BW", "section skin texture render bundle should preserve section key");
+  assert.equal(skinTextureRenderBundle.pageCount, 2, "section skin texture render bundle should preserve atlas page counts");
+  assert.equal(skinTextureRenderBundle.pageSizeCount, 2, "section skin texture render bundle should preserve atlas page sizes");
+  assert.equal(skinTextureRenderBundle.missingPageSizeCount, 0, "section skin texture render bundle should keep sized atlas pages out of the missing count");
+  assert.ok(typeof skinTextureRenderBundle.textureRenderState === "string" && skinTextureRenderBundle.textureRenderState.length > 0, "section skin texture render bundle should record a render state");
+  assert.ok(Array.isArray(skinTextureRenderBundle.pages) && skinTextureRenderBundle.pages.length === 2, "section skin texture render bundle should expose per-page render rows");
+  assert.equal(skinTextureRenderBundle.pages?.[0]?.pageWidth, 1024, "section skin texture render bundle should preserve atlas page width");
+
+  const skinTextureRenderBundleProfilesPath = path.join(donorRoot, "section-skin-texture-render-bundle-profiles.json");
+  const skinTextureRenderBundleProfiles = JSON.parse(await fs.readFile(skinTextureRenderBundleProfilesPath, "utf8")) as {
+    sectionCount?: number;
+    sections?: Array<{ sectionKey?: string; textureRenderState?: string; pageSizeCount?: number; textureRenderBundlePath?: string }>;
+  };
+  assert.ok((skinTextureRenderBundleProfiles.sectionCount ?? 0) >= 1, "section skin texture render bundle profiles should record prepared sections");
+  const textureRenderProfile = Array.isArray(skinTextureRenderBundleProfiles.sections)
+    ? skinTextureRenderBundleProfiles.sections.find((section) => section?.sectionKey === "big_win/BW")
+    : null;
+  assert.ok(textureRenderProfile, "section skin texture render bundle profiles should include the prepared section");
+  assert.equal(textureRenderProfile?.pageSizeCount, 2, "section skin texture render bundle profiles should preserve atlas page size counts");
 
   const skinMaterialPlanPath = result.skinMaterialPlanPath ?? "";
   const resolvedSkinMaterialPlanPath = path.isAbsolute(skinMaterialPlanPath) ? skinMaterialPlanPath : path.join(workspaceRoot, skinMaterialPlanPath);

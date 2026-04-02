@@ -7,6 +7,8 @@ import type {
   SectionSkinRenderBounds,
   SectionSkinRenderLayerRecord,
   SectionSkinRenderOffsets,
+  SectionSkinRenderPageRecord,
+  SectionSkinRenderPageSize,
   SectionSkinRenderPlanFile
 } from "./shared";
 import { fileExists, readOptionalTextFile, workspaceRoot } from "./shared";
@@ -24,7 +26,13 @@ interface ParsedAtlasRegionRecord {
   offsets: SectionSkinRenderOffsets | null;
 }
 
+interface ParsedAtlasPageRecord {
+  pageName: string;
+  pageSize: SectionSkinRenderPageSize | null;
+}
+
 interface ParsedAtlasLayout {
+  pageMap: Map<string, ParsedAtlasPageRecord>;
   regionMap: Map<string, ParsedAtlasRegionRecord>;
 }
 
@@ -38,6 +46,7 @@ function parseNumberList(value: string, expectedCount: number): number[] | null 
 
 function parseAtlasLayout(text: string): ParsedAtlasLayout {
   const lines = text.split(/\r?\n/);
+  const pageMap = new Map<string, ParsedAtlasPageRecord>();
   const regionMap = new Map<string, ParsedAtlasRegionRecord>();
   let currentPage: string | null = null;
   let currentRegion: string | null = null;
@@ -60,6 +69,10 @@ function parseAtlasLayout(text: string): ParsedAtlasLayout {
         currentPage = trimmed;
         currentRegion = null;
         awaitingPage = false;
+        pageMap.set(trimmed, {
+          pageName: trimmed,
+          pageSize: null
+        });
       }
       continue;
     }
@@ -79,13 +92,23 @@ function parseAtlasLayout(text: string): ParsedAtlasLayout {
       continue;
     }
 
-    if (!currentRegion) {
-      continue;
-    }
-
     const [rawKey, rawValue = ""] = trimmed.split(/:(.+)/, 2);
     const key = rawKey.trim().toLowerCase();
     const value = rawValue.trim();
+    if (!currentRegion) {
+      if (key === "size") {
+        const parsed = parseNumberList(value, 2);
+        const pageRecord = pageMap.get(currentPage);
+        if (parsed && pageRecord) {
+          pageRecord.pageSize = {
+            width: parsed[0],
+            height: parsed[1]
+          };
+        }
+      }
+      continue;
+    }
+
     const record = regionMap.get(currentRegion);
     if (!record) {
       continue;
@@ -120,7 +143,7 @@ function parseAtlasLayout(text: string): ParsedAtlasLayout {
     }
   }
 
-  return { regionMap };
+  return { pageMap, regionMap };
 }
 
 async function loadAtlasLayout(
@@ -148,7 +171,7 @@ async function loadAtlasLayout(
 
   spineSourcePath = localSources.find((candidate) => /\.json$/i.test(candidate.localPath))?.localPath ?? null;
   return {
-    layout: { regionMap: new Map() },
+    layout: { pageMap: new Map(), regionMap: new Map() },
     atlasSourcePath,
     spineSourcePath
   };
@@ -202,9 +225,25 @@ export async function buildSectionSkinRenderPlan(
       localPagePath: findLocalPagePath(pageName, reconstructionBundle.localSources)
     };
   });
+  const orderedPageNames = Array.from(new Set([
+    ...reconstructionBundle.atlasPageNames,
+    ...Array.from(layout.pageMap.keys()).sort((left, right) => left.localeCompare(right))
+  ]));
+  const pages: SectionSkinRenderPageRecord[] = orderedPageNames.map((pageName, orderIndex) => {
+    const pageRecord = layout.pageMap.get(pageName) ?? null;
+    const regionCount = layers.filter((layer) => layer.pageName === pageName).length;
+    return {
+      orderIndex,
+      pageName,
+      pageSize: pageRecord?.pageSize ?? null,
+      localPagePath: findLocalPagePath(pageName, reconstructionBundle.localSources),
+      regionCount
+    };
+  });
 
   const mappedLayerCount = layers.filter((layer) => layer.layerState === "atlas-region-exact").length;
   const unmappedLayerCount = layers.length - mappedLayerCount;
+  const pageSizeCount = pages.filter((page) => page.pageSize !== null).length;
   const renderState: SectionSkinRenderPlanFile["renderState"] = layers.length > 0 && unmappedLayerCount === 0
     ? "ready-for-layered-render-reconstruction"
     : "needs-manual-render-review";
@@ -228,6 +267,7 @@ export async function buildSectionSkinRenderPlan(
     unmappedAttachmentCount: reconstructionBundle.unmappedAttachmentCount,
     atlasPageCount: reconstructionBundle.atlasPageCount,
     atlasPageNames: reconstructionBundle.atlasPageNames,
+    pageSizeCount,
     slotCount: skinBlueprint.slotCount,
     exactLocalSourceCount: reconstructionBundle.exactLocalSourceCount,
     relatedLocalSourceCount: reconstructionBundle.relatedLocalSourceCount,
@@ -242,6 +282,7 @@ export async function buildSectionSkinRenderPlan(
     mappedLayerCount,
     unmappedLayerCount,
     nextRenderStep,
+    pages,
     layers
   };
 }

@@ -55,6 +55,7 @@ export async function summarizeSectionSkinRenderPlanProfiles(
       mappedLayerCount: renderPlan.mappedLayerCount,
       unmappedLayerCount: renderPlan.unmappedLayerCount,
       atlasPageCount: renderPlan.atlasPageCount,
+      pageSizeCount: renderPlan.pageSizeCount,
       exactLocalSourceCount: renderPlan.exactLocalSourceCount,
       sampleLocalSourcePath: renderPlan.sampleLocalSourcePath,
       atlasSourcePath: renderPlan.atlasSourcePath,
