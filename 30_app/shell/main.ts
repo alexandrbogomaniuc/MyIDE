@@ -21,6 +21,7 @@ import {
 } from "../../tools/donor-assets/shared";
 import {
   buildLocalRuntimeLaunchHtml,
+  buildLocalRuntimeMirrorProxyUrl,
   buildLocalRuntimeMirrorRedirectMap,
   findLocalRuntimeMirrorEntry,
   findLocalRuntimeMirrorEntryByRelativePath,
@@ -38,7 +39,9 @@ import {
 } from "../runtime/runtimeResourceMap";
 import {
   buildRuntimeDebugCenterPickScript,
+  buildRuntimeDebugPrimeAssetRequestScript,
   buildRuntimeDebugStatusScript,
+  selectRuntimeDebugBridgeAssetCandidate,
   selectRuntimeDebugCandidate,
   type RuntimeDebugBridgeStatus,
   type RuntimeDebugPickPayload
@@ -583,16 +586,77 @@ async function runRuntimeDebugHost(options: RuntimeDebugHostOptions = {}): Promi
       }
     });
     activeRuntimeDebugWindow = debugWindow;
+    const runtimeDebugConsoleMessages: Array<{
+      level: string;
+      message: string;
+      sourceId: string | null;
+      line: number | null;
+    }> = [];
+    let runtimeDebugLoadFailure: string | null = null;
     debugWindow.on("closed", () => {
       if (activeRuntimeDebugWindow === debugWindow) {
         activeRuntimeDebugWindow = null;
       }
     });
+    const debugContents = debugWindow.webContents as Electron.WebContents & {
+      on: (event: string, listener: (...args: any[]) => void) => Electron.WebContents;
+      reloadIgnoringCache?: () => void;
+    };
+    debugContents.on("console-message", (...args: any[]) => {
+      let level: string = "info";
+      let message = "";
+      let sourceId: string | null = null;
+      let line: number | null = null;
+
+      if (typeof args[1] === "object" && args[1] && !Array.isArray(args[1])) {
+        const params = args[1] as {
+          level?: number | string;
+          message?: string;
+          sourceId?: string;
+          line?: number;
+        };
+        if (typeof params.level === "number") {
+          level = params.level >= 2 ? "error" : params.level === 1 ? "warn" : "info";
+        } else if (typeof params.level === "string" && params.level.length > 0) {
+          level = params.level;
+        }
+        message = typeof params.message === "string" ? params.message : "";
+        sourceId = typeof params.sourceId === "string" && params.sourceId.length > 0 ? params.sourceId : null;
+        line = typeof params.line === "number" ? params.line : null;
+      } else {
+        const rawLevel = args[1];
+        level = typeof rawLevel === "number"
+          ? (rawLevel >= 2 ? "error" : rawLevel === 1 ? "warn" : "info")
+          : "info";
+        message = typeof args[2] === "string" ? args[2] : "";
+        sourceId = typeof args[4] === "string" && args[4].length > 0 ? args[4] : null;
+        line = typeof args[3] === "number" ? args[3] : null;
+      }
+
+      const normalizedMessage = message.replace(/\s+/g, " ").trim();
+      if (!normalizedMessage) {
+        return;
+      }
+      runtimeDebugConsoleMessages.push({
+        level,
+        message: normalizedMessage.slice(0, 400),
+        sourceId,
+        line
+      });
+      if (runtimeDebugConsoleMessages.length > 20) {
+        runtimeDebugConsoleMessages.splice(0, runtimeDebugConsoleMessages.length - 20);
+      }
+    });
+    debugWindow.webContents.on("did-fail-load", (_event, errorCode, errorDescription) => {
+      runtimeDebugLoadFailure = `${errorCode}: ${errorDescription}`;
+    });
 
     const failIfGone = (_event: unknown, details: { reason: string }) => {
       const payload = {
         status: "fail",
-        error: `Runtime debug host renderer exited (${details.reason}).`
+        error: `Runtime debug host renderer exited (${details.reason}).`,
+        loadFailure: runtimeDebugLoadFailure,
+        consoleMessages: runtimeDebugConsoleMessages.slice(-8)
       };
       lastRuntimeDebugResult = payload;
       console.log(`MYIDE_RUNTIME_DEBUG_RESULT:${JSON.stringify(payload)}`);
@@ -648,7 +712,9 @@ async function runRuntimeDebugHost(options: RuntimeDebugHostOptions = {}): Promi
         overrideCleared: false,
         overrideHitCountAfterReload: 0,
         overrideStatusEntryCount: 0,
-        overrideBlocked: null
+        overrideBlocked: null,
+        loadFailure: runtimeDebugLoadFailure,
+        consoleMessages: runtimeDebugConsoleMessages.slice(-8)
       };
       lastRuntimeDebugResult = payload;
       return payload;
@@ -662,8 +728,20 @@ async function runRuntimeDebugHost(options: RuntimeDebugHostOptions = {}): Promi
     sendRuntimeDebugSpace(debugWindow);
     await delay(2500);
 
-    const resourceMapBeforeOverride = buildRuntimeResourceMapStatus("project_001");
-    const candidate = selectRuntimeDebugCandidate(resourceMapBeforeOverride);
+    const statusBeforeOverride = await safeExecuteDebugScript<RuntimeDebugBridgeStatus>(debugWindow, buildRuntimeDebugStatusScript());
+    const bridgeAssetCandidate = selectRuntimeDebugBridgeAssetCandidate(statusBeforeOverride);
+    let resourceMapBeforeOverride = buildRuntimeResourceMapStatus("project_001");
+    let candidate = selectRuntimeDebugCandidate(resourceMapBeforeOverride);
+
+    if (!candidate && bridgeAssetCandidate) {
+      setRuntimeRequestStage("prime");
+      const requestUrl = buildLocalRuntimeMirrorProxyUrl("project_001", bridgeAssetCandidate.canonicalSourceUrl);
+      await safeExecuteDebugScript(debugWindow, buildRuntimeDebugPrimeAssetRequestScript(requestUrl));
+      await delay(1500);
+      resourceMapBeforeOverride = buildRuntimeResourceMapStatus("project_001");
+      candidate = selectRuntimeDebugCandidate(resourceMapBeforeOverride);
+    }
+
     const donorAsset = await loadPreferredRuntimeDebugDonorAsset();
 
     let overrideCreated = false;
@@ -688,9 +766,6 @@ async function runRuntimeDebugHost(options: RuntimeDebugHostOptions = {}): Promi
       setRuntimeRequestStage("reload");
       await clearRuntimeSessionCache(runtimeDebugPartition);
       const reloadPromise = waitForNextLoad(debugWindow, timeoutMs);
-      const debugContents = debugWindow.webContents as Electron.WebContents & {
-        reloadIgnoringCache?: () => void;
-      };
       if (typeof debugContents.reloadIgnoringCache === "function") {
         debugContents.reloadIgnoringCache();
       } else {
@@ -752,7 +827,9 @@ async function runRuntimeDebugHost(options: RuntimeDebugHostOptions = {}): Promi
       overrideCleared,
       overrideHitCountAfterReload,
       overrideStatusEntryCount: finalOverrideStatus.entryCount,
-      overrideBlocked
+      overrideBlocked,
+      loadFailure: runtimeDebugLoadFailure,
+      consoleMessages: runtimeDebugConsoleMessages.slice(-8)
     };
     lastRuntimeDebugResult = payload;
 
@@ -1015,6 +1092,24 @@ function installRuntimeAssetOverrideInterception(): void {
       callback({});
       return;
     }
+
+    const observed = getRuntimeObservedRequestMetadata(redirectURL) ?? getRuntimeObservedRequestMetadata(details.url);
+    if (observed) {
+      recordRuntimeResourceHit(
+        details.url,
+        observed.canonicalSourceUrl,
+        observed.requestSource,
+        {
+          captureMethod: "partition-webrequest",
+          localMirrorAbsolutePath: observed.localMirrorAbsolutePath ?? null,
+          overrideAbsolutePath: observed.overrideAbsolutePath ?? null,
+          fileType: observed.fileType ?? null,
+          runtimeRelativePath: observed.runtimeRelativePath ?? null,
+          resourceType: details.resourceType,
+          stage: runtimeRequestStage
+        }
+      );
+    }
     callback({ redirectURL });
   };
 
@@ -1080,7 +1175,12 @@ function sendRuntimeMirrorResponse(
   headers: Record<string, string>,
   body: string | Uint8Array
 ): void {
-  response.writeHead(statusCode, headers);
+  response.writeHead(statusCode, {
+    "access-control-allow-origin": "*",
+    "access-control-allow-methods": "GET, OPTIONS",
+    "cross-origin-resource-policy": "cross-origin",
+    ...headers
+  });
   response.end(body);
 }
 

@@ -166,14 +166,15 @@ Recommended rule:
 7. Use **Spin / Trigger** if you want the bounded runtime action path that currently sends `Space` to the runtime surface.
 8. Use **Use Debug Host** from the Runtime toolbar as the primary runtime action.
 9. The dedicated Runtime Debug Host loads the same local mirror in a separate window and is the current path that can prove a request-backed static image override hit.
-10. Use **Pick / Inspect** and then click the live runtime surface when you need the strongest grounded runtime trace available inside the shell.
-11. Read the right-hand inspector and runtime asset workbench for picked target, request-backed source priority, runtime/display-object trace when exposed, texture/frame info when exposed, runtime URL, local mirror file path when grounded, the current runtime resource-map record, override eligibility, and supporting evidence refs.
-12. Use the new runtime bridge actions in the inspector or workbench to:
+10. If that Runtime Debug Host path blocks again, check its console/load diagnostics first; the current mirror now serves cross-origin-safe headers for mirrored module/runtime assets, which was the concrete blocker behind the last `rsa-plugins.js` failure.
+11. Use **Pick / Inspect** and then click the live runtime surface when you need the strongest grounded runtime trace available inside the shell.
+12. Read the right-hand inspector and runtime asset workbench for picked target, request-backed source priority, runtime/display-object trace when exposed, texture/frame info when exposed, runtime URL, local mirror file path when grounded, the current runtime resource-map record, override eligibility, and supporting evidence refs.
+13. Use the new runtime bridge actions in the inspector or workbench to:
    - focus the strongest grounded donor asset card
    - focus the strongest grounded donor evidence entry
    - focus a related compose object if one already exists for that donor-linked asset
-13. If the picked runtime trace or runtime asset workbench shows **Eligible static image override**, click **Create Override**.
-14. The embedded runtime reloads immediately, and you should reopen or keep using **Use Debug Host** for the strongest override-hit confirmation path.
+14. If the picked runtime trace or runtime asset workbench shows **Eligible static image override**, click **Create Override**.
+15. The embedded runtime reloads immediately, and you should reopen or keep using **Use Debug Host** for the strongest override-hit confirmation path.
 15. Use **Clear Override** if you want to restore the original donor runtime asset.
 16. Use **Show Runtime Note** or **Show Init Response** to jump back to the grounded runtime evidence behind the current Runtime Mode slice.
 
