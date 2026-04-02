@@ -25,6 +25,8 @@ Prepared tasks can now also expose donor-backed task kits in the donor palette, 
 
 After a task kit has been imported once, the same prepared task now reopens that grouped Compose section directly, so Lane A work can keep moving on the strongest real editing surface instead of falling back to a generic board row.
 
+When one grouped section is selected in Compose, the inspector can now surface task-aware edit actions for that active Modification task, including task-local replace actions that preserve layout while staying on the same grouped section.
+
 ## Current Phase
 - Current milestone: IDE-LIFECYCLE-A lifecycle backbone on top of the existing runtime-first shell, donor scan, and compose/runtime proving slices.
 - Active validated donor slice: `donor_001_mystery_garden`.

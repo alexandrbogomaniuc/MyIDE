@@ -30,6 +30,7 @@ The operational workflow is now:
 5. Start a prepared task from the board so the shell switches into Compose or Runtime with the strongest grounded runtime source it can match for that task.
 6. When a task also carries grounded local image sources, use **Show Task Kit** or **Import Task Kit** to focus or import the donor-backed source kit for that specific task instead of manually hunting through the wider donor palette.
 7. After that import exists, the same task now reopens on its grouped Compose section so task-local editing can continue from the imported kit instead of from a blank or unrelated selection.
+8. When one grouped section member is selected, the inspector now exposes task-aware replace actions from that task kit so editing can continue on the current section without leaving Compose.
 
 ## Preferred Launchers
 - `./run/start-workbench.sh`

@@ -4749,6 +4749,41 @@ async function runLiveDonorImportSmoke() {
     );
     baseResult.taskKitComposeLandingVerified = true;
 
+    const taskKitEditableMemberId = importedTaskSceneSection.memberObjectIds[0] ?? null;
+    if (!taskKitEditableMemberId) {
+      throw new Error(`Imported task section ${importedTaskSceneSection.id} has no editable member objects to prove task-aware replace actions.`);
+    }
+
+    const taskKitEditableMemberRow = await waitForRendererCondition(
+      () => elements.sceneExplorer?.querySelector(`[data-object-id="${taskKitEditableMemberId}"]`) ?? null,
+      `${taskKitEditableMemberId} scene explorer row`
+    );
+    clickRendererElement(taskKitEditableMemberRow);
+    await waitForRendererCondition(
+      () => state.selectedObjectId === taskKitEditableMemberId && getSelectedObjectIds().length === 1,
+      `${taskKitEditableMemberId} to become the single selected task member`
+    );
+    baseResult.taskKitEditableMemberId = taskKitEditableMemberId;
+
+    const taskSectionReplaceButton = await waitForRendererCondition(
+      () => elements.inspector?.querySelector("[data-task-section-replace-asset-id]") ?? null,
+      `${preparedModificationTask.taskId} task-aware replace button`
+    );
+    if (!(taskSectionReplaceButton instanceof HTMLElement) || !taskSectionReplaceButton.dataset.taskSectionReplaceAssetId) {
+      throw new Error(`Task-aware replace controls are missing for ${preparedModificationTask.taskId}.`);
+    }
+    const taskSectionReplaceAssetId = taskSectionReplaceButton.dataset.taskSectionReplaceAssetId;
+    clickRendererElement(taskSectionReplaceButton);
+    await waitForRendererCondition(
+      () => {
+        const object = getEditableObjectById(taskKitEditableMemberId);
+        return object?.donorAsset?.assetId === taskSectionReplaceAssetId ? object : null;
+      },
+      `${taskKitEditableMemberId} to be replaced by task-aware asset ${taskSectionReplaceAssetId}`
+    );
+    baseResult.taskKitQuickReplaceAssetId = taskSectionReplaceAssetId;
+    baseResult.taskKitQuickReplaceVerified = true;
+
     state.donorAssetUi.assetGroupFilter = "all";
     renderAll();
 
@@ -5659,11 +5694,11 @@ async function runLiveDonorImportSmoke() {
       throw new Error("The donor source evidence jump did not complete.");
     }
 
-    if (!baseResult.taskKitImportCompleted || !baseResult.taskKitComposeLandingVerified) {
-      throw new Error("The prepared modification task did not land on an imported grouped scene section.");
+    if (!baseResult.taskKitImportCompleted || !baseResult.taskKitComposeLandingVerified || !baseResult.taskKitQuickReplaceVerified) {
+      throw new Error("The prepared modification task did not complete grouped Compose landing plus task-aware replace verification.");
     }
 
-    const successMessage = `Live donor import smoke passed: imported task kit ${baseResult.taskKitGroupKey ?? "n/a"} into scene section ${baseResult.taskKitSectionLabel ?? "n/a"}, reopened active task ${baseResult.taskKitTaskId ?? "n/a"} on that grouped compose surface, then imported ${importedAssets.length} donor assets (${baseResult.importedFileTypes.join(", ")}), moved ${primaryImportedAsset.objectId} to (${baseResult.draggedX}, ${baseResult.draggedY}), resized it to ${baseResult.resizedWidth}×${baseResult.resizedHeight}, multi-selected/aligned/distributed donor-backed objects, replaced ${baseResult.replacementObjectId ?? "n/a"} with donor asset ${baseResult.replacementDonorEvidenceId ?? "n/a"}, and reloaded donor linkage for every donor-backed object.`;
+    const successMessage = `Live donor import smoke passed: imported task kit ${baseResult.taskKitGroupKey ?? "n/a"} into scene section ${baseResult.taskKitSectionLabel ?? "n/a"}, reopened active task ${baseResult.taskKitTaskId ?? "n/a"} on that grouped compose surface, replaced ${baseResult.taskKitEditableMemberId ?? "n/a"} with task-aware source ${baseResult.taskKitQuickReplaceAssetId ?? "n/a"}, then imported ${importedAssets.length} donor assets (${baseResult.importedFileTypes.join(", ")}), moved ${primaryImportedAsset.objectId} to (${baseResult.draggedX}, ${baseResult.draggedY}), resized it to ${baseResult.resizedWidth}×${baseResult.resizedHeight}, multi-selected/aligned/distributed donor-backed objects, replaced ${baseResult.replacementObjectId ?? "n/a"} with donor asset ${baseResult.replacementDonorEvidenceId ?? "n/a"}, and reloaded donor linkage for every donor-backed object.`;
     setPreviewStatus(successMessage);
     baseResult.previewStatus = successMessage;
     document.body.dataset.liveDonorImportSmoke = "pass";
@@ -9223,6 +9258,37 @@ function getProjectModificationTaskSceneSection(task, editorData = state.editorD
   return groupKey ? getSceneSectionEntryForDonorAssetGroupKey(groupKey, editorData) : null;
 }
 
+function getProjectModificationTaskContextForSceneKit(sceneKitContext, {
+  selectedObject = getSelectedObject()
+} = {}) {
+  if (!sceneKitContext?.groupKey) {
+    return null;
+  }
+
+  const task = getProjectModificationTaskByKitGroupKey(sceneKitContext.groupKey);
+  if (!task) {
+    return null;
+  }
+
+  const activeTask = getActiveProjectModificationTask();
+  const taskKitGroupSummary = getProjectModificationTaskKitGroupSummary(task);
+  const taskKitAssets = taskKitGroupSummary ? getDonorAssetItemsForGroup(taskKitGroupSummary.key) : [];
+  const selectedDonorAsset = getDonorAssetForObject(selectedObject);
+  const quickReplaceAssets = taskKitAssets
+    .filter((asset) => asset?.assetId && asset.assetId !== selectedDonorAsset?.assetId)
+    .slice(0, 4);
+  const visibleReplaceAssets = quickReplaceAssets.length > 0 ? quickReplaceAssets : taskKitAssets.slice(0, 4);
+
+  return {
+    task,
+    isActiveTask: activeTask?.taskId === task.taskId,
+    taskKitGroupSummary,
+    taskKitAssets,
+    visibleReplaceAssets,
+    hiddenReplaceAssetCount: Math.max(0, taskKitAssets.length - visibleReplaceAssets.length)
+  };
+}
+
 function getRuntimeWorkbenchEntryForModificationTask(task) {
   if (!task) {
     return null;
@@ -12413,6 +12479,19 @@ function handleNavigationClick(event) {
       openProjectModificationTask(taskId, "runtime");
       return true;
     }
+  }
+
+  const taskSectionReplaceButton = target.closest("[data-task-section-replace-asset-id]");
+  if (taskSectionReplaceButton instanceof HTMLElement && taskSectionReplaceButton.dataset.taskSectionReplaceAssetId) {
+    event.preventDefault();
+    const taskId = typeof taskSectionReplaceButton.dataset.taskSectionTaskId === "string"
+      ? taskSectionReplaceButton.dataset.taskSectionTaskId.trim()
+      : "";
+    if (taskId) {
+      setActiveProjectModificationTask(taskId, { render: false });
+    }
+    handleReplaceSelectedObjectWithDonorAsset(taskSectionReplaceButton.dataset.taskSectionReplaceAssetId);
+    return true;
   }
 
   const focusSceneObjectButton = target.closest("[data-focus-scene-object-id]");
@@ -18606,6 +18685,7 @@ function renderInspector() {
   const propertyPanel = typeof window.myideApi?.buildPropertyPanelViewModel === "function"
     ? window.myideApi.buildPropertyPanelViewModel(inspectorInput)
     : inspectorInput;
+  const replaceableSelectedObject = getReplaceableSelectedObject();
   const donorAsset = getDonorAssetForObject(selectedObject);
   const sceneKitContext = getSceneKitContextForObject(selectedObject);
   const sceneSectionEntry = sceneKitContext?.sectionId
@@ -18616,6 +18696,7 @@ function renderInspector() {
   const sceneSectionGamePartSummary = sceneSectionEntry?.gamePartSummary ?? null;
   const sceneSectionState = sceneSectionEntry?.stateSummary ?? null;
   const sceneSectionOverrideCandidate = sceneSectionRuntimeContext?.overrideCandidate ?? null;
+  const taskSectionContext = getProjectModificationTaskContextForSceneKit(sceneKitContext, { selectedObject });
   const runtimeReferenceMatch = donorAsset
     ? getRuntimeReferenceScreens().find((entry) => entry.evidenceId === donorAsset.evidenceId) ?? null
     : null;
@@ -18785,6 +18866,63 @@ function renderInspector() {
       </div>
     `
     : "";
+  const taskSectionMarkup = taskSectionContext
+    ? `
+      <div class="donor-linkage-summary">
+        <div class="donor-linkage-summary-head">
+          <div>
+            <strong>Active Task Section Tools</strong>
+            <small>This grouped Compose section is backed by a prepared modification task, so task-local edit actions can stay on the current section instead of bouncing back to the donor palette.</small>
+          </div>
+          <div class="evidence-actions">
+            ${taskSectionContext.isActiveTask
+              ? `<button type="button" class="copy-button" data-project-modification-action="open-compose-task" data-project-modification-task-id="${escapeAttribute(taskSectionContext.task.taskId)}">Resume Task</button>`
+              : `<button type="button" class="copy-button" data-project-modification-action="start-task" data-project-modification-task-id="${escapeAttribute(taskSectionContext.task.taskId)}">Start Task</button>`}
+            <button type="button" class="copy-button" data-focus-donor-asset-group-key="${escapeAttribute(taskSectionContext.taskKitGroupSummary?.key ?? sceneKitContext.groupKey)}">Show Task Kit</button>
+            <button type="button" class="copy-button" data-project-modification-action="open-runtime-task" data-project-modification-task-id="${escapeAttribute(taskSectionContext.task.taskId)}" ${taskSectionContext.task.canOpenRuntime ? "" : "disabled"}>Open Runtime</button>
+            ${taskSectionContext.task.sourceArtifactPath ? renderCopyButton(taskSectionContext.task.sourceArtifactPath, `${taskSectionContext.task.displayName} source artifact path`, "Copy Task Artifact") : ""}
+          </div>
+        </div>
+        <div class="chip-row donor-asset-chip-row">
+          <span>${taskSectionContext.isActiveTask ? "active task" : "task available"}</span>
+          <span>${escapeHtml(taskSectionContext.task.taskStatus)}</span>
+          <span>${escapeHtml(taskSectionContext.task.sourceArtifactKind)}</span>
+          <span>${escapeHtml(String(taskSectionContext.taskKitAssets.length))} task source${taskSectionContext.taskKitAssets.length === 1 ? "" : "s"}</span>
+        </div>
+        <small>${escapeHtml(taskSectionContext.task.nextAction)}</small>
+        <small>${escapeHtml(taskSectionContext.task.rationale)}</small>
+        <div class="evidence-linked-objects">
+          <div class="evidence-subsection-head donor-replace-head">
+            <strong>Task-Aware Replace</strong>
+            ${replaceableSelectedObject
+              ? `<span class="muted-copy">Replace ${escapeHtml(replaceableSelectedObject.displayName)} from the active task kit while preserving layer and layout.</span>`
+              : sceneKitContext.memberObjects[0]
+                ? `<button type="button" class="copy-button" data-focus-scene-object-id="${escapeAttribute(sceneKitContext.memberObjects[0].id)}">Select First Editable Member</button>`
+                : `<span class="muted-copy">Select a single editable section member to replace it with one task source while preserving layout.</span>`}
+          </div>
+          ${replaceableSelectedObject && taskSectionContext.visibleReplaceAssets.length > 0 ? `
+            <div class="linked-object-list">
+              ${taskSectionContext.visibleReplaceAssets.map((asset) => `
+                <button
+                  type="button"
+                  class="linked-object-button"
+                  data-task-section-replace-asset-id="${escapeAttribute(asset.assetId)}"
+                  data-task-section-task-id="${escapeAttribute(taskSectionContext.task.taskId)}"
+                  title="Replace ${escapeAttribute(replaceableSelectedObject.displayName)} with ${escapeAttribute(asset.title)}"
+                >
+                  <strong>${escapeHtml(asset.title)}</strong>
+                  <small>${escapeHtml(asset.filename)} · replace ${escapeHtml(replaceableSelectedObject.displayName)}</small>
+                </button>
+              `).join("")}
+            </div>
+          ` : ""}
+          ${!replaceableSelectedObject ? `<p class="muted-copy">The reopened task section starts grouped. Select one editable member first, then use these task-aware replace actions.</p>` : ""}
+          ${replaceableSelectedObject && taskSectionContext.visibleReplaceAssets.length === 0 ? `<p class="muted-copy">No alternate grounded task source is available beyond the currently linked donor asset for this object.</p>` : ""}
+          ${taskSectionContext.hiddenReplaceAssetCount > 0 ? `<p class="muted-copy">+${escapeHtml(String(taskSectionContext.hiddenReplaceAssetCount))} more grounded task source image${taskSectionContext.hiddenReplaceAssetCount === 1 ? "" : "s"} remain in this task kit. Use Show Task Kit to browse the full set.</p>` : ""}
+        </div>
+      </div>
+    `
+    : "";
   const evidenceSummaryMarkup = propertyPanel.evidenceRefs.length > 0
     ? `
       <div class="inspector-evidence-summary">
@@ -18824,6 +18962,7 @@ function renderInspector() {
     </div>
     ${donorSummaryMarkup}
     ${sceneKitSummaryMarkup}
+    ${taskSectionMarkup}
     ${evidenceSummaryMarkup}
     ${evidenceDrilldownMarkup}
     ${groupsMarkup}
