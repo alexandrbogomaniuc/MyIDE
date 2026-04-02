@@ -4775,6 +4775,22 @@ async function runLiveDonorImportSmoke() {
     baseResult.taskKitPageGuideName = taskReconstructionGuideCard.dataset.taskReconstructionPage;
     baseResult.taskKitPageGuideVerified = true;
 
+    const taskLeadMemberButton = await waitForRendererCondition(
+      () => elements.inspector?.querySelector("[data-task-reconstruction-focus-object-id]") ?? null,
+      `${preparedModificationTask.taskId} page lead-member selection action`
+    );
+    if (!(taskLeadMemberButton instanceof HTMLElement) || !taskLeadMemberButton.dataset.taskReconstructionFocusObjectId) {
+      throw new Error(`Page-aware lead-member selection is missing for ${preparedModificationTask.taskId}.`);
+    }
+    const taskLeadMemberId = taskLeadMemberButton.dataset.taskReconstructionFocusObjectId;
+    clickRendererElement(taskLeadMemberButton);
+    await waitForRendererCondition(
+      () => state.selectedObjectId === taskLeadMemberId && getSelectedObjectIds().length === 1,
+      `${preparedModificationTask.taskId} lead page-linked scene member to become selected`
+    );
+    baseResult.taskKitLeadMemberSelectionId = taskLeadMemberId;
+    baseResult.taskKitLeadMemberSelectionVerified = true;
+
     const taskPageMemberButton = await waitForRendererCondition(
       () => elements.inspector?.querySelector("[data-task-reconstruction-object-ids]") ?? null,
       `${preparedModificationTask.taskId} page member selection action`
@@ -4799,6 +4815,12 @@ async function runLiveDonorImportSmoke() {
     );
     baseResult.taskKitPageMemberSelectionCount = taskPageMemberIds.length;
     baseResult.taskKitPageMemberSelectionVerified = true;
+
+    clickRendererElement(taskLeadMemberButton);
+    await waitForRendererCondition(
+      () => state.selectedObjectId === taskLeadMemberId && getSelectedObjectIds().length === 1,
+      `${preparedModificationTask.taskId} lead page-linked scene member to become re-selected`
+    );
 
     const taskSectionReplaceButton = await waitForRendererCondition(
       () => elements.inspector?.querySelector("[data-task-section-replace-asset-id]") ?? null,
@@ -5729,11 +5751,11 @@ async function runLiveDonorImportSmoke() {
       throw new Error("The donor source evidence jump did not complete.");
     }
 
-    if (!baseResult.taskKitImportCompleted || !baseResult.taskKitComposeLandingVerified || !baseResult.taskKitPageGuideVerified || !baseResult.taskKitPageMemberSelectionVerified || !baseResult.taskKitQuickReplaceVerified) {
-      throw new Error("The prepared modification task did not complete grouped Compose landing, page-aware guidance, page-member selection, plus task-aware replace verification.");
+    if (!baseResult.taskKitImportCompleted || !baseResult.taskKitComposeLandingVerified || !baseResult.taskKitPageGuideVerified || !baseResult.taskKitLeadMemberSelectionVerified || !baseResult.taskKitPageMemberSelectionVerified || !baseResult.taskKitQuickReplaceVerified) {
+      throw new Error("The prepared modification task did not complete grouped Compose landing, page-aware guidance, lead-member selection, page-member selection, plus task-aware replace verification.");
     }
 
-    const successMessage = `Live donor import smoke passed: imported task kit ${baseResult.taskKitGroupKey ?? "n/a"} into scene section ${baseResult.taskKitSectionLabel ?? "n/a"}, reopened active task ${baseResult.taskKitTaskId ?? "n/a"} on that grouped compose surface, surfaced page-aware guide ${baseResult.taskKitPageGuideName ?? "n/a"}, selected ${baseResult.taskKitPageMemberSelectionCount ?? 0} page-linked scene member${baseResult.taskKitPageMemberSelectionCount === 1 ? "" : "s"}, replaced ${baseResult.taskKitEditableMemberId ?? "n/a"} with task-aware source ${baseResult.taskKitQuickReplaceAssetId ?? "n/a"}, then imported ${importedAssets.length} donor assets (${baseResult.importedFileTypes.join(", ")}), moved ${primaryImportedAsset.objectId} to (${baseResult.draggedX}, ${baseResult.draggedY}), resized it to ${baseResult.resizedWidth}×${baseResult.resizedHeight}, multi-selected/aligned/distributed donor-backed objects, replaced ${baseResult.replacementObjectId ?? "n/a"} with donor asset ${baseResult.replacementDonorEvidenceId ?? "n/a"}, and reloaded donor linkage for every donor-backed object.`;
+    const successMessage = `Live donor import smoke passed: imported task kit ${baseResult.taskKitGroupKey ?? "n/a"} into scene section ${baseResult.taskKitSectionLabel ?? "n/a"}, reopened active task ${baseResult.taskKitTaskId ?? "n/a"} on that grouped compose surface, surfaced page-aware guide ${baseResult.taskKitPageGuideName ?? "n/a"}, selected lead member ${baseResult.taskKitLeadMemberSelectionId ?? "n/a"}, selected ${baseResult.taskKitPageMemberSelectionCount ?? 0} page-linked scene member${baseResult.taskKitPageMemberSelectionCount === 1 ? "" : "s"}, replaced ${baseResult.taskKitEditableMemberId ?? "n/a"} with task-aware source ${baseResult.taskKitQuickReplaceAssetId ?? "n/a"}, then imported ${importedAssets.length} donor assets (${baseResult.importedFileTypes.join(", ")}), moved ${primaryImportedAsset.objectId} to (${baseResult.draggedX}, ${baseResult.draggedY}), resized it to ${baseResult.resizedWidth}×${baseResult.resizedHeight}, multi-selected/aligned/distributed donor-backed objects, replaced ${baseResult.replacementObjectId ?? "n/a"} with donor asset ${baseResult.replacementDonorEvidenceId ?? "n/a"}, and reloaded donor linkage for every donor-backed object.`;
     setPreviewStatus(successMessage);
     baseResult.previewStatus = successMessage;
     document.body.dataset.liveDonorImportSmoke = "pass";
@@ -9387,6 +9409,47 @@ function getProjectModificationTaskSceneMembersForPage(sceneKitContext, page) {
   });
 }
 
+function getProjectModificationTaskLeadSceneMemberForPage(page) {
+  const matchedSceneMembers = Array.isArray(page?.matchedSceneMembers) ? page.matchedSceneMembers : [];
+  if (matchedSceneMembers.length === 0) {
+    return null;
+  }
+
+  const cueTokens = getProjectModificationTaskPageMatchTokens(page);
+  let bestMember = matchedSceneMembers[0] ?? null;
+  let bestScore = Number.NEGATIVE_INFINITY;
+
+  for (const member of matchedSceneMembers) {
+    const donorAsset = getDonorAssetForObject(member);
+    const memberTokens = uniqueStrings([
+      member?.id,
+      member?.displayName,
+      member?.assetRef,
+      donorAsset?.filename,
+      donorAsset?.title,
+      donorAsset?.assetId
+    ].map((value) => slugifyValue(value)).filter(Boolean));
+
+    let score = 0;
+    if (memberTokens.some((token) => cueTokens.includes(token))) {
+      score += 40;
+    } else if (memberTokens.some((token) => cueTokens.some((cueToken) => cueToken.includes(token) || token.includes(cueToken)))) {
+      score += 15;
+    }
+
+    if (member?.id === state.selectedObjectId) {
+      score += 10;
+    }
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestMember = member;
+    }
+  }
+
+  return bestMember;
+}
+
 function getProjectModificationTaskContextForSceneKit(sceneKitContext, {
   selectedObject = getSelectedObject()
 } = {}) {
@@ -9423,6 +9486,7 @@ function getProjectModificationTaskContextForSceneKit(sceneKitContext, {
     });
   for (const page of reconstructionPages) {
     page.matchedSceneMembers = getProjectModificationTaskSceneMembersForPage(sceneKitContext, page);
+    page.leadSceneMember = getProjectModificationTaskLeadSceneMemberForPage(page);
   }
   const selectedReconstructionPage = reconstructionPages[0]?.matchScore > 0
     ? reconstructionPages[0]
@@ -12699,6 +12763,15 @@ function handleNavigationClick(event) {
           : `Selected ${objectIds.length} grouped Compose members already tied to this grounded page source.`
       });
     }
+    return true;
+  }
+
+  const taskReconstructionFocusObjectButton = target.closest("[data-task-reconstruction-focus-object-id]");
+  if (taskReconstructionFocusObjectButton instanceof HTMLElement && taskReconstructionFocusObjectButton.dataset.taskReconstructionFocusObjectId) {
+    event.preventDefault();
+    focusSceneObjectInWorkflow(taskReconstructionFocusObjectButton.dataset.taskReconstructionFocusObjectId, {
+      statusMessage: "Selected the best single grouped Compose member for this grounded page cue."
+    });
     return true;
   }
 
@@ -19133,13 +19206,21 @@ function renderInspector() {
                       ? `${page.matchedSceneMembers.length} grouped member${page.matchedSceneMembers.length === 1 ? "" : "s"} already use this page source`
                       : "No grouped section member is currently tied to this exact page source yet.")}</small>
                     <div class="evidence-actions">
+                      ${page.leadSceneMember ? `
+                        <button
+                          type="button"
+                          class="copy-button"
+                          data-task-reconstruction-focus-object-id="${escapeAttribute(page.leadSceneMember.id)}"
+                          title="Select the strongest single grouped member for ${escapeAttribute(page.pageName)}"
+                        >${page.matchedSceneMembers.length > 1 ? "Select Lead Member" : "Select Page Member"}</button>
+                      ` : ""}
                       ${page.matchedSceneMembers.length > 0 ? `
                         <button
                           type="button"
                           class="copy-button"
                           data-task-reconstruction-object-ids="${escapeAttribute(JSON.stringify(page.matchedSceneMembers.map((entry) => entry.id)))}"
                           title="Select grouped Compose members already tied to ${escapeAttribute(page.pageName)}"
-                        >${page.matchedSceneMembers.length === 1 ? "Select Page Member" : `Select ${page.matchedSceneMembers.length} Page Members`}</button>
+                        >${page.matchedSceneMembers.length === 1 ? "Select Page Members" : `Select ${page.matchedSceneMembers.length} Page Members`}</button>
                       ` : ""}
                       ${replaceableSelectedObject && page.matchedTaskKitAsset && page.matchedTaskKitAsset.assetId !== donorAsset?.assetId ? `
                         <button

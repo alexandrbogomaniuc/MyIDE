@@ -29,7 +29,7 @@ When one grouped section is selected in Compose, the inspector can now surface t
 
 If that task is grounded by a page-fit artifact such as the `big_win/BW` fit-apply bundle, the same inspector now also shows page-aware reconstruction cues: lead page name, fit mode, strongest affected slot or attachment, and a page-local **Use This Page Source** action when the selected object can be swapped from that grounded page source directly.
 
-Those page-aware cards can now also select the grouped Compose members already tied to the same grounded page source, so the operator can move from a page cue to the concrete section members on the current surface without falling back to donor hunting.
+Those page-aware cards can now either select the best single grouped Compose member for that grounded page cue or widen out to all grouped members already tied to the same grounded page source, so the operator can move from a page cue to the right section members on the current surface without falling back to donor hunting.
 
 ## Current Phase
 - Current milestone: IDE-LIFECYCLE-A lifecycle backbone on top of the existing runtime-first shell, donor scan, and compose/runtime proving slices.

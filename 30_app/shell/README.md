@@ -32,7 +32,7 @@ The operational workflow is now:
 7. After that import exists, the same task now reopens on its grouped Compose section so task-local editing can continue from the imported kit instead of from a blank or unrelated selection.
 8. When one grouped section member is selected, the inspector now exposes task-aware replace actions from that task kit so editing can continue on the current section without leaving Compose.
 9. If that task is backed by a page-fit bundle, the same inspector also shows a page-aware reconstruction guide with grounded page names, fit modes, affected slot or attachment cues, and page-local **Use This Page Source** actions for the selected object when a direct grounded swap is available.
-10. Those page-aware guide cards can also select the grouped Compose members already using that grounded page source, which keeps page-level reconstruction work on the current grouped section instead of sending the operator back into broad palette browsing.
+10. Those page-aware guide cards can now either select the best single grouped Compose member for that grounded page cue or widen out to the grouped members already using that grounded page source, which keeps page-level reconstruction work on the current grouped section instead of sending the operator back into broad palette browsing.
 
 ## Preferred Launchers
 - `./run/start-workbench.sh`
