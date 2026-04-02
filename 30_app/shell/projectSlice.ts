@@ -164,6 +164,7 @@ export interface DonorScanStatus {
   familyReconstructionMapsPath: string | null;
   familyReconstructionSectionsPath: string | null;
   familyReconstructionSectionBundlesPath: string | null;
+  sectionReconstructionProfilesPath: string | null;
   runtimeCandidateCount: number;
   atlasManifestCount: number;
   bundleAssetMapStatus: string;
@@ -213,6 +214,7 @@ export interface DonorScanStatus {
   sectionActionRunMode: string | null;
   sectionActionRunSectionKey: string | null;
   sectionActionWorksetPath: string | null;
+  sectionActionReconstructionBundlePath: string | null;
   sectionActionExactLocalSourceCount: number;
   sectionActionMappedAttachmentCount: number;
   nextOperatorAction: string | null;
@@ -299,6 +301,19 @@ export interface DonorScanStatus {
     sampleLocalSourcePath: string | null;
     sectionBundlePath: string | null;
     nextSectionStep: string;
+  }>;
+  topSectionReconstructionProfiles: Array<{
+    familyName: string;
+    sectionKey: string;
+    skinName: string;
+    reconstructionState: string;
+    mappedAttachmentCount: number;
+    attachmentCount: number;
+    atlasPageCount: number;
+    exactLocalSourceCount: number;
+    sampleLocalSourcePath: string | null;
+    reconstructionBundlePath: string;
+    nextReconstructionStep: string;
   }>;
   nextCaptureTargets: Array<{
     url: string;
@@ -959,10 +974,11 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
   const familyReconstructionMapsPath = `10_donors/${donorId}/evidence/local_only/harvest/family-reconstruction-maps.json`;
   const familyReconstructionSectionsPath = `10_donors/${donorId}/evidence/local_only/harvest/family-reconstruction-sections.json`;
   const familyReconstructionSectionBundlesPath = `10_donors/${donorId}/evidence/local_only/harvest/family-reconstruction-section-bundles.json`;
+  const sectionReconstructionProfilesPath = `10_donors/${donorId}/evidence/local_only/harvest/section-reconstruction-profiles.json`;
   const captureRunPath = `10_donors/${donorId}/evidence/local_only/harvest/next-capture-run.json`;
   const familyActionRunPath = `10_donors/${donorId}/evidence/local_only/harvest/family-action-run.json`;
   const sectionActionRunPath = `10_donors/${donorId}/evidence/local_only/harvest/section-action-run.json`;
-  const [scanSummary, blockerSummaryMarkdown, nextCaptureTargetsFile, captureRunSummary, captureTargetFamiliesFile, captureFamilySourceProfilesFile, captureFamilyActionsFile, familyReconstructionProfilesFile, familyReconstructionMapsFile, familyReconstructionSectionsFile, familyReconstructionSectionBundlesFile, familyActionRunSummary, sectionActionRunSummary] = await Promise.all([
+  const [scanSummary, blockerSummaryMarkdown, nextCaptureTargetsFile, captureRunSummary, captureTargetFamiliesFile, captureFamilySourceProfilesFile, captureFamilyActionsFile, familyReconstructionProfilesFile, familyReconstructionMapsFile, familyReconstructionSectionsFile, familyReconstructionSectionBundlesFile, sectionReconstructionProfilesFile, familyActionRunSummary, sectionActionRunSummary] = await Promise.all([
     readOptionalJsonFile(path.join(workspaceRoot, scanSummaryPath)) as Promise<JsonObject | null>,
     readOptionalTextFile(path.join(workspaceRoot, blockerSummaryPath)),
     readOptionalJsonFile(path.join(workspaceRoot, nextCaptureTargetsPath)) as Promise<JsonObject | null>,
@@ -974,6 +990,7 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
     readOptionalJsonFile(path.join(workspaceRoot, familyReconstructionMapsPath)) as Promise<JsonObject | null>,
     readOptionalJsonFile(path.join(workspaceRoot, familyReconstructionSectionsPath)) as Promise<JsonObject | null>,
     readOptionalJsonFile(path.join(workspaceRoot, familyReconstructionSectionBundlesPath)) as Promise<JsonObject | null>,
+    readOptionalJsonFile(path.join(workspaceRoot, sectionReconstructionProfilesPath)) as Promise<JsonObject | null>,
     readOptionalJsonFile(path.join(workspaceRoot, familyActionRunPath)) as Promise<JsonObject | null>,
     readOptionalJsonFile(path.join(workspaceRoot, sectionActionRunPath)) as Promise<JsonObject | null>
   ]);
@@ -1184,6 +1201,25 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
         )
         .slice(0, 6)
     : [];
+  const topSectionReconstructionProfiles = Array.isArray(sectionReconstructionProfilesFile?.sections)
+    ? sectionReconstructionProfilesFile.sections
+        .filter((value): value is JsonObject => Boolean(value) && typeof value === "object" && !Array.isArray(value))
+        .map((section) => ({
+          familyName: typeof section.familyName === "string" ? section.familyName : "",
+          sectionKey: typeof section.sectionKey === "string" ? section.sectionKey : "",
+          skinName: typeof section.skinName === "string" ? section.skinName : "",
+          reconstructionState: typeof section.reconstructionState === "string" ? section.reconstructionState : "unknown",
+          mappedAttachmentCount: typeof section.mappedAttachmentCount === "number" ? section.mappedAttachmentCount : 0,
+          attachmentCount: typeof section.attachmentCount === "number" ? section.attachmentCount : 0,
+          atlasPageCount: typeof section.atlasPageCount === "number" ? section.atlasPageCount : 0,
+          exactLocalSourceCount: typeof section.exactLocalSourceCount === "number" ? section.exactLocalSourceCount : 0,
+          sampleLocalSourcePath: typeof section.sampleLocalSourcePath === "string" ? section.sampleLocalSourcePath : null,
+          reconstructionBundlePath: typeof section.reconstructionBundlePath === "string" ? section.reconstructionBundlePath : "",
+          nextReconstructionStep: typeof section.nextReconstructionStep === "string" ? section.nextReconstructionStep : "Review the section reconstruction bundle."
+        }))
+        .filter((section) => section.sectionKey.length > 0 && section.reconstructionBundlePath.length > 0)
+        .slice(0, 6)
+    : [];
 
   return {
     donorId,
@@ -1202,6 +1238,7 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
     familyReconstructionMapsPath: familyReconstructionMapsFile ? familyReconstructionMapsPath : null,
     familyReconstructionSectionsPath: familyReconstructionSectionsFile ? familyReconstructionSectionsPath : null,
     familyReconstructionSectionBundlesPath: familyReconstructionSectionBundlesFile ? familyReconstructionSectionBundlesPath : null,
+    sectionReconstructionProfilesPath: sectionReconstructionProfilesFile ? sectionReconstructionProfilesPath : null,
     runtimeCandidateCount: typeof scanSummary.runtimeCandidateCount === "number" ? scanSummary.runtimeCandidateCount : (donor.runtimeCandidateCount ?? 0),
     atlasManifestCount: typeof scanSummary.atlasManifestCount === "number" ? scanSummary.atlasManifestCount : (donor.atlasManifestCount ?? 0),
     bundleAssetMapStatus: typeof scanSummary.bundleAssetMapStatus === "string" ? scanSummary.bundleAssetMapStatus : (donor.bundleAssetMapStatus ?? "unknown"),
@@ -1267,6 +1304,7 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
     sectionActionRunMode: typeof sectionActionRunSummary?.requestedMode === "string" ? sectionActionRunSummary.requestedMode : null,
     sectionActionRunSectionKey: typeof sectionActionRunSummary?.sectionKey === "string" ? sectionActionRunSummary.sectionKey : null,
     sectionActionWorksetPath: typeof sectionActionRunSummary?.worksetPath === "string" ? sectionActionRunSummary.worksetPath : null,
+    sectionActionReconstructionBundlePath: typeof sectionActionRunSummary?.reconstructionBundlePath === "string" ? sectionActionRunSummary.reconstructionBundlePath : null,
     sectionActionExactLocalSourceCount: typeof sectionActionRunSummary?.exactLocalSourceCount === "number" ? sectionActionRunSummary.exactLocalSourceCount : 0,
     sectionActionMappedAttachmentCount: typeof sectionActionRunSummary?.mappedAttachmentCount === "number" ? sectionActionRunSummary.mappedAttachmentCount : 0,
     nextOperatorAction: typeof scanSummary.nextOperatorAction === "string" ? scanSummary.nextOperatorAction : (donor.nextOperatorAction ?? null),
@@ -1278,6 +1316,7 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
     topFamilyReconstructionProfiles,
     topFamilyReconstructionMaps,
     topFamilyReconstructionSections,
+    topSectionReconstructionProfiles,
     nextCaptureTargets
   };
 }

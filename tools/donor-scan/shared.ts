@@ -156,6 +156,8 @@ export interface DonorScanPaths {
   familyReconstructionSectionBundlesPath: string;
   sectionActionRunPath: string;
   sectionReconstructionWorksetsRoot: string;
+  sectionReconstructionBundlesRoot: string;
+  sectionReconstructionProfilesPath: string;
   captureRunPath: string;
   blockerSummaryPath: string;
   scanSummaryPath: string;
@@ -860,6 +862,92 @@ export interface SectionReconstructionWorksetFile {
 }
 
 export type SectionActionRunStatus = "prepared" | "blocked";
+export type SectionActionRunMode = "prepare-section-workset" | "prepare-section-reconstruction-bundle";
+
+export interface SectionReconstructionPageGroupRecord {
+  pageName: string;
+  attachmentCount: number;
+  attachmentNames: string[];
+  slotNames: string[];
+  regionNames: string[];
+}
+
+export interface SectionReconstructionSlotGroupRecord {
+  slotName: string;
+  attachmentCount: number;
+  attachmentNames: string[];
+  pageNames: string[];
+  regionNames: string[];
+}
+
+export type SectionReconstructionBundleState =
+  | "ready-for-section-skin-reconstruction"
+  | "needs-manual-section-reconstruction";
+
+export interface SectionReconstructionBundleFile {
+  schemaVersion: string;
+  donorId: string;
+  donorName: string;
+  generatedAt: string;
+  familyName: string;
+  sectionKey: string;
+  sectionType: FamilyReconstructionSectionType;
+  skinName: string;
+  sourceReadiness: FamilyReconstructionReadiness;
+  profileState: FamilyReconstructionProfileState;
+  sectionState: FamilyReconstructionSectionState;
+  sectionBundleState: FamilyReconstructionSectionBundleState;
+  reconstructionState: SectionReconstructionBundleState;
+  attachmentCount: number;
+  mappedAttachmentCount: number;
+  unmappedAttachmentCount: number;
+  atlasPageCount: number;
+  atlasPageNames: string[];
+  atlasRegionCount: number;
+  atlasRegionNames: string[];
+  slotCount: number;
+  slotNames: string[];
+  animationNames: string[];
+  exactLocalSourceCount: number;
+  relatedLocalSourceCount: number;
+  localSources: FamilyReconstructionLocalSourceRecord[];
+  sampleLocalSourcePath: string | null;
+  worksetPath: string;
+  sectionBundlePath: string;
+  reconstructionBundlePath: string;
+  nextReconstructionStep: string;
+  pageGroups: SectionReconstructionPageGroupRecord[];
+  slotGroups: SectionReconstructionSlotGroupRecord[];
+  attachments: FamilyReconstructionAttachmentRecord[];
+}
+
+export interface SectionReconstructionProfileRecord {
+  familyName: string;
+  sectionKey: string;
+  skinName: string;
+  reconstructionState: SectionReconstructionBundleState;
+  attachmentCount: number;
+  mappedAttachmentCount: number;
+  unmappedAttachmentCount: number;
+  atlasPageCount: number;
+  atlasRegionCount: number;
+  slotCount: number;
+  exactLocalSourceCount: number;
+  relatedLocalSourceCount: number;
+  sampleLocalSourcePath: string | null;
+  worksetPath: string;
+  reconstructionBundlePath: string;
+  nextReconstructionStep: string;
+}
+
+export interface SectionReconstructionProfilesFile {
+  schemaVersion: string;
+  donorId: string;
+  donorName: string;
+  generatedAt: string;
+  sectionCount: number;
+  sections: SectionReconstructionProfileRecord[];
+}
 
 export interface SectionActionRunFile {
   schemaVersion: string;
@@ -868,10 +956,11 @@ export interface SectionActionRunFile {
   generatedAt: string;
   familyName: string;
   sectionKey: string;
-  requestedMode: "prepare-section-workset";
+  requestedMode: SectionActionRunMode;
   status: SectionActionRunStatus;
   sectionBundlePath: string;
   worksetPath: string | null;
+  reconstructionBundlePath: string | null;
   exactLocalSourceCount: number;
   attachmentCount: number;
   mappedAttachmentCount: number;
@@ -968,6 +1057,8 @@ export function buildDonorScanPaths(donorId: string): DonorScanPaths {
     familyReconstructionSectionBundlesPath: path.join(harvestRoot, "family-reconstruction-section-bundles.json"),
     sectionActionRunPath: path.join(harvestRoot, "section-action-run.json"),
     sectionReconstructionWorksetsRoot: path.join(harvestRoot, "section-reconstruction-worksets"),
+    sectionReconstructionBundlesRoot: path.join(harvestRoot, "section-reconstruction-bundles"),
+    sectionReconstructionProfilesPath: path.join(harvestRoot, "section-reconstruction-profiles.json"),
     captureRunPath: path.join(harvestRoot, "next-capture-run.json"),
     blockerSummaryPath: path.join(harvestRoot, "blocker-summary.md"),
     scanSummaryPath: path.join(harvestRoot, "scan-summary.json")

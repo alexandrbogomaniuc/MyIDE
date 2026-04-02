@@ -3255,6 +3255,7 @@ async function runDonorScanSectionAction(sectionKey) {
 
     const status = typeof result?.status === "string" ? result.status : "blocked";
     const worksetPath = typeof result?.worksetPath === "string" ? result.worksetPath : null;
+    const reconstructionBundlePath = typeof result?.reconstructionBundlePath === "string" ? result.reconstructionBundlePath : null;
     const exactLocalSourceCount = Number(result?.exactLocalSourceCount ?? 0);
     const mappedAttachmentCount = Number(result?.mappedAttachmentCount ?? 0);
     const attachmentCount = Number(result?.attachmentCount ?? 0);
@@ -3264,9 +3265,10 @@ async function runDonorScanSectionAction(sectionKey) {
 
     if (status === "prepared") {
       setPreviewStatus(
-        `Section ${normalizedSectionKey}: prepared section workset with ${mappedAttachmentCount}/${attachmentCount} mapped attachment${attachmentCount === 1 ? "" : "s"}`
+        `Section ${normalizedSectionKey}: prepared section reconstruction bundle with ${mappedAttachmentCount}/${attachmentCount} mapped attachment${attachmentCount === 1 ? "" : "s"}`
         + `${exactLocalSourceCount > 0 ? ` and ${exactLocalSourceCount} grounded local source${exactLocalSourceCount === 1 ? "" : "s"}` : ""}`
-        + `${worksetPath ? ` at ${worksetPath}` : ""}. ${nextOperatorAction}`
+        + `${worksetPath ? ` at ${worksetPath}` : ""}`
+        + `${reconstructionBundlePath ? ` using ${reconstructionBundlePath}` : ""}. ${nextOperatorAction}`
       );
       return;
     }
@@ -15379,7 +15381,7 @@ function renderProjectSummary() {
         ` : ""}
         ${donorScan?.sectionActionRunStatus ? `
           <div class="detail-list">
-            <small><strong>Latest section action</strong> · ${escapeHtml(donorScan.sectionActionRunStatus)} · ${escapeHtml(donorScan.sectionActionRunMode || "unknown")}${donorScan.sectionActionRunSectionKey ? ` · ${escapeHtml(donorScan.sectionActionRunSectionKey)}` : ""}${donorScan.sectionActionWorksetPath ? ` · workset <code>${escapeHtml(donorScan.sectionActionWorksetPath)}</code>` : ""}${donorScan.sectionActionMappedAttachmentCount > 0 ? ` · ${escapeHtml(String(donorScan.sectionActionMappedAttachmentCount))} mapped attachment${donorScan.sectionActionMappedAttachmentCount === 1 ? "" : "s"}` : ""}${donorScan.sectionActionExactLocalSourceCount > 0 ? ` · ${escapeHtml(String(donorScan.sectionActionExactLocalSourceCount))} grounded local source${donorScan.sectionActionExactLocalSourceCount === 1 ? "" : "s"}` : ""}</small>
+            <small><strong>Latest section action</strong> · ${escapeHtml(donorScan.sectionActionRunStatus)} · ${escapeHtml(donorScan.sectionActionRunMode || "unknown")}${donorScan.sectionActionRunSectionKey ? ` · ${escapeHtml(donorScan.sectionActionRunSectionKey)}` : ""}${donorScan.sectionActionWorksetPath ? ` · workset <code>${escapeHtml(donorScan.sectionActionWorksetPath)}</code>` : ""}${donorScan.sectionActionReconstructionBundlePath ? ` · bundle <code>${escapeHtml(donorScan.sectionActionReconstructionBundlePath)}</code>` : ""}${donorScan.sectionActionMappedAttachmentCount > 0 ? ` · ${escapeHtml(String(donorScan.sectionActionMappedAttachmentCount))} mapped attachment${donorScan.sectionActionMappedAttachmentCount === 1 ? "" : "s"}` : ""}${donorScan.sectionActionExactLocalSourceCount > 0 ? ` · ${escapeHtml(String(donorScan.sectionActionExactLocalSourceCount))} grounded local source${donorScan.sectionActionExactLocalSourceCount === 1 ? "" : "s"}` : ""}</small>
           </div>
         ` : ""}
         ${Array.isArray(donorScan?.topCaptureFamilies) && donorScan.topCaptureFamilies.length > 0 ? `
@@ -15506,6 +15508,16 @@ function renderProjectSummary() {
                   ${section.bundleState === "ready-with-grounded-attachments" ? "" : "disabled"}
                 >Prepare Section</button>
               </div>
+            `).join("")}
+          </div>
+        ` : ""}
+        ${Array.isArray(donorScan?.topSectionReconstructionProfiles) && donorScan.topSectionReconstructionProfiles.length > 0 ? `
+          <div class="detail-list">
+            <small><strong>Prepared section reconstruction bundles</strong></small>
+            ${donorScan.topSectionReconstructionProfiles.map((section) => `
+              <small><strong>${escapeHtml(section.sectionKey)}</strong> · ${escapeHtml(section.reconstructionState)} · ${escapeHtml(String(section.mappedAttachmentCount))}/${escapeHtml(String(section.attachmentCount))} mapped attachments${section.atlasPageCount > 0 ? ` · ${escapeHtml(String(section.atlasPageCount))} atlas page${section.atlasPageCount === 1 ? "" : "s"}` : ""}${section.exactLocalSourceCount > 0 ? ` · ${escapeHtml(String(section.exactLocalSourceCount))} local source${section.exactLocalSourceCount === 1 ? "" : "s"}` : ""}</small>
+              <small>${escapeHtml(section.nextReconstructionStep)}</small>
+              <small>bundle · <code>${escapeHtml(section.reconstructionBundlePath)}</code>${section.sampleLocalSourcePath ? ` · local source <code>${escapeHtml(section.sampleLocalSourcePath)}</code>` : ""}</small>
             `).join("")}
           </div>
         ` : ""}

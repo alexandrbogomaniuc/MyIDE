@@ -1,4 +1,6 @@
 import path from "node:path";
+import { buildSectionReconstructionBundle } from "./buildSectionReconstructionBundle";
+import { summarizeSectionReconstructionProfiles } from "./summarizeSectionReconstructionProfiles";
 import type {
   FamilyReconstructionSectionBundleRecord,
   FamilyReconstructionSectionBundlesFile,
@@ -22,11 +24,12 @@ export interface RunSectionActionResult {
   donorName: string;
   familyName: string;
   sectionKey: string;
-  requestedMode: "prepare-section-workset";
+  requestedMode: "prepare-section-workset" | "prepare-section-reconstruction-bundle";
   status: "prepared" | "blocked";
   sectionActionRunPath: string;
   sectionBundlePath: string;
   worksetPath: string | null;
+  reconstructionBundlePath: string | null;
   exactLocalSourceCount: number;
   attachmentCount: number;
   mappedAttachmentCount: number;
@@ -107,6 +110,7 @@ function buildBlockedResult(
     status: "blocked",
     sectionBundlePath: toRepoRelativePath(sectionBundlePath),
     worksetPath: null,
+    reconstructionBundlePath: null,
     exactLocalSourceCount: sectionBundle.exactLocalSourceCount,
     attachmentCount: sectionBundle.attachmentCount,
     mappedAttachmentCount: sectionBundle.mappedAttachmentCount,
@@ -149,6 +153,7 @@ export async function runSectionAction(options: RunSectionActionOptions): Promis
       sectionActionRunPath: paths.sectionActionRunPath,
       sectionBundlePath: paths.familyReconstructionSectionBundlesPath,
       worksetPath: null,
+      reconstructionBundlePath: null,
       exactLocalSourceCount: sectionBundle.exactLocalSourceCount,
       attachmentCount: sectionBundle.attachmentCount,
       mappedAttachmentCount: sectionBundle.mappedAttachmentCount,
@@ -163,8 +168,23 @@ export async function runSectionAction(options: RunSectionActionOptions): Promis
     `${sanitizeSectionSegment(sectionBundle.familyName)}--${sanitizeSectionSegment(sectionBundle.sectionKey)}.json`
   );
   await writeJsonFile(worksetPath, workset);
+  const reconstructionBundle = buildSectionReconstructionBundle({
+    workset,
+    worksetPath: toRepoRelativePath(worksetPath)
+  });
+  const reconstructionBundlePath = path.join(
+    paths.sectionReconstructionBundlesRoot,
+    `${sanitizeSectionSegment(sectionBundle.familyName)}--${sanitizeSectionSegment(sectionBundle.sectionKey)}.json`
+  );
+  await writeJsonFile(reconstructionBundlePath, reconstructionBundle);
+  const sectionReconstructionProfiles = await summarizeSectionReconstructionProfiles({
+    donorId,
+    donorName: sectionBundles.donorName,
+    bundlesRoot: paths.sectionReconstructionBundlesRoot
+  });
+  await writeJsonFile(paths.sectionReconstructionProfilesPath, sectionReconstructionProfiles);
 
-  const nextOperatorAction = `${sectionBundle.sectionKey}: use the prepared section workset for deeper skin or section reconstruction.`;
+  const nextOperatorAction = `${sectionBundle.sectionKey}: use the prepared section reconstruction bundle for deeper skin or section reconstruction.`;
   const sectionActionRun: SectionActionRunFile = {
     schemaVersion: "0.1.0",
     donorId,
@@ -172,10 +192,11 @@ export async function runSectionAction(options: RunSectionActionOptions): Promis
     generatedAt: new Date().toISOString(),
     familyName: sectionBundle.familyName,
     sectionKey: sectionBundle.sectionKey,
-    requestedMode: "prepare-section-workset",
+    requestedMode: "prepare-section-reconstruction-bundle",
     status: "prepared",
     sectionBundlePath: toRepoRelativePath(paths.familyReconstructionSectionBundlesPath),
     worksetPath: toRepoRelativePath(worksetPath),
+    reconstructionBundlePath: toRepoRelativePath(reconstructionBundlePath),
     exactLocalSourceCount: sectionBundle.exactLocalSourceCount,
     attachmentCount: sectionBundle.attachmentCount,
     mappedAttachmentCount: sectionBundle.mappedAttachmentCount,
@@ -189,11 +210,12 @@ export async function runSectionAction(options: RunSectionActionOptions): Promis
     donorName: sectionBundles.donorName,
     familyName: sectionBundle.familyName,
     sectionKey: sectionBundle.sectionKey,
-    requestedMode: "prepare-section-workset",
+    requestedMode: "prepare-section-reconstruction-bundle",
     status: "prepared",
     sectionActionRunPath: paths.sectionActionRunPath,
     sectionBundlePath: paths.familyReconstructionSectionBundlesPath,
     worksetPath,
+    reconstructionBundlePath,
     exactLocalSourceCount: sectionBundle.exactLocalSourceCount,
     attachmentCount: sectionBundle.attachmentCount,
     mappedAttachmentCount: sectionBundle.mappedAttachmentCount,
@@ -239,6 +261,9 @@ async function main(): Promise<void> {
   console.log(`Section bundles: ${toRepoRelativePath(result.sectionBundlePath)}`);
   if (result.worksetPath) {
     console.log(`Prepared workset: ${toRepoRelativePath(result.worksetPath)}`);
+  }
+  if (result.reconstructionBundlePath) {
+    console.log(`Reconstruction bundle: ${toRepoRelativePath(result.reconstructionBundlePath)}`);
   }
   console.log(`Mapped attachments: ${result.mappedAttachmentCount}/${result.attachmentCount}`);
   console.log(`Grounded local sources: ${result.exactLocalSourceCount}`);

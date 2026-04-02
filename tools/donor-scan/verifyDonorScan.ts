@@ -124,6 +124,23 @@ async function main(): Promise<void> {
 
   const blockerSummary = await readOptionalTextFile(paths.blockerSummaryPath);
   assert.ok(blockerSummary && blockerSummary.includes("Next operator step"), "blocker summary should explain the next operator step");
+  const hasSectionReconstructionProfiles = await fileExists(paths.sectionReconstructionProfilesPath);
+  let sectionReconstructionProfilesCount: number | null = null;
+  let topSectionReconstructionKeys: string[] = [];
+  if (hasSectionReconstructionProfiles) {
+    const sectionReconstructionProfiles = await readJsonFile<{
+      sectionCount?: number;
+      sections?: Array<{ sectionKey?: string }>;
+    }>(paths.sectionReconstructionProfilesPath);
+    assert.ok(typeof sectionReconstructionProfiles.sectionCount === "number", "section reconstruction profiles should record section counts");
+    sectionReconstructionProfilesCount = sectionReconstructionProfiles.sectionCount ?? 0;
+    topSectionReconstructionKeys = Array.isArray(sectionReconstructionProfiles.sections)
+      ? sectionReconstructionProfiles.sections
+          .map((section) => typeof section?.sectionKey === "string" ? section.sectionKey : "")
+          .filter((value) => value.length > 0)
+          .slice(0, 6)
+      : [];
+  }
 
   console.log("PASS donor-scan:verify");
   console.log(`Donor: ${donorId}`);
@@ -141,6 +158,9 @@ async function main(): Promise<void> {
   console.log(`Family reconstruction maps: ${scanSummary.familyReconstructionMapCount} (${scanSummary.topFamilyReconstructionMapNames.join(", ")})`);
   console.log(`Family reconstruction sections: ${scanSummary.familyReconstructionSectionCount} (${scanSummary.topFamilyReconstructionSectionKeys.join(", ")})`);
   console.log(`Family reconstruction section bundles: ${scanSummary.familyReconstructionSectionBundleCount} (${scanSummary.topFamilyReconstructionSectionBundleKeys.join(", ")})`);
+  if (sectionReconstructionProfilesCount !== null) {
+    console.log(`Section reconstruction profiles: ${sectionReconstructionProfilesCount} (${topSectionReconstructionKeys.join(", ")})`);
+  }
   console.log(`Raw-payload-blocked targets: ${scanSummary.rawPayloadBlockedCaptureTargetCount}`);
   console.log(`Raw-payload-blocked families: ${scanSummary.rawPayloadBlockedFamilyCount} (${scanSummary.rawPayloadBlockedFamilyNames.join(", ")})`);
   console.log(`Next capture targets: ${scanSummary.nextCaptureTargetCount}`);
