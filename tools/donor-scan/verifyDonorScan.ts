@@ -82,6 +82,8 @@ async function main(): Promise<void> {
     topFamilyReconstructionSectionKeys?: string[];
     familyReconstructionSectionBundleCount?: number;
     topFamilyReconstructionSectionBundleKeys?: string[];
+    sectionSkinMaterialReviewBundleCount?: number;
+    topSectionSkinMaterialReviewBundleKeys?: string[];
     rawPayloadBlockedCaptureTargetCount?: number;
     rawPayloadBlockedFamilyCount?: number;
     rawPayloadBlockedFamilyNames?: string[];
@@ -119,6 +121,8 @@ async function main(): Promise<void> {
   assert.ok(typeof scanSummary.rawPayloadBlockedCaptureTargetCount === "number", "scan summary should record raw-payload-blocked target counts");
   assert.ok(typeof scanSummary.rawPayloadBlockedFamilyCount === "number", "scan summary should record raw-payload-blocked family counts");
   assert.ok(Array.isArray(scanSummary.rawPayloadBlockedFamilyNames), "scan summary should record raw-payload-blocked family names");
+  assert.ok(typeof scanSummary.sectionSkinMaterialReviewBundleCount === "number", "scan summary should record section skin material review bundle counts");
+  assert.ok(Array.isArray(scanSummary.topSectionSkinMaterialReviewBundleKeys), "scan summary should record top section skin material review bundle keys");
   assert.ok(typeof scanSummary.nextCaptureTargetCount === "number", "scan summary should record next capture target count");
   assert.ok(typeof scanSummary.nextOperatorAction === "string" && scanSummary.nextOperatorAction.length > 0, "scan summary should record the next operator action");
 
@@ -192,6 +196,23 @@ async function main(): Promise<void> {
           .slice(0, 6)
       : [];
   }
+  const hasSectionSkinMaterialReviewBundleProfiles = await fileExists(paths.sectionSkinMaterialReviewBundleProfilesPath);
+  let sectionSkinMaterialReviewBundleProfilesCount: number | null = null;
+  let topSectionSkinMaterialReviewBundleKeys: string[] = [];
+  if (hasSectionSkinMaterialReviewBundleProfiles) {
+    const sectionSkinMaterialReviewBundleProfiles = await readJsonFile<{
+      sectionCount?: number;
+      sections?: Array<{ sectionKey?: string }>;
+    }>(paths.sectionSkinMaterialReviewBundleProfilesPath);
+    assert.ok(typeof sectionSkinMaterialReviewBundleProfiles.sectionCount === "number", "section skin material review bundle profiles should record section counts");
+    sectionSkinMaterialReviewBundleProfilesCount = sectionSkinMaterialReviewBundleProfiles.sectionCount ?? 0;
+    topSectionSkinMaterialReviewBundleKeys = Array.isArray(sectionSkinMaterialReviewBundleProfiles.sections)
+      ? sectionSkinMaterialReviewBundleProfiles.sections
+          .map((section) => typeof section?.sectionKey === "string" ? section.sectionKey : "")
+          .filter((value) => value.length > 0)
+          .slice(0, 6)
+      : [];
+  }
 
   console.log("PASS donor-scan:verify");
   console.log(`Donor: ${donorId}`);
@@ -220,6 +241,9 @@ async function main(): Promise<void> {
   }
   if (sectionSkinMaterialPlanProfilesCount !== null) {
     console.log(`Section skin material plan profiles: ${sectionSkinMaterialPlanProfilesCount} (${topSectionSkinMaterialPlanKeys.join(", ")})`);
+  }
+  if (sectionSkinMaterialReviewBundleProfilesCount !== null) {
+    console.log(`Section skin material review bundle profiles: ${sectionSkinMaterialReviewBundleProfilesCount} (${topSectionSkinMaterialReviewBundleKeys.join(", ")})`);
   }
   console.log(`Raw-payload-blocked targets: ${scanSummary.rawPayloadBlockedCaptureTargetCount}`);
   console.log(`Raw-payload-blocked families: ${scanSummary.rawPayloadBlockedFamilyCount} (${scanSummary.rawPayloadBlockedFamilyNames.join(", ")})`);

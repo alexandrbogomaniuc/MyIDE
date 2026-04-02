@@ -168,6 +168,7 @@ export interface DonorScanStatus {
   sectionSkinBlueprintProfilesPath: string | null;
   sectionSkinRenderPlanProfilesPath: string | null;
   sectionSkinMaterialPlanProfilesPath: string | null;
+  sectionSkinMaterialReviewBundleProfilesPath: string | null;
   runtimeCandidateCount: number;
   atlasManifestCount: number;
   bundleAssetMapStatus: string;
@@ -195,6 +196,8 @@ export interface DonorScanStatus {
   topFamilyReconstructionSectionKeys: string[];
   familyReconstructionSectionBundleCount: number;
   topFamilyReconstructionSectionBundleKeys: string[];
+  sectionSkinMaterialReviewBundleCount: number;
+  topSectionSkinMaterialReviewBundleKeys: string[];
   rawPayloadBlockedCaptureTargetCount: number;
   rawPayloadBlockedFamilyCount: number;
   rawPayloadBlockedFamilyNames: string[];
@@ -221,6 +224,7 @@ export interface DonorScanStatus {
   sectionActionSkinBlueprintPath: string | null;
   sectionActionSkinRenderPlanPath: string | null;
   sectionActionSkinMaterialPlanPath: string | null;
+  sectionActionSkinMaterialReviewBundlePath: string | null;
   sectionActionExactLocalSourceCount: number;
   sectionActionMappedAttachmentCount: number;
   nextOperatorAction: string | null;
@@ -365,6 +369,22 @@ export interface DonorScanStatus {
     atlasSourcePath: string | null;
     materialPlanPath: string;
     nextMaterialStep: string;
+  }>;
+  topSectionSkinMaterialReviewBundleProfiles: Array<{
+    familyName: string;
+    sectionKey: string;
+    skinName: string;
+    reviewState: string;
+    pageCount: number;
+    exactPageImageCount: number;
+    missingPageImageCount: number;
+    reviewReadyPageCount: number;
+    blockedPageCount: number;
+    topCandidateLocalPath: string | null;
+    sampleLocalSourcePath: string | null;
+    atlasSourcePath: string | null;
+    reviewBundlePath: string;
+    nextReviewStep: string;
   }>;
   nextCaptureTargets: Array<{
     url: string;
@@ -1029,10 +1049,11 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
   const sectionSkinBlueprintProfilesPath = `10_donors/${donorId}/evidence/local_only/harvest/section-skin-blueprint-profiles.json`;
   const sectionSkinRenderPlanProfilesPath = `10_donors/${donorId}/evidence/local_only/harvest/section-skin-render-plan-profiles.json`;
   const sectionSkinMaterialPlanProfilesPath = `10_donors/${donorId}/evidence/local_only/harvest/section-skin-material-plan-profiles.json`;
+  const sectionSkinMaterialReviewBundleProfilesPath = `10_donors/${donorId}/evidence/local_only/harvest/section-skin-material-review-bundle-profiles.json`;
   const captureRunPath = `10_donors/${donorId}/evidence/local_only/harvest/next-capture-run.json`;
   const familyActionRunPath = `10_donors/${donorId}/evidence/local_only/harvest/family-action-run.json`;
   const sectionActionRunPath = `10_donors/${donorId}/evidence/local_only/harvest/section-action-run.json`;
-  const [scanSummary, blockerSummaryMarkdown, nextCaptureTargetsFile, captureRunSummary, captureTargetFamiliesFile, captureFamilySourceProfilesFile, captureFamilyActionsFile, familyReconstructionProfilesFile, familyReconstructionMapsFile, familyReconstructionSectionsFile, familyReconstructionSectionBundlesFile, sectionReconstructionProfilesFile, sectionSkinBlueprintProfilesFile, sectionSkinRenderPlanProfilesFile, sectionSkinMaterialPlanProfilesFile, familyActionRunSummary, sectionActionRunSummary] = await Promise.all([
+  const [scanSummary, blockerSummaryMarkdown, nextCaptureTargetsFile, captureRunSummary, captureTargetFamiliesFile, captureFamilySourceProfilesFile, captureFamilyActionsFile, familyReconstructionProfilesFile, familyReconstructionMapsFile, familyReconstructionSectionsFile, familyReconstructionSectionBundlesFile, sectionReconstructionProfilesFile, sectionSkinBlueprintProfilesFile, sectionSkinRenderPlanProfilesFile, sectionSkinMaterialPlanProfilesFile, sectionSkinMaterialReviewBundleProfilesFile, familyActionRunSummary, sectionActionRunSummary] = await Promise.all([
     readOptionalJsonFile(path.join(workspaceRoot, scanSummaryPath)) as Promise<JsonObject | null>,
     readOptionalTextFile(path.join(workspaceRoot, blockerSummaryPath)),
     readOptionalJsonFile(path.join(workspaceRoot, nextCaptureTargetsPath)) as Promise<JsonObject | null>,
@@ -1048,6 +1069,7 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
     readOptionalJsonFile(path.join(workspaceRoot, sectionSkinBlueprintProfilesPath)) as Promise<JsonObject | null>,
     readOptionalJsonFile(path.join(workspaceRoot, sectionSkinRenderPlanProfilesPath)) as Promise<JsonObject | null>,
     readOptionalJsonFile(path.join(workspaceRoot, sectionSkinMaterialPlanProfilesPath)) as Promise<JsonObject | null>,
+    readOptionalJsonFile(path.join(workspaceRoot, sectionSkinMaterialReviewBundleProfilesPath)) as Promise<JsonObject | null>,
     readOptionalJsonFile(path.join(workspaceRoot, familyActionRunPath)) as Promise<JsonObject | null>,
     readOptionalJsonFile(path.join(workspaceRoot, sectionActionRunPath)) as Promise<JsonObject | null>
   ]);
@@ -1340,6 +1362,28 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
         .filter((section) => section.sectionKey.length > 0 && section.materialPlanPath.length > 0)
         .slice(0, 6)
     : [];
+  const topSectionSkinMaterialReviewBundleProfiles = Array.isArray(sectionSkinMaterialReviewBundleProfilesFile?.sections)
+    ? sectionSkinMaterialReviewBundleProfilesFile.sections
+        .filter((value): value is JsonObject => Boolean(value) && typeof value === "object" && !Array.isArray(value))
+        .map((section) => ({
+          familyName: typeof section.familyName === "string" ? section.familyName : "",
+          sectionKey: typeof section.sectionKey === "string" ? section.sectionKey : "",
+          skinName: typeof section.skinName === "string" ? section.skinName : "",
+          reviewState: typeof section.reviewState === "string" ? section.reviewState : "unknown",
+          pageCount: typeof section.pageCount === "number" ? section.pageCount : 0,
+          exactPageImageCount: typeof section.exactPageImageCount === "number" ? section.exactPageImageCount : 0,
+          missingPageImageCount: typeof section.missingPageImageCount === "number" ? section.missingPageImageCount : 0,
+          reviewReadyPageCount: typeof section.reviewReadyPageCount === "number" ? section.reviewReadyPageCount : 0,
+          blockedPageCount: typeof section.blockedPageCount === "number" ? section.blockedPageCount : 0,
+          topCandidateLocalPath: typeof section.topCandidateLocalPath === "string" ? section.topCandidateLocalPath : null,
+          sampleLocalSourcePath: typeof section.sampleLocalSourcePath === "string" ? section.sampleLocalSourcePath : null,
+          atlasSourcePath: typeof section.atlasSourcePath === "string" ? section.atlasSourcePath : null,
+          reviewBundlePath: typeof section.reviewBundlePath === "string" ? section.reviewBundlePath : "",
+          nextReviewStep: typeof section.nextReviewStep === "string" ? section.nextReviewStep : "Review the section skin material review bundle."
+        }))
+        .filter((section) => section.sectionKey.length > 0 && section.reviewBundlePath.length > 0)
+        .slice(0, 6)
+    : [];
 
   return {
     donorId,
@@ -1362,6 +1406,7 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
     sectionSkinBlueprintProfilesPath: sectionSkinBlueprintProfilesFile ? sectionSkinBlueprintProfilesPath : null,
     sectionSkinRenderPlanProfilesPath: sectionSkinRenderPlanProfilesFile ? sectionSkinRenderPlanProfilesPath : null,
     sectionSkinMaterialPlanProfilesPath: sectionSkinMaterialPlanProfilesFile ? sectionSkinMaterialPlanProfilesPath : null,
+    sectionSkinMaterialReviewBundleProfilesPath: sectionSkinMaterialReviewBundleProfilesFile ? sectionSkinMaterialReviewBundleProfilesPath : null,
     runtimeCandidateCount: typeof scanSummary.runtimeCandidateCount === "number" ? scanSummary.runtimeCandidateCount : (donor.runtimeCandidateCount ?? 0),
     atlasManifestCount: typeof scanSummary.atlasManifestCount === "number" ? scanSummary.atlasManifestCount : (donor.atlasManifestCount ?? 0),
     bundleAssetMapStatus: typeof scanSummary.bundleAssetMapStatus === "string" ? scanSummary.bundleAssetMapStatus : (donor.bundleAssetMapStatus ?? "unknown"),
@@ -1403,6 +1448,10 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
     topFamilyReconstructionSectionBundleKeys: Array.isArray(scanSummary.topFamilyReconstructionSectionBundleKeys)
       ? scanSummary.topFamilyReconstructionSectionBundleKeys.filter((value): value is string => typeof value === "string")
       : [],
+    sectionSkinMaterialReviewBundleCount: typeof scanSummary.sectionSkinMaterialReviewBundleCount === "number" ? scanSummary.sectionSkinMaterialReviewBundleCount : topSectionSkinMaterialReviewBundleProfiles.length,
+    topSectionSkinMaterialReviewBundleKeys: Array.isArray(scanSummary.topSectionSkinMaterialReviewBundleKeys)
+      ? scanSummary.topSectionSkinMaterialReviewBundleKeys.filter((value): value is string => typeof value === "string")
+      : topSectionSkinMaterialReviewBundleProfiles.map((section) => section.sectionKey),
     rawPayloadBlockedCaptureTargetCount: typeof scanSummary.rawPayloadBlockedCaptureTargetCount === "number" ? scanSummary.rawPayloadBlockedCaptureTargetCount : 0,
     rawPayloadBlockedFamilyCount: typeof scanSummary.rawPayloadBlockedFamilyCount === "number" ? scanSummary.rawPayloadBlockedFamilyCount : 0,
     rawPayloadBlockedFamilyNames: Array.isArray(scanSummary.rawPayloadBlockedFamilyNames)
@@ -1431,6 +1480,7 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
     sectionActionSkinBlueprintPath: typeof sectionActionRunSummary?.skinBlueprintPath === "string" ? sectionActionRunSummary.skinBlueprintPath : null,
     sectionActionSkinRenderPlanPath: typeof sectionActionRunSummary?.skinRenderPlanPath === "string" ? sectionActionRunSummary.skinRenderPlanPath : null,
     sectionActionSkinMaterialPlanPath: typeof sectionActionRunSummary?.skinMaterialPlanPath === "string" ? sectionActionRunSummary.skinMaterialPlanPath : null,
+    sectionActionSkinMaterialReviewBundlePath: typeof sectionActionRunSummary?.skinMaterialReviewBundlePath === "string" ? sectionActionRunSummary.skinMaterialReviewBundlePath : null,
     sectionActionExactLocalSourceCount: typeof sectionActionRunSummary?.exactLocalSourceCount === "number" ? sectionActionRunSummary.exactLocalSourceCount : 0,
     sectionActionMappedAttachmentCount: typeof sectionActionRunSummary?.mappedAttachmentCount === "number" ? sectionActionRunSummary.mappedAttachmentCount : 0,
     nextOperatorAction: typeof scanSummary.nextOperatorAction === "string" ? scanSummary.nextOperatorAction : (donor.nextOperatorAction ?? null),
@@ -1446,6 +1496,7 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
     topSectionSkinBlueprintProfiles,
     topSectionSkinRenderPlanProfiles,
     topSectionSkinMaterialPlanProfiles,
+    topSectionSkinMaterialReviewBundleProfiles,
     nextCaptureTargets
   };
 }

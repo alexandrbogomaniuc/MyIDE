@@ -14,6 +14,7 @@ import { summarizeFamilyReconstructionProfiles } from "./summarizeFamilyReconstr
 import { summarizeFamilyReconstructionMaps } from "./summarizeFamilyReconstructionMaps";
 import { summarizeFamilyReconstructionSections } from "./summarizeFamilyReconstructionSections";
 import { summarizeFamilyReconstructionSectionBundles } from "./summarizeFamilyReconstructionSectionBundles";
+import { summarizeSectionSkinMaterialReviewBundleProfiles } from "./summarizeSectionSkinMaterialReviewBundleProfiles";
 import {
   type CaptureRunFile,
   type DiscoveredDonorUrl,
@@ -649,6 +650,16 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
     || section.attachmentCount > 0
     || section.exactLocalSourceCount > 0
   );
+  const sectionSkinMaterialReviewBundleProfiles = await summarizeSectionSkinMaterialReviewBundleProfiles({
+    donorId: options.donorId,
+    donorName: options.donorName,
+    reviewBundlesRoot: paths.sectionSkinMaterialReviewBundlesRoot
+  });
+  await writeJsonFile(paths.sectionSkinMaterialReviewBundleProfilesPath, sectionSkinMaterialReviewBundleProfiles);
+  const prioritizedSectionSkinMaterialReviewBundleProfiles = sectionSkinMaterialReviewBundleProfiles.sections.filter((section) =>
+    section.reviewReadyPageCount > 0
+    || section.exactPageImageCount > 0
+  );
   const rawPayloadBlockedFamilies = captureBlockerFamilies.families
     .filter((family) => family.blockerClass === "raw-payload-blocked");
 
@@ -726,6 +737,10 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
       .map((section) => section.sectionKey),
     familyReconstructionSectionBundleCount: familyReconstructionSectionBundles.sectionCount,
     topFamilyReconstructionSectionBundleKeys: prioritizedFamilyReconstructionSectionBundles
+      .slice(0, 8)
+      .map((section) => section.sectionKey),
+    sectionSkinMaterialReviewBundleCount: sectionSkinMaterialReviewBundleProfiles.sectionCount,
+    topSectionSkinMaterialReviewBundleKeys: prioritizedSectionSkinMaterialReviewBundleProfiles
       .slice(0, 8)
       .map((section) => section.sectionKey),
     rawPayloadBlockedCaptureTargetCount: nextCaptureTargets.targets.filter((target) => target.blockerClass === "raw-payload-blocked").length,
