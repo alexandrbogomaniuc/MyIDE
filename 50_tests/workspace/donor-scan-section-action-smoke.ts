@@ -78,6 +78,7 @@ async function main(): Promise<void> {
   assert.equal(result.status, "prepared", "grounded section should prepare a workset");
   assert.ok(result.worksetPath, "section action should write a workset");
   assert.ok(result.reconstructionBundlePath, "section action should write a reconstruction bundle");
+  assert.ok(result.skinBlueprintPath, "section action should write a skin blueprint");
   assert.equal(result.mappedAttachmentCount, 4, "section action should preserve mapped attachment counts");
   assert.equal(result.exactLocalSourceCount, 2, "section action should preserve exact local source counts");
 
@@ -87,12 +88,14 @@ async function main(): Promise<void> {
     status?: string;
     worksetPath?: string | null;
     reconstructionBundlePath?: string | null;
+    skinBlueprintPath?: string | null;
     mappedAttachmentCount?: number;
   };
   assert.equal(sectionActionRun.sectionKey, "big_win/BW", "section action run should preserve section key");
   assert.equal(sectionActionRun.status, "prepared", "section action run should preserve prepared status");
   assert.ok(sectionActionRun.worksetPath, "section action run should point at the prepared workset");
   assert.ok(sectionActionRun.reconstructionBundlePath, "section action run should point at the prepared reconstruction bundle");
+  assert.ok(sectionActionRun.skinBlueprintPath, "section action run should point at the prepared skin blueprint");
   assert.equal(sectionActionRun.mappedAttachmentCount, 4, "section action run should persist mapped attachment counts");
 
   const worksetPath = result.worksetPath ?? "";
@@ -134,6 +137,33 @@ async function main(): Promise<void> {
     : null;
   assert.ok(sectionProfile, "section reconstruction profiles should include the prepared section");
   assert.equal(sectionProfile?.reconstructionState, "ready-for-section-skin-reconstruction", "section reconstruction profiles should preserve readiness");
+
+  const skinBlueprintPath = result.skinBlueprintPath ?? "";
+  const resolvedSkinBlueprintPath = path.isAbsolute(skinBlueprintPath) ? skinBlueprintPath : path.join(workspaceRoot, skinBlueprintPath);
+  const skinBlueprint = JSON.parse(await fs.readFile(resolvedSkinBlueprintPath, "utf8")) as {
+    sectionKey?: string;
+    blueprintState?: string;
+    slotOrder?: string[];
+    slots?: Array<{ slotName?: string; orderIndex?: number }>;
+    pages?: Array<{ pageName?: string; orderIndex?: number }>;
+  };
+  assert.equal(skinBlueprint.sectionKey, "big_win/BW", "section skin blueprint should preserve section key");
+  assert.equal(skinBlueprint.blueprintState, "ready-for-slot-order-reconstruction", "section skin blueprint should mark grounded sections as slot-order ready");
+  assert.ok(Array.isArray(skinBlueprint.slotOrder) && skinBlueprint.slotOrder.length >= 1, "section skin blueprint should expose slot order");
+  assert.ok(Array.isArray(skinBlueprint.slots) && skinBlueprint.slots.length >= 1, "section skin blueprint should expose ordered slot records");
+  assert.ok(Array.isArray(skinBlueprint.pages) && skinBlueprint.pages.length >= 1, "section skin blueprint should expose page records");
+
+  const skinBlueprintProfilesPath = path.join(donorRoot, "section-skin-blueprint-profiles.json");
+  const skinBlueprintProfiles = JSON.parse(await fs.readFile(skinBlueprintProfilesPath, "utf8")) as {
+    sectionCount?: number;
+    sections?: Array<{ sectionKey?: string; blueprintState?: string; blueprintPath?: string }>;
+  };
+  assert.ok((skinBlueprintProfiles.sectionCount ?? 0) >= 1, "section skin blueprint profiles should record prepared sections");
+  const skinProfile = Array.isArray(skinBlueprintProfiles.sections)
+    ? skinBlueprintProfiles.sections.find((section) => section?.sectionKey === "big_win/BW")
+    : null;
+  assert.ok(skinProfile, "section skin blueprint profiles should include the prepared section");
+  assert.equal(skinProfile?.blueprintState, "ready-for-slot-order-reconstruction", "section skin blueprint profiles should preserve blueprint readiness");
 
   console.log("PASS donor-scan:section-action");
   console.log(`Donor: ${donorId}`);

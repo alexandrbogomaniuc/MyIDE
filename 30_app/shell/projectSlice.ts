@@ -165,6 +165,7 @@ export interface DonorScanStatus {
   familyReconstructionSectionsPath: string | null;
   familyReconstructionSectionBundlesPath: string | null;
   sectionReconstructionProfilesPath: string | null;
+  sectionSkinBlueprintProfilesPath: string | null;
   runtimeCandidateCount: number;
   atlasManifestCount: number;
   bundleAssetMapStatus: string;
@@ -215,6 +216,7 @@ export interface DonorScanStatus {
   sectionActionRunSectionKey: string | null;
   sectionActionWorksetPath: string | null;
   sectionActionReconstructionBundlePath: string | null;
+  sectionActionSkinBlueprintPath: string | null;
   sectionActionExactLocalSourceCount: number;
   sectionActionMappedAttachmentCount: number;
   nextOperatorAction: string | null;
@@ -314,6 +316,20 @@ export interface DonorScanStatus {
     sampleLocalSourcePath: string | null;
     reconstructionBundlePath: string;
     nextReconstructionStep: string;
+  }>;
+  topSectionSkinBlueprintProfiles: Array<{
+    familyName: string;
+    sectionKey: string;
+    skinName: string;
+    blueprintState: string;
+    mappedAttachmentCount: number;
+    attachmentCount: number;
+    atlasPageCount: number;
+    slotCount: number;
+    exactLocalSourceCount: number;
+    sampleLocalSourcePath: string | null;
+    blueprintPath: string;
+    nextSkinStep: string;
   }>;
   nextCaptureTargets: Array<{
     url: string;
@@ -975,10 +991,11 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
   const familyReconstructionSectionsPath = `10_donors/${donorId}/evidence/local_only/harvest/family-reconstruction-sections.json`;
   const familyReconstructionSectionBundlesPath = `10_donors/${donorId}/evidence/local_only/harvest/family-reconstruction-section-bundles.json`;
   const sectionReconstructionProfilesPath = `10_donors/${donorId}/evidence/local_only/harvest/section-reconstruction-profiles.json`;
+  const sectionSkinBlueprintProfilesPath = `10_donors/${donorId}/evidence/local_only/harvest/section-skin-blueprint-profiles.json`;
   const captureRunPath = `10_donors/${donorId}/evidence/local_only/harvest/next-capture-run.json`;
   const familyActionRunPath = `10_donors/${donorId}/evidence/local_only/harvest/family-action-run.json`;
   const sectionActionRunPath = `10_donors/${donorId}/evidence/local_only/harvest/section-action-run.json`;
-  const [scanSummary, blockerSummaryMarkdown, nextCaptureTargetsFile, captureRunSummary, captureTargetFamiliesFile, captureFamilySourceProfilesFile, captureFamilyActionsFile, familyReconstructionProfilesFile, familyReconstructionMapsFile, familyReconstructionSectionsFile, familyReconstructionSectionBundlesFile, sectionReconstructionProfilesFile, familyActionRunSummary, sectionActionRunSummary] = await Promise.all([
+  const [scanSummary, blockerSummaryMarkdown, nextCaptureTargetsFile, captureRunSummary, captureTargetFamiliesFile, captureFamilySourceProfilesFile, captureFamilyActionsFile, familyReconstructionProfilesFile, familyReconstructionMapsFile, familyReconstructionSectionsFile, familyReconstructionSectionBundlesFile, sectionReconstructionProfilesFile, sectionSkinBlueprintProfilesFile, familyActionRunSummary, sectionActionRunSummary] = await Promise.all([
     readOptionalJsonFile(path.join(workspaceRoot, scanSummaryPath)) as Promise<JsonObject | null>,
     readOptionalTextFile(path.join(workspaceRoot, blockerSummaryPath)),
     readOptionalJsonFile(path.join(workspaceRoot, nextCaptureTargetsPath)) as Promise<JsonObject | null>,
@@ -991,6 +1008,7 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
     readOptionalJsonFile(path.join(workspaceRoot, familyReconstructionSectionsPath)) as Promise<JsonObject | null>,
     readOptionalJsonFile(path.join(workspaceRoot, familyReconstructionSectionBundlesPath)) as Promise<JsonObject | null>,
     readOptionalJsonFile(path.join(workspaceRoot, sectionReconstructionProfilesPath)) as Promise<JsonObject | null>,
+    readOptionalJsonFile(path.join(workspaceRoot, sectionSkinBlueprintProfilesPath)) as Promise<JsonObject | null>,
     readOptionalJsonFile(path.join(workspaceRoot, familyActionRunPath)) as Promise<JsonObject | null>,
     readOptionalJsonFile(path.join(workspaceRoot, sectionActionRunPath)) as Promise<JsonObject | null>
   ]);
@@ -1220,6 +1238,26 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
         .filter((section) => section.sectionKey.length > 0 && section.reconstructionBundlePath.length > 0)
         .slice(0, 6)
     : [];
+  const topSectionSkinBlueprintProfiles = Array.isArray(sectionSkinBlueprintProfilesFile?.sections)
+    ? sectionSkinBlueprintProfilesFile.sections
+        .filter((value): value is JsonObject => Boolean(value) && typeof value === "object" && !Array.isArray(value))
+        .map((section) => ({
+          familyName: typeof section.familyName === "string" ? section.familyName : "",
+          sectionKey: typeof section.sectionKey === "string" ? section.sectionKey : "",
+          skinName: typeof section.skinName === "string" ? section.skinName : "",
+          blueprintState: typeof section.blueprintState === "string" ? section.blueprintState : "unknown",
+          mappedAttachmentCount: typeof section.mappedAttachmentCount === "number" ? section.mappedAttachmentCount : 0,
+          attachmentCount: typeof section.attachmentCount === "number" ? section.attachmentCount : 0,
+          atlasPageCount: typeof section.atlasPageCount === "number" ? section.atlasPageCount : 0,
+          slotCount: typeof section.slotCount === "number" ? section.slotCount : 0,
+          exactLocalSourceCount: typeof section.exactLocalSourceCount === "number" ? section.exactLocalSourceCount : 0,
+          sampleLocalSourcePath: typeof section.sampleLocalSourcePath === "string" ? section.sampleLocalSourcePath : null,
+          blueprintPath: typeof section.blueprintPath === "string" ? section.blueprintPath : "",
+          nextSkinStep: typeof section.nextSkinStep === "string" ? section.nextSkinStep : "Review the section skin blueprint."
+        }))
+        .filter((section) => section.sectionKey.length > 0 && section.blueprintPath.length > 0)
+        .slice(0, 6)
+    : [];
 
   return {
     donorId,
@@ -1239,6 +1277,7 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
     familyReconstructionSectionsPath: familyReconstructionSectionsFile ? familyReconstructionSectionsPath : null,
     familyReconstructionSectionBundlesPath: familyReconstructionSectionBundlesFile ? familyReconstructionSectionBundlesPath : null,
     sectionReconstructionProfilesPath: sectionReconstructionProfilesFile ? sectionReconstructionProfilesPath : null,
+    sectionSkinBlueprintProfilesPath: sectionSkinBlueprintProfilesFile ? sectionSkinBlueprintProfilesPath : null,
     runtimeCandidateCount: typeof scanSummary.runtimeCandidateCount === "number" ? scanSummary.runtimeCandidateCount : (donor.runtimeCandidateCount ?? 0),
     atlasManifestCount: typeof scanSummary.atlasManifestCount === "number" ? scanSummary.atlasManifestCount : (donor.atlasManifestCount ?? 0),
     bundleAssetMapStatus: typeof scanSummary.bundleAssetMapStatus === "string" ? scanSummary.bundleAssetMapStatus : (donor.bundleAssetMapStatus ?? "unknown"),
@@ -1305,6 +1344,7 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
     sectionActionRunSectionKey: typeof sectionActionRunSummary?.sectionKey === "string" ? sectionActionRunSummary.sectionKey : null,
     sectionActionWorksetPath: typeof sectionActionRunSummary?.worksetPath === "string" ? sectionActionRunSummary.worksetPath : null,
     sectionActionReconstructionBundlePath: typeof sectionActionRunSummary?.reconstructionBundlePath === "string" ? sectionActionRunSummary.reconstructionBundlePath : null,
+    sectionActionSkinBlueprintPath: typeof sectionActionRunSummary?.skinBlueprintPath === "string" ? sectionActionRunSummary.skinBlueprintPath : null,
     sectionActionExactLocalSourceCount: typeof sectionActionRunSummary?.exactLocalSourceCount === "number" ? sectionActionRunSummary.exactLocalSourceCount : 0,
     sectionActionMappedAttachmentCount: typeof sectionActionRunSummary?.mappedAttachmentCount === "number" ? sectionActionRunSummary.mappedAttachmentCount : 0,
     nextOperatorAction: typeof scanSummary.nextOperatorAction === "string" ? scanSummary.nextOperatorAction : (donor.nextOperatorAction ?? null),
@@ -1317,6 +1357,7 @@ async function loadDonorScanStatus(selectedProject: WorkspaceProjectSummary | nu
     topFamilyReconstructionMaps,
     topFamilyReconstructionSections,
     topSectionReconstructionProfiles,
+    topSectionSkinBlueprintProfiles,
     nextCaptureTargets
   };
 }

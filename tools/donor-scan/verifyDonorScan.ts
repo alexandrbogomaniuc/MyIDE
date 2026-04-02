@@ -141,6 +141,23 @@ async function main(): Promise<void> {
           .slice(0, 6)
       : [];
   }
+  const hasSectionSkinBlueprintProfiles = await fileExists(paths.sectionSkinBlueprintProfilesPath);
+  let sectionSkinBlueprintProfilesCount: number | null = null;
+  let topSectionSkinBlueprintKeys: string[] = [];
+  if (hasSectionSkinBlueprintProfiles) {
+    const sectionSkinBlueprintProfiles = await readJsonFile<{
+      sectionCount?: number;
+      sections?: Array<{ sectionKey?: string }>;
+    }>(paths.sectionSkinBlueprintProfilesPath);
+    assert.ok(typeof sectionSkinBlueprintProfiles.sectionCount === "number", "section skin blueprint profiles should record section counts");
+    sectionSkinBlueprintProfilesCount = sectionSkinBlueprintProfiles.sectionCount ?? 0;
+    topSectionSkinBlueprintKeys = Array.isArray(sectionSkinBlueprintProfiles.sections)
+      ? sectionSkinBlueprintProfiles.sections
+          .map((section) => typeof section?.sectionKey === "string" ? section.sectionKey : "")
+          .filter((value) => value.length > 0)
+          .slice(0, 6)
+      : [];
+  }
 
   console.log("PASS donor-scan:verify");
   console.log(`Donor: ${donorId}`);
@@ -160,6 +177,9 @@ async function main(): Promise<void> {
   console.log(`Family reconstruction section bundles: ${scanSummary.familyReconstructionSectionBundleCount} (${scanSummary.topFamilyReconstructionSectionBundleKeys.join(", ")})`);
   if (sectionReconstructionProfilesCount !== null) {
     console.log(`Section reconstruction profiles: ${sectionReconstructionProfilesCount} (${topSectionReconstructionKeys.join(", ")})`);
+  }
+  if (sectionSkinBlueprintProfilesCount !== null) {
+    console.log(`Section skin blueprint profiles: ${sectionSkinBlueprintProfilesCount} (${topSectionSkinBlueprintKeys.join(", ")})`);
   }
   console.log(`Raw-payload-blocked targets: ${scanSummary.rawPayloadBlockedCaptureTargetCount}`);
   console.log(`Raw-payload-blocked families: ${scanSummary.rawPayloadBlockedFamilyCount} (${scanSummary.rawPayloadBlockedFamilyNames.join(", ")})`);

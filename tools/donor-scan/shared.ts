@@ -158,6 +158,8 @@ export interface DonorScanPaths {
   sectionReconstructionWorksetsRoot: string;
   sectionReconstructionBundlesRoot: string;
   sectionReconstructionProfilesPath: string;
+  sectionSkinBlueprintsRoot: string;
+  sectionSkinBlueprintProfilesPath: string;
   captureRunPath: string;
   blockerSummaryPath: string;
   scanSummaryPath: string;
@@ -949,6 +951,82 @@ export interface SectionReconstructionProfilesFile {
   sections: SectionReconstructionProfileRecord[];
 }
 
+export type SectionSkinBlueprintState =
+  | "ready-for-slot-order-reconstruction"
+  | "needs-manual-slot-review";
+
+export interface SectionSkinBlueprintSlotRecord {
+  orderIndex: number;
+  slotName: string;
+  attachmentCount: number;
+  attachmentNames: string[];
+  attachmentPaths: string[];
+  pageNames: string[];
+  regionNames: string[];
+}
+
+export interface SectionSkinBlueprintPageRecord {
+  orderIndex: number;
+  pageName: string;
+  attachmentCount: number;
+  attachmentNames: string[];
+  slotNames: string[];
+  regionNames: string[];
+}
+
+export interface SectionSkinBlueprintFile {
+  schemaVersion: string;
+  donorId: string;
+  donorName: string;
+  generatedAt: string;
+  familyName: string;
+  sectionKey: string;
+  skinName: string;
+  blueprintState: SectionSkinBlueprintState;
+  reconstructionState: SectionReconstructionBundleState;
+  attachmentCount: number;
+  mappedAttachmentCount: number;
+  unmappedAttachmentCount: number;
+  atlasPageCount: number;
+  atlasPageNames: string[];
+  slotCount: number;
+  slotOrder: string[];
+  exactLocalSourceCount: number;
+  relatedLocalSourceCount: number;
+  sampleLocalSourcePath: string | null;
+  sectionBundlePath: string;
+  reconstructionBundlePath: string;
+  worksetPath: string;
+  nextSkinStep: string;
+  slots: SectionSkinBlueprintSlotRecord[];
+  pages: SectionSkinBlueprintPageRecord[];
+}
+
+export interface SectionSkinBlueprintProfileRecord {
+  familyName: string;
+  sectionKey: string;
+  skinName: string;
+  blueprintState: SectionSkinBlueprintState;
+  attachmentCount: number;
+  mappedAttachmentCount: number;
+  unmappedAttachmentCount: number;
+  atlasPageCount: number;
+  slotCount: number;
+  exactLocalSourceCount: number;
+  sampleLocalSourcePath: string | null;
+  blueprintPath: string;
+  nextSkinStep: string;
+}
+
+export interface SectionSkinBlueprintProfilesFile {
+  schemaVersion: string;
+  donorId: string;
+  donorName: string;
+  generatedAt: string;
+  sectionCount: number;
+  sections: SectionSkinBlueprintProfileRecord[];
+}
+
 export interface SectionActionRunFile {
   schemaVersion: string;
   donorId: string;
@@ -961,6 +1039,7 @@ export interface SectionActionRunFile {
   sectionBundlePath: string;
   worksetPath: string | null;
   reconstructionBundlePath: string | null;
+  skinBlueprintPath: string | null;
   exactLocalSourceCount: number;
   attachmentCount: number;
   mappedAttachmentCount: number;
@@ -1059,6 +1138,8 @@ export function buildDonorScanPaths(donorId: string): DonorScanPaths {
     sectionReconstructionWorksetsRoot: path.join(harvestRoot, "section-reconstruction-worksets"),
     sectionReconstructionBundlesRoot: path.join(harvestRoot, "section-reconstruction-bundles"),
     sectionReconstructionProfilesPath: path.join(harvestRoot, "section-reconstruction-profiles.json"),
+    sectionSkinBlueprintsRoot: path.join(harvestRoot, "section-skin-blueprints"),
+    sectionSkinBlueprintProfilesPath: path.join(harvestRoot, "section-skin-blueprint-profiles.json"),
     captureRunPath: path.join(harvestRoot, "next-capture-run.json"),
     blockerSummaryPath: path.join(harvestRoot, "blocker-summary.md"),
     scanSummaryPath: path.join(harvestRoot, "scan-summary.json")

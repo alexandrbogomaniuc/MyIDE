@@ -1,6 +1,8 @@
 import path from "node:path";
 import { buildSectionReconstructionBundle } from "./buildSectionReconstructionBundle";
+import { buildSectionSkinBlueprint } from "./buildSectionSkinBlueprint";
 import { summarizeSectionReconstructionProfiles } from "./summarizeSectionReconstructionProfiles";
+import { summarizeSectionSkinBlueprintProfiles } from "./summarizeSectionSkinBlueprintProfiles";
 import type {
   FamilyReconstructionSectionBundleRecord,
   FamilyReconstructionSectionBundlesFile,
@@ -30,6 +32,7 @@ export interface RunSectionActionResult {
   sectionBundlePath: string;
   worksetPath: string | null;
   reconstructionBundlePath: string | null;
+  skinBlueprintPath: string | null;
   exactLocalSourceCount: number;
   attachmentCount: number;
   mappedAttachmentCount: number;
@@ -111,6 +114,7 @@ function buildBlockedResult(
     sectionBundlePath: toRepoRelativePath(sectionBundlePath),
     worksetPath: null,
     reconstructionBundlePath: null,
+    skinBlueprintPath: null,
     exactLocalSourceCount: sectionBundle.exactLocalSourceCount,
     attachmentCount: sectionBundle.attachmentCount,
     mappedAttachmentCount: sectionBundle.mappedAttachmentCount,
@@ -154,6 +158,7 @@ export async function runSectionAction(options: RunSectionActionOptions): Promis
       sectionBundlePath: paths.familyReconstructionSectionBundlesPath,
       worksetPath: null,
       reconstructionBundlePath: null,
+      skinBlueprintPath: null,
       exactLocalSourceCount: sectionBundle.exactLocalSourceCount,
       attachmentCount: sectionBundle.attachmentCount,
       mappedAttachmentCount: sectionBundle.mappedAttachmentCount,
@@ -177,14 +182,28 @@ export async function runSectionAction(options: RunSectionActionOptions): Promis
     `${sanitizeSectionSegment(sectionBundle.familyName)}--${sanitizeSectionSegment(sectionBundle.sectionKey)}.json`
   );
   await writeJsonFile(reconstructionBundlePath, reconstructionBundle);
+  const skinBlueprint = buildSectionSkinBlueprint({
+    reconstructionBundle
+  });
+  const skinBlueprintPath = path.join(
+    paths.sectionSkinBlueprintsRoot,
+    `${sanitizeSectionSegment(sectionBundle.familyName)}--${sanitizeSectionSegment(sectionBundle.sectionKey)}.json`
+  );
+  await writeJsonFile(skinBlueprintPath, skinBlueprint);
   const sectionReconstructionProfiles = await summarizeSectionReconstructionProfiles({
     donorId,
     donorName: sectionBundles.donorName,
     bundlesRoot: paths.sectionReconstructionBundlesRoot
   });
   await writeJsonFile(paths.sectionReconstructionProfilesPath, sectionReconstructionProfiles);
+  const sectionSkinBlueprintProfiles = await summarizeSectionSkinBlueprintProfiles({
+    donorId,
+    donorName: sectionBundles.donorName,
+    blueprintsRoot: paths.sectionSkinBlueprintsRoot
+  });
+  await writeJsonFile(paths.sectionSkinBlueprintProfilesPath, sectionSkinBlueprintProfiles);
 
-  const nextOperatorAction = `${sectionBundle.sectionKey}: use the prepared section reconstruction bundle for deeper skin or section reconstruction.`;
+  const nextOperatorAction = `${sectionBundle.sectionKey}: use the prepared section skin blueprint for deeper skin or section reconstruction.`;
   const sectionActionRun: SectionActionRunFile = {
     schemaVersion: "0.1.0",
     donorId,
@@ -197,6 +216,7 @@ export async function runSectionAction(options: RunSectionActionOptions): Promis
     sectionBundlePath: toRepoRelativePath(paths.familyReconstructionSectionBundlesPath),
     worksetPath: toRepoRelativePath(worksetPath),
     reconstructionBundlePath: toRepoRelativePath(reconstructionBundlePath),
+    skinBlueprintPath: toRepoRelativePath(skinBlueprintPath),
     exactLocalSourceCount: sectionBundle.exactLocalSourceCount,
     attachmentCount: sectionBundle.attachmentCount,
     mappedAttachmentCount: sectionBundle.mappedAttachmentCount,
@@ -216,6 +236,7 @@ export async function runSectionAction(options: RunSectionActionOptions): Promis
     sectionBundlePath: paths.familyReconstructionSectionBundlesPath,
     worksetPath,
     reconstructionBundlePath,
+    skinBlueprintPath,
     exactLocalSourceCount: sectionBundle.exactLocalSourceCount,
     attachmentCount: sectionBundle.attachmentCount,
     mappedAttachmentCount: sectionBundle.mappedAttachmentCount,
@@ -264,6 +285,9 @@ async function main(): Promise<void> {
   }
   if (result.reconstructionBundlePath) {
     console.log(`Reconstruction bundle: ${toRepoRelativePath(result.reconstructionBundlePath)}`);
+  }
+  if (result.skinBlueprintPath) {
+    console.log(`Skin blueprint: ${toRepoRelativePath(result.skinBlueprintPath)}`);
   }
   console.log(`Mapped attachments: ${result.mappedAttachmentCount}/${result.attachmentCount}`);
   console.log(`Grounded local sources: ${result.exactLocalSourceCount}`);
