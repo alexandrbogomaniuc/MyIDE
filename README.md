@@ -21,6 +21,8 @@ The IDE now tries bounded self-investigation first, then tells the operator what
 
 Once a project modification board exists, the next step is no longer another donor-only report: operators can start a prepared task and let the shell move into Compose or Runtime with the strongest grounded task context it can match.
 
+Prepared tasks can now also expose donor-backed task kits in the donor palette, so ready sections are not limited to a status row. When the grounded section bundle carries local image sources, the shell can show **Show Task Kit** and **Import Task Kit** for that task and reuse the existing grouped donor import flow in Compose.
+
 ## Current Phase
 - Current milestone: IDE-LIFECYCLE-A lifecycle backbone on top of the existing runtime-first shell, donor scan, and compose/runtime proving slices.
 - Active validated donor slice: `donor_001_mystery_garden`.
@@ -155,6 +157,7 @@ Public publication rules are defined in [`00_control/PUBLIC_REPO_POLICY.md`](./0
 - `npm run smoke:donor-scan-investigation`
 - `npm run smoke:donor-scan-promotion`
 - `npm run smoke:project-modification-handoff`
+- `npm run smoke:modification-task-kit`
 - `npm run runtime:mirror:project_001`
 - `npm run runtime:harvest:project_001`
 - `npm run runtime:harvest:smoke:project_001`

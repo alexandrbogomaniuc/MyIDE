@@ -20,7 +20,11 @@ import {
   buildRuntimeAssetOverrideStatus,
   type RuntimeAssetOverrideStatus
 } from "../workspace/donorOverride";
-import { readProjectModificationHandoff } from "../workspace/modificationHandoff";
+import {
+  readProjectModificationHandoff,
+  type ProjectModificationHandoffFile,
+  type ProjectModificationTask
+} from "../workspace/modificationHandoff";
 import {
   buildLocalRuntimeMirrorStatus,
   type LocalRuntimeMirrorStatus
@@ -34,6 +38,7 @@ import { toRepoRelativePath } from "../../tools/donor-scan/shared";
 
 type JsonValue = null | boolean | number | string | JsonObject | JsonValue[];
 type JsonObject = { [key: string]: JsonValue | undefined };
+type DonorAssetGroupKind = "indexed-donor-images" | "package-family" | "modification-task-kit";
 
 export interface DonorEvidenceItem {
   evidenceId: string;
@@ -72,7 +77,7 @@ export interface DonorAssetItem extends IndexedDonorAsset {
   previewLabel: string;
   assetGroupKey: string;
   assetGroupLabel: string;
-  assetGroupKind: "indexed-donor-images" | "package-family";
+  assetGroupKind: DonorAssetGroupKind;
   assetGroupDescription: string | null;
   assetDepth: number | null;
   discoveredFromUrl: string | null;
@@ -81,7 +86,7 @@ export interface DonorAssetItem extends IndexedDonorAsset {
 export interface DonorAssetGroupSummary {
   key: string;
   label: string;
-  kind: "indexed-donor-images" | "package-family";
+  kind: DonorAssetGroupKind;
   description: string | null;
   sceneKitKind: "background" | "gameplay" | "ui" | "overlay" | "misc";
   suggestedLayerId: string;
@@ -117,6 +122,13 @@ interface HarvestedPackageGraphNode {
   localPath?: string;
   contentType?: string;
   sizeBytes?: number;
+}
+
+interface ModificationTaskKitCandidate {
+  localPath: string;
+  title: string;
+  notes: string;
+  sourceUrl: string | null;
 }
 
 interface HarvestedPackageGraphFile {
@@ -1467,7 +1479,7 @@ function inferSceneKitKind(
     ])
   ].join(" ").toLowerCase();
 
-  if (/(modal|overlay|popup|intro|loading|award|transition|splash)/.test(haystack)) {
+  if (/(modal|overlay|popup|intro|loading|award|transition|splash|big[_ -]?win|mega[_ -]?win|jackpot)/.test(haystack)) {
     return "overlay";
   }
   if (/(hud|ui|button|counter|bar|badge|panel|label|control|menu)/.test(haystack)) {
@@ -1506,6 +1518,242 @@ function getSceneKitLayoutStyle(sceneKitKind: DonorAssetGroupSummary["sceneKitKi
   }
 
   return "grid";
+}
+
+function toModificationTaskAssetGroupKey(taskId: string): string {
+  return `modification-task:${taskId}`;
+}
+
+function buildModificationTaskAssetGroupLabel(task: Pick<ProjectModificationTask, "displayName" | "sectionKey">): string {
+  return `${task.displayName}${task.sectionKey ? ` · ${task.sectionKey}` : ""} Task Kit`;
+}
+
+function buildModificationTaskAssetGroupDescription(task: Pick<ProjectModificationTask, "displayName" | "sectionKey" | "sourceArtifactKind">): string {
+  return `${task.displayName}${task.sectionKey ? ` ${task.sectionKey}` : ""} grounded task kit from ${task.sourceArtifactKind}.`;
+}
+
+function buildModificationTaskAssetId(projectId: string, taskId: string, localPath: string): string {
+  const raw = `${projectId}::${taskId}::${localPath}`;
+  const hash = Buffer.from(raw).toString("base64url").slice(0, 18).toLowerCase();
+  return `donor.asset.task-${hash}`;
+}
+
+function buildModificationTaskAssetTitle(
+  task: Pick<ProjectModificationTask, "displayName" | "sectionKey" | "familyName">,
+  suffix: string
+): string {
+  const prefix = [task.displayName, task.sectionKey ?? task.familyName].filter(Boolean).join(" · ");
+  return `${prefix} · ${suffix}`;
+}
+
+function collectImageStrings(value: unknown, sink: Set<string>): void {
+  if (typeof value === "string") {
+    if (getSupportedDonorAssetTypeForPath(value)) {
+      sink.add(value);
+    }
+    return;
+  }
+
+  if (Array.isArray(value)) {
+    value.forEach((entry) => collectImageStrings(entry, sink));
+    return;
+  }
+
+  if (value && typeof value === "object") {
+    Object.values(value).forEach((entry) => collectImageStrings(entry, sink));
+  }
+}
+
+function collectModificationTaskKitCandidatesFromBundle(
+  task: Pick<ProjectModificationTask, "displayName" | "sectionKey" | "familyName">,
+  bundle: unknown
+): ModificationTaskKitCandidate[] {
+  const candidates: ModificationTaskKitCandidate[] = [];
+  const seen = new Set<string>();
+  const pushCandidate = (localPath: string | null, title: string, notes: string, sourceUrl: string | null = null) => {
+    if (typeof localPath !== "string" || !getSupportedDonorAssetTypeForPath(localPath) || seen.has(localPath)) {
+      return;
+    }
+    seen.add(localPath);
+    candidates.push({
+      localPath,
+      title,
+      notes,
+      sourceUrl
+    });
+  };
+
+  const pages = Array.isArray((bundle as { pages?: unknown[] } | null)?.pages)
+    ? ((bundle as { pages: Array<Record<string, unknown>> }).pages)
+    : [];
+  pages.forEach((page, index) => {
+    const localPath = typeof page.selectedLocalPath === "string"
+      ? page.selectedLocalPath
+      : typeof page.atlasPageLocalPath === "string"
+        ? page.atlasPageLocalPath
+        : null;
+    const pageLabel = typeof page.pageName === "string" && page.pageName.length > 0
+      ? page.pageName
+      : `page-${index + 1}`;
+    const selectedMode = typeof page.selectedMode === "string" && page.selectedMode.length > 0
+      ? ` · ${page.selectedMode}`
+      : "";
+    const pageState = typeof page.pageState === "string" ? page.pageState : "task page source";
+    pushCandidate(
+      localPath,
+      buildModificationTaskAssetTitle(task, pageLabel),
+      `${pageState}${selectedMode}`,
+      null
+    );
+  });
+
+  const localSources = Array.isArray((bundle as { localSources?: unknown[] } | null)?.localSources)
+    ? ((bundle as { localSources: Array<Record<string, unknown>> }).localSources)
+    : [];
+  localSources.forEach((source, index) => {
+    const localPath = typeof source.localPath === "string" ? source.localPath : null;
+    const familyLabel = typeof source.familyName === "string" && source.familyName.length > 0
+      ? source.familyName
+      : path.basename(localPath ?? "", path.extname(localPath ?? "")) || `source-${index + 1}`;
+    const sourceKind = typeof source.sourceKind === "string" ? source.sourceKind : "local-source";
+    const relation = typeof source.relation === "string" ? ` · ${source.relation}` : "";
+    pushCandidate(
+      localPath,
+      buildModificationTaskAssetTitle(task, familyLabel),
+      `${sourceKind}${relation}`,
+      typeof source.sourceUrl === "string" ? source.sourceUrl : null
+    );
+  });
+
+  if (candidates.length > 0) {
+    return candidates;
+  }
+
+  const fallbackPaths = new Set<string>();
+  collectImageStrings(bundle, fallbackPaths);
+  Array.from(fallbackPaths).forEach((localPath) => {
+    pushCandidate(
+      localPath,
+      buildModificationTaskAssetTitle(task, path.basename(localPath)),
+      "task bundle local image",
+      null
+    );
+  });
+
+  return candidates;
+}
+
+async function loadModificationTaskKitAssets(
+  selectedProject: WorkspaceProjectSummary | null,
+  selectedProjectId: string
+): Promise<DonorAssetItem[]> {
+  const handoff = await readProjectModificationHandoff(selectedProjectId);
+  const tasks = Array.isArray(handoff?.tasks) ? handoff.tasks : [];
+  if (tasks.length === 0) {
+    return [];
+  }
+
+  const donorId = handoff?.donorId ?? selectedProject?.donor?.donorId ?? "donor_unknown";
+  const donorName = handoff?.donorName ?? selectedProject?.donor?.donorName ?? selectedProjectId;
+  const assets: DonorAssetItem[] = [];
+
+  for (const task of tasks) {
+    const groupKey = toModificationTaskAssetGroupKey(task.taskId);
+    const groupLabel = buildModificationTaskAssetGroupLabel(task);
+    const groupDescription = buildModificationTaskAssetGroupDescription(task);
+    const artifactPaths = [
+      task.sourceArtifactPath,
+      ...(Array.isArray(task.supportingArtifactPaths) ? task.supportingArtifactPaths : [])
+    ].filter((value): value is string => typeof value === "string" && value.length > 0);
+    const candidates: ModificationTaskKitCandidate[] = [];
+    const seenCandidatePaths = new Set<string>();
+
+    const pushCandidates = (nextCandidates: readonly ModificationTaskKitCandidate[]) => {
+      nextCandidates.forEach((candidate) => {
+        if (seenCandidatePaths.has(candidate.localPath)) {
+          return;
+        }
+        seenCandidatePaths.add(candidate.localPath);
+        candidates.push(candidate);
+      });
+    };
+
+    for (const artifactPath of artifactPaths) {
+      const normalizedPath = artifactPath.replace(/\\/g, "/");
+      if (getSupportedDonorAssetTypeForPath(normalizedPath)) {
+        pushCandidates([{
+          localPath: normalizedPath,
+          title: buildModificationTaskAssetTitle(task, path.basename(normalizedPath)),
+          notes: "task-local grounded image",
+          sourceUrl: null
+        }]);
+        continue;
+      }
+      if (path.extname(normalizedPath).toLowerCase() !== ".json") {
+        continue;
+      }
+
+      const absolutePath = path.join(workspaceRoot, normalizedPath);
+      const bundle = await readOptionalJsonFile(absolutePath);
+      if (!bundle) {
+        continue;
+      }
+      pushCandidates(collectModificationTaskKitCandidatesFromBundle(task, bundle));
+    }
+
+    if (candidates.length === 0) {
+      continue;
+    }
+
+    for (const candidate of candidates) {
+      const absolutePath = path.join(workspaceRoot, candidate.localPath);
+      try {
+        await fs.access(absolutePath);
+      } catch {
+        continue;
+      }
+
+      assets.push({
+        assetId: buildModificationTaskAssetId(selectedProjectId, task.taskId, candidate.localPath),
+        evidenceId: `modification-task:${task.taskId}`,
+        captureSessionId: `modification-task:${task.taskId}`,
+        donorId,
+        donorName,
+        title: candidate.title,
+        filename: path.basename(candidate.localPath),
+        fileType: getSupportedDonorAssetTypeForPath(candidate.localPath) ?? "png",
+        sourceCategory: "modification task kit",
+        sourceUrl: candidate.sourceUrl,
+        notes: candidate.notes,
+        repoRelativePath: candidate.localPath,
+        donorRelativePath: candidate.localPath,
+        localExists: true,
+        previewAvailable: true,
+        width: null,
+        height: null,
+        absolutePath,
+        previewUrl: pathToFileURL(absolutePath).href,
+        previewLabel: "task kit source",
+        assetGroupKey: groupKey,
+        assetGroupLabel: groupLabel,
+        assetGroupKind: "modification-task-kit",
+        assetGroupDescription: `${groupDescription} ${task.nextAction}`,
+        assetDepth: null,
+        discoveredFromUrl: task.sourceArtifactPath ?? null
+      });
+    }
+
+    if (assets.some((asset) => asset.assetGroupKey === groupKey)) {
+      // Ensure group-specific scene-kit inference data is visible through the asset metadata itself.
+      assets
+        .filter((asset) => asset.assetGroupKey === groupKey)
+        .forEach((asset) => {
+          asset.assetGroupDescription = `${groupDescription} Import this kit to start bounded compose work for the task.`;
+        });
+    }
+  }
+
+  return assets.sort((left, right) => left.assetId.localeCompare(right.assetId));
 }
 
 async function loadPackageGraphAssets(
@@ -1614,10 +1862,11 @@ async function loadDonorAssetCatalog(selectedProject: WorkspaceProjectSummary | 
       discoveredFromUrl: null
     };
   }) : [];
+  const modificationTaskKitAssets = await loadModificationTaskKitAssets(selectedProject, selectedProjectId);
   const packageGraphAssets = await loadPackageGraphAssets(selectedProject, selectedProjectId);
   const assetMap = new Map<string, DonorAssetItem>();
-  [...indexedAssets, ...packageGraphAssets].forEach((asset) => {
-    const dedupeKey = asset.repoRelativePath || asset.assetId;
+  [...indexedAssets, ...modificationTaskKitAssets, ...packageGraphAssets].forEach((asset) => {
+    const dedupeKey = `${asset.assetGroupKey}::${asset.repoRelativePath || asset.assetId}`;
     if (!assetMap.has(dedupeKey)) {
       assetMap.set(dedupeKey, asset);
     }
@@ -1653,7 +1902,12 @@ async function loadDonorAssetCatalog(selectedProject: WorkspaceProjectSummary | 
   }
   const assetGroups = [...assetGroupMap.values()].sort((left, right) => {
     if (left.kind !== right.kind) {
-      return left.kind === "indexed-donor-images" ? -1 : 1;
+      const kindOrder: Record<DonorAssetGroupKind, number> = {
+        "indexed-donor-images": 0,
+        "modification-task-kit": 1,
+        "package-family": 2
+      };
+      return kindOrder[left.kind] - kindOrder[right.kind];
     }
     return left.label.localeCompare(right.label);
   });

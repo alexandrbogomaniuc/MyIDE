@@ -9106,6 +9106,19 @@ function getModificationTaskArtifactPaths(task) {
   ].filter((value) => typeof value === "string" && value.length > 0));
 }
 
+function getProjectModificationTaskKitGroupKey(task) {
+  if (!task?.taskId) {
+    return null;
+  }
+
+  return `modification-task:${task.taskId}`;
+}
+
+function getProjectModificationTaskKitGroupSummary(task) {
+  const groupKey = getProjectModificationTaskKitGroupKey(task);
+  return groupKey ? getDonorAssetGroupSummary(groupKey) : null;
+}
+
 function getRuntimeWorkbenchEntryForModificationTask(task) {
   if (!task) {
     return null;
@@ -9195,6 +9208,13 @@ function openProjectModificationTask(taskId, mode = "preferred") {
     setRuntimeWorkbenchSource(runtimeEntry.sourceUrl, { render: false });
   }
 
+  const taskKitGroupSummary = getProjectModificationTaskKitGroupSummary(task);
+  if (taskKitGroupSummary) {
+    state.donorAssetUi.assetGroupFilter = taskKitGroupSummary.key;
+    const taskKitAsset = getDonorAssetItemsForGroup(taskKitGroupSummary.key)[0] ?? null;
+    state.donorAssetUi.highlightedAssetId = taskKitAsset?.assetId ?? null;
+  }
+
   if (targetMode === "runtime") {
     setWorkbenchMode("runtime", { silent: true });
     state.workflowUi.activePanel = "runtime";
@@ -9206,8 +9226,8 @@ function openProjectModificationTask(taskId, mode = "preferred") {
   renderAll();
   setPreviewStatus(
     runtimeEntry
-      ? `${task.displayName}${task.sectionKey ? ` ${task.sectionKey}` : ""} is now the active modification task. ${targetMode === "runtime" ? "Runtime" : "Compose"} is active with grounded runtime source ${runtimeEntry.relativePath ?? runtimeEntry.localMirrorRepoRelativePath ?? runtimeEntry.sourceUrl}.`
-      : `${task.displayName}${task.sectionKey ? ` ${task.sectionKey}` : ""} is now the active modification task. ${targetMode === "runtime" ? "Runtime" : "Compose"} is active, but no request-backed runtime workbench source is matched yet. Continue from source artifact ${task.sourceArtifactPath ?? "pending artifact"}.`
+      ? `${task.displayName}${task.sectionKey ? ` ${task.sectionKey}` : ""} is now the active modification task. ${targetMode === "runtime" ? "Runtime" : "Compose"} is active with grounded runtime source ${runtimeEntry.relativePath ?? runtimeEntry.localMirrorRepoRelativePath ?? runtimeEntry.sourceUrl}${taskKitGroupSummary ? ` and donor task kit ${taskKitGroupSummary.label} is now filtered in the donor palette.` : "."}`
+      : `${task.displayName}${task.sectionKey ? ` ${task.sectionKey}` : ""} is now the active modification task. ${targetMode === "runtime" ? "Runtime" : "Compose"} is active, but no request-backed runtime workbench source is matched yet. Continue from source artifact ${task.sourceArtifactPath ?? "pending artifact"}${taskKitGroupSummary ? ` and donor task kit ${taskKitGroupSummary.label} is now filtered in the donor palette.` : "."}`
   );
 }
 
@@ -9217,6 +9237,7 @@ function renderProjectModificationTaskRow(task) {
   }
 
   const runtimeEntry = getRuntimeWorkbenchEntryForModificationTask(task);
+  const taskKitGroupSummary = getProjectModificationTaskKitGroupSummary(task);
   const runtimeLabel = runtimeEntry
     ? (runtimeEntry.relativePath ?? runtimeEntry.localMirrorRepoRelativePath ?? runtimeEntry.sourceUrl)
     : "No grounded runtime source matched yet";
@@ -9229,6 +9250,7 @@ function renderProjectModificationTaskRow(task) {
       <small>${escapeHtml(task.nextAction)}</small>
       <small>${task.sourceArtifactPath ? `source artifact · ${escapeHtml(task.sourceArtifactPath)}` : "source artifact · pending"}</small>
       <small>runtime context · ${escapeHtml(runtimeLabel)}</small>
+      <small>${taskKitGroupSummary ? `task kit · ${escapeHtml(taskKitGroupSummary.label)} (${escapeHtml(String(taskKitGroupSummary.count))} source image${taskKitGroupSummary.count === 1 ? "" : "s"})` : "task kit · no donor-backed import kit yet"}</small>
       <div class="evidence-actions">
         <button
           type="button"
@@ -9250,6 +9272,8 @@ function renderProjectModificationTaskRow(task) {
           data-project-modification-task-id="${escapeAttribute(task.taskId)}"
           ${task.canOpenRuntime ? "" : "disabled"}
         >Open Runtime</button>
+        ${taskKitGroupSummary ? `<button type="button" class="copy-button" data-focus-donor-asset-group-key="${escapeAttribute(taskKitGroupSummary.key)}">Show Task Kit</button>` : ""}
+        ${taskKitGroupSummary ? `<button type="button" class="copy-button" data-import-donor-asset-group-key="${escapeAttribute(taskKitGroupSummary.key)}">Import Task Kit</button>` : ""}
         ${task.sourceArtifactPath ? renderCopyButton(task.sourceArtifactPath, `${task.displayName} source artifact path`, "Copy Source Artifact") : ""}
       </div>
     </div>
@@ -9263,6 +9287,7 @@ function renderActiveProjectModificationTaskCard() {
   }
 
   const runtimeEntry = getRuntimeWorkbenchEntryForModificationTask(task);
+  const taskKitGroupSummary = getProjectModificationTaskKitGroupSummary(task);
   const runtimeSummary = runtimeEntry
     ? (runtimeEntry.relativePath ?? runtimeEntry.localMirrorRepoRelativePath ?? runtimeEntry.sourceUrl)
     : "No request-backed runtime workbench source is matched yet.";
@@ -9275,9 +9300,11 @@ function renderActiveProjectModificationTaskCard() {
         <span>${escapeHtml(task.taskStatus)}</span>
         <span>${escapeHtml(task.preferredWorkflowPanel)}</span>
         <span>${runtimeEntry ? "runtime matched" : "runtime not matched"}</span>
+        <span>${taskKitGroupSummary ? `${escapeHtml(String(taskKitGroupSummary.count))} task-kit source${taskKitGroupSummary.count === 1 ? "" : "s"}` : "no task kit"}</span>
       </div>
       <small>${escapeHtml(task.nextAction)}</small>
       <small>Runtime context · ${escapeHtml(runtimeSummary)}</small>
+      <small>${taskKitGroupSummary ? `Donor task kit · ${escapeHtml(taskKitGroupSummary.label)} on ${escapeHtml(taskKitGroupSummary.suggestedLayerId)}` : "This task does not yet expose an importable donor-backed task kit."}</small>
       <div class="evidence-actions">
         <button
           type="button"
@@ -9293,6 +9320,8 @@ function renderActiveProjectModificationTaskCard() {
           data-project-modification-task-id="${escapeAttribute(task.taskId)}"
           ${task.canOpenRuntime ? "" : "disabled"}
         >Open Runtime</button>
+        ${taskKitGroupSummary ? `<button type="button" class="copy-button" data-focus-donor-asset-group-key="${escapeAttribute(taskKitGroupSummary.key)}">Show Task Kit</button>` : ""}
+        ${taskKitGroupSummary ? `<button type="button" class="copy-button" data-import-donor-asset-group-key="${escapeAttribute(taskKitGroupSummary.key)}">Import Task Kit</button>` : ""}
         ${task.sourceArtifactPath ? renderCopyButton(task.sourceArtifactPath, `${task.displayName} source artifact path`, "Copy Source Artifact") : ""}
       </div>
     </div>
@@ -12763,12 +12792,12 @@ function renderDonorAssetCards(items, evidenceObjectIndex = new Map()) {
           <div class="donor-asset-group-head">
             <div class="donor-asset-group-meta">
               <strong>${escapeHtml(group.label)}</strong>
-              <span>${group.count} item${group.count === 1 ? "" : "s"}${group.kind === "package-family" ? " in this harvested runtime/package scene kit" : ""}</span>
+              <span>${group.count} item${group.count === 1 ? "" : "s"}${group.kind === "package-family" ? " in this harvested runtime/package scene kit" : group.kind === "modification-task-kit" ? " in this prepared modification task kit" : ""}</span>
               ${group.description ? `<small>${escapeHtml(group.description)}</small>` : ""}
               ${sceneKitSummary ? `<small>Scene kit target: ${escapeHtml(sceneKitSummary.layerLabel)} · ${escapeHtml(sceneKitSummary.layoutStyle)} layout · ${escapeHtml(sceneKitSummary.importLabel)}</small>` : ""}
             </div>
             <div class="evidence-actions">
-              ${group.kind === "package-family"
+              ${group.kind === "package-family" || group.kind === "modification-task-kit"
                 ? `<button type="button" class="copy-button" data-import-donor-asset-group-key="${escapeAttribute(group.key)}">Import Scene Kit To Compose</button>`
                 : ""}
               ${linkedGroupObjects.length > 0 ? `<button type="button" class="copy-button" data-focus-scene-object-group-key="${escapeAttribute(group.key)}">Select Scene Kit Objects</button>` : ""}

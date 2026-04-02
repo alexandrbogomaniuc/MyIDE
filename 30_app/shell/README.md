@@ -28,6 +28,7 @@ The operational workflow is now:
 3. Promote ready families/sections into Modification explicitly instead of treating readiness as an implied state change.
 4. Prepare the project modification board so promoted donor items resolve into explicit compose/runtime tasks with the strongest grounded artifact per task.
 5. Start a prepared task from the board so the shell switches into Compose or Runtime with the strongest grounded runtime source it can match for that task.
+6. When a task also carries grounded local image sources, use **Show Task Kit** or **Import Task Kit** to focus or import the donor-backed source kit for that specific task instead of manually hunting through the wider donor palette.
 
 ## Preferred Launchers
 - `./run/start-workbench.sh`
