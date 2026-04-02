@@ -155,6 +155,7 @@ async function main(): Promise<void> {
   assert.ok(result.skinMaterialReviewBundlePath, "section action should write a skin material review bundle");
   assert.ok(result.skinPageMatchBundlePath, "section action should write a skin page match bundle");
   assert.ok(result.skinPageLockBundlePath, "section action should write a skin page lock bundle");
+  assert.ok(result.skinPageLockAuditBundlePath, "section action should write a skin page lock audit bundle");
   assert.ok(result.skinTextureInputBundlePath, "section action should write a skin texture input bundle");
   assert.ok(result.skinTextureSourcePlanPath, "section action should write a skin texture source plan");
   assert.ok(result.skinTextureReconstructionBundlePath, "section action should write a skin texture reconstruction bundle");
@@ -173,6 +174,7 @@ async function main(): Promise<void> {
     skinMaterialReviewBundlePath?: string | null;
     skinPageMatchBundlePath?: string | null;
     skinPageLockBundlePath?: string | null;
+    skinPageLockAuditBundlePath?: string | null;
     skinTextureInputBundlePath?: string | null;
     skinTextureSourcePlanPath?: string | null;
     skinTextureReconstructionBundlePath?: string | null;
@@ -188,6 +190,7 @@ async function main(): Promise<void> {
   assert.ok(sectionActionRun.skinMaterialReviewBundlePath, "section action run should point at the prepared skin material review bundle");
   assert.ok(sectionActionRun.skinPageMatchBundlePath, "section action run should point at the prepared skin page match bundle");
   assert.ok(sectionActionRun.skinPageLockBundlePath, "section action run should point at the prepared skin page lock bundle");
+  assert.ok(sectionActionRun.skinPageLockAuditBundlePath, "section action run should point at the prepared skin page lock audit bundle");
   assert.ok(sectionActionRun.skinTextureInputBundlePath, "section action run should point at the prepared skin texture input bundle");
   assert.ok(sectionActionRun.skinTextureSourcePlanPath, "section action run should point at the prepared skin texture source plan");
   assert.ok(sectionActionRun.skinTextureReconstructionBundlePath, "section action run should point at the prepared skin texture reconstruction bundle");
@@ -460,6 +463,44 @@ async function main(): Promise<void> {
   assert.equal(pageLockProfile?.pageLockState, "ready-for-page-lock-review", "section skin page lock bundle profiles should preserve page-lock readiness");
   assert.equal(pageLockProfile?.proposedPageLockCount, 2, "section skin page lock bundle profiles should preserve proposed page-lock counts");
   assert.equal(pageLockProfile?.missingPageLockCount, 0, "section skin page lock bundle profiles should preserve missing page-lock counts");
+
+  const skinPageLockAuditBundlePath = result.skinPageLockAuditBundlePath ?? "";
+  const resolvedSkinPageLockAuditBundlePath = path.isAbsolute(skinPageLockAuditBundlePath) ? skinPageLockAuditBundlePath : path.join(workspaceRoot, skinPageLockAuditBundlePath);
+  const skinPageLockAuditBundle = JSON.parse(await fs.readFile(resolvedSkinPageLockAuditBundlePath, "utf8")) as {
+    sectionKey?: string;
+    pageLockAuditState?: string;
+    pageCount?: number;
+    uniqueSelectedLocalPathCount?: number;
+    duplicateSourceGroupCount?: number;
+    duplicateSourcePageCount?: number;
+    pages?: Array<{ pageState?: string; duplicateSourcePageCount?: number }>;
+    duplicateSourceGroups?: Array<{ pageCount?: number }>;
+  };
+  assert.equal(skinPageLockAuditBundle.sectionKey, "big_win/BW", "section skin page lock audit bundle should preserve section key");
+  assert.equal(skinPageLockAuditBundle.pageLockAuditState, "has-page-lock-conflicts", "section skin page lock audit bundle should flag duplicate source reuse");
+  assert.equal(skinPageLockAuditBundle.pageCount, 2, "section skin page lock audit bundle should preserve page counts");
+  assert.equal(skinPageLockAuditBundle.uniqueSelectedLocalPathCount, 1, "section skin page lock audit bundle should count unique selected local paths");
+  assert.equal(skinPageLockAuditBundle.duplicateSourceGroupCount, 1, "section skin page lock audit bundle should record one duplicate source group");
+  assert.equal(skinPageLockAuditBundle.duplicateSourcePageCount, 2, "section skin page lock audit bundle should record duplicate page counts");
+  assert.ok(Array.isArray(skinPageLockAuditBundle.pages) && skinPageLockAuditBundle.pages.length === 2, "section skin page lock audit bundle should expose per-page audit rows");
+  assert.equal(skinPageLockAuditBundle.pages?.[0]?.pageState, "duplicate-source-conflict", "section skin page lock audit bundle should mark duplicate source conflicts");
+  assert.equal(skinPageLockAuditBundle.pages?.[0]?.duplicateSourcePageCount, 2, "section skin page lock audit bundle should preserve duplicate source counts");
+  assert.ok(Array.isArray(skinPageLockAuditBundle.duplicateSourceGroups) && skinPageLockAuditBundle.duplicateSourceGroups.length === 1, "section skin page lock audit bundle should expose duplicate source groups");
+  assert.equal(skinPageLockAuditBundle.duplicateSourceGroups?.[0]?.pageCount, 2, "section skin page lock audit bundle should preserve duplicate group size");
+
+  const skinPageLockAuditBundleProfilesPath = path.join(donorRoot, "section-skin-page-lock-audit-bundle-profiles.json");
+  const skinPageLockAuditBundleProfiles = JSON.parse(await fs.readFile(skinPageLockAuditBundleProfilesPath, "utf8")) as {
+    sectionCount?: number;
+    sections?: Array<{ sectionKey?: string; pageLockAuditState?: string; duplicateSourceGroupCount?: number; duplicateSourcePageCount?: number }>;
+  };
+  assert.ok((skinPageLockAuditBundleProfiles.sectionCount ?? 0) >= 1, "section skin page lock audit bundle profiles should record prepared sections");
+  const pageLockAuditProfile = Array.isArray(skinPageLockAuditBundleProfiles.sections)
+    ? skinPageLockAuditBundleProfiles.sections.find((section) => section?.sectionKey === "big_win/BW")
+    : null;
+  assert.ok(pageLockAuditProfile, "section skin page lock audit bundle profiles should include the prepared section");
+  assert.equal(pageLockAuditProfile?.pageLockAuditState, "has-page-lock-conflicts", "section skin page lock audit bundle profiles should preserve audit state");
+  assert.equal(pageLockAuditProfile?.duplicateSourceGroupCount, 1, "section skin page lock audit bundle profiles should preserve duplicate source group counts");
+  assert.equal(pageLockAuditProfile?.duplicateSourcePageCount, 2, "section skin page lock audit bundle profiles should preserve duplicate source page counts");
 
   const skinTextureInputBundlePath = result.skinTextureInputBundlePath ?? "";
   const resolvedSkinTextureInputBundlePath = path.isAbsolute(skinTextureInputBundlePath)
