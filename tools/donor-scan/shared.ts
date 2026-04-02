@@ -170,6 +170,8 @@ export interface DonorScanPaths {
   sectionSkinPageMatchBundleProfilesPath: string;
   sectionSkinPageLockBundlesRoot: string;
   sectionSkinPageLockBundleProfilesPath: string;
+  sectionSkinTextureInputBundlesRoot: string;
+  sectionSkinTextureInputBundleProfilesPath: string;
   sectionSkinTextureSourcePlansRoot: string;
   sectionSkinTextureSourcePlanProfilesPath: string;
   sectionSkinTextureReconstructionBundlesRoot: string;
@@ -1454,6 +1456,105 @@ export interface SectionSkinPageLockBundleProfilesFile {
   sections: SectionSkinPageLockBundleProfileRecord[];
 }
 
+export type SectionSkinTextureInputState =
+  | "ready-with-exact-page-locks"
+  | "ready-with-proposed-page-locks"
+  | "needs-page-lock-review";
+
+export type SectionSkinTextureInputLayerState =
+  | "ready-with-exact-page-lock"
+  | "ready-with-proposed-page-lock"
+  | "needs-page-lock-review"
+  | "missing-atlas-geometry";
+
+export interface SectionSkinTextureInputPageRecord {
+  orderIndex: number;
+  pageName: string;
+  pageState: SectionSkinPageLockPageState;
+  layerCount: number;
+  slotNames: string[];
+  selectedLocalPath: string | null;
+  proposedMatchScore: number | null;
+}
+
+export interface SectionSkinTextureInputLayerRecord {
+  orderIndex: number;
+  slotName: string;
+  attachmentName: string | null;
+  attachmentPath: string | null;
+  pageName: string | null;
+  regionName: string | null;
+  layerState: SectionSkinTextureInputLayerState;
+  pageState: SectionSkinPageLockPageState;
+  selectedLocalPath: string | null;
+  rotated: boolean;
+  bounds: SectionSkinRenderBounds | null;
+  offsets: SectionSkinRenderOffsets | null;
+}
+
+export interface SectionSkinTextureInputBundleFile {
+  schemaVersion: string;
+  donorId: string;
+  donorName: string;
+  generatedAt: string;
+  familyName: string;
+  sectionKey: string;
+  skinName: string;
+  textureInputState: SectionSkinTextureInputState;
+  pageLockState: SectionSkinPageLockState;
+  textureReconstructionState: SectionSkinTextureReconstructionState;
+  textureSourceState: SectionSkinTextureSourceState;
+  matchState: SectionSkinPageMatchState;
+  reviewState: SectionSkinMaterialReviewState;
+  materialState: SectionSkinMaterialState;
+  renderState: SectionSkinRenderPlanState;
+  blueprintState: SectionSkinBlueprintState;
+  reconstructionState: SectionReconstructionBundleState;
+  pageCount: number;
+  exactPageLockCount: number;
+  proposedPageLockCount: number;
+  missingPageLockCount: number;
+  layerCount: number;
+  readyLayerCount: number;
+  blockedLayerCount: number;
+  topLockedLocalPath: string | null;
+  sampleLocalSourcePath: string | null;
+  atlasSourcePath: string | null;
+  pageLockBundlePath: string;
+  textureReconstructionBundlePath: string;
+  nextTextureInputStep: string;
+  pages: SectionSkinTextureInputPageRecord[];
+  layers: SectionSkinTextureInputLayerRecord[];
+}
+
+export interface SectionSkinTextureInputBundleProfileRecord {
+  familyName: string;
+  sectionKey: string;
+  skinName: string;
+  textureInputState: SectionSkinTextureInputState;
+  pageCount: number;
+  exactPageLockCount: number;
+  proposedPageLockCount: number;
+  missingPageLockCount: number;
+  layerCount: number;
+  readyLayerCount: number;
+  blockedLayerCount: number;
+  topLockedLocalPath: string | null;
+  sampleLocalSourcePath: string | null;
+  atlasSourcePath: string | null;
+  textureInputBundlePath: string;
+  nextTextureInputStep: string;
+}
+
+export interface SectionSkinTextureInputBundleProfilesFile {
+  schemaVersion: string;
+  donorId: string;
+  donorName: string;
+  generatedAt: string;
+  sectionCount: number;
+  sections: SectionSkinTextureInputBundleProfileRecord[];
+}
+
 export type SectionSkinTextureSourceState =
   | "ready-with-exact-page-sources"
   | "ready-with-proposed-page-sources"
@@ -1656,6 +1757,7 @@ export interface SectionActionRunFile {
   skinMaterialReviewBundlePath: string | null;
   skinPageMatchBundlePath: string | null;
   skinPageLockBundlePath: string | null;
+  skinTextureInputBundlePath: string | null;
   skinTextureSourcePlanPath: string | null;
   skinTextureReconstructionBundlePath: string | null;
   exactLocalSourceCount: number;
@@ -1768,6 +1870,8 @@ export function buildDonorScanPaths(donorId: string): DonorScanPaths {
     sectionSkinPageMatchBundleProfilesPath: path.join(harvestRoot, "section-skin-page-match-bundle-profiles.json"),
     sectionSkinPageLockBundlesRoot: path.join(harvestRoot, "section-skin-page-lock-bundles"),
     sectionSkinPageLockBundleProfilesPath: path.join(harvestRoot, "section-skin-page-lock-bundle-profiles.json"),
+    sectionSkinTextureInputBundlesRoot: path.join(harvestRoot, "section-skin-texture-input-bundles"),
+    sectionSkinTextureInputBundleProfilesPath: path.join(harvestRoot, "section-skin-texture-input-bundle-profiles.json"),
     sectionSkinTextureSourcePlansRoot: path.join(harvestRoot, "section-skin-texture-source-plans"),
     sectionSkinTextureSourcePlanProfilesPath: path.join(harvestRoot, "section-skin-texture-source-plan-profiles.json"),
     sectionSkinTextureReconstructionBundlesRoot: path.join(harvestRoot, "section-skin-texture-reconstruction-bundles"),

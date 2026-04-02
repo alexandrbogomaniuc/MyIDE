@@ -6,6 +6,7 @@ import { buildSectionSkinMaterialPlan } from "./buildSectionSkinMaterialPlan";
 import { buildSectionSkinMaterialReviewBundle } from "./buildSectionSkinMaterialReviewBundle";
 import { buildSectionSkinPageMatchBundle } from "./buildSectionSkinPageMatchBundle";
 import { buildSectionSkinPageLockBundle } from "./buildSectionSkinPageLockBundle";
+import { buildSectionSkinTextureInputBundle } from "./buildSectionSkinTextureInputBundle";
 import { buildSectionSkinTextureSourcePlan } from "./buildSectionSkinTextureSourcePlan";
 import { buildSectionSkinTextureReconstructionBundle } from "./buildSectionSkinTextureReconstructionBundle";
 import { summarizeSectionReconstructionProfiles } from "./summarizeSectionReconstructionProfiles";
@@ -15,6 +16,7 @@ import { summarizeSectionSkinMaterialPlanProfiles } from "./summarizeSectionSkin
 import { summarizeSectionSkinMaterialReviewBundleProfiles } from "./summarizeSectionSkinMaterialReviewBundleProfiles";
 import { summarizeSectionSkinPageMatchBundleProfiles } from "./summarizeSectionSkinPageMatchBundleProfiles";
 import { summarizeSectionSkinPageLockBundleProfiles } from "./summarizeSectionSkinPageLockBundleProfiles";
+import { summarizeSectionSkinTextureInputBundleProfiles } from "./summarizeSectionSkinTextureInputBundleProfiles";
 import { summarizeSectionSkinTextureSourcePlanProfiles } from "./summarizeSectionSkinTextureSourcePlanProfiles";
 import { summarizeSectionSkinTextureReconstructionBundleProfiles } from "./summarizeSectionSkinTextureReconstructionBundleProfiles";
 import type {
@@ -52,6 +54,7 @@ export interface RunSectionActionResult {
   skinMaterialReviewBundlePath: string | null;
   skinPageMatchBundlePath: string | null;
   skinPageLockBundlePath: string | null;
+  skinTextureInputBundlePath: string | null;
   skinTextureSourcePlanPath: string | null;
   skinTextureReconstructionBundlePath: string | null;
   exactLocalSourceCount: number;
@@ -141,6 +144,7 @@ function buildBlockedResult(
     skinMaterialReviewBundlePath: null,
     skinPageMatchBundlePath: null,
     skinPageLockBundlePath: null,
+    skinTextureInputBundlePath: null,
     skinTextureSourcePlanPath: null,
     skinTextureReconstructionBundlePath: null,
     exactLocalSourceCount: sectionBundle.exactLocalSourceCount,
@@ -192,6 +196,7 @@ export async function runSectionAction(options: RunSectionActionOptions): Promis
       skinMaterialReviewBundlePath: null,
       skinPageMatchBundlePath: null,
       skinPageLockBundlePath: null,
+      skinTextureInputBundlePath: null,
       skinTextureSourcePlanPath: null,
       skinTextureReconstructionBundlePath: null,
       exactLocalSourceCount: sectionBundle.exactLocalSourceCount,
@@ -294,6 +299,17 @@ export async function runSectionAction(options: RunSectionActionOptions): Promis
     `${sanitizeSectionSegment(sectionBundle.familyName)}--${sanitizeSectionSegment(sectionBundle.sectionKey)}.json`
   );
   await writeJsonFile(skinPageLockBundlePath, skinPageLockBundle);
+  const skinTextureInputBundle = buildSectionSkinTextureInputBundle({
+    pageLockBundle: skinPageLockBundle,
+    pageLockBundlePath: toRepoRelativePath(skinPageLockBundlePath),
+    textureReconstructionBundle: skinTextureReconstructionBundle,
+    textureReconstructionBundlePath: toRepoRelativePath(skinTextureReconstructionBundlePath)
+  });
+  const skinTextureInputBundlePath = path.join(
+    paths.sectionSkinTextureInputBundlesRoot,
+    `${sanitizeSectionSegment(sectionBundle.familyName)}--${sanitizeSectionSegment(sectionBundle.sectionKey)}.json`
+  );
+  await writeJsonFile(skinTextureInputBundlePath, skinTextureInputBundle);
   const sectionReconstructionProfiles = await summarizeSectionReconstructionProfiles({
     donorId,
     donorName: sectionBundles.donorName,
@@ -348,12 +364,18 @@ export async function runSectionAction(options: RunSectionActionOptions): Promis
     pageLockBundlesRoot: paths.sectionSkinPageLockBundlesRoot
   });
   await writeJsonFile(paths.sectionSkinPageLockBundleProfilesPath, sectionSkinPageLockBundleProfiles);
+  const sectionSkinTextureInputBundleProfiles = await summarizeSectionSkinTextureInputBundleProfiles({
+    donorId,
+    donorName: sectionBundles.donorName,
+    textureInputBundlesRoot: paths.sectionSkinTextureInputBundlesRoot
+  });
+  await writeJsonFile(paths.sectionSkinTextureInputBundleProfilesPath, sectionSkinTextureInputBundleProfiles);
 
-  const nextOperatorAction = skinPageLockBundle.pageLockState === "ready-with-exact-page-locks"
-    ? `${sectionBundle.sectionKey}: use the prepared section skin page-lock bundle directly for final texture reconstruction.`
-    : skinPageLockBundle.pageLockState === "ready-for-page-lock-review"
-      ? `${sectionBundle.sectionKey}: use the prepared section skin page-lock bundle to review and lock proposed atlas page-image assignments before final texture reconstruction.`
-      : `${sectionBundle.sectionKey}: keep gathering or locking atlas page-image sources before final texture reconstruction.`;
+  const nextOperatorAction = skinTextureInputBundle.textureInputState === "ready-with-exact-page-locks"
+    ? `${sectionBundle.sectionKey}: use the prepared section skin texture input bundle directly for final texture reconstruction.`
+    : skinTextureInputBundle.textureInputState === "ready-with-proposed-page-locks"
+      ? `${sectionBundle.sectionKey}: use the prepared section skin texture input bundle as provisional downstream input, but confirm the proposed page locks before final texture reconstruction.`
+      : `${sectionBundle.sectionKey}: review or lock page-image assignments before final texture reconstruction can proceed cleanly.`;
   const sectionActionRun: SectionActionRunFile = {
     schemaVersion: "0.1.0",
     donorId,
@@ -372,6 +394,7 @@ export async function runSectionAction(options: RunSectionActionOptions): Promis
     skinMaterialReviewBundlePath: toRepoRelativePath(skinMaterialReviewBundlePath),
     skinPageMatchBundlePath: toRepoRelativePath(skinPageMatchBundlePath),
     skinPageLockBundlePath: toRepoRelativePath(skinPageLockBundlePath),
+    skinTextureInputBundlePath: toRepoRelativePath(skinTextureInputBundlePath),
     skinTextureSourcePlanPath: toRepoRelativePath(skinTextureSourcePlanPath),
     skinTextureReconstructionBundlePath: toRepoRelativePath(skinTextureReconstructionBundlePath),
     exactLocalSourceCount: sectionBundle.exactLocalSourceCount,
@@ -399,6 +422,7 @@ export async function runSectionAction(options: RunSectionActionOptions): Promis
     skinMaterialReviewBundlePath,
     skinPageMatchBundlePath,
     skinPageLockBundlePath,
+    skinTextureInputBundlePath,
     skinTextureSourcePlanPath,
     skinTextureReconstructionBundlePath,
     exactLocalSourceCount: sectionBundle.exactLocalSourceCount,
@@ -467,6 +491,9 @@ async function main(): Promise<void> {
   }
   if (result.skinPageLockBundlePath) {
     console.log(`Skin page lock: ${toRepoRelativePath(result.skinPageLockBundlePath)}`);
+  }
+  if (result.skinTextureInputBundlePath) {
+    console.log(`Skin texture input: ${toRepoRelativePath(result.skinTextureInputBundlePath)}`);
   }
   if (result.skinTextureSourcePlanPath) {
     console.log(`Skin texture sources: ${toRepoRelativePath(result.skinTextureSourcePlanPath)}`);

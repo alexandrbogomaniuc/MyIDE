@@ -37,7 +37,7 @@ and answers early:
 - `npm run donor-scan:run-family-action -- --donor-id donor_XXX --family big_win --limit 10`
   - Execute the current family action from `capture-family-actions.json`. Capture-oriented families reuse the existing donor-scan capture runner; evidence/reconstruction families prepare grounded worksets, and `use-local-sources` families now also emit reconstruction-ready family bundles instead of stopping at an advisory note.
 - `npm run donor-scan:run-section-action -- --donor-id donor_XXX --section big_win/BW`
-  - Prepare one grounded reconstruction section workset directly from `family-reconstruction-section-bundles.json` when a specific section is already ready to leave the family queue. That same action now also emits a normalized section reconstruction bundle, a section skin blueprint, a section skin render plan, a section skin material plan, a section skin material review bundle, a section skin page-match bundle, a section skin page-lock bundle, a section skin texture-source plan, a section skin texture reconstruction bundle, and refreshes the donor-wide section reconstruction/blueprint/render-plan/material-plan/material-review/page-match/page-lock/texture-source/texture-reconstruction profiles.
+  - Prepare one grounded reconstruction section workset directly from `family-reconstruction-section-bundles.json` when a specific section is already ready to leave the family queue. That same action now also emits a normalized section reconstruction bundle, a section skin blueprint, a section skin render plan, a section skin material plan, a section skin material review bundle, a section skin page-match bundle, a section skin page-lock bundle, a section skin texture input bundle, a section skin texture-source plan, a section skin texture reconstruction bundle, and refreshes the donor-wide section reconstruction/blueprint/render-plan/material-plan/material-review/page-match/page-lock/texture-input/texture-source/texture-reconstruction profiles.
 
 ## Outputs
 
@@ -83,6 +83,8 @@ Key files:
 - `section-skin-page-match-bundle-profiles.json`
 - `section-skin-page-lock-bundles/<family>--<section>.json`
 - `section-skin-page-lock-bundle-profiles.json`
+- `section-skin-texture-input-bundles/<family>--<section>.json`
+- `section-skin-texture-input-bundle-profiles.json`
 - `section-skin-texture-source-plans/<family>--<section>.json`
 - `section-skin-texture-source-plan-profiles.json`
 - `section-skin-texture-reconstruction-bundles/<family>--<section>.json`
@@ -156,6 +158,8 @@ That same section action now also writes `section-skin-material-review-bundles/<
 That same section action now also writes `section-skin-page-match-bundles/<family>--<section>.json`, which turns those reviewed pages into proposed atlas page-image matches that can be locked before deeper texture reconstruction. `section-skin-page-match-bundle-profiles.json` is the compact donor-wide summary of those proposed-match section states.
 
 That same section action now also writes `section-skin-page-lock-bundles/<family>--<section>.json`, which turns those proposed page-image matches into one explicit per-page lock/review surface before final texture reconstruction. `section-skin-page-lock-bundle-profiles.json` is the compact donor-wide summary of those states. When the state is `ready-for-page-lock-review`, the section is no longer blocked on source discovery, but the page-image assignments are still provisional until they are confirmed.
+
+That same section action now also writes `section-skin-texture-input-bundles/<family>--<section>.json`, which joins the page-lock surface and the downstream texture reconstruction records into one lock-aware texture input bundle per section. `section-skin-texture-input-bundle-profiles.json` is the compact donor-wide summary of those states. When the state is `ready-with-proposed-page-locks`, the bundle is usable for downstream prep but the page-image locks are still provisional until they are confirmed.
 
 That same section action now also writes `section-skin-texture-source-plans/<family>--<section>.json`, which packages exact or proposed atlas page-image assignments into one downstream texture-source input per section. `section-skin-texture-source-plan-profiles.json` is the compact donor-wide summary of those texture-source states. When the state is `ready-with-proposed-page-sources`, the plan is usable for downstream prep but the page-image matches are still provisional until they are locked.
 
