@@ -154,6 +154,7 @@ async function main(): Promise<void> {
   assert.ok(result.skinMaterialPlanPath, "section action should write a skin material plan");
   assert.ok(result.skinMaterialReviewBundlePath, "section action should write a skin material review bundle");
   assert.ok(result.skinPageMatchBundlePath, "section action should write a skin page match bundle");
+  assert.ok(result.skinPageLockBundlePath, "section action should write a skin page lock bundle");
   assert.ok(result.skinTextureSourcePlanPath, "section action should write a skin texture source plan");
   assert.ok(result.skinTextureReconstructionBundlePath, "section action should write a skin texture reconstruction bundle");
   assert.equal(result.mappedAttachmentCount, 4, "section action should preserve mapped attachment counts");
@@ -170,6 +171,7 @@ async function main(): Promise<void> {
     skinMaterialPlanPath?: string | null;
     skinMaterialReviewBundlePath?: string | null;
     skinPageMatchBundlePath?: string | null;
+    skinPageLockBundlePath?: string | null;
     skinTextureSourcePlanPath?: string | null;
     skinTextureReconstructionBundlePath?: string | null;
     mappedAttachmentCount?: number;
@@ -183,6 +185,7 @@ async function main(): Promise<void> {
   assert.ok(sectionActionRun.skinMaterialPlanPath, "section action run should point at the prepared skin material plan");
   assert.ok(sectionActionRun.skinMaterialReviewBundlePath, "section action run should point at the prepared skin material review bundle");
   assert.ok(sectionActionRun.skinPageMatchBundlePath, "section action run should point at the prepared skin page match bundle");
+  assert.ok(sectionActionRun.skinPageLockBundlePath, "section action run should point at the prepared skin page lock bundle");
   assert.ok(sectionActionRun.skinTextureSourcePlanPath, "section action run should point at the prepared skin texture source plan");
   assert.ok(sectionActionRun.skinTextureReconstructionBundlePath, "section action run should point at the prepared skin texture reconstruction bundle");
   assert.equal(sectionActionRun.mappedAttachmentCount, 4, "section action run should persist mapped attachment counts");
@@ -407,6 +410,53 @@ async function main(): Promise<void> {
   assert.equal(pageMatchProfile?.matchState, "ready-for-page-match-lock", "section skin page match bundle profiles should preserve page-match readiness");
   assert.equal(pageMatchProfile?.proposedMatchCount, 2, "section skin page match bundle profiles should preserve proposed match counts");
   assert.equal(pageMatchProfile?.blockedPageCount, 0, "section skin page match bundle profiles should preserve blocked page counts");
+
+  const skinPageLockBundlePath = result.skinPageLockBundlePath ?? "";
+  const resolvedSkinPageLockBundlePath = path.isAbsolute(skinPageLockBundlePath)
+    ? skinPageLockBundlePath
+    : path.join(workspaceRoot, skinPageLockBundlePath);
+  const skinPageLockBundle = JSON.parse(await fs.readFile(resolvedSkinPageLockBundlePath, "utf8")) as {
+    sectionKey?: string;
+    pageLockState?: string;
+    pageCount?: number;
+    exactPageLockCount?: number;
+    proposedPageLockCount?: number;
+    missingPageLockCount?: number;
+    reconstructableLayerCount?: number;
+    blockedLayerCount?: number;
+    pages?: Array<{
+      pageName?: string;
+      pageState?: string;
+      selectedLocalPath?: string | null;
+      proposedMatchScore?: number | null;
+    }>;
+  };
+  assert.equal(skinPageLockBundle.sectionKey, "big_win/BW", "section skin page lock bundle should preserve section key");
+  assert.equal(skinPageLockBundle.pageLockState, "ready-for-page-lock-review", "section skin page lock bundle should stay provisional when page locks are still proposed");
+  assert.equal(skinPageLockBundle.pageCount, 2, "section skin page lock bundle should preserve page counts");
+  assert.equal(skinPageLockBundle.exactPageLockCount, 0, "section skin page lock bundle should preserve missing exact page locks");
+  assert.equal(skinPageLockBundle.proposedPageLockCount, 2, "section skin page lock bundle should count proposed page locks");
+  assert.equal(skinPageLockBundle.missingPageLockCount, 0, "section skin page lock bundle should avoid false missing page locks");
+  assert.equal(skinPageLockBundle.reconstructableLayerCount, 4, "section skin page lock bundle should preserve reconstructable layer counts");
+  assert.equal(skinPageLockBundle.blockedLayerCount, 0, "section skin page lock bundle should avoid false blocked layers");
+  assert.ok(Array.isArray(skinPageLockBundle.pages) && skinPageLockBundle.pages.length === 2, "section skin page lock bundle should expose per-page lock rows");
+  assert.equal(skinPageLockBundle.pages?.[0]?.pageState, "proposed-page-lock", "section skin page lock bundle should mark provisional matches as proposed page locks");
+  assert.ok(typeof skinPageLockBundle.pages?.[0]?.selectedLocalPath === "string" && skinPageLockBundle.pages[0].selectedLocalPath.length > 0, "section skin page lock bundle should preserve the selected local path");
+  assert.ok((skinPageLockBundle.pages?.[0]?.proposedMatchScore ?? 0) > 0, "section skin page lock bundle should preserve proposal scores");
+
+  const skinPageLockBundleProfilesPath = path.join(donorRoot, "section-skin-page-lock-bundle-profiles.json");
+  const skinPageLockBundleProfiles = JSON.parse(await fs.readFile(skinPageLockBundleProfilesPath, "utf8")) as {
+    sectionCount?: number;
+    sections?: Array<{ sectionKey?: string; pageLockState?: string; pageLockBundlePath?: string; proposedPageLockCount?: number; missingPageLockCount?: number }>;
+  };
+  assert.ok((skinPageLockBundleProfiles.sectionCount ?? 0) >= 1, "section skin page lock bundle profiles should record prepared sections");
+  const pageLockProfile = Array.isArray(skinPageLockBundleProfiles.sections)
+    ? skinPageLockBundleProfiles.sections.find((section) => section?.sectionKey === "big_win/BW")
+    : null;
+  assert.ok(pageLockProfile, "section skin page lock bundle profiles should include the prepared section");
+  assert.equal(pageLockProfile?.pageLockState, "ready-for-page-lock-review", "section skin page lock bundle profiles should preserve page-lock readiness");
+  assert.equal(pageLockProfile?.proposedPageLockCount, 2, "section skin page lock bundle profiles should preserve proposed page-lock counts");
+  assert.equal(pageLockProfile?.missingPageLockCount, 0, "section skin page lock bundle profiles should preserve missing page-lock counts");
 
   const skinTextureSourcePlanPath = result.skinTextureSourcePlanPath ?? "";
   const resolvedSkinTextureSourcePlanPath = path.isAbsolute(skinTextureSourcePlanPath) ? skinTextureSourcePlanPath : path.join(workspaceRoot, skinTextureSourcePlanPath);

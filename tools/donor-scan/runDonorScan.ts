@@ -16,6 +16,7 @@ import { summarizeFamilyReconstructionSections } from "./summarizeFamilyReconstr
 import { summarizeFamilyReconstructionSectionBundles } from "./summarizeFamilyReconstructionSectionBundles";
 import { summarizeSectionSkinMaterialReviewBundleProfiles } from "./summarizeSectionSkinMaterialReviewBundleProfiles";
 import { summarizeSectionSkinPageMatchBundleProfiles } from "./summarizeSectionSkinPageMatchBundleProfiles";
+import { summarizeSectionSkinPageLockBundleProfiles } from "./summarizeSectionSkinPageLockBundleProfiles";
 import { summarizeSectionSkinTextureSourcePlanProfiles } from "./summarizeSectionSkinTextureSourcePlanProfiles";
 import { summarizeSectionSkinTextureReconstructionBundleProfiles } from "./summarizeSectionSkinTextureReconstructionBundleProfiles";
 import {
@@ -694,6 +695,17 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
     || section.exactPageSourceCount > 0
     || section.proposedPageSourceCount > 0
   );
+  const sectionSkinPageLockBundleProfiles = await summarizeSectionSkinPageLockBundleProfiles({
+    donorId: options.donorId,
+    donorName: options.donorName,
+    pageLockBundlesRoot: paths.sectionSkinPageLockBundlesRoot
+  });
+  await writeJsonFile(paths.sectionSkinPageLockBundleProfilesPath, sectionSkinPageLockBundleProfiles);
+  const prioritizedSectionSkinPageLockBundleProfiles = sectionSkinPageLockBundleProfiles.sections.filter((section) =>
+    section.exactPageLockCount > 0
+    || section.proposedPageLockCount > 0
+    || section.reconstructableLayerCount > 0
+  );
   const rawPayloadBlockedFamilies = captureBlockerFamilies.families
     .filter((family) => family.blockerClass === "raw-payload-blocked");
 
@@ -787,6 +799,10 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
       .map((section) => section.sectionKey),
     sectionSkinTextureReconstructionBundleCount: sectionSkinTextureReconstructionBundleProfiles.sectionCount,
     topSectionSkinTextureReconstructionBundleKeys: prioritizedSectionSkinTextureReconstructionBundleProfiles
+      .slice(0, 8)
+      .map((section) => section.sectionKey),
+    sectionSkinPageLockBundleCount: sectionSkinPageLockBundleProfiles.sectionCount,
+    topSectionSkinPageLockBundleKeys: prioritizedSectionSkinPageLockBundleProfiles
       .slice(0, 8)
       .map((section) => section.sectionKey),
     rawPayloadBlockedCaptureTargetCount: nextCaptureTargets.targets.filter((target) => target.blockerClass === "raw-payload-blocked").length,
