@@ -7095,9 +7095,19 @@ async function runLiveRuntimeSelectedProjectOverrideSmoke() {
     donorAssetCount: 0,
     taskId: null,
     pageName: null,
+    harvestActionVisible: false,
+    harvestSucceeded: false,
+    harvestApiStatus: null,
+    harvestApiAttemptedSourceCount: 0,
+    harvestApiTopSourceUrl: null,
+    preHarvestRuntimeWorkbenchEntryKind: null,
     taskRuntimeEntryKind: null,
     taskRuntimeEntrySourceUrl: null,
+    runtimeWorkbenchEntryKind: null,
+    runtimeWorkbenchEntryRequestSource: null,
+    taskRuntimeOpenUsesHarvestedRequestWorkbenchEntry: false,
     runtimeOverrideEligible: false,
+    runtimeOverrideRequestSource: null,
     runtimeOverrideDonorAssetId: null,
     createOverrideButtonEnabled: false,
     runtimeOverrideCreated: false,
@@ -7174,26 +7184,71 @@ async function runLiveRuntimeSelectedProjectOverrideSmoke() {
 
     baseResult.taskId = matchedTaskProof.task.taskId;
     baseResult.pageName = matchedTaskProof.page.pageName;
+    const preHarvestTaskRuntimeEntry = getRuntimeWorkbenchEntryForModificationTask(matchedTaskProof.task);
+    if (!preHarvestTaskRuntimeEntry?.sourceUrl) {
+      throw new Error(`Task ${matchedTaskProof.task.taskId} did not resolve to a grounded runtime workbench entry before selected-project override harvest.`);
+    }
+    baseResult.preHarvestRuntimeWorkbenchEntryKind = preHarvestTaskRuntimeEntry.kind ?? null;
+    if (preHarvestTaskRuntimeEntry.kind !== "page-runtime-proof") {
+      throw new Error(`Selected-project runtime override smoke expected a page-proof-backed runtime entry before harvest, received ${preHarvestTaskRuntimeEntry.kind ?? "none"}.`);
+    }
 
-    openProjectModificationTask(matchedTaskProof.task.taskId, "runtime");
+    setWorkbenchMode("runtime", { silent: true, force: true });
+    setWorkflowPanel("runtime", { silent: true, force: true });
     await waitForRendererCondition(
-      () => state.workflowUi?.activePanel === "runtime"
-        && state.workbenchMode === "runtime"
-        && getRuntimeWorkbenchSourceUrl() === matchedTaskProof.pageProofEntry.entry.sourceUrl
-        && state.runtimeUi.launched === false,
-      `${matchedTaskProof.task.taskId} task runtime open to stay on the blocked-launch runtime surface before override creation`
+      () => state.workbenchMode === "runtime" && getActiveWorkflowPanel() === "runtime",
+      `${targetProjectId} runtime workbench activation for selected-project override smoke`
     );
 
-    const taskRuntimeMatch = getProjectModificationTaskRuntimeMatchForPage(matchedTaskProof.task, matchedTaskProof.page);
-    baseResult.taskRuntimeEntryKind = taskRuntimeMatch?.matchKind ?? null;
+    baseResult.harvestActionVisible = canHarvestSelectedProjectRuntimeRequestEvidence();
+    const harvestResult = await harvestRuntimeRequestEvidenceForCurrentProject();
+    baseResult.harvestApiStatus = typeof harvestResult?.status === "string" ? harvestResult.status : null;
+    baseResult.harvestApiAttemptedSourceCount = Number(harvestResult?.attemptedSourceCount ?? 0);
+    baseResult.harvestApiTopSourceUrl = typeof harvestResult?.topSourceUrl === "string" ? harvestResult.topSourceUrl : null;
+    if (harvestResult?.status !== "ready") {
+      throw new Error(
+        `Selected-project runtime override harvest returned ${String(harvestResult?.status ?? "unknown")}: ${String(harvestResult?.blocker ?? harvestResult?.error ?? "no blocker reported")}`
+      );
+    }
+
+    await waitForRendererCondition(
+      () => {
+        const entry = getRuntimeResourceMapEntry(matchedTaskProof.pageProofEntry.entry.sourceUrl);
+        return entry && Number(entry.stageHitCounts?.["selected-project-harvest"] ?? 0) > 0 ? entry : null;
+      },
+      `${targetProjectId} selected-project runtime override harvest request to record the selected runtime source`
+    );
+    baseResult.harvestSucceeded = true;
+
+    openProjectModificationTask(matchedTaskProof.task.taskId, "runtime");
     const taskRuntimeEntry = getRuntimeWorkbenchEntryForModificationTask(matchedTaskProof.task);
     if (!taskRuntimeEntry?.sourceUrl) {
       throw new Error(`Task ${matchedTaskProof.task.taskId} did not resolve to a runtime workbench entry for override creation.`);
     }
     baseResult.taskRuntimeEntrySourceUrl = taskRuntimeEntry.sourceUrl;
+    baseResult.runtimeWorkbenchEntryKind = taskRuntimeEntry.kind ?? null;
+    baseResult.runtimeWorkbenchEntryRequestSource = taskRuntimeEntry.requestSource ?? null;
+    await waitForRendererCondition(
+      () => state.workflowUi?.activePanel === "runtime"
+        && state.workbenchMode === "runtime"
+        && getRuntimeWorkbenchSourceUrl() === taskRuntimeEntry.sourceUrl
+        && state.runtimeUi.launched === false,
+      `${matchedTaskProof.task.taskId} task runtime open to stay on the blocked-launch runtime surface before override creation`
+    );
+    baseResult.taskRuntimeOpenUsesHarvestedRequestWorkbenchEntry = getRuntimeWorkbenchSourceUrl() === taskRuntimeEntry.sourceUrl;
+
+    const taskRuntimeMatch = getProjectModificationTaskRuntimeMatchForPage(matchedTaskProof.task, matchedTaskProof.page);
+    baseResult.taskRuntimeEntryKind = taskRuntimeMatch?.matchKind ?? null;
+    if (taskRuntimeMatch?.matchKind === "page-proof") {
+      throw new Error(`Task ${matchedTaskProof.task.taskId} still matched through a page proof instead of the stronger harvested runtime trace.`);
+    }
+    if (taskRuntimeEntry.kind !== "resource-map") {
+      throw new Error(`Task ${matchedTaskProof.task.taskId} should resolve to a harvested resource-map entry before override creation, received ${taskRuntimeEntry.kind ?? "none"}.`);
+    }
 
     const runtimeOverrideCandidate = getRuntimeOverrideCandidate();
     baseResult.runtimeOverrideEligible = Boolean(runtimeOverrideCandidate.eligible);
+    baseResult.runtimeOverrideRequestSource = runtimeOverrideCandidate.resourceMapEntry?.requestSource ?? null;
     baseResult.runtimeOverrideDonorAssetId = runtimeOverrideCandidate.donorAsset?.assetId ?? null;
     if (!runtimeOverrideCandidate.eligible || !runtimeOverrideCandidate.donorAsset?.assetId) {
       throw new Error(runtimeOverrideCandidate.note ?? "Selected-project runtime override candidate was not eligible.");

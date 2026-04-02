@@ -20,9 +20,19 @@ interface OverridePayload {
   donorAssetCount?: number;
   taskId?: string | null;
   pageName?: string | null;
+  harvestActionVisible?: boolean;
+  harvestSucceeded?: boolean;
+  harvestApiStatus?: string | null;
+  harvestApiAttemptedSourceCount?: number;
+  harvestApiTopSourceUrl?: string | null;
+  preHarvestRuntimeWorkbenchEntryKind?: string | null;
   taskRuntimeEntryKind?: string | null;
   taskRuntimeEntrySourceUrl?: string | null;
+  runtimeWorkbenchEntryKind?: string | null;
+  runtimeWorkbenchEntryRequestSource?: string | null;
+  taskRuntimeOpenUsesHarvestedRequestWorkbenchEntry?: boolean;
   runtimeOverrideEligible?: boolean;
+  runtimeOverrideRequestSource?: string | null;
   runtimeOverrideDonorAssetId?: string | null;
   createOverrideButtonEnabled?: boolean;
   runtimeOverrideCreated?: boolean;
@@ -266,6 +276,7 @@ async function main(): Promise<void> {
   const sourceBundlePath = path.join(reportsRoot, "runtime-override-kit", "selected-project-runtime-override.smoke.json");
   const sourceAssetPath = path.join(reportsRoot, "runtime-override-kit", "big-win-ribbon.png");
   const runtimeProofPath = path.join(runtimeRoot, "page-runtime-proofs.latest.json");
+  const requestLogPath = path.join(runtimeRoot, "local-mirror", "request-log.latest.json");
   const overrideManifestPath = path.join(projectRoot, "overrides", "runtime-asset-overrides.json");
   const repoSourceBundlePath = path.relative(workspaceRoot, sourceBundlePath).replace(/\\/g, "/");
   const repoSourceAssetPath = path.relative(workspaceRoot, sourceAssetPath).replace(/\\/g, "/");
@@ -286,6 +297,7 @@ async function main(): Promise<void> {
   const originalSourceBundleRaw = await readOptionalUtf8(sourceBundlePath);
   const originalSourceAssetRaw = await readOptionalBuffer(sourceAssetPath);
   const originalRuntimeProofRaw = await readOptionalUtf8(runtimeProofPath);
+  const originalRequestLogRaw = await readOptionalUtf8(requestLogPath);
   const originalOverrideManifestRaw = await readOptionalUtf8(overrideManifestPath);
   const originalOverrideFileRaw = await readOptionalBuffer(overrideFilePath);
 
@@ -385,7 +397,7 @@ async function main(): Promise<void> {
             requestSource: "upstream-request",
             requestBacked: true,
             relativePath: "img/big-win-ribbon.png",
-            localMirrorRepoRelativePath: null,
+            localMirrorRepoRelativePath: repoSourceAssetPath,
             overrideHitCountAfterReload: 0,
             savedAtUtc: generatedAt
           }
@@ -424,9 +436,19 @@ async function main(): Promise<void> {
     assert.equal(payload.donorAssetCount, 1, "Selected-project runtime override smoke should surface the seeded task-kit donor asset.");
     assert.equal(payload.taskId, taskId, "Selected-project runtime override smoke reported the wrong task id.");
     assert.equal(payload.pageName, pageName, "Selected-project runtime override smoke reported the wrong page name.");
-    assert.equal(payload.taskRuntimeEntryKind, "page-proof", "Selected-project runtime override smoke should match through the persisted page proof.");
+    assert.equal(payload.harvestActionVisible, true, "Selected-project runtime override smoke should expose the bounded harvest action.");
+    assert.equal(payload.harvestSucceeded, true, "Selected-project runtime override smoke should harvest the stronger runtime trace before override creation.");
+    assert.equal(payload.harvestApiStatus, "ready", "Selected-project runtime override smoke harvest should complete successfully.");
+    assert((payload.harvestApiAttemptedSourceCount ?? 0) >= 1, "Selected-project runtime override smoke should attempt at least one bounded harvest source.");
+    assert.equal(payload.harvestApiTopSourceUrl, runtimeSourceUrl, "Selected-project runtime override smoke should keep the harvested runtime source anchored to the seeded source URL.");
+    assert.equal(payload.preHarvestRuntimeWorkbenchEntryKind, "page-runtime-proof", "Selected-project runtime override smoke should start from persisted page-proof evidence before harvest.");
+    assert.notEqual(payload.taskRuntimeEntryKind, "page-proof", "Selected-project runtime override smoke should upgrade beyond the weaker page-proof match after harvest.");
     assert.equal(payload.taskRuntimeEntrySourceUrl, runtimeSourceUrl, "Selected-project runtime override smoke used the wrong runtime source.");
+    assert.equal(payload.runtimeWorkbenchEntryKind, "resource-map", "Selected-project runtime override smoke should use the harvested request-backed runtime entry before override creation.");
+    assert.equal(payload.runtimeWorkbenchEntryRequestSource, "local-mirror-proxy", "Selected-project runtime override smoke should reopen on the harvested request-backed source.");
+    assert.equal(payload.taskRuntimeOpenUsesHarvestedRequestWorkbenchEntry, true, "Selected-project runtime override smoke should keep the task open on the harvested request-backed runtime entry.");
     assert.equal(payload.runtimeOverrideEligible, true, "Selected-project runtime override candidate should be eligible.");
+    assert.equal(payload.runtimeOverrideRequestSource, "local-mirror-proxy", "Selected-project runtime override smoke should create the override from the harvested request-backed source.");
     assert.equal(payload.runtimeOverrideDonorAssetId, donorAssetId, "Selected-project runtime override smoke matched the wrong donor asset.");
     assert.equal(payload.createOverrideButtonEnabled, true, "Selected-project runtime override button should be enabled.");
     assert.equal(payload.runtimeOverrideCreated, true, "Selected-project runtime override smoke did not create the override.");
@@ -446,10 +468,12 @@ async function main(): Promise<void> {
     await restoreOptionalUtf8(sourceBundlePath, originalSourceBundleRaw);
     await restoreOptionalBuffer(sourceAssetPath, originalSourceAssetRaw);
     await restoreOptionalUtf8(runtimeProofPath, originalRuntimeProofRaw);
+    await restoreOptionalUtf8(requestLogPath, originalRequestLogRaw);
     await restoreOptionalUtf8(overrideManifestPath, originalOverrideManifestRaw);
     await restoreOptionalBuffer(overrideFilePath, originalOverrideFileRaw);
 
     await cleanupEmptyDirectory(path.dirname(sourceAssetPath));
+    await cleanupEmptyDirectory(path.join(runtimeRoot, "local-mirror"));
     await cleanupEmptyDirectory(path.join(projectRoot, "overrides", "runtime-assets"));
     await cleanupEmptyDirectory(path.join(projectRoot, "overrides"));
     await cleanupEmptyDirectory(reportsRoot);
