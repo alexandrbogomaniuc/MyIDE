@@ -6598,6 +6598,8 @@ async function runLiveRuntimeSelectedProjectReopenSmoke() {
     runtimeStatusSurfaceChipLabel: null,
     runtimeStatusSurfaceCardTitle: null,
     inspectorSurfaceChipLabel: null,
+    onboardingSurfaceChipLabel: null,
+    onboardingSurfaceCardTitle: null,
     runtimeStatusMentionsOfficialDailyPath: false,
     embeddedRuntimeLaunched: false,
     previewStatus: null
@@ -6744,6 +6746,26 @@ async function runLiveRuntimeSelectedProjectReopenSmoke() {
     baseResult.runtimeStatusSurfaceChipLabel = runtimeSurfaceLabels.runtimeStatusSurfaceChipLabel;
     baseResult.runtimeStatusSurfaceCardTitle = runtimeSurfaceLabels.runtimeStatusSurfaceCardTitle;
     baseResult.inspectorSurfaceChipLabel = runtimeSurfaceLabels.inspectorSurfaceChipLabel;
+    const onboardingSurfaceLabels = await waitForRendererCondition(
+      () => {
+        const onboardingSurfaceChipLabel = elements.onboardingCard?.querySelector(".scope-summary .chip-row span:nth-child(3)")?.textContent?.trim() ?? null;
+        const onboardingSurfaceCards = Array.from(elements.onboardingCard?.querySelectorAll(".detail-card") ?? []);
+        const onboardingSurfaceCard = onboardingSurfaceCards.find((card) => {
+          const cardLabel = card.querySelector("span")?.textContent?.trim() ?? "";
+          return cardLabel === "Selected-project Runtime Surface";
+        }) ?? null;
+        const onboardingSurfaceCardTitle = onboardingSurfaceCard?.querySelector("strong")?.textContent?.trim() ?? null;
+        return onboardingSurfaceChipLabel && onboardingSurfaceCardTitle
+          ? {
+            onboardingSurfaceChipLabel,
+            onboardingSurfaceCardTitle
+          }
+          : null;
+      },
+      "selected-project onboarding runtime surface labels"
+    );
+    baseResult.onboardingSurfaceChipLabel = onboardingSurfaceLabels.onboardingSurfaceChipLabel;
+    baseResult.onboardingSurfaceCardTitle = onboardingSurfaceLabels.onboardingSurfaceCardTitle;
     const runtimeStatusText = elements.runtimeStatus?.textContent?.replace(/\s+/g, " ").trim() ?? "";
     baseResult.runtimeStatusMentionsOfficialDailyPath = /official daily path/i.test(runtimeStatusText);
     if (baseResult.runtimeDebugHostActionVisible || baseResult.runtimeSourceDebugHostActionVisible) {
@@ -17692,6 +17714,11 @@ function renderOnboardingCard() {
   const workflowPanel = getActiveWorkflowPanel();
   const workflowBridge = getRuntimeWorkflowBridge();
   const runtimeOverrideCandidate = getRuntimeOverrideCandidate();
+  const {
+    activeWorkbenchEntry,
+    activeWorkbenchSurfaceKind,
+    activeWorkbenchSurfaceTitle
+  } = getActiveRuntimeWorkbenchSurface(runtimeOverrideCandidate.runtimeSourceUrl);
   const workflowFocusSummary = {
     runtime: runtimeLaunch?.entryUrl
       ? "Use Debug Host first for trustworthy runtime asset proof, then jump out to donor source or compose context from the same workbench."
@@ -17743,16 +17770,18 @@ function renderOnboardingCard() {
       <div class="chip-row">
         <span>${escapeHtml(getWorkbenchModeLabel())} mode active</span>
         <span>${escapeHtml(getWorkflowPanelLabel(workflowPanel))} panel active</span>
-        <span>${runtimeLaunch?.localRuntimePackageAvailable ? "local runtime mirror available" : "public runtime fallback"}</span>
+        <span>${escapeHtml(debugHostAvailable ? (runtimeLaunch?.localRuntimePackageAvailable ? "local runtime mirror available" : "public runtime fallback") : activeWorkbenchSurfaceKind)}</span>
       </div>
     </div>
     <div class="detail-grid">
       <div class="detail-card">
-        <span>Runtime Source</span>
-        <strong>${escapeHtml(runtimeLaunch?.runtimeSourceLabel ?? "Blocked")}</strong>
-        <small>${escapeHtml(runtimeLaunch?.localRuntimePackageAvailable
-          ? runtimeLaunch?.blocker ?? "Runtime Debug Host and the embedded runtime both use the grounded local Mystery Garden runtime mirror on this machine."
-          : runtimeLaunch?.blocker ?? "No grounded donor runtime package is captured for project_001 yet.")}</small>
+        <span>${escapeHtml(debugHostAvailable ? "Runtime Source" : "Selected-project Runtime Surface")}</span>
+        <strong>${escapeHtml(debugHostAvailable ? (runtimeLaunch?.runtimeSourceLabel ?? "Blocked") : activeWorkbenchSurfaceTitle)}</strong>
+        <small>${escapeHtml(debugHostAvailable
+          ? (runtimeLaunch?.localRuntimePackageAvailable
+            ? runtimeLaunch?.blocker ?? "Runtime Debug Host and the embedded runtime both use the grounded local Mystery Garden runtime mirror on this machine."
+            : runtimeLaunch?.blocker ?? "No grounded donor runtime package is captured for project_001 yet.")
+          : activeWorkbenchEntry?.relativePath ?? activeWorkbenchEntry?.sourceUrl ?? "No grounded runtime workbench item is selected for this project yet.")}</small>
       </div>
       <div class="detail-card">
         <span>Bridge Strength</span>
