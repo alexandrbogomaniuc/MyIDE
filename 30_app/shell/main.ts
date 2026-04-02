@@ -20,6 +20,7 @@ import {
   type IndexedDonorAsset
 } from "../../tools/donor-assets/shared";
 import {
+  buildLocalRuntimeMirrorAssetUrl,
   buildLocalRuntimeLaunchHtml,
   buildLocalRuntimeMirrorProxyUrl,
   buildLocalRuntimeMirrorRedirectMap,
@@ -27,6 +28,7 @@ import {
   findLocalRuntimeMirrorEntryByRelativePath,
   buildLocalRuntimeMirrorStatus,
   getLocalRuntimeMirrorPort,
+  getMirrorLaunchUrl,
   readLocalRuntimeMirrorFile,
   readLocalRuntimeMirrorFileByRelativePath,
   type LocalRuntimeMirrorStatus
@@ -68,6 +70,7 @@ const isLiveCreateDragSmokeMode = process.env.MYIDE_LIVE_CREATE_DRAG_SMOKE === "
 const isLiveDonorImportSmokeMode = process.env.MYIDE_LIVE_DONOR_IMPORT_SMOKE === "1";
 const isLiveRuntimePageProofRelaunchSmokeMode = process.env.MYIDE_LIVE_RUNTIME_PAGE_PROOF_RELAUNCH_SMOKE === "1";
 const isLiveRuntimeSmokeMode = process.env.MYIDE_LIVE_RUNTIME_SMOKE === "1";
+const isRuntimeSelectedProjectRouteSmokeMode = process.env.MYIDE_RUNTIME_SELECTED_PROJECT_ROUTE_SMOKE === "1";
 const isLiveDuplicateDeleteSmokeMode = process.env.MYIDE_LIVE_DUPLICATE_DELETE_SMOKE === "1";
 const isLiveReorderSmokeMode = process.env.MYIDE_LIVE_REORDER_SMOKE === "1";
 const isLiveLayerReassignSmokeMode = process.env.MYIDE_LIVE_LAYER_REASSIGN_SMOKE === "1";
@@ -206,13 +209,13 @@ let activeLiveLayerReassignSmokeReporter: ((payload: LiveLayerReassignSmokePaylo
 let activeLiveResizeSmokeReporter: ((payload: LiveResizeSmokePayload) => void) | null = null;
 let activeLiveAlignSmokeReporter: ((payload: LiveAlignSmokePayload) => void) | null = null;
 let activeLiveUndoRedoSmokeReporter: ((payload: LiveUndoRedoSmokePayload) => void) | null = null;
-let runtimeAssetOverrideRedirectMap = new Map<string, string>();
-let runtimeLocalMirrorRedirectMap = new Map<string, string>();
+const runtimeAssetOverrideRedirectMaps = new Map<string, Map<string, string>>();
+const runtimeLocalMirrorRedirectMaps = new Map<string, Map<string, string>>();
 let runtimeAssetOverrideInterceptionInstalled = false;
 const runtimeAssetOverrideHits = new Map<string, RuntimeAssetOverrideHitInfo>();
 const runtimeWebviewPartition = "persist:myide-runtime-project001";
 const runtimeDebugPartition = "persist:myide-runtime-debug-project001";
-let runtimeLocalMirrorStatus: LocalRuntimeMirrorStatus | null = null;
+const runtimeLocalMirrorStatuses = new Map<string, LocalRuntimeMirrorStatus>();
 let runtimeLocalMirrorServer: Server | null = null;
 let runtimeRequestStage = "launch";
 const recentRuntimeObservationFingerprints = new Map<string, number>();
@@ -349,6 +352,18 @@ function finishLiveRuntimeSmoke(exitCode: number, message: string): void {
   }, 0);
 }
 
+function finishRuntimeSelectedProjectRouteSmoke(exitCode: number, message: string): void {
+  if (exitCode === 0) {
+    console.log(message);
+  } else {
+    console.error(message);
+  }
+
+  setTimeout(() => {
+    app.exit(exitCode);
+  }, 0);
+}
+
 function finishLiveDuplicateDeleteSmoke(exitCode: number, message: string): void {
   if (exitCode === 0) {
     console.log(message);
@@ -445,14 +460,38 @@ function finishLiveUndoRedoSmoke(exitCode: number, message: string): void {
   }, 0);
 }
 
-async function refreshRuntimeAssetOverrideRedirects(): Promise<void> {
+function getRuntimeLocalMirrorStatus(projectId: string): LocalRuntimeMirrorStatus | null {
+  return runtimeLocalMirrorStatuses.get(projectId) ?? null;
+}
+
+function getRuntimeLocalMirrorRedirectMap(projectId: string): Map<string, string> {
+  return runtimeLocalMirrorRedirectMaps.get(projectId) ?? new Map<string, string>();
+}
+
+function getRuntimeAssetOverrideRedirectMap(projectId: string): Map<string, string> {
+  return runtimeAssetOverrideRedirectMaps.get(projectId) ?? new Map<string, string>();
+}
+
+async function refreshRuntimeAssetOverrideRedirects(projectId = "project_001"): Promise<void> {
   const [overrideStatus, mirrorStatus] = await Promise.all([
-    buildRuntimeAssetOverrideStatus("project_001", runtimeAssetOverrideHits),
-    buildLocalRuntimeMirrorStatus("project_001")
+    buildRuntimeAssetOverrideStatus(projectId, runtimeAssetOverrideHits),
+    buildLocalRuntimeMirrorStatus(projectId)
   ]);
-  runtimeAssetOverrideRedirectMap = buildRuntimeAssetOverrideRedirectMap(overrideStatus);
-  runtimeLocalMirrorStatus = mirrorStatus;
-  runtimeLocalMirrorRedirectMap = buildLocalRuntimeMirrorRedirectMap(mirrorStatus);
+  runtimeAssetOverrideRedirectMaps.set(projectId, buildRuntimeAssetOverrideRedirectMap(overrideStatus));
+  runtimeLocalMirrorStatuses.set(projectId, mirrorStatus);
+  runtimeLocalMirrorRedirectMaps.set(projectId, buildLocalRuntimeMirrorRedirectMap(mirrorStatus));
+}
+
+async function ensureRuntimeProjectCaches(projectId: string): Promise<void> {
+  if (
+    runtimeLocalMirrorStatuses.has(projectId)
+    && runtimeLocalMirrorRedirectMaps.has(projectId)
+    && runtimeAssetOverrideRedirectMaps.has(projectId)
+  ) {
+    return;
+  }
+
+  await refreshRuntimeAssetOverrideRedirects(projectId);
 }
 
 async function clearRuntimeWebviewCache(): Promise<{ cleared: true; partition: string }> {
@@ -942,35 +981,73 @@ async function runRuntimeDebugHost(options: RuntimeDebugHostOptions = {}): Promi
 }
 
 function getRuntimeRedirectUrl(requestUrl: string): string | null {
-  const overrideRedirect = runtimeAssetOverrideRedirectMap.get(requestUrl);
+  const defaultProjectId = "project_001";
+  const overrideRedirect = getRuntimeAssetOverrideRedirectMap(defaultProjectId).get(requestUrl);
   if (overrideRedirect) {
     return overrideRedirect;
   }
 
-  const exactMirrorRedirect = runtimeLocalMirrorRedirectMap.get(requestUrl);
+  const exactMirrorRedirect = getRuntimeLocalMirrorRedirectMap(defaultProjectId).get(requestUrl);
   if (exactMirrorRedirect) {
     return exactMirrorRedirect;
   }
 
-  const mirrorEntry = findLocalRuntimeMirrorEntry(runtimeLocalMirrorStatus, requestUrl);
+  const mirrorEntry = findLocalRuntimeMirrorEntry(getRuntimeLocalMirrorStatus(defaultProjectId), requestUrl);
   return mirrorEntry
-    ? `http://127.0.0.1:${getLocalRuntimeMirrorPort()}/runtime/project_001/mirror?source=${encodeURIComponent(mirrorEntry.sourceUrl)}`
+    ? buildLocalRuntimeMirrorProxyUrl(defaultProjectId, mirrorEntry.sourceUrl)
     : null;
 }
 
-function getRuntimeMirrorRelativePathFromUrl(requestUrl: string): string | null {
+function parseRuntimeMirrorRoute(pathname: string): {
+  projectId: string;
+  route: "launch" | "mirror" | "assets";
+  runtimeRelativePath: string | null;
+} | null {
+  const normalized = pathname.trim();
+  const match = normalized.match(/^\/runtime\/([A-Za-z0-9._-]+)\/(launch|mirror|assets(?:\/.*)?)$/);
+  if (!match) {
+    return null;
+  }
+
+  const projectId = match[1] ?? "";
+  const rawRoute = match[2] ?? "";
+  if (rawRoute === "launch" || rawRoute === "mirror") {
+    return {
+      projectId,
+      route: rawRoute,
+      runtimeRelativePath: null
+    };
+  }
+
+  const runtimeRelativePath = rawRoute.replace(/^assets\/?/, "").replace(/^\/+/, "") || null;
+  return {
+    projectId,
+    route: "assets",
+    runtimeRelativePath
+  };
+}
+
+function getRuntimeMirrorRelativePathFromUrl(requestUrl: string): {
+  projectId: string;
+  runtimeRelativePath: string;
+} | null {
   try {
     const parsedUrl = new URL(requestUrl);
-    if (!parsedUrl.pathname.startsWith("/runtime/project_001/assets/")) {
+    const route = parseRuntimeMirrorRoute(parsedUrl.pathname);
+    if (!route || route.route !== "assets" || !route.runtimeRelativePath) {
       return null;
     }
-    return parsedUrl.pathname.replace("/runtime/project_001/assets/", "").replace(/^\/+/, "") || null;
+    return {
+      projectId: route.projectId,
+      runtimeRelativePath: route.runtimeRelativePath
+    };
   } catch {
     return null;
   }
 }
 
 function getRuntimeObservedRequestMetadata(requestUrl: string): {
+  projectId: string;
   canonicalSourceUrl: string;
   requestSource: "local-mirror-launch" | "local-mirror-asset" | "local-mirror-proxy" | "project-local-override" | "upstream-request";
   localMirrorAbsolutePath?: string | null;
@@ -981,23 +1058,32 @@ function getRuntimeObservedRequestMetadata(requestUrl: string): {
   try {
     const parsedUrl = new URL(requestUrl);
     if (isRuntimeMirrorOrigin(requestUrl)) {
-      if (parsedUrl.pathname === "/runtime/project_001/launch") {
+      const route = parseRuntimeMirrorRoute(parsedUrl.pathname);
+      if (!route) {
+        return null;
+      }
+
+      const cachedMirrorStatus = getRuntimeLocalMirrorStatus(route.projectId);
+
+      if (route.route === "launch") {
         return {
-          canonicalSourceUrl: runtimeLocalMirrorStatus?.publicEntryUrl ?? requestUrl,
+          projectId: route.projectId,
+          canonicalSourceUrl: cachedMirrorStatus?.publicEntryUrl ?? requestUrl,
           requestSource: "local-mirror-launch",
           runtimeRelativePath: "launch.html",
           fileType: "html"
         };
       }
 
-      if (parsedUrl.pathname === "/runtime/project_001/mirror") {
+      if (route.route === "mirror") {
         const sourceUrl = parsedUrl.searchParams.get("source");
         if (!sourceUrl) {
           return null;
         }
-        const localMirrorEntry = findLocalRuntimeMirrorEntry(runtimeLocalMirrorStatus, sourceUrl);
-        const overrideAbsolutePath = getRuntimeOverrideAbsolutePath(sourceUrl);
+        const localMirrorEntry = findLocalRuntimeMirrorEntry(cachedMirrorStatus, sourceUrl);
+        const overrideAbsolutePath = getRuntimeOverrideAbsolutePath(sourceUrl, route.projectId);
         return {
+          projectId: route.projectId,
           canonicalSourceUrl: sourceUrl,
           requestSource: overrideAbsolutePath ? "project-local-override" : "local-mirror-proxy",
           localMirrorAbsolutePath: localMirrorEntry?.absolutePath ?? null,
@@ -1013,13 +1099,19 @@ function getRuntimeObservedRequestMetadata(requestUrl: string): {
         };
       }
 
-      if (parsedUrl.pathname.startsWith("/runtime/project_001/assets/")) {
-        const runtimeRelativePath = getRuntimeMirrorRelativePathFromUrl(requestUrl);
-        const localMirrorEntry = findLocalRuntimeMirrorEntryByRelativePath(runtimeLocalMirrorStatus, runtimeRelativePath);
-        const fallbackSourceUrl = runtimeRelativePath ? buildRuntimeUpstreamFallbackUrl(runtimeRelativePath) : null;
+      if (route.route === "assets") {
+        const runtimeRelativePath = route.runtimeRelativePath;
+        const localMirrorEntry = findLocalRuntimeMirrorEntryByRelativePath(cachedMirrorStatus, runtimeRelativePath);
+        const fallbackSourceUrl = route.projectId === "project_001" && runtimeRelativePath
+          ? buildRuntimeUpstreamFallbackUrl(runtimeRelativePath)
+          : null;
         const canonicalSourceUrl = localMirrorEntry?.sourceUrl ?? fallbackSourceUrl ?? requestUrl;
-        const overrideAbsolutePath = getRuntimeOverrideAbsolutePath(canonicalSourceUrl);
+        const overrideAbsolutePath = getRuntimeOverrideAbsolutePath(canonicalSourceUrl, route.projectId);
+        if (!localMirrorEntry && !fallbackSourceUrl && !overrideAbsolutePath) {
+          return null;
+        }
         return {
+          projectId: route.projectId,
           canonicalSourceUrl,
           requestSource: overrideAbsolutePath
             ? "project-local-override"
@@ -1035,6 +1127,7 @@ function getRuntimeObservedRequestMetadata(requestUrl: string): {
     }
 
     return {
+      projectId: "project_001",
       canonicalSourceUrl: requestUrl,
       requestSource: "upstream-request"
     };
@@ -1043,9 +1136,9 @@ function getRuntimeObservedRequestMetadata(requestUrl: string): {
   }
 }
 
-function scheduleRuntimeResourceMapSnapshotWrite(): void {
+function scheduleRuntimeResourceMapSnapshotWrite(projectId = "project_001"): void {
   try {
-    exportRuntimeResourceMapSnapshotSync("project_001");
+    exportRuntimeResourceMapSnapshotSync(projectId);
   } catch (error) {
     console.warn("Failed to export runtime resource map snapshot:", error);
   }
@@ -1077,6 +1170,7 @@ function recordRuntimeOverrideHit(runtimeSourceUrl: string): void {
 }
 
 function recordRuntimeResourceHit(
+  projectId: string,
   requestUrl: string,
   canonicalSourceUrl: string,
   requestSource: "local-mirror-launch" | "local-mirror-asset" | "local-mirror-proxy" | "project-local-override" | "upstream-request",
@@ -1114,7 +1208,7 @@ function recordRuntimeResourceHit(
   }
 
   const entry = recordRuntimeResourceRequest({
-    projectId: "project_001",
+    projectId,
     requestUrl,
     canonicalSourceUrl,
     requestSource,
@@ -1134,11 +1228,11 @@ function recordRuntimeResourceHit(
     });
   }
 
-  scheduleRuntimeResourceMapSnapshotWrite();
+  scheduleRuntimeResourceMapSnapshotWrite(projectId);
 }
 
-function getRuntimeOverrideAbsolutePath(runtimeSourceUrl: string): string | null {
-  const redirectUrl = runtimeAssetOverrideRedirectMap.get(runtimeSourceUrl);
+function getRuntimeOverrideAbsolutePath(runtimeSourceUrl: string, projectId = "project_001"): string | null {
+  const redirectUrl = getRuntimeAssetOverrideRedirectMap(projectId).get(runtimeSourceUrl);
   if (!redirectUrl) {
     return null;
   }
@@ -1168,7 +1262,7 @@ function installRuntimeAssetOverrideInterception(): void {
 
     const redirectURL = getRuntimeRedirectUrl(details.url);
     if (!redirectURL) {
-      recordRuntimeResourceHit(details.url, details.url, "upstream-request", {
+      recordRuntimeResourceHit("project_001", details.url, details.url, "upstream-request", {
         resourceType: details.resourceType
       });
       callback({});
@@ -1178,6 +1272,7 @@ function installRuntimeAssetOverrideInterception(): void {
     const observed = getRuntimeObservedRequestMetadata(redirectURL) ?? getRuntimeObservedRequestMetadata(details.url);
     if (observed) {
       recordRuntimeResourceHit(
+        observed.projectId,
         details.url,
         observed.canonicalSourceUrl,
         observed.requestSource,
@@ -1213,6 +1308,7 @@ function installRuntimeAssetOverrideInterception(): void {
           return;
         }
         recordRuntimeResourceHit(
+          observed.projectId,
           details.url,
           observed.canonicalSourceUrl,
           observed.requestSource,
@@ -1373,21 +1469,44 @@ async function handleRuntimeMirrorRequest(request: IncomingMessage, response: Se
     return;
   }
 
-  if (parsedUrl.pathname === "/runtime/project_001/launch") {
-    if (!runtimeLocalMirrorStatus?.available) {
+  const route = parseRuntimeMirrorRoute(parsedUrl.pathname);
+  if (!route) {
+    sendRuntimeMirrorResponse(response, 404, { "content-type": "text/plain; charset=utf-8" }, "Not found");
+    return;
+  }
+
+  const { projectId } = route;
+  await ensureRuntimeProjectCaches(projectId);
+  const runtimeMirrorStatus = getRuntimeLocalMirrorStatus(projectId);
+
+  if (route.route === "launch") {
+    if (projectId !== "project_001") {
       sendRuntimeMirrorResponse(
         response,
         503,
         { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" },
-        runtimeLocalMirrorStatus?.blocker ?? "Local runtime mirror is not available."
+        runtimeMirrorStatus?.available
+          ? "A project-local runtime mirror is indexed for this project, but integrated Runtime Mode launch is still only grounded for the validated project."
+          : runtimeMirrorStatus?.blocker ?? "Local runtime mirror is not available."
       );
       return;
     }
 
-    const launch = await buildLocalRuntimeLaunchHtml("project_001");
+    if (!runtimeMirrorStatus?.available) {
+      sendRuntimeMirrorResponse(
+        response,
+        503,
+        { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" },
+        runtimeMirrorStatus?.blocker ?? "Local runtime mirror is not available."
+      );
+      return;
+    }
+
+    const launch = await buildLocalRuntimeLaunchHtml(projectId);
     recordRuntimeResourceHit(
+      projectId,
       parsedUrl.toString(),
-      runtimeLocalMirrorStatus.publicEntryUrl ?? parsedUrl.toString(),
+      runtimeMirrorStatus.publicEntryUrl ?? parsedUrl.toString(),
       "local-mirror-launch",
       {
         fileType: "html",
@@ -1404,18 +1523,18 @@ async function handleRuntimeMirrorRequest(request: IncomingMessage, response: Se
     return;
   }
 
-  if (parsedUrl.pathname === "/runtime/project_001/mirror") {
+  if (route.route === "mirror") {
     const sourceUrl = parsedUrl.searchParams.get("source");
     if (!sourceUrl) {
       sendRuntimeMirrorResponse(response, 400, { "content-type": "text/plain; charset=utf-8" }, "Missing mirror source URL.");
       return;
     }
 
-    const mirrorFile = await readLocalRuntimeMirrorFile("project_001", sourceUrl);
+    const mirrorFile = await readLocalRuntimeMirrorFile(projectId, sourceUrl);
     if (!mirrorFile) {
       try {
         const upstreamFallback = await fetchRuntimeUpstreamFallbackUrl(sourceUrl);
-        recordRuntimeResourceHit(parsedUrl.toString(), upstreamFallback.sourceUrl, "upstream-request", {
+        recordRuntimeResourceHit(projectId, parsedUrl.toString(), upstreamFallback.sourceUrl, "upstream-request", {
           fileType: upstreamFallback.fileType,
           resourceType: inferRuntimeResourceTypeFromContentType(upstreamFallback.contentType)
         });
@@ -1432,10 +1551,10 @@ async function handleRuntimeMirrorRequest(request: IncomingMessage, response: Se
       }
     }
 
-    const overrideAbsolutePath = getRuntimeOverrideAbsolutePath(sourceUrl);
+    const overrideAbsolutePath = getRuntimeOverrideAbsolutePath(sourceUrl, projectId);
     if (overrideAbsolutePath) {
       recordRuntimeOverrideHit(sourceUrl);
-      recordRuntimeResourceHit(parsedUrl.toString(), sourceUrl, "project-local-override", {
+      recordRuntimeResourceHit(projectId, parsedUrl.toString(), sourceUrl, "project-local-override", {
         localMirrorAbsolutePath: mirrorFile.absolutePath,
         overrideAbsolutePath,
         fileType: mirrorFile.fileType,
@@ -1450,7 +1569,7 @@ async function handleRuntimeMirrorRequest(request: IncomingMessage, response: Se
       return;
     }
 
-    recordRuntimeResourceHit(parsedUrl.toString(), sourceUrl, "local-mirror-proxy", {
+    recordRuntimeResourceHit(projectId, parsedUrl.toString(), sourceUrl, "local-mirror-proxy", {
       localMirrorAbsolutePath: mirrorFile.absolutePath,
       fileType: mirrorFile.fileType,
       resourceType: "fetch"
@@ -1464,74 +1583,68 @@ async function handleRuntimeMirrorRequest(request: IncomingMessage, response: Se
     return;
   }
 
-  if (parsedUrl.pathname.startsWith("/runtime/project_001/assets/")) {
-    const relativePath = parsedUrl.pathname.replace("/runtime/project_001/assets/", "");
-    const mirrorFile = await readLocalRuntimeMirrorFileByRelativePath("project_001", relativePath);
-    if (!mirrorFile) {
-      const fallbackSourceUrl = buildRuntimeUpstreamFallbackUrl(relativePath);
-      const overrideAbsolutePath = getRuntimeOverrideAbsolutePath(fallbackSourceUrl);
-      if (overrideAbsolutePath) {
-        const overrideContent = new Uint8Array(await import("node:fs").then(({ promises }) => promises.readFile(overrideAbsolutePath)));
-        const fallbackFileType = path.extname(new URL(fallbackSourceUrl).pathname).replace(/^\./, "").toLowerCase()
-          || path.extname(overrideAbsolutePath).replace(/^\./, "").toLowerCase()
-          || "bin";
-        recordRuntimeOverrideHit(fallbackSourceUrl);
-        recordRuntimeResourceHit(parsedUrl.toString(), fallbackSourceUrl, "project-local-override", {
-          overrideAbsolutePath,
-          fileType: fallbackFileType,
-          runtimeRelativePath: relativePath,
-          resourceType: "image"
-        });
-        sendRuntimeMirrorResponse(response, 200, {
-          "content-type": getRuntimeMirrorContentType(fallbackFileType),
-          "cache-control": "no-store",
-          "x-myide-runtime-source": "project-local-override",
-          "x-myide-runtime-final-url": fallbackSourceUrl,
-          "x-myide-runtime-local-path": overrideAbsolutePath
-        }, overrideContent);
-        return;
-      }
-      try {
-        const upstreamFallback = await fetchRuntimeUpstreamFallbackAsset(relativePath);
-        recordRuntimeResourceHit(parsedUrl.toString(), upstreamFallback.sourceUrl, "upstream-request", {
-          fileType: upstreamFallback.fileType,
-          runtimeRelativePath: relativePath,
-          resourceType: inferRuntimeResourceTypeFromContentType(upstreamFallback.contentType)
-        });
-        sendRuntimeMirrorResponse(response, 200, {
-          "content-type": upstreamFallback.contentType ?? getRuntimeMirrorContentType(upstreamFallback.fileType ?? "bin"),
-          "cache-control": "no-store",
-          "x-myide-runtime-source": "upstream-fallback",
-          "x-myide-runtime-final-url": upstreamFallback.sourceUrl
-        }, upstreamFallback.content);
-        return;
-      } catch {
-        sendRuntimeMirrorResponse(response, 404, { "content-type": "text/plain; charset=utf-8" }, "Mirror asset not found.");
-        return;
-      }
+  const relativePath = route.runtimeRelativePath ?? "";
+  const mirrorFile = await readLocalRuntimeMirrorFileByRelativePath(projectId, relativePath);
+  if (!mirrorFile) {
+    if (projectId !== "project_001") {
+      sendRuntimeMirrorResponse(
+        response,
+        404,
+        { "content-type": "text/plain; charset=utf-8" },
+        "Mirror asset not found for this project-local runtime path."
+      );
+      return;
     }
 
-    const overrideAbsolutePath = getRuntimeOverrideAbsolutePath(mirrorFile.sourceUrl);
+    const fallbackSourceUrl = buildRuntimeUpstreamFallbackUrl(relativePath);
+    const overrideAbsolutePath = getRuntimeOverrideAbsolutePath(fallbackSourceUrl, projectId);
     if (overrideAbsolutePath) {
-      recordRuntimeOverrideHit(mirrorFile.sourceUrl);
-      recordRuntimeResourceHit(parsedUrl.toString(), mirrorFile.sourceUrl, "project-local-override", {
-        localMirrorAbsolutePath: mirrorFile.absolutePath,
+      const overrideContent = new Uint8Array(await import("node:fs").then(({ promises }) => promises.readFile(overrideAbsolutePath)));
+      const fallbackFileType = path.extname(new URL(fallbackSourceUrl).pathname).replace(/^\./, "").toLowerCase()
+        || path.extname(overrideAbsolutePath).replace(/^\./, "").toLowerCase()
+        || "bin";
+      recordRuntimeOverrideHit(fallbackSourceUrl);
+      recordRuntimeResourceHit(projectId, parsedUrl.toString(), fallbackSourceUrl, "project-local-override", {
         overrideAbsolutePath,
-        fileType: mirrorFile.fileType,
+        fileType: fallbackFileType,
         runtimeRelativePath: relativePath,
         resourceType: "image"
       });
       sendRuntimeMirrorResponse(response, 200, {
-        "content-type": getRuntimeMirrorContentType(mirrorFile.fileType),
+        "content-type": getRuntimeMirrorContentType(fallbackFileType),
         "cache-control": "no-store",
         "x-myide-runtime-source": "project-local-override",
+        "x-myide-runtime-final-url": fallbackSourceUrl,
         "x-myide-runtime-local-path": overrideAbsolutePath
-      }, new Uint8Array(await import("node:fs").then(({ promises }) => promises.readFile(overrideAbsolutePath))));
+      }, overrideContent);
       return;
     }
+    try {
+      const upstreamFallback = await fetchRuntimeUpstreamFallbackAsset(relativePath);
+      recordRuntimeResourceHit(projectId, parsedUrl.toString(), upstreamFallback.sourceUrl, "upstream-request", {
+        fileType: upstreamFallback.fileType,
+        runtimeRelativePath: relativePath,
+        resourceType: inferRuntimeResourceTypeFromContentType(upstreamFallback.contentType)
+      });
+      sendRuntimeMirrorResponse(response, 200, {
+        "content-type": upstreamFallback.contentType ?? getRuntimeMirrorContentType(upstreamFallback.fileType ?? "bin"),
+        "cache-control": "no-store",
+        "x-myide-runtime-source": "upstream-fallback",
+        "x-myide-runtime-final-url": upstreamFallback.sourceUrl
+      }, upstreamFallback.content);
+      return;
+    } catch {
+      sendRuntimeMirrorResponse(response, 404, { "content-type": "text/plain; charset=utf-8" }, "Mirror asset not found.");
+      return;
+    }
+  }
 
-    recordRuntimeResourceHit(parsedUrl.toString(), mirrorFile.sourceUrl, "local-mirror-asset", {
+  const overrideAbsolutePath = getRuntimeOverrideAbsolutePath(mirrorFile.sourceUrl, projectId);
+  if (overrideAbsolutePath) {
+    recordRuntimeOverrideHit(mirrorFile.sourceUrl);
+    recordRuntimeResourceHit(projectId, parsedUrl.toString(), mirrorFile.sourceUrl, "project-local-override", {
       localMirrorAbsolutePath: mirrorFile.absolutePath,
+      overrideAbsolutePath,
       fileType: mirrorFile.fileType,
       runtimeRelativePath: relativePath,
       resourceType: "image"
@@ -1539,13 +1652,25 @@ async function handleRuntimeMirrorRequest(request: IncomingMessage, response: Se
     sendRuntimeMirrorResponse(response, 200, {
       "content-type": getRuntimeMirrorContentType(mirrorFile.fileType),
       "cache-control": "no-store",
-      "x-myide-runtime-source": "local-mirror-asset",
-      "x-myide-runtime-local-path": mirrorFile.absolutePath
-    }, mirrorFile.content);
+      "x-myide-runtime-source": "project-local-override",
+      "x-myide-runtime-local-path": overrideAbsolutePath
+    }, new Uint8Array(await import("node:fs").then(({ promises }) => promises.readFile(overrideAbsolutePath))));
     return;
   }
 
-  sendRuntimeMirrorResponse(response, 404, { "content-type": "text/plain; charset=utf-8" }, "Not found");
+  recordRuntimeResourceHit(projectId, parsedUrl.toString(), mirrorFile.sourceUrl, "local-mirror-asset", {
+    localMirrorAbsolutePath: mirrorFile.absolutePath,
+    fileType: mirrorFile.fileType,
+    runtimeRelativePath: relativePath,
+    resourceType: "image"
+  });
+  sendRuntimeMirrorResponse(response, 200, {
+    "content-type": getRuntimeMirrorContentType(mirrorFile.fileType),
+    "cache-control": "no-store",
+    "x-myide-runtime-source": "local-mirror-asset",
+    "x-myide-runtime-local-path": mirrorFile.absolutePath
+  }, mirrorFile.content);
+  return;
 }
 
 async function startRuntimeLocalMirrorServer(): Promise<void> {
@@ -1567,6 +1692,110 @@ async function startRuntimeLocalMirrorServer(): Promise<void> {
       resolve();
     });
   });
+}
+
+async function runRuntimeSelectedProjectRouteSmoke(): Promise<void> {
+  console.log("MYIDE_RUNTIME_SELECTED_PROJECT_ROUTE_MAIN_READY");
+  const projectId = process.env.MYIDE_RUNTIME_SELECTED_PROJECT_ROUTE_PROJECT_ID ?? "project_002";
+  const runtimeRelativePath = process.env.MYIDE_RUNTIME_SELECTED_PROJECT_ROUTE_RELATIVE_PATH ?? "img/big-win-ribbon.png";
+  const runtimeSourceUrl = process.env.MYIDE_RUNTIME_SELECTED_PROJECT_ROUTE_SOURCE_URL ?? "https://example.invalid/runtime/img/big-win-ribbon.png";
+
+  try {
+    recentRuntimeObservationFingerprints.clear();
+    runtimeAssetOverrideHits.clear();
+    resetRuntimeResourceMap(projectId);
+    scheduleRuntimeResourceMapSnapshotWrite(projectId);
+    await refreshRuntimeAssetOverrideRedirects(projectId);
+
+    const assetUrl = buildLocalRuntimeMirrorAssetUrl(projectId, runtimeRelativePath);
+    const proxyUrl = buildLocalRuntimeMirrorProxyUrl(projectId, runtimeSourceUrl);
+    const launchUrl = getMirrorLaunchUrl(projectId);
+
+    const [mirrorStatus, assetResponse, proxyResponse, launchResponse] = await Promise.all([
+      buildLocalRuntimeMirrorStatus(projectId),
+      fetch(assetUrl, { redirect: "manual" }),
+      fetch(proxyUrl, { redirect: "manual" }),
+      fetch(launchUrl, { redirect: "manual" })
+    ]);
+
+    const assetBody = new TextDecoder().decode(new Uint8Array(await assetResponse.arrayBuffer()));
+    const proxyBody = new TextDecoder().decode(new Uint8Array(await proxyResponse.arrayBuffer()));
+    const launchBody = await launchResponse.text();
+    const projectResourceMap = await loadRuntimeResourceMapStatus(projectId);
+    const project001ResourceMap = await loadRuntimeResourceMapStatus("project_001");
+    const matchedProjectEntry = projectResourceMap.entries.find((entry) => entry.canonicalSourceUrl === runtimeSourceUrl) ?? null;
+    const project001ContainsSeedSource = project001ResourceMap.entries.some((entry) => entry.canonicalSourceUrl === runtimeSourceUrl);
+    const payload: {
+      status: "pass" | "fail";
+      error: string | null;
+      projectId: string;
+      runtimeRelativePath: string;
+      runtimeSourceUrl: string;
+      mirrorAvailable: boolean;
+      assetUrl: string;
+      assetStatus: number;
+      assetBodySnippet: string;
+      proxyUrl: string;
+      proxyStatus: number;
+      proxyBodySnippet: string;
+      launchUrl: string;
+      launchStatus: number;
+      launchBodySnippet: string;
+      projectResourceMapEntryCount: number;
+      matchedProjectRequestSource: string | null;
+      matchedProjectLatestRequestUrl: string | null;
+      project001ContainsSeedSource: boolean;
+    } = {
+      status: (
+        mirrorStatus.available
+        && assetResponse.ok
+        && proxyResponse.ok
+        && launchResponse.status === 503
+        && assetBody.includes("project_002_override_placeholder")
+        && proxyBody.includes("project_002_override_placeholder")
+        && Boolean(matchedProjectEntry)
+        && !project001ContainsSeedSource
+      ) ? "pass" : "fail",
+      error: null,
+      projectId,
+      runtimeRelativePath,
+      runtimeSourceUrl,
+      mirrorAvailable: mirrorStatus.available,
+      assetUrl,
+      assetStatus: assetResponse.status,
+      assetBodySnippet: assetBody.slice(0, 120),
+      proxyUrl,
+      proxyStatus: proxyResponse.status,
+      proxyBodySnippet: proxyBody.slice(0, 120),
+      launchUrl,
+      launchStatus: launchResponse.status,
+      launchBodySnippet: launchBody.slice(0, 160),
+      projectResourceMapEntryCount: projectResourceMap.entryCount,
+      matchedProjectRequestSource: matchedProjectEntry?.requestSource ?? null,
+      matchedProjectLatestRequestUrl: matchedProjectEntry?.latestRequestUrl ?? null,
+      project001ContainsSeedSource
+    };
+
+    if (payload.status !== "pass") {
+      payload.error = "Selected-project runtime route smoke did not stay project-aware.";
+    }
+
+    console.log(`MYIDE_RUNTIME_SELECTED_PROJECT_ROUTE_RESULT:${JSON.stringify(payload)}`);
+    if (payload.status === "pass") {
+      finishRuntimeSelectedProjectRouteSmoke(0, "PASS smoke:electron-runtime-selected-project-route");
+      return;
+    }
+
+    finishRuntimeSelectedProjectRouteSmoke(1, `FAIL smoke:electron-runtime-selected-project-route - ${payload.error}`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.log(`MYIDE_RUNTIME_SELECTED_PROJECT_ROUTE_RESULT:${JSON.stringify({
+      status: "fail",
+      error: message,
+      projectId
+    })}`);
+    finishRuntimeSelectedProjectRouteSmoke(1, `FAIL smoke:electron-runtime-selected-project-route - ${message}`);
+  }
 }
 
 function getInitialWindowVisibility(): boolean {
@@ -2349,7 +2578,7 @@ ipcMain.handle("myide:reset-runtime-resource-map", async (_event, projectId: str
   recentRuntimeObservationFingerprints.clear();
   setRuntimeRequestStage("launch");
   const status = resetRuntimeResourceMap(projectId);
-  scheduleRuntimeResourceMapSnapshotWrite();
+  scheduleRuntimeResourceMapSnapshotWrite(projectId);
   return status;
 });
 ipcMain.handle("myide:set-runtime-request-stage", async (_event, stage: string) => {
@@ -2414,13 +2643,13 @@ ipcMain.handle("myide:create-runtime-override", async (_event, projectId: string
     runtimeSourceUrl,
     donorAssetId
   });
-  await refreshRuntimeAssetOverrideRedirects();
+  await refreshRuntimeAssetOverrideRedirects(projectId);
   return buildRuntimeAssetOverrideStatus(projectId, runtimeAssetOverrideHits);
 });
 ipcMain.handle("myide:clear-runtime-override", async (_event, projectId: string, runtimeSourceUrl: string) => {
   runtimeAssetOverrideHits.delete(runtimeSourceUrl);
   await clearRuntimeAssetOverride(projectId, runtimeSourceUrl);
-  await refreshRuntimeAssetOverrideRedirects();
+  await refreshRuntimeAssetOverrideRedirects(projectId);
   return buildRuntimeAssetOverrideStatus(projectId, runtimeAssetOverrideHits);
 });
 
@@ -2436,6 +2665,11 @@ app.whenReady().then(() => {
           console.error(`MYIDE_RUNTIME_MIRROR_SERVER_FAIL:${error instanceof Error ? error.message : String(error)}`);
         })
         .finally(() => {
+          if (isRuntimeSelectedProjectRouteSmokeMode) {
+            void runRuntimeSelectedProjectRouteSmoke();
+            return;
+          }
+
           if (isRuntimeDebugHostMode) {
             void runRuntimeDebugHost({
               showWindow: shouldShowRuntimeDebugWindow,
@@ -2451,6 +2685,11 @@ app.whenReady().then(() => {
 
 app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) {
+    if (isRuntimeSelectedProjectRouteSmokeMode) {
+      void runRuntimeSelectedProjectRouteSmoke();
+      return;
+    }
+
     if (isRuntimeDebugHostMode) {
       void runRuntimeDebugHost({
         showWindow: shouldShowRuntimeDebugWindow,

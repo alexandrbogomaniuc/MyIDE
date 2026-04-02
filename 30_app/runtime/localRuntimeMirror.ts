@@ -130,7 +130,7 @@ function buildEmptyMirrorStatus(projectId: string, publicEntryUrl: string | null
   };
 }
 
-function getMirrorLaunchUrl(projectId: string): string {
+export function getMirrorLaunchUrl(projectId: string): string {
   assertValidProjectId(projectId);
   return `http://127.0.0.1:${localMirrorPort}/runtime/${projectId}/launch`;
 }
@@ -189,7 +189,14 @@ function getSourceUrlRelativePath(sourceUrl: string): string | null {
     if (parsedUrl.pathname.includes("/html/MysteryGarden/")) {
       return `${parsedUrl.pathname.split("/html/MysteryGarden/")[1]}${parsedUrl.search}`;
     }
-    return null;
+    if (parsedUrl.pathname.includes("/runtime/")) {
+      return `${parsedUrl.pathname.split("/runtime/")[1]}${parsedUrl.search}`;
+    }
+    if (parsedUrl.pathname.includes("/assets/")) {
+      return `${parsedUrl.pathname.split("/assets/")[1]}${parsedUrl.search}`;
+    }
+    const normalizedPath = parsedUrl.pathname.replace(/^\/+/, "");
+    return normalizedPath.length > 0 ? `${normalizedPath}${parsedUrl.search}` : null;
   } catch {
     return null;
   }
