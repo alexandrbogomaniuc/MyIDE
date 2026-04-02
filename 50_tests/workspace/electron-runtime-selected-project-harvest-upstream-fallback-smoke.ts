@@ -574,7 +574,7 @@ async function main(): Promise<void> {
     assert.equal(payload.harvestedStaticAssetRequestSource, "upstream-request", "Selected-project harvest upstream fallback smoke should refresh the static image through the upstream fallback path.");
     assert.equal(payload.taskId, taskId, "Selected-project harvest upstream fallback smoke reported the wrong task id.");
     assert.equal(payload.pageName, pageName, "Selected-project harvest upstream fallback smoke reported the wrong page name.");
-    assert.notEqual(payload.taskRuntimeEntryKind, "page-proof", "Selected-project harvest upstream fallback smoke should not regress to a page-proof match.");
+    assert.equal(payload.taskRuntimeEntryKind, "request-backed", "Selected-project harvest upstream fallback smoke should report the stronger harvested request-backed trace after harvest.");
     assert.equal(payload.taskRuntimeEntrySourceUrl, runtimeSourceUrl, "Selected-project harvest upstream fallback smoke used the wrong bundle runtime source.");
     assert.equal(payload.runtimeWorkbenchEntryKind, "resource-map", "Selected-project harvest upstream fallback smoke should stay on the harvested resource-map entry.");
     assert.equal(payload.runtimeWorkbenchEntryRequestSource, "upstream-request", "Selected-project harvest upstream fallback smoke should reopen on the upstream-backed resource-map entry.");

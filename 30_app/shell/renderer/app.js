@@ -11261,6 +11261,9 @@ function getProjectModificationTaskRuntimeMatchForPage(task, page) {
     if (score > Number.NEGATIVE_INFINITY && entry?.requestBacked) {
       score += 10;
     }
+    if (score > Number.NEGATIVE_INFINITY && entry?.kind === "resource-map" && entry?.requestBacked && kind !== "donor-asset") {
+      kind = "request-backed";
+    }
 
     if (score > bestScore) {
       bestScore = score;
@@ -21334,6 +21337,8 @@ function renderInspector() {
                   ? "debug host proof (unscoped)"
                   : page?.runtimeMatchKind === "donor-asset"
                     ? "donor asset match"
+                    : page?.runtimeMatchKind === "request-backed"
+                      ? "request-backed trace"
                     : page?.runtimeMatchKind === "page-source"
                       ? "page source match"
                       : page?.runtimeMatchKind === "cue-token"
