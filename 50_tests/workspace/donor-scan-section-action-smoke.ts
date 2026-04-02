@@ -159,6 +159,7 @@ async function main(): Promise<void> {
   assert.ok(result.skinPageLockResolutionBundlePath, "section action should write a skin page lock resolution bundle");
   assert.ok(result.skinPageLockDecisionBundlePath, "section action should write a skin page lock decision bundle");
   assert.ok(result.skinPageLockReviewBundlePath, "section action should write a skin page lock review bundle");
+  assert.ok(result.skinPageLockApprovalBundlePath, "section action should write a skin page lock approval bundle");
   assert.ok(result.skinTextureInputBundlePath, "section action should write a skin texture input bundle");
   assert.ok(result.skinTextureSourcePlanPath, "section action should write a skin texture source plan");
   assert.ok(result.skinTextureReconstructionBundlePath, "section action should write a skin texture reconstruction bundle");
@@ -181,6 +182,7 @@ async function main(): Promise<void> {
     skinPageLockResolutionBundlePath?: string | null;
     skinPageLockDecisionBundlePath?: string | null;
     skinPageLockReviewBundlePath?: string | null;
+    skinPageLockApprovalBundlePath?: string | null;
     skinTextureInputBundlePath?: string | null;
     skinTextureSourcePlanPath?: string | null;
     skinTextureReconstructionBundlePath?: string | null;
@@ -200,6 +202,7 @@ async function main(): Promise<void> {
   assert.ok(sectionActionRun.skinPageLockResolutionBundlePath, "section action run should point at the prepared skin page lock resolution bundle");
   assert.ok(sectionActionRun.skinPageLockDecisionBundlePath, "section action run should point at the prepared skin page lock decision bundle");
   assert.ok(sectionActionRun.skinPageLockReviewBundlePath, "section action run should point at the prepared skin page lock review bundle");
+  assert.ok(sectionActionRun.skinPageLockApprovalBundlePath, "section action run should point at the prepared skin page lock approval bundle");
   assert.ok(sectionActionRun.skinTextureInputBundlePath, "section action run should point at the prepared skin texture input bundle");
   assert.ok(sectionActionRun.skinTextureSourcePlanPath, "section action run should point at the prepared skin texture source plan");
   assert.ok(sectionActionRun.skinTextureReconstructionBundlePath, "section action run should point at the prepared skin texture reconstruction bundle");
