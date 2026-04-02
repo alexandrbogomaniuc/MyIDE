@@ -41,7 +41,7 @@ After that page-scoped proof succeeds, the same page card now upgrades into a di
 
 That proved page-scoped runtime link now also survives both workspace reload and a fresh app relaunch for the same project: once the active task has been saved, the same page card and task-level runtime action still reuse the proved `big-win` runtime source instead of forcing another Debug Host pass.
 
-Blocked-launch projects now also keep the runtime workbench truthful instead of collapsing back to Compose: if a selected project has grounded page proofs, request-backed runtime traces, or grounded local-mirror runtime entries but no grounded launch URL yet, **Open Runtime** can still reopen that runtime evidence surface while embedded launch and Debug Host stay explicitly blocked for that project.
+Blocked-launch projects now also keep the runtime workbench truthful instead of collapsing back to Compose: if a selected project has grounded page proofs, request-backed runtime traces, or grounded local-mirror runtime source entries such as static images or bundles but no grounded launch URL yet, **Open Runtime** can still reopen that runtime evidence surface while embedded launch and Debug Host stay explicitly blocked for that project.
 
 Those same blocked-launch runtime surfaces can now also carry bounded project-local override work when the reopened runtime trace is backed by a grounded task-kit donor asset: **Create Override** and **Clear Override** stay usable from the runtime workbench without pretending that embedded launch or Debug Host resumed for that project.
 

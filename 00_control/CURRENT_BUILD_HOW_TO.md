@@ -168,7 +168,7 @@ Recommended rule:
 6. Use **Click To Start** if the donor runtime needs one bounded pointer click to begin.
 7. Use **Spin / Trigger** if you want the bounded runtime action path that currently sends `Space` to the runtime surface.
 8. Use **Use Debug Host** from the Runtime toolbar as the primary runtime action.
-9. If you open a non-validated project that has grounded runtime page proofs, request-backed traces, or grounded local-mirror runtime entries but still has no grounded launch URL, **Open Runtime** can now keep the runtime workbench active on that evidence surface; embedded launch and Debug Host should still stay blocked for that project until it has a grounded runtime entry.
+9. If you open a non-validated project that has grounded runtime page proofs, request-backed traces, or grounded local-mirror runtime source entries such as static images or bundles but still has no grounded launch URL, **Open Runtime** can now keep the runtime workbench active on that evidence surface; embedded launch and Debug Host should still stay blocked for that project until it has a grounded runtime entry.
 9. The dedicated Runtime Debug Host loads the same local mirror in a separate window and is the current path that can prove a request-backed static image override hit.
 10. If that Runtime Debug Host path blocks again, check its console/load diagnostics first; the current mirror now serves cross-origin-safe headers for mirrored module/runtime assets, which was the concrete blocker behind the last `rsa-plugins.js` failure.
 11. Use **Pick / Inspect** and then click the live runtime surface when you need the strongest grounded runtime trace available inside the shell.

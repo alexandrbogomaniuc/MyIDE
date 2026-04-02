@@ -10939,7 +10939,7 @@ function openProjectModificationTask(taskId, mode = "preferred") {
   setPreviewStatus(
     runtimeEntry
       ? `${task.displayName}${task.sectionKey ? ` ${task.sectionKey}` : ""} is now the active modification task. ${targetMode === "runtime" ? "Runtime" : "Compose"} is active with grounded runtime source ${runtimeEntry.relativePath ?? runtimeEntry.localMirrorRepoRelativePath ?? runtimeEntry.sourceUrl}${targetMode === "runtime" && !getRuntimeLaunchInfo()?.entryUrl ? "; embedded launch stays blocked, so use the runtime workbench as the truthful surface for this project" : ""}${taskKitGroupSummary ? ` and donor task kit ${taskKitGroupSummary.label} is now filtered in the donor palette.` : "."}`
-      : `${task.displayName}${task.sectionKey ? ` ${task.sectionKey}` : ""} is now the active modification task. ${targetMode === "runtime" ? "Runtime" : "Compose"} is active, but no request-backed runtime workbench source is matched yet. Continue from source artifact ${task.sourceArtifactPath ?? "pending artifact"}${taskKitGroupSummary ? ` and donor task kit ${taskKitGroupSummary.label} is now filtered in the donor palette.` : "."}`
+      : `${task.displayName}${task.sectionKey ? ` ${task.sectionKey}` : ""} is now the active modification task. ${targetMode === "runtime" ? "Runtime" : "Compose"} is active, but no grounded runtime workbench source is matched yet. Continue from source artifact ${task.sourceArtifactPath ?? "pending artifact"}${taskKitGroupSummary ? ` and donor task kit ${taskKitGroupSummary.label} is now filtered in the donor palette.` : "."}`
   );
 }
 
@@ -11016,7 +11016,7 @@ function renderActiveProjectModificationTaskCard() {
     : "No page-aware reconstruction guide is available for this task yet.";
   const runtimeSummary = runtimeEntry
     ? (runtimeEntry.relativePath ?? runtimeEntry.localMirrorRepoRelativePath ?? runtimeEntry.sourceUrl)
-    : "No request-backed runtime workbench source is matched yet.";
+    : "No grounded runtime workbench source is matched yet.";
 
   return `
     <div class="tree-row">
@@ -12312,6 +12312,51 @@ function createRuntimeWorkbenchEntry(input) {
   };
 }
 
+function isLocalMirrorManifestWorkbenchKind(kind) {
+  return [
+    "launch-script",
+    "runtime-loader",
+    "runtime-bundle",
+    "static-image",
+    "support-script",
+    "runtime-metadata",
+    "translation-payload"
+  ].includes(kind);
+}
+
+function getLocalMirrorManifestWorkbenchDescriptor(kind) {
+  switch (kind) {
+    case "launch-script":
+      return "launch source";
+    case "runtime-loader":
+      return "runtime loader";
+    case "runtime-bundle":
+      return "runtime bundle";
+    case "static-image":
+      return "static image";
+    case "support-script":
+      return "support script";
+    case "runtime-metadata":
+      return "runtime metadata";
+    case "translation-payload":
+      return "translation payload";
+    default:
+      return "runtime source";
+  }
+}
+
+function getLocalMirrorManifestWorkbenchRequestCategory(kind) {
+  switch (kind) {
+    case "static-image":
+      return "static-asset";
+    case "launch-script":
+    case "runtime-loader":
+      return "html-bootstrap";
+    default:
+      return "other";
+  }
+}
+
 function getRuntimeWorkbenchEntries() {
   const entryMap = new Map();
   const pushEntry = (candidate) => {
@@ -12401,8 +12446,14 @@ function getRuntimeWorkbenchEntries() {
   }
 
   (getRuntimeMirrorStatus()?.entries ?? [])
-    .filter((entry) => entry?.kind === "static-image" && typeof entry.sourceUrl === "string" && entry.sourceUrl.length > 0)
+    .filter((entry) => (
+      entry?.fileExists !== false
+      && typeof entry?.sourceUrl === "string"
+      && entry.sourceUrl.length > 0
+      && isLocalMirrorManifestWorkbenchKind(entry.kind)
+    ))
     .forEach((entry) => {
+      const descriptor = getLocalMirrorManifestWorkbenchDescriptor(entry.kind);
       pushEntry(createRuntimeWorkbenchEntry({
         kind: "local-mirror-manifest",
         sourceUrl: entry.sourceUrl,
@@ -12410,12 +12461,12 @@ function getRuntimeWorkbenchEntries() {
         fileType: entry.fileType,
         requestBacked: false,
         requestSource: "local-mirror-manifest",
-        requestCategory: "static-asset",
+        requestCategory: getLocalMirrorManifestWorkbenchRequestCategory(entry.kind),
         hitCount: 0,
         localMirrorRepoRelativePath: entry.repoRelativePath,
-        statusLabel: "Local mirror manifest entry",
+        statusLabel: `Local mirror ${descriptor}`,
         requestSummary: `${entry.kind} · grounded local file`,
-        note: `Grounded local mirror entry at ${entry.repoRelativePath}. This source is available from the selected project's local runtime mirror even when the current cycle has not re-requested it yet.`
+        note: `Grounded local mirror ${descriptor} at ${entry.repoRelativePath}. This selected project can reopen on this source even when the current cycle has not re-requested it yet.`
       }));
     });
 
@@ -20909,7 +20960,7 @@ function renderRuntimeWorkbenchAssetList() {
   const workbenchMessage = entries.length === 0
     ? debugHostAvailable
       ? "Open Debug Host to populate the official runtime workbench. The embedded path has not recorded any usable runtime source entries in this session yet."
-      : "This selected project does not yet have any grounded runtime workbench items. Stay in Compose or seed request-backed runtime evidence before expecting a live runtime reopen path."
+      : "This selected project does not yet have any grounded runtime workbench items. Stay in Compose or seed grounded runtime evidence before expecting a live runtime reopen path."
     : embeddedRequestBackedImages.length === 0
       ? debugHostAvailable
         ? "No request-backed static image is available from the weaker embedded runtime path yet. The dedicated Runtime Debug Host result is ranked first and should be treated as the official daily runtime path."
@@ -20971,7 +21022,7 @@ function renderRuntimeWorkbenchAssetList() {
 
   return `
     <div class="tree-row runtime-workbench-summary">
-      <strong>Runtime Asset Workbench</strong>
+      <strong>Runtime Source Workbench</strong>
       <span>${escapeHtml(workbenchMessage)}</span>
     </div>
     ${entries.length > 0
@@ -21249,7 +21300,7 @@ function renderRuntimeInspector() {
           ? (state.runtimeUi.debugHost?.status === "pass"
               ? `Debug Host already proved ${state.runtimeUi.debugHost.candidateRuntimeRelativePath ?? state.runtimeUi.debugHost.candidateRuntimeSourceUrl ?? "the current request-backed candidate"} with ${state.runtimeUi.debugHost.overrideHitCountAfterReload ?? 0} override hit${Number(state.runtimeUi.debugHost.overrideHitCountAfterReload ?? 0) === 1 ? "" : "s"} after reload.`
               : "Use Debug Host first when you need trustworthy runtime asset selection or override proof. The embedded runtime trace below remains secondary until it exposes stronger asset truth.")
-          : "This selected project should stay on the grounded runtime workbench surface. Request-backed reopen and bounded overrides are usable here even while Debug Host remains validated only for project_001.")}</span>
+          : "This selected project should stay on the grounded runtime workbench surface. Grounded reopen and bounded overrides are usable here even while Debug Host remains validated only for project_001.")}</span>
         <div class="evidence-actions">
           ${debugHostAvailable ? `<button type="button" class="copy-button" data-runtime-action="open-debug-host">Use Debug Host</button>` : ""}
           ${activeWorkbenchEntry?.donorAsset ? `<button type="button" class="copy-button" data-focus-donor-asset-id="${escapeAttribute(activeWorkbenchEntry.donorAsset.assetId)}">Focus Asset</button>` : ""}
@@ -21261,7 +21312,7 @@ function renderRuntimeInspector() {
         <div class="detail-card ${debugHostAvailable ? (state.runtimeUi.debugHost?.status === "pass" ? "is-positive" : "is-alert") : "is-alert"}">
           <span>Preferred Candidate</span>
           <strong>${escapeHtml(activeWorkbenchEntry?.relativePath ?? (debugHostAvailable ? "Open Debug Host to choose a runtime candidate" : "Select a grounded request-backed runtime candidate"))}</strong>
-          <small>${escapeHtml(activeWorkbenchEntry?.note ?? (debugHostAvailable ? "No request-backed runtime workbench item is selected yet." : "No grounded request-backed runtime workbench item is selected for this project yet."))}</small>
+          <small>${escapeHtml(activeWorkbenchEntry?.note ?? (debugHostAvailable ? "No grounded runtime workbench item is selected yet." : "No grounded runtime workbench item is selected for this project yet."))}</small>
         </div>
         <div class="detail-card ${activeWorkbenchEntry?.donorAsset ? "is-positive" : "is-alert"}">
           <span>Source Bridge</span>
@@ -21363,7 +21414,7 @@ function renderRuntimeInspector() {
   );
 
   const assetWorkbenchSection = renderInspectorSection(
-    "Runtime Asset Workbench",
+    "Runtime Source Workbench",
     `${Math.min(workbenchEntries.length, 10)} items`,
     renderRuntimeWorkbenchAssetList()
   );
@@ -21538,7 +21589,7 @@ function renderRuntimeInspector() {
     </div>
     <p class="inspector-purpose">${escapeHtml(debugHostAvailable
       ? "The dedicated Runtime Debug Host is the official daily runtime path for project_001. This panel is grouped around the practical work loop: official path first, runtime asset list second, live trace third, and deeper source/override coverage last."
-      : "This selected project stays on the grounded runtime workbench surface. Request-backed reopen, donor/evidence jumps, and bounded overrides remain available here even while Debug Host and embedded launch are not yet validated for this project.")}</p>
+      : "This selected project stays on the grounded runtime workbench surface. Grounded reopen, donor/evidence jumps, and bounded overrides remain available here even while Debug Host and embedded launch are not yet validated for this project.")}</p>
     <div class="chip-row">
       <span>${escapeHtml(runtimeLaunch?.availability ?? "blocked")}</span>
       <span>${escapeHtml(runtimeLaunch?.runtimeSourceLabel ?? "Blocked")}</span>
