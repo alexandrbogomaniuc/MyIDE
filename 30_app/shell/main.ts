@@ -71,6 +71,7 @@ const isLiveDonorImportSmokeMode = process.env.MYIDE_LIVE_DONOR_IMPORT_SMOKE ===
 const isLiveRuntimePageProofRelaunchSmokeMode = process.env.MYIDE_LIVE_RUNTIME_PAGE_PROOF_RELAUNCH_SMOKE === "1";
 const isLiveRuntimeSmokeMode = process.env.MYIDE_LIVE_RUNTIME_SMOKE === "1";
 const isRuntimeSelectedProjectRouteSmokeMode = process.env.MYIDE_RUNTIME_SELECTED_PROJECT_ROUTE_SMOKE === "1";
+const isRuntimeSelectedProjectRedirectSmokeMode = process.env.MYIDE_RUNTIME_SELECTED_PROJECT_REDIRECT_SMOKE === "1";
 const isLiveDuplicateDeleteSmokeMode = process.env.MYIDE_LIVE_DUPLICATE_DELETE_SMOKE === "1";
 const isLiveReorderSmokeMode = process.env.MYIDE_LIVE_REORDER_SMOKE === "1";
 const isLiveLayerReassignSmokeMode = process.env.MYIDE_LIVE_LAYER_REASSIGN_SMOKE === "1";
@@ -216,6 +217,7 @@ const runtimeAssetOverrideHits = new Map<string, RuntimeAssetOverrideHitInfo>();
 const runtimeWebviewPartition = "persist:myide-runtime-project001";
 const runtimeDebugPartition = "persist:myide-runtime-debug-project001";
 const runtimeLocalMirrorStatuses = new Map<string, LocalRuntimeMirrorStatus>();
+const knownRuntimeProjectIds = new Set<string>(["project_001"]);
 let runtimeLocalMirrorServer: Server | null = null;
 let runtimeRequestStage = "launch";
 const recentRuntimeObservationFingerprints = new Map<string, number>();
@@ -364,6 +366,18 @@ function finishRuntimeSelectedProjectRouteSmoke(exitCode: number, message: strin
   }, 0);
 }
 
+function finishRuntimeSelectedProjectRedirectSmoke(exitCode: number, message: string): void {
+  if (exitCode === 0) {
+    console.log(message);
+  } else {
+    console.error(message);
+  }
+
+  setTimeout(() => {
+    app.exit(exitCode);
+  }, 0);
+}
+
 function finishLiveDuplicateDeleteSmoke(exitCode: number, message: string): void {
   if (exitCode === 0) {
     console.log(message);
@@ -472,11 +486,19 @@ function getRuntimeAssetOverrideRedirectMap(projectId: string): Map<string, stri
   return runtimeAssetOverrideRedirectMaps.get(projectId) ?? new Map<string, string>();
 }
 
+function rememberRuntimeProjectId(projectId: string): void {
+  if (typeof projectId !== "string" || !/^[A-Za-z0-9._-]+$/.test(projectId)) {
+    return;
+  }
+  knownRuntimeProjectIds.add(projectId);
+}
+
 async function refreshRuntimeAssetOverrideRedirects(projectId = "project_001"): Promise<void> {
   const [overrideStatus, mirrorStatus] = await Promise.all([
     buildRuntimeAssetOverrideStatus(projectId, runtimeAssetOverrideHits),
     buildLocalRuntimeMirrorStatus(projectId)
   ]);
+  rememberRuntimeProjectId(projectId);
   runtimeAssetOverrideRedirectMaps.set(projectId, buildRuntimeAssetOverrideRedirectMap(overrideStatus));
   runtimeLocalMirrorStatuses.set(projectId, mirrorStatus);
   runtimeLocalMirrorRedirectMaps.set(projectId, buildLocalRuntimeMirrorRedirectMap(mirrorStatus));
@@ -492,6 +514,21 @@ async function ensureRuntimeProjectCaches(projectId: string): Promise<void> {
   }
 
   await refreshRuntimeAssetOverrideRedirects(projectId);
+}
+
+async function primeRuntimeProjectCachesFromWorkspace(): Promise<string[]> {
+  const workspace = await loadWorkspaceSlice();
+  const projectIds = Array.from(new Set([
+    "project_001",
+    ...workspace.projects
+      .map((entry) => entry?.projectId)
+      .filter((value): value is string => typeof value === "string" && value.length > 0)
+  ]));
+  await Promise.all(projectIds.map(async (projectId) => {
+    rememberRuntimeProjectId(projectId);
+    await ensureRuntimeProjectCaches(projectId);
+  }));
+  return projectIds;
 }
 
 async function clearRuntimeWebviewCache(): Promise<{ cleared: true; partition: string }> {
@@ -980,22 +1017,95 @@ async function runRuntimeDebugHost(options: RuntimeDebugHostOptions = {}): Promi
   }
 }
 
-function getRuntimeRedirectUrl(requestUrl: string): string | null {
-  const defaultProjectId = "project_001";
-  const overrideRedirect = getRuntimeAssetOverrideRedirectMap(defaultProjectId).get(requestUrl);
-  if (overrideRedirect) {
-    return overrideRedirect;
-  }
-
-  const exactMirrorRedirect = getRuntimeLocalMirrorRedirectMap(defaultProjectId).get(requestUrl);
-  if (exactMirrorRedirect) {
-    return exactMirrorRedirect;
-  }
-
-  const mirrorEntry = findLocalRuntimeMirrorEntry(getRuntimeLocalMirrorStatus(defaultProjectId), requestUrl);
-  return mirrorEntry
-    ? buildLocalRuntimeMirrorProxyUrl(defaultProjectId, mirrorEntry.sourceUrl)
+function resolveRuntimeRedirectMatch(requestUrl: string): {
+  projectId: string;
+  redirectUrl: string;
+  canonicalSourceUrl: string;
+  matchKind: "mirror-proxy" | "project-local-override";
+} | null {
+  const preferredProjectId = typeof bridgeHealthState.lastSelectedProjectId === "string"
+    ? bridgeHealthState.lastSelectedProjectId
     : null;
+  const matches: Array<{
+    projectId: string;
+    redirectUrl: string;
+    canonicalSourceUrl: string;
+    matchKind: "mirror-proxy" | "project-local-override";
+    score: number;
+  }> = [];
+
+  for (const projectId of knownRuntimeProjectIds) {
+    const mirrorStatus = getRuntimeLocalMirrorStatus(projectId);
+    const mirrorEntry = findLocalRuntimeMirrorEntry(mirrorStatus, requestUrl);
+    if (mirrorEntry) {
+      matches.push({
+        projectId,
+        redirectUrl: buildLocalRuntimeMirrorProxyUrl(projectId, mirrorEntry.sourceUrl),
+        canonicalSourceUrl: mirrorEntry.sourceUrl,
+        matchKind: "mirror-proxy",
+        score: 300 + (projectId === preferredProjectId ? 50 : 0)
+      });
+      continue;
+    }
+
+    const overrideRedirect = getRuntimeAssetOverrideRedirectMap(projectId).get(requestUrl);
+    if (overrideRedirect) {
+      matches.push({
+        projectId,
+        redirectUrl: overrideRedirect,
+        canonicalSourceUrl: requestUrl,
+        matchKind: "project-local-override",
+        score: 100 + (projectId === preferredProjectId ? 50 : 0)
+      });
+    }
+  }
+
+  if (matches.length === 0) {
+    return null;
+  }
+
+  matches.sort((left, right) => right.score - left.score);
+  const topScore = matches[0]?.score ?? 0;
+  const topMatches = matches.filter((entry) => entry.score === topScore);
+  if (topMatches.length > 1) {
+    const preferredMatch = preferredProjectId
+      ? topMatches.find((entry) => entry.projectId === preferredProjectId)
+      : null;
+    if (!preferredMatch) {
+      return null;
+    }
+    return {
+      projectId: preferredMatch.projectId,
+      redirectUrl: preferredMatch.redirectUrl,
+      canonicalSourceUrl: preferredMatch.canonicalSourceUrl,
+      matchKind: preferredMatch.matchKind
+    };
+  }
+
+  return {
+    projectId: matches[0].projectId,
+    redirectUrl: matches[0].redirectUrl,
+    canonicalSourceUrl: matches[0].canonicalSourceUrl,
+    matchKind: matches[0].matchKind
+  };
+}
+
+function resolveRuntimeObservedProjectId(requestUrl: string): string {
+  const redirectMatch = resolveRuntimeRedirectMatch(requestUrl);
+  if (redirectMatch) {
+    return redirectMatch.projectId;
+  }
+
+  const selectedProjectId = bridgeHealthState.lastSelectedProjectId;
+  if (typeof selectedProjectId === "string" && knownRuntimeProjectIds.has(selectedProjectId)) {
+    return selectedProjectId;
+  }
+
+  return "project_001";
+}
+
+function getRuntimeRedirectUrl(requestUrl: string): string | null {
+  return resolveRuntimeRedirectMatch(requestUrl)?.redirectUrl ?? null;
 }
 
 function parseRuntimeMirrorRoute(pathname: string): {
@@ -1127,7 +1237,7 @@ function getRuntimeObservedRequestMetadata(requestUrl: string): {
     }
 
     return {
-      projectId: "project_001",
+      projectId: resolveRuntimeObservedProjectId(requestUrl),
       canonicalSourceUrl: requestUrl,
       requestSource: "upstream-request"
     };
@@ -1795,6 +1905,122 @@ async function runRuntimeSelectedProjectRouteSmoke(): Promise<void> {
       projectId
     })}`);
     finishRuntimeSelectedProjectRouteSmoke(1, `FAIL smoke:electron-runtime-selected-project-route - ${message}`);
+  }
+}
+
+async function runRuntimeSelectedProjectRedirectSmoke(): Promise<void> {
+  console.log("MYIDE_RUNTIME_SELECTED_PROJECT_REDIRECT_MAIN_READY");
+  const projectId = process.env.MYIDE_RUNTIME_SELECTED_PROJECT_REDIRECT_PROJECT_ID ?? "project_002";
+  const runtimeSourceUrl = process.env.MYIDE_RUNTIME_SELECTED_PROJECT_REDIRECT_SOURCE_URL
+    ?? "https://cdn.bgaming-network.com/runtime/img/big-win-ribbon.png";
+
+  let probeWindow: BrowserWindow | null = null;
+  try {
+    bridgeHealthState.lastSelectedProjectId = projectId;
+    recentRuntimeObservationFingerprints.clear();
+    runtimeAssetOverrideHits.clear();
+    resetRuntimeResourceMap(projectId);
+    scheduleRuntimeResourceMapSnapshotWrite(projectId);
+    await primeRuntimeProjectCachesFromWorkspace();
+    await refreshRuntimeAssetOverrideRedirects(projectId);
+
+    const redirectUrl = getRuntimeRedirectUrl(runtimeSourceUrl);
+    probeWindow = new BrowserWindow({
+      width: 800,
+      height: 600,
+      show: false,
+      backgroundColor: "#0b1017",
+      webPreferences: {
+        backgroundThrottling: false,
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true
+      }
+    });
+    await probeWindow.loadURL("data:text/html;charset=utf-8,<html><body>runtime redirect smoke</body></html>");
+
+    const fetchResult = await probeWindow.webContents.executeJavaScript(
+      `fetch(${JSON.stringify(runtimeSourceUrl)}, { redirect: "follow" }).then(async (response) => ({
+        status: response.status,
+        finalUrl: response.url,
+        bodyText: await response.text()
+      }))`,
+      true
+    ) as {
+      status?: number;
+      finalUrl?: string;
+      bodyText?: string;
+    } | null;
+    await delay(500);
+
+    const projectResourceMap = await loadRuntimeResourceMapStatus(projectId);
+    const project001ResourceMap = await loadRuntimeResourceMapStatus("project_001");
+    const matchedProjectEntry = projectResourceMap.entries.find((entry) => entry.canonicalSourceUrl === runtimeSourceUrl) ?? null;
+    const project001ContainsSeedSource = project001ResourceMap.entries.some((entry) => entry.canonicalSourceUrl === runtimeSourceUrl);
+    const fetchStatus = Number(fetchResult?.status ?? 0);
+    const fetchFinalUrl = typeof fetchResult?.finalUrl === "string" ? fetchResult.finalUrl : null;
+    const fetchBody = typeof fetchResult?.bodyText === "string" ? fetchResult.bodyText : "";
+    const payload: {
+      status: "pass" | "fail";
+      error: string | null;
+      projectId: string;
+      runtimeSourceUrl: string;
+      redirectUrl: string | null;
+      fetchStatus: number;
+      fetchFinalUrl: string | null;
+      fetchBodySnippet: string;
+      projectResourceMapEntryCount: number;
+      matchedProjectRequestSource: string | null;
+      matchedProjectLatestRequestUrl: string | null;
+      project001ContainsSeedSource: boolean;
+    } = {
+      status: (
+        typeof redirectUrl === "string"
+        && redirectUrl.includes(`/runtime/${projectId}/mirror?source=`)
+        && fetchStatus === 200
+        && fetchBody.includes("project_002_override_placeholder")
+        && typeof fetchFinalUrl === "string"
+        && fetchFinalUrl.includes(`/runtime/${projectId}/mirror?source=`)
+        && Boolean(matchedProjectEntry)
+        && matchedProjectEntry?.requestSource === "project-local-override"
+        && !project001ContainsSeedSource
+      ) ? "pass" : "fail",
+      error: null,
+      projectId,
+      runtimeSourceUrl,
+      redirectUrl,
+      fetchStatus,
+      fetchFinalUrl,
+      fetchBodySnippet: fetchBody.slice(0, 120),
+      projectResourceMapEntryCount: projectResourceMap.entryCount,
+      matchedProjectRequestSource: matchedProjectEntry?.requestSource ?? null,
+      matchedProjectLatestRequestUrl: matchedProjectEntry?.latestRequestUrl ?? null,
+      project001ContainsSeedSource
+    };
+
+    if (payload.status !== "pass") {
+      payload.error = "Selected-project upstream redirect smoke did not stay project-aware.";
+    }
+
+    console.log(`MYIDE_RUNTIME_SELECTED_PROJECT_REDIRECT_RESULT:${JSON.stringify(payload)}`);
+    if (payload.status === "pass") {
+      finishRuntimeSelectedProjectRedirectSmoke(0, "PASS smoke:electron-runtime-selected-project-upstream-redirect");
+      return;
+    }
+
+    finishRuntimeSelectedProjectRedirectSmoke(1, `FAIL smoke:electron-runtime-selected-project-upstream-redirect - ${payload.error}`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.log(`MYIDE_RUNTIME_SELECTED_PROJECT_REDIRECT_RESULT:${JSON.stringify({
+      status: "fail",
+      error: message,
+      projectId
+    })}`);
+    finishRuntimeSelectedProjectRedirectSmoke(1, `FAIL smoke:electron-runtime-selected-project-upstream-redirect - ${message}`);
+  } finally {
+    if (probeWindow && !probeWindow.isDestroyed()) {
+      probeWindow.destroy();
+    }
   }
 }
 
@@ -2548,6 +2774,10 @@ ipcMain.handle("myide:load-project-slice", async (_event, selectedProjectId?: st
     const bundle = await loadProjectSlice(selectedProjectId);
     bridgeHealthState.lastSelectedProjectId = bundle.selectedProjectId ?? null;
     bridgeHealthState.workspaceProjectCount = Array.isArray(bundle.workspace?.projects) ? bundle.workspace.projects.length : 0;
+    if (typeof bundle.selectedProjectId === "string" && bundle.selectedProjectId.length > 0) {
+      rememberRuntimeProjectId(bundle.selectedProjectId);
+      await ensureRuntimeProjectCaches(bundle.selectedProjectId);
+    }
     return bundle;
   } catch (error) {
     bridgeHealthState.lastSelectedProjectId = null;
@@ -2665,6 +2895,11 @@ app.whenReady().then(() => {
           console.error(`MYIDE_RUNTIME_MIRROR_SERVER_FAIL:${error instanceof Error ? error.message : String(error)}`);
         })
         .finally(() => {
+          if (isRuntimeSelectedProjectRedirectSmokeMode) {
+            void runRuntimeSelectedProjectRedirectSmoke();
+            return;
+          }
+
           if (isRuntimeSelectedProjectRouteSmokeMode) {
             void runRuntimeSelectedProjectRouteSmoke();
             return;
