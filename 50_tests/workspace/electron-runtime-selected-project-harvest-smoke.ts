@@ -19,6 +19,7 @@ interface HarvestPayload {
   runtimeLaunchEntryUrl?: string | null;
   harvestActionVisible?: boolean;
   harvestSucceeded?: boolean;
+  harvestApiOverrideEntryCount?: number;
   harvestedEntryCount?: number;
   harvestedRequestCategory?: string | null;
   harvestedRequestSource?: string | null;
@@ -40,6 +41,11 @@ interface HarvestPayload {
   runtimeOverrideDonorAssetId?: string | null;
   createOverrideButtonEnabled?: boolean;
   runtimeOverrideCreated?: boolean;
+  overrideProofHarvestSucceeded?: boolean;
+  overrideProofHarvestEntryCount?: number;
+  overrideProofStaticAssetRequestSource?: string | null;
+  overrideProofStaticAssetHitCount?: number;
+  previewStatusAfterOverrideProofHarvest?: string | null;
   runtimeOverrideCleared?: boolean;
   runtimeOverrideManifestRepoRelativePath?: string | null;
   runtimeOverrideRepoRelativePath?: string | null;
@@ -494,6 +500,7 @@ async function main(): Promise<void> {
     assert.equal(payload.harvestActionVisible, true, "Selected-project harvest smoke should expose the bounded harvest action.");
     assert.equal(payload.harvestSucceeded, true, "Selected-project harvest smoke should record fresh request-backed runtime evidence.");
     assert((payload.harvestedEntryCount ?? 0) >= 2, "Selected-project harvest smoke should record both the bundle and static-image runtime entries.");
+    assert.equal(payload.harvestApiOverrideEntryCount ?? 0, 0, "Selected-project harvest smoke should not claim override-backed hits before the override exists.");
     assert.equal(payload.harvestedRequestCategory, "html-bootstrap", "Selected-project harvest smoke should record the bundle as a runtime dependency.");
     assert.equal(payload.harvestedStaticAssetSourceUrl, runtimeStaticSourceUrl, "Selected-project harvest smoke should record the seeded static-image source.");
     assert.equal(payload.harvestedStaticAssetRequestCategory, "static-asset", "Selected-project harvest smoke should record the static image as a static asset.");
@@ -514,6 +521,11 @@ async function main(): Promise<void> {
     assert.equal(payload.runtimeOverrideCreated, true, "Selected-project harvest smoke did not create the bounded override from harvested evidence.");
     assert.equal(payload.runtimeOverrideManifestRepoRelativePath, "40_projects/project_002/overrides/runtime-asset-overrides.json", "Selected-project harvest smoke wrote the wrong override manifest path.");
     assert.equal(payload.runtimeOverrideRepoRelativePath, path.relative(workspaceRoot, overrideFilePath).replace(/\\/g, "/"), "Selected-project harvest smoke wrote the wrong override file path.");
+    assert.equal(payload.overrideProofHarvestSucceeded, true, "Selected-project harvest smoke should prove an override-backed hit after re-harvest.");
+    assert((payload.overrideProofHarvestEntryCount ?? 0) >= 1, "Selected-project harvest smoke should report at least one override-backed hit after re-harvest.");
+    assert.equal(payload.overrideProofStaticAssetRequestSource, "project-local-override", "Selected-project harvest smoke should upgrade the harvested static image to a project-local override hit.");
+    assert((payload.overrideProofStaticAssetHitCount ?? 0) >= 2, "Selected-project harvest smoke should increase the static-image hit count after override proof harvest.");
+    assert(payload.previewStatusAfterOverrideProofHarvest?.includes("override-backed hit"), "Selected-project harvest smoke should mention override-backed hits after re-harvest.");
     assert.equal(payload.runtimeOverrideCleared, true, "Selected-project harvest smoke did not clear the bounded override.");
     assert(payload.previewStatusAfterCreate?.includes("Embedded launch stays blocked"), "Selected-project harvest smoke create status should mention blocked embedded launch.");
     assert(!payload.previewStatusAfterCreate?.includes("Reloading the embedded runtime now"), "Selected-project harvest smoke create status should not claim a blocked embedded runtime reload.");

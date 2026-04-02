@@ -3186,6 +3186,7 @@ async function harvestRuntimeRequestEvidenceForCurrentProject() {
   }
 
   const projectId = state.selectedProjectId;
+  const previousWorkbenchSourceUrl = getRuntimeWorkbenchSourceUrl();
   state.runtimeUi.lastSelectedProjectHarvestResult = {
     projectId,
     status: "pending"
@@ -3203,14 +3204,19 @@ async function harvestRuntimeRequestEvidenceForCurrentProject() {
 
     const harvestedEntryCount = Number(result?.harvestedEntryCount ?? 0);
     const attemptedSourceCount = Number(result?.attemptedSourceCount ?? 0);
+    const overrideEntryCount = Number(result?.overrideEntryCount ?? 0);
     const topSourceUrl = typeof result?.topSourceUrl === "string" ? result.topSourceUrl : null;
-    if (topSourceUrl) {
-      setRuntimeWorkbenchSource(topSourceUrl, { render: false });
+    const nextWorkbenchSourceUrl = previousWorkbenchSourceUrl
+      && getRuntimeWorkbenchEntries().some((entry) => entry.sourceUrl === previousWorkbenchSourceUrl)
+      ? previousWorkbenchSourceUrl
+      : topSourceUrl;
+    if (nextWorkbenchSourceUrl) {
+      setRuntimeWorkbenchSource(nextWorkbenchSourceUrl, { render: false });
     }
 
     renderAll();
     setPreviewStatus(harvestedEntryCount > 0
-      ? `Harvested ${harvestedEntryCount} request-backed runtime source${harvestedEntryCount === 1 ? "" : "s"} from ${attemptedSourceCount} grounded local-mirror candidate${attemptedSourceCount === 1 ? "" : "s"} for ${projectId}. Embedded launch stays blocked while the runtime workbench refreshes on those harvested traces.`
+      ? `Harvested ${harvestedEntryCount} request-backed runtime source${harvestedEntryCount === 1 ? "" : "s"} from ${attemptedSourceCount} grounded local-mirror candidate${attemptedSourceCount === 1 ? "" : "s"} for ${projectId}${overrideEntryCount > 0 ? `, including ${overrideEntryCount} override-backed hit${overrideEntryCount === 1 ? "" : "s"}` : ""}. Embedded launch stays blocked while the runtime workbench refreshes on those harvested traces.`
       : String(result?.blocker ?? "The bounded selected-project runtime harvest did not record any grounded requests."));
     return result ?? null;
   } catch (error) {
@@ -6674,6 +6680,7 @@ async function runLiveRuntimeSelectedProjectHarvestSmoke() {
     harvestApiAttemptedSourceCount: 0,
     harvestApiFailedSourceUrls: [],
     harvestApiTopSourceUrl: null,
+    harvestApiOverrideEntryCount: 0,
     harvestedEntryCount: 0,
     harvestedRequestCategory: null,
     harvestedRequestSource: null,
@@ -6695,6 +6702,11 @@ async function runLiveRuntimeSelectedProjectHarvestSmoke() {
     runtimeOverrideDonorAssetId: null,
     createOverrideButtonEnabled: false,
     runtimeOverrideCreated: false,
+    overrideProofHarvestSucceeded: false,
+    overrideProofHarvestEntryCount: 0,
+    overrideProofStaticAssetRequestSource: null,
+    overrideProofStaticAssetHitCount: 0,
+    previewStatusAfterOverrideProofHarvest: null,
     runtimeOverrideCleared: false,
     runtimeOverrideManifestRepoRelativePath: null,
     runtimeOverrideRepoRelativePath: null,
@@ -6798,6 +6810,7 @@ async function runLiveRuntimeSelectedProjectHarvestSmoke() {
       ? harvestResult.failedSourceUrls.slice()
       : [];
     baseResult.harvestApiTopSourceUrl = typeof harvestResult?.topSourceUrl === "string" ? harvestResult.topSourceUrl : null;
+    baseResult.harvestApiOverrideEntryCount = Number(harvestResult?.overrideEntryCount ?? 0);
     if (harvestResult?.status !== "ready") {
       throw new Error(
         `Selected-project runtime harvest returned ${String(harvestResult?.status ?? "unknown")}: ${String(harvestResult?.blocker ?? harvestResult?.error ?? "no blocker reported")}`
@@ -6902,6 +6915,49 @@ async function runLiveRuntimeSelectedProjectHarvestSmoke() {
     }
     if (baseResult.previewStatusAfterCreate.includes("Reloading the embedded runtime now")) {
       throw new Error("Selected-project runtime harvest override status still claimed a blocked embedded runtime reload.");
+    }
+
+    const runtimeWorkbenchSourceBeforeOverrideProofHarvest = getRuntimeWorkbenchSourceUrl();
+    const overrideProofHarvestButton = await waitForRendererCondition(
+      () => elements.runtimeStatus?.querySelector('button[data-runtime-action="harvest-request-evidence"]') ?? null,
+      "selected-project runtime override proof harvest button"
+    );
+    clickRendererElement(overrideProofHarvestButton);
+    await waitForRendererCondition(
+      () => state.runtimeUi?.lastSelectedProjectHarvestResult?.status === "pending",
+      `${targetProjectId} selected-project runtime override proof harvest pending state`
+    );
+    const overrideProofHarvestResult = await waitForRendererCondition(
+      () => {
+        const result = state.runtimeUi?.lastSelectedProjectHarvestResult;
+        return result?.status && result.status !== "pending" ? result : null;
+      },
+      `${targetProjectId} selected-project runtime override proof harvest action to finish`
+    );
+    if (overrideProofHarvestResult?.status !== "ready") {
+      throw new Error(
+        `Selected-project runtime override proof harvest returned ${String(overrideProofHarvestResult?.status ?? "unknown")}: ${String(overrideProofHarvestResult?.blocker ?? overrideProofHarvestResult?.error ?? "no blocker reported")}`
+      );
+    }
+    baseResult.overrideProofHarvestEntryCount = Number(overrideProofHarvestResult?.overrideEntryCount ?? 0);
+    baseResult.previewStatusAfterOverrideProofHarvest = elements.previewStatus?.textContent?.trim() ?? null;
+
+    const overrideProofStaticAssetEntry = await waitForRendererCondition(
+      () => {
+        const entry = getRuntimeResourceMapEntry(runtimeStaticSourceUrl);
+        return entry?.requestSource === "project-local-override" ? entry : null;
+      },
+      `${targetProjectId} bounded runtime override proof request to record the selected static image`,
+      { timeoutMs: 20000 }
+    );
+    baseResult.overrideProofHarvestSucceeded = true;
+    baseResult.overrideProofStaticAssetRequestSource = overrideProofStaticAssetEntry?.requestSource ?? null;
+    baseResult.overrideProofStaticAssetHitCount = Number(overrideProofStaticAssetEntry?.hitCount ?? 0);
+    if (runtimeWorkbenchSourceBeforeOverrideProofHarvest && getRuntimeWorkbenchSourceUrl() !== runtimeWorkbenchSourceBeforeOverrideProofHarvest) {
+      throw new Error("Selected-project runtime override proof harvest should preserve the active bundle-backed runtime workbench source.");
+    }
+    if (!baseResult.previewStatusAfterOverrideProofHarvest || !baseResult.previewStatusAfterOverrideProofHarvest.includes("override-backed hit")) {
+      throw new Error("Selected-project runtime override proof harvest status did not mention override-backed hits.");
     }
 
     const clearOverrideButton = await waitForRendererCondition(

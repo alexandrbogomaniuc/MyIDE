@@ -611,7 +611,9 @@ async function harvestRuntimeRequestEvidence(projectId: string): Promise<{
   blocker: string | null;
   attemptedSourceCount: number;
   harvestedEntryCount: number;
+  overrideEntryCount: number;
   harvestedSourceUrls: string[];
+  overrideSourceUrls: string[];
   failedSourceUrls: string[];
   topSourceUrl: string | null;
   resourceMapEntryCount: number;
@@ -629,7 +631,9 @@ async function harvestRuntimeRequestEvidence(projectId: string): Promise<{
       blocker: runtimeMirrorStatus?.blocker ?? "No bounded local-mirror runtime source candidates are indexed for this project yet.",
       attemptedSourceCount: 0,
       harvestedEntryCount: 0,
+      overrideEntryCount: 0,
       harvestedSourceUrls: [],
+      overrideSourceUrls: [],
       failedSourceUrls: [],
       topSourceUrl: null,
       resourceMapEntryCount: resourceMap.entryCount
@@ -670,6 +674,7 @@ async function harvestRuntimeRequestEvidence(projectId: string): Promise<{
   const harvestedEntries = resourceMap.entries.filter((entry) => (
     Number(entry.stageHitCounts["selected-project-harvest"] ?? 0) > 0
   ));
+  const overrideEntries = harvestedEntries.filter((entry) => entry.requestSource === "project-local-override");
 
   return {
     projectId,
@@ -679,7 +684,11 @@ async function harvestRuntimeRequestEvidence(projectId: string): Promise<{
       : "The bounded selected-project harvest did not record any grounded runtime requests.",
     attemptedSourceCount: candidates.length,
     harvestedEntryCount: harvestedEntries.length,
+    overrideEntryCount: overrideEntries.length,
     harvestedSourceUrls,
+    overrideSourceUrls: overrideEntries
+      .map((entry) => entry.canonicalSourceUrl)
+      .filter((value, index, items) => items.indexOf(value) === index),
     failedSourceUrls,
     topSourceUrl: harvestedEntries[0]?.canonicalSourceUrl ?? harvestedSourceUrls[0] ?? null,
     resourceMapEntryCount: resourceMap.entryCount
