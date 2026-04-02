@@ -127,6 +127,9 @@ contextBridge.exposeInMainWorld("myideApi", {
   reportLiveRuntimePageProofRelaunchSmokeResult: (payload: unknown): void => {
     ipcRenderer.send("myide:live-runtime-page-proof-relaunch-smoke-result", payload);
   },
+  reportLiveRuntimeSelectedProjectReopenSmokeResult: (payload: unknown): void => {
+    ipcRenderer.send("myide:live-runtime-selected-project-reopen-smoke-result", payload);
+  },
   reportLiveRuntimeSmokeResult: (payload: unknown): void => {
     ipcRenderer.send("myide:live-runtime-smoke-result", payload);
   },

@@ -291,6 +291,15 @@ function isLiveRuntimePageProofRelaunchSmokeMode() {
   }
 }
 
+function isLiveRuntimeSelectedProjectReopenSmokeMode() {
+  try {
+    const search = typeof window.location?.search === "string" ? window.location.search : "";
+    return new URLSearchParams(search).get("liveRuntimeSelectedProjectReopenSmoke") === "1";
+  } catch {
+    return false;
+  }
+}
+
 function isLiveRuntimeSmokeMode() {
   try {
     const search = typeof window.location?.search === "string" ? window.location.search : "";
@@ -552,6 +561,20 @@ async function emitLiveRuntimePageProofRelaunchSmoke(payload) {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.log(`MYIDE_LIVE_RUNTIME_PAGE_PROOF_RELAUNCH:${JSON.stringify({ status: "fail", error: `live runtime page proof relaunch payload serialization failed: ${message}` })}`);
+  }
+}
+
+async function emitLiveRuntimeSelectedProjectReopenSmoke(payload) {
+  try {
+    if (window.myideApi && typeof window.myideApi.reportLiveRuntimeSelectedProjectReopenSmokeResult === "function") {
+      window.myideApi.reportLiveRuntimeSelectedProjectReopenSmokeResult(payload);
+      return;
+    }
+
+    console.log(`MYIDE_LIVE_RUNTIME_SELECTED_PROJECT_REOPEN:${JSON.stringify(payload)}`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.log(`MYIDE_LIVE_RUNTIME_SELECTED_PROJECT_REOPEN:${JSON.stringify({ status: "fail", error: `live selected-project runtime reopen payload serialization failed: ${message}` })}`);
   }
 }
 
@@ -818,6 +841,11 @@ async function bootRenderer() {
     return;
   }
 
+  if (isLiveRuntimeSelectedProjectReopenSmokeMode()) {
+    await runLiveRuntimeSelectedProjectReopenSmoke();
+    return;
+  }
+
   if (isLiveRuntimeSmokeMode()) {
     reportBootProgress("boot-enter-live-runtime-smoke");
     await runLiveRuntimeSmoke();
@@ -897,6 +925,12 @@ function getRuntimeWebview() {
 function canUseRuntimeMode() {
   const runtimeLaunch = getRuntimeLaunchInfo();
   return Boolean(runtimeLaunch && runtimeLaunch.entryUrl);
+}
+
+function canUseRuntimeWorkbenchSurface() {
+  return canUseRuntimeMode()
+    || Boolean(getRuntimeWorkbenchSourceUrl())
+    || getRuntimeWorkbenchEntries().length > 0;
 }
 
 function getRuntimeOverrideStatus() {
@@ -1222,7 +1256,7 @@ function setWorkflowPanel(panel, options = {}) {
 
 function setWorkbenchMode(mode, options = {}) {
   const requestedMode = mode === "scene" ? "scene" : "runtime";
-  const nextMode = requestedMode === "runtime" && !canUseRuntimeMode()
+  const nextMode = requestedMode === "runtime" && !canUseRuntimeWorkbenchSurface()
     ? "scene"
     : requestedMode;
 
@@ -1236,7 +1270,9 @@ function setWorkbenchMode(mode, options = {}) {
 
   if (!options.silent) {
     setPreviewStatus(nextMode === "runtime"
-      ? "Runtime Mode is active. Launch the grounded donor runtime, pick a live target, then jump into donor or compose context from the workflow hub."
+      ? (canUseRuntimeMode()
+          ? "Runtime Mode is active. Launch the grounded donor runtime, pick a live target, then jump into donor or compose context from the workflow hub."
+          : "Runtime Mode is active for grounded runtime evidence. Live launch is blocked for this project, so use the runtime workbench, donor links, and Compose handoff without pretending the embedded runtime is ready.")
       : "Compose Mode is active. Edit the internal scene while donor sources stay read-only, then jump back to Runtime Mode when you need live donor context.");
   }
 
@@ -6252,6 +6288,141 @@ async function runLiveRuntimePageProofRelaunchSmoke() {
   }
 }
 
+async function runLiveRuntimeSelectedProjectReopenSmoke() {
+  const targetProjectId = "project_002";
+  const startedAt = new Date().toISOString();
+  const baseResult = {
+    startedAt,
+    projectId: targetProjectId,
+    preloadExecuted: Boolean(window.myideApi),
+    myideApiExposed: Boolean(window.myideApi && typeof window.myideApi.loadProjectSlice === "function"),
+    projectLoaded: false,
+    runtimeLaunchBlocked: false,
+    runtimeLaunchEntryUrl: null,
+    taskId: null,
+    pageName: null,
+    pageRuntimeProofLoaded: false,
+    runtimeWorkbenchHasPageProofEntry: false,
+    taskRuntimeEntryKind: null,
+    taskRuntimeEntrySourceUrl: null,
+    runtimeModeSelected: false,
+    taskRuntimeOpenUsesPersistedPageProof: false,
+    embeddedRuntimeLaunched: false,
+    previewStatus: null
+  };
+
+  try {
+    const api = window.myideApi;
+    if (
+      !api
+      || typeof api.loadProjectSlice !== "function"
+      || typeof api.reportRendererReady !== "function"
+    ) {
+      throw new Error("Renderer selected-project runtime reopen smoke could not access the required desktop bridge helpers.");
+    }
+
+    await waitForRendererCondition(
+      () => Boolean(state.bundle && getWorkspaceProjects().length > 0),
+      "workspace discovery for selected-project runtime reopen smoke"
+    );
+
+    if (state.selectedProjectId !== targetProjectId) {
+      const projectButton = await waitForRendererCondition(
+        () => elements.projectBrowser?.querySelector(`[data-project-id="${targetProjectId}"]`) ?? null,
+        `project browser entry for ${targetProjectId}`
+      );
+      clickRendererElement(projectButton);
+    }
+
+    await waitForRendererCondition(
+      () => state.selectedProjectId === targetProjectId && Boolean(state.bundle),
+      `${targetProjectId} to load for the selected-project runtime reopen smoke`
+    );
+    baseResult.projectLoaded = true;
+
+    const runtimeLaunch = getRuntimeLaunchInfo();
+    baseResult.runtimeLaunchEntryUrl = runtimeLaunch?.entryUrl ?? null;
+    baseResult.runtimeLaunchBlocked = !Boolean(runtimeLaunch?.entryUrl) && Boolean(runtimeLaunch?.blocker);
+    if (runtimeLaunch?.entryUrl) {
+      throw new Error(`Selected-project runtime reopen smoke expected launch to stay blocked, but ${targetProjectId} exposed ${runtimeLaunch.entryUrl}.`);
+    }
+
+    const tasksWithPageProof = getProjectModificationTasks()
+      .map((task) => {
+        const matchedPage = getProjectModificationTaskReconstructionPages(task)
+          .find((page) => getProjectModificationTaskPageRuntimeProofEntry(task.taskId, page.pageName)?.entry) ?? null;
+        if (!matchedPage) {
+          return null;
+        }
+
+        const pageProofEntry = getProjectModificationTaskPageRuntimeProofEntry(task.taskId, matchedPage.pageName);
+        return pageProofEntry?.entry
+          ? {
+            task,
+            page: matchedPage,
+            pageProofEntry
+          }
+          : null;
+      })
+      .filter(Boolean);
+    const matchedTaskProof = tasksWithPageProof[0] ?? null;
+    if (!matchedTaskProof?.pageProofEntry?.entry?.sourceUrl) {
+      throw new Error("No persisted page runtime proof is available for the selected-project reopen smoke.");
+    }
+
+    baseResult.taskId = matchedTaskProof.task.taskId;
+    baseResult.pageName = matchedTaskProof.page.pageName;
+    baseResult.pageRuntimeProofLoaded = true;
+
+    const persistedWorkbenchEntry = getRuntimeWorkbenchEntries()
+      .find((entry) => entry?.kind === "page-runtime-proof" && entry?.sourceUrl === matchedTaskProof.pageProofEntry.entry.sourceUrl) ?? null;
+    baseResult.runtimeWorkbenchHasPageProofEntry = Boolean(persistedWorkbenchEntry);
+
+    const taskRuntimeMatch = getProjectModificationTaskRuntimeMatchForPage(matchedTaskProof.task, matchedTaskProof.page);
+    baseResult.taskRuntimeEntryKind = taskRuntimeMatch?.matchKind ?? null;
+
+    const taskRuntimeEntry = getRuntimeWorkbenchEntryForModificationTask(matchedTaskProof.task);
+    if (!taskRuntimeEntry?.sourceUrl) {
+      throw new Error(`Task ${matchedTaskProof.task.taskId} did not resolve to a runtime workbench entry for ${targetProjectId}.`);
+    }
+    baseResult.taskRuntimeEntrySourceUrl = taskRuntimeEntry.sourceUrl;
+
+    if (taskRuntimeEntry.sourceUrl !== matchedTaskProof.pageProofEntry.entry.sourceUrl) {
+      throw new Error(`Task ${matchedTaskProof.task.taskId} did not prefer the persisted page proof for ${targetProjectId}.`);
+    }
+
+    openProjectModificationTask(matchedTaskProof.task.taskId, "runtime");
+    await waitForRendererCondition(
+      () => state.workflowUi?.activePanel === "runtime"
+        && state.workbenchMode === "runtime"
+        && getRuntimeWorkbenchSourceUrl() === matchedTaskProof.pageProofEntry.entry.sourceUrl
+        && state.runtimeUi.launched === false,
+      `${matchedTaskProof.task.taskId} task runtime open to stay on the blocked-launch runtime surface`
+    );
+
+    baseResult.runtimeModeSelected = state.workbenchMode === "runtime";
+    baseResult.taskRuntimeOpenUsesPersistedPageProof = true;
+    baseResult.embeddedRuntimeLaunched = Boolean(state.runtimeUi.launched);
+    baseResult.previewStatus = elements.previewStatus?.textContent?.trim() ?? null;
+    document.body.dataset.liveRuntimeSelectedProjectReopenSmoke = "pass";
+    await emitLiveRuntimeSelectedProjectReopenSmoke({
+      ...baseResult,
+      status: "pass"
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const failureMessage = `Live selected-project runtime reopen smoke failed: ${message}`;
+    setPreviewStatus(failureMessage);
+    document.body.dataset.liveRuntimeSelectedProjectReopenSmoke = "fail";
+    await emitLiveRuntimeSelectedProjectReopenSmoke({
+      ...baseResult,
+      status: "fail",
+      error: message,
+      previewStatus: failureMessage
+    });
+  }
+}
+
 async function runLiveUndoRedoSmoke() {
   const targetProjectId = "project_001";
   const presetKey = "banner";
@@ -10452,7 +10623,7 @@ function openProjectModificationTask(taskId, mode = "preferred") {
   renderAll();
   setPreviewStatus(
     runtimeEntry
-      ? `${task.displayName}${task.sectionKey ? ` ${task.sectionKey}` : ""} is now the active modification task. ${targetMode === "runtime" ? "Runtime" : "Compose"} is active with grounded runtime source ${runtimeEntry.relativePath ?? runtimeEntry.localMirrorRepoRelativePath ?? runtimeEntry.sourceUrl}${taskKitGroupSummary ? ` and donor task kit ${taskKitGroupSummary.label} is now filtered in the donor palette.` : "."}`
+      ? `${task.displayName}${task.sectionKey ? ` ${task.sectionKey}` : ""} is now the active modification task. ${targetMode === "runtime" ? "Runtime" : "Compose"} is active with grounded runtime source ${runtimeEntry.relativePath ?? runtimeEntry.localMirrorRepoRelativePath ?? runtimeEntry.sourceUrl}${targetMode === "runtime" && !getRuntimeLaunchInfo()?.entryUrl ? "; embedded launch stays blocked, so use the runtime workbench as the truthful surface for this project" : ""}${taskKitGroupSummary ? ` and donor task kit ${taskKitGroupSummary.label} is now filtered in the donor palette.` : "."}`
       : `${task.displayName}${task.sectionKey ? ` ${task.sectionKey}` : ""} is now the active modification task. ${targetMode === "runtime" ? "Runtime" : "Compose"} is active, but no request-backed runtime workbench source is matched yet. Continue from source artifact ${task.sourceArtifactPath ?? "pending artifact"}${taskKitGroupSummary ? ` and donor task kit ${taskKitGroupSummary.label} is now filtered in the donor palette.` : "."}`
   );
 }
@@ -12586,7 +12757,7 @@ function openSceneSectionRuntimeContext(sectionId) {
   renderAll();
   setPreviewStatus(
     runtimeContext.preferredWorkbenchEntry
-      ? `Runtime Mode is active. Scene section ${sectionEntry.label} is linked to ${runtimeContext.preferredWorkbenchEntry.relativePath ?? runtimeContext.preferredWorkbenchEntry.sourceUrl}.`
+      ? `Runtime Mode is active. Scene section ${sectionEntry.label} is linked to ${runtimeContext.preferredWorkbenchEntry.relativePath ?? runtimeContext.preferredWorkbenchEntry.sourceUrl}${getRuntimeLaunchInfo()?.entryUrl ? "." : ", and the runtime workbench stays truthful even though embedded launch is blocked for this project."}`
       : `Runtime Mode is active. Scene section ${sectionEntry.label} is supported by ${runtimeContext.preferredReference?.label ?? "runtime evidence"}.`
   );
 }
@@ -16007,6 +16178,13 @@ async function reloadWorkspace(isInitialLoad, requestedProjectId = null) {
     return;
   }
 
+  if (canUseRuntimeWorkbenchSurface()) {
+    setPreviewStatus(isInitialLoad
+      ? `Loaded ${state.selectedProjectId}. Runtime Mode can reopen grounded runtime evidence even though live launch is still blocked for this project.`
+      : `Reloaded ${state.selectedProjectId}. Runtime Mode can reopen grounded runtime evidence even though live launch is still blocked for this project.`);
+    return;
+  }
+
   setPreviewStatus(isInitialLoad
     ? `Loaded ${state.selectedProjectId} editable compose scene from internal files.`
     : `Reloaded ${state.selectedProjectId} editable compose scene from disk.`);
@@ -16417,7 +16595,9 @@ function renderOnboardingCard() {
   const workflowBridge = getRuntimeWorkflowBridge();
   const runtimeOverrideCandidate = getRuntimeOverrideCandidate();
   const workflowFocusSummary = {
-    runtime: "Use Debug Host first for trustworthy runtime asset proof, then jump out to donor source or compose context from the same workbench.",
+    runtime: runtimeLaunch?.entryUrl
+      ? "Use Debug Host first for trustworthy runtime asset proof, then jump out to donor source or compose context from the same workbench."
+      : "Use the runtime workbench to inspect grounded runtime evidence for this project while live launch and Debug Host stay blocked.",
     donor: "Source donor assets, evidence cards, and grounded linked-object context stay together here.",
     compose: "Internal scene composition stays bounded here: select, replace, align, resize, save, reload.",
     vabs: "VABS stays visible as a read-only blocker and readiness module for this project.",
@@ -16437,11 +16617,17 @@ function renderOnboardingCard() {
     `<button type="button" class="copy-button" data-switch-workbench-mode="${escapeAttribute(state.workbenchMode === "runtime" ? "scene" : "runtime")}" data-switch-workflow-panel="${escapeAttribute(state.workbenchMode === "runtime" ? "compose" : "runtime")}" data-switch-status="${escapeAttribute(state.workbenchMode === "runtime" ? "Compose Mode is active. The workflow hub kept the current project context and source bridge." : "Runtime Mode is active again. The workflow hub kept the current project context and source bridge.")}">Switch To ${state.workbenchMode === "runtime" ? "Compose" : "Runtime"}</button>`
   ].filter(Boolean).join("");
   const quickSteps = state.workbenchMode === "runtime"
-    ? [
-      "Use Debug Host first to run the official runtime trace and override-proof cycle on the local mirror.",
-      "From the workbench, jump straight into donor asset, donor evidence, or the related compose object.",
-      "Use the embedded runtime only when you need secondary live context, then save/reload in Compose and re-open Debug Host when you want the strongest confirmation."
-    ]
+    ? (runtimeLaunch?.entryUrl
+        ? [
+          "Use Debug Host first to run the official runtime trace and override-proof cycle on the local mirror.",
+          "From the workbench, jump straight into donor asset, donor evidence, or the related compose object.",
+          "Use the embedded runtime only when you need secondary live context, then save/reload in Compose and re-open Debug Host when you want the strongest confirmation."
+        ]
+        : [
+          "Use the runtime workbench to inspect grounded page proofs, request-backed traces, and linked donor/compose context for this project.",
+          "Jump straight from the workbench into donor evidence, donor assets, or the related compose object without pretending live launch is ready.",
+          "Keep integrated Runtime Mode launch and Debug Host blocked until this project has a grounded runtime entry, then upgrade to the stronger live path."
+        ])
     : [
       "Drag or replace donor assets in Compose Mode as needed.",
       "Use marquee, align, distribute, and donor-backed resize on the current internal scene.",
@@ -17611,7 +17797,9 @@ function renderProjectSummary() {
         <span>Current Mode</span>
         <strong>${escapeHtml(getWorkbenchModeLabel())} Mode</strong>
         <small>${state.workbenchMode === "runtime"
-          ? `${runtimeLaunch?.entryUrl ? "Recorded donor runtime launch is ready." : "Runtime launch is currently blocked."} ${state.runtimeUi.launched ? "Embedded runtime has been launched in this session." : "Launch the donor runtime to begin."}`
+          ? `${runtimeLaunch?.entryUrl
+              ? "Recorded donor runtime launch is ready."
+              : "Grounded runtime evidence is open while embedded launch stays blocked."} ${state.runtimeUi.launched ? "Embedded runtime has been launched in this session." : (runtimeLaunch?.entryUrl ? "Launch the donor runtime to begin." : "Use the runtime workbench to inspect grounded traces and linked donor/compose context.")}`
           : editorStatusSummary}</small>
       </div>
       <div class="detail-card">

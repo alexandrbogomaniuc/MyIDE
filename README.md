@@ -41,6 +41,8 @@ After that page-scoped proof succeeds, the same page card now upgrades into a di
 
 That proved page-scoped runtime link now also survives both workspace reload and a fresh app relaunch for the same project: once the active task has been saved, the same page card and task-level runtime action still reuse the proved `big-win` runtime source instead of forcing another Debug Host pass.
 
+Blocked-launch projects now also keep the runtime workbench truthful instead of collapsing back to Compose: if a selected project has grounded page proofs or request-backed runtime traces but no grounded launch URL yet, **Open Runtime** can still reopen that runtime evidence surface while embedded launch and Debug Host stay explicitly blocked for that project.
+
 ## Current Phase
 - Current milestone: IDE-LIFECYCLE-A lifecycle backbone on top of the existing runtime-first shell, donor scan, and compose/runtime proving slices.
 - Active validated donor slice: `donor_001_mystery_garden`.
