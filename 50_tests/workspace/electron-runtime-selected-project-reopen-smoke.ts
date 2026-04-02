@@ -30,6 +30,8 @@ interface ReopenPayload {
   runtimeDebugHostActionVisible?: boolean;
   runtimeSourceDebugHostActionVisible?: boolean;
   runtimeStatusHeading?: string | null;
+  runtimeSurfaceCountLabel?: string | null;
+  runtimeSurfaceSummaryTitle?: string | null;
   runtimeStatusMentionsOfficialDailyPath?: boolean;
   embeddedRuntimeLaunched?: boolean;
   previewStatus?: string | null;
@@ -420,6 +422,8 @@ async function main(): Promise<void> {
     assert.equal(payload.runtimeDebugHostActionVisible, false, "Selected-project reopen smoke should not expose the runtime Debug Host action for project_002.");
     assert.equal(payload.runtimeSourceDebugHostActionVisible, false, "Selected-project reopen smoke should not expose source-level Debug Host actions for project_002.");
     assert.equal(payload.runtimeStatusHeading, "Selected-project runtime surface", "Selected-project reopen smoke should keep the runtime status heading project-aware.");
+    assert.equal(payload.runtimeSurfaceCountLabel, "request-backed", "Selected-project reopen smoke should expose the exact request-backed runtime surface label.");
+    assert.equal(payload.runtimeSurfaceSummaryTitle, "Request-backed runtime workbench", "Selected-project reopen smoke should expose the exact request-backed runtime surface summary title.");
     assert.equal(payload.runtimeStatusMentionsOfficialDailyPath, false, "Selected-project reopen smoke should not claim project_002 is on the official daily runtime path.");
     assert.equal(payload.embeddedRuntimeLaunched, false, "Selected-project reopen smoke should not launch the embedded runtime.");
 

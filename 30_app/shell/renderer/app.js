@@ -6593,6 +6593,8 @@ async function runLiveRuntimeSelectedProjectReopenSmoke() {
     runtimeDebugHostActionVisible: false,
     runtimeSourceDebugHostActionVisible: false,
     runtimeStatusHeading: null,
+    runtimeSurfaceCountLabel: null,
+    runtimeSurfaceSummaryTitle: null,
     runtimeStatusMentionsOfficialDailyPath: false,
     embeddedRuntimeLaunched: false,
     previewStatus: null
@@ -6697,6 +6699,25 @@ async function runLiveRuntimeSelectedProjectReopenSmoke() {
     baseResult.runtimeDebugHostActionVisible = Boolean(document.querySelector('button[data-runtime-action="open-debug-host"]:not([hidden])'));
     baseResult.runtimeSourceDebugHostActionVisible = Boolean(document.querySelector('button[data-runtime-source-action="open-debug-host"]'));
     baseResult.runtimeStatusHeading = elements.runtimeStatus?.querySelector(".runtime-workbench-callout strong")?.textContent?.trim() ?? null;
+    const runtimeSurfaceSummary = await waitForRendererCondition(
+      () => {
+        const inspectorSections = Array.from(elements.inspector?.querySelectorAll(".inspector-section") ?? []);
+        const runtimeSurfaceSection = inspectorSections.find((section) => {
+          const summaryTitle = section.querySelector("summary span:not(.summary-count)")?.textContent?.trim()
+            ?? section.querySelector("summary span")?.textContent?.trim()
+            ?? "";
+          return summaryTitle === "Selected-project runtime surface";
+        }) ?? inspectorSections[0] ?? null;
+        const countLabel = runtimeSurfaceSection?.querySelector("summary .summary-count")?.textContent?.trim() ?? null;
+        const summaryTitle = runtimeSurfaceSection?.querySelector(".runtime-workbench-summary strong")?.textContent?.trim() ?? null;
+        return runtimeSurfaceSection && countLabel && summaryTitle
+          ? { countLabel, summaryTitle }
+          : null;
+      },
+      "selected-project runtime surface summary"
+    );
+    baseResult.runtimeSurfaceCountLabel = runtimeSurfaceSummary.countLabel;
+    baseResult.runtimeSurfaceSummaryTitle = runtimeSurfaceSummary.summaryTitle;
     const runtimeStatusText = elements.runtimeStatus?.textContent?.replace(/\s+/g, " ").trim() ?? "";
     baseResult.runtimeStatusMentionsOfficialDailyPath = /official daily path/i.test(runtimeStatusText);
     if (baseResult.runtimeDebugHostActionVisible || baseResult.runtimeSourceDebugHostActionVisible) {
@@ -21963,6 +21984,20 @@ function renderRuntimeInspector() {
     ?? workbenchEntries[0]?.sourceUrl
     ?? null;
   const activeWorkbenchEntry = workbenchEntries.find((entry) => entry.sourceUrl === activeWorkbenchSourceUrl) ?? workbenchEntries[0] ?? null;
+  const activeWorkbenchSurfaceKind = activeWorkbenchEntry?.kind === "resource-map" && activeWorkbenchEntry?.requestBacked
+    ? "request-backed"
+    : activeWorkbenchEntry?.kind === "local-mirror-manifest"
+      ? "local-mirror"
+      : activeWorkbenchEntry?.kind === "page-runtime-proof"
+        ? "page-proof"
+        : "grounded";
+  const activeWorkbenchSurfaceTitle = activeWorkbenchSurfaceKind === "request-backed"
+    ? "Request-backed runtime workbench"
+    : activeWorkbenchSurfaceKind === "local-mirror"
+      ? "Local-mirror runtime workbench"
+      : activeWorkbenchSurfaceKind === "page-proof"
+        ? "Page-proof runtime workbench"
+        : "Grounded runtime workbench";
   const embeddedRequestBackedImages = getRuntimeResourceMapEntries().filter((entry) => (
     entry.requestCategory === "static-asset"
     && ["png", "webp", "jpg", "jpeg", "svg"].includes(String(entry.fileType ?? "").toLowerCase())
@@ -21974,10 +22009,10 @@ function renderRuntimeInspector() {
       : runtimeLaunch?.captureSessionId ?? "Runtime Mode");
   const officialPathSection = renderInspectorSection(
     debugHostAvailable ? "Official Runtime Path" : "Selected-project runtime surface",
-    debugHostAvailable ? (state.runtimeUi.debugHost?.status === "pass" ? "proved" : "ready") : "request-backed",
+    debugHostAvailable ? (state.runtimeUi.debugHost?.status === "pass" ? "proved" : "ready") : activeWorkbenchSurfaceKind,
     `
       <div class="tree-row runtime-workbench-summary">
-        <strong>${escapeHtml(debugHostAvailable ? "Official Runtime Work Mode" : "Request-backed runtime workbench")}</strong>
+        <strong>${escapeHtml(debugHostAvailable ? "Official Runtime Work Mode" : activeWorkbenchSurfaceTitle)}</strong>
         <span>${escapeHtml(debugHostAvailable
           ? (state.runtimeUi.debugHost?.status === "pass"
               ? `Debug Host already proved ${state.runtimeUi.debugHost.candidateRuntimeRelativePath ?? state.runtimeUi.debugHost.candidateRuntimeSourceUrl ?? "the current request-backed candidate"} with ${state.runtimeUi.debugHost.overrideHitCountAfterReload ?? 0} override hit${Number(state.runtimeUi.debugHost.overrideHitCountAfterReload ?? 0) === 1 ? "" : "s"} after reload.`

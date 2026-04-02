@@ -31,6 +31,8 @@ interface MirrorReopenPayload {
   runtimeDebugHostActionVisible?: boolean;
   runtimeSourceDebugHostActionVisible?: boolean;
   runtimeStatusHeading?: string | null;
+  runtimeSurfaceCountLabel?: string | null;
+  runtimeSurfaceSummaryTitle?: string | null;
   runtimeStatusMentionsOfficialDailyPath?: boolean;
   embeddedRuntimeLaunched?: boolean;
   previewStatus?: string | null;
@@ -419,6 +421,8 @@ async function main(): Promise<void> {
     assert.equal(payload.runtimeDebugHostActionVisible, false, "Selected-project mirror reopen smoke should not expose the runtime Debug Host action for project_002.");
     assert.equal(payload.runtimeSourceDebugHostActionVisible, false, "Selected-project mirror reopen smoke should not expose source-level Debug Host actions for project_002.");
     assert.equal(payload.runtimeStatusHeading, "Selected-project runtime surface", "Selected-project mirror reopen smoke should keep the runtime status heading project-aware.");
+    assert.equal(payload.runtimeSurfaceCountLabel, "local-mirror", "Selected-project mirror reopen smoke should expose the exact local-mirror runtime surface label.");
+    assert.equal(payload.runtimeSurfaceSummaryTitle, "Local-mirror runtime workbench", "Selected-project mirror reopen smoke should expose the exact local-mirror runtime surface summary title.");
     assert.equal(payload.runtimeStatusMentionsOfficialDailyPath, false, "Selected-project mirror reopen smoke should not claim project_002 is on the official daily runtime path.");
     assert.equal(payload.embeddedRuntimeLaunched, false, "Selected-project mirror reopen smoke should not launch the embedded runtime.");
 
