@@ -961,6 +961,21 @@ function canUseRuntimeWorkbenchSurface() {
     || getRuntimeWorkbenchEntries().length > 0;
 }
 
+function canUseRuntimeDebugHostForSelectedProject() {
+  return state.selectedProjectId === "project_001" && canUseRuntimeMode();
+}
+
+function getRuntimeDebugHostUnavailableMessage() {
+  if (state.selectedProjectId !== "project_001") {
+    const projectLabel = typeof state.selectedProjectId === "string" && state.selectedProjectId.length > 0
+      ? state.selectedProjectId
+      : "this selected project";
+    return `The dedicated Runtime Debug Host is still validated only for project_001. ${projectLabel} can keep using grounded request-backed runtime traces and bounded overrides without switching into Debug Host.`;
+  }
+
+  return "The dedicated Runtime Debug Host needs a grounded runtime launch URL, but launch is still blocked in this slice.";
+}
+
 function getRuntimeOverrideStatus() {
   const overrideStatus = state.runtimeUi.overrideStatus ?? state.bundle?.runtimeOverrides;
   return overrideStatus && typeof overrideStatus === "object" ? overrideStatus : null;
@@ -3313,6 +3328,11 @@ async function openRuntimeDebugHostWindow(options = {}) {
   const api = window.myideApi;
   if (!api || typeof api.openRuntimeDebugHost !== "function") {
     setPreviewStatus("Runtime Debug Host is not available in this renderer session.");
+    return null;
+  }
+  if (!canUseRuntimeDebugHostForSelectedProject()) {
+    setPreviewStatus(getRuntimeDebugHostUnavailableMessage());
+    renderAll();
     return null;
   }
 
@@ -6384,8 +6404,15 @@ async function runLiveRuntimeSelectedProjectReopenSmoke() {
     runtimeWorkbenchHasPageProofEntry: false,
     taskRuntimeEntryKind: null,
     taskRuntimeEntrySourceUrl: null,
+    runtimeWorkbenchEntryKind: null,
+    runtimeWorkbenchEntryRequestSource: null,
     runtimeModeSelected: false,
     taskRuntimeOpenUsesPersistedPageProof: false,
+    taskRuntimeOpenUsesRequestBackedWorkbenchEntry: false,
+    runtimeDebugHostActionVisible: false,
+    runtimeSourceDebugHostActionVisible: false,
+    runtimeStatusHeading: null,
+    runtimeStatusMentionsOfficialDailyPath: false,
     embeddedRuntimeLaunched: false,
     previewStatus: null
   };
@@ -6426,62 +6453,78 @@ async function runLiveRuntimeSelectedProjectReopenSmoke() {
       throw new Error(`Selected-project runtime reopen smoke expected launch to stay blocked, but ${targetProjectId} exposed ${runtimeLaunch.entryUrl}.`);
     }
 
-    const tasksWithPageProof = getProjectModificationTasks()
-      .map((task) => {
-        const matchedPage = getProjectModificationTaskReconstructionPages(task)
-          .find((page) => getProjectModificationTaskPageRuntimeProofEntry(task.taskId, page.pageName)?.entry) ?? null;
-        if (!matchedPage) {
-          return null;
-        }
-
-        const pageProofEntry = getProjectModificationTaskPageRuntimeProofEntry(task.taskId, matchedPage.pageName);
-        return pageProofEntry?.entry
-          ? {
-            task,
-            page: matchedPage,
-            pageProofEntry
-          }
-          : null;
-      })
-      .filter(Boolean);
-    const matchedTaskProof = tasksWithPageProof[0] ?? null;
-    if (!matchedTaskProof?.pageProofEntry?.entry?.sourceUrl) {
-      throw new Error("No persisted page runtime proof is available for the selected-project reopen smoke.");
+    const matchedTask = getProjectModificationTasks()[0] ?? null;
+    if (!matchedTask) {
+      throw new Error(`No prepared modification task is available for ${targetProjectId}.`);
     }
 
-    baseResult.taskId = matchedTaskProof.task.taskId;
-    baseResult.pageName = matchedTaskProof.page.pageName;
-    baseResult.pageRuntimeProofLoaded = true;
+    const matchedPage = getProjectModificationTaskReconstructionPages(matchedTask)[0] ?? null;
+    if (!matchedPage?.pageName) {
+      throw new Error(`No reconstruction page is available for ${matchedTask.taskId}.`);
+    }
+
+    baseResult.taskId = matchedTask.taskId;
+    baseResult.pageName = matchedPage.pageName;
+
+    const persistedPageProofs = Array.isArray(state.bundle?.runtimePageProofs?.entries)
+      ? state.bundle.runtimePageProofs.entries
+      : [];
+    if (persistedPageProofs.length > 0) {
+      throw new Error(`Selected-project runtime reopen smoke expected no persisted page proofs for ${targetProjectId}, but found ${persistedPageProofs.length}.`);
+    }
 
     const persistedWorkbenchEntry = getRuntimeWorkbenchEntries()
-      .find((entry) => entry?.kind === "page-runtime-proof" && entry?.sourceUrl === matchedTaskProof.pageProofEntry.entry.sourceUrl) ?? null;
+      .find((entry) => entry?.kind === "page-runtime-proof") ?? null;
     baseResult.runtimeWorkbenchHasPageProofEntry = Boolean(persistedWorkbenchEntry);
+    if (persistedWorkbenchEntry) {
+      throw new Error(`Selected-project runtime reopen smoke unexpectedly found a page-proof runtime entry for ${targetProjectId}.`);
+    }
 
-    const taskRuntimeMatch = getProjectModificationTaskRuntimeMatchForPage(matchedTaskProof.task, matchedTaskProof.page);
+    const taskRuntimeMatch = getProjectModificationTaskRuntimeMatchForPage(matchedTask, matchedPage);
     baseResult.taskRuntimeEntryKind = taskRuntimeMatch?.matchKind ?? null;
+    if (taskRuntimeMatch?.matchKind === "page-proof") {
+      throw new Error(`Task ${matchedTask.taskId} still matched through a page proof instead of broader request-backed runtime evidence.`);
+    }
 
-    const taskRuntimeEntry = getRuntimeWorkbenchEntryForModificationTask(matchedTaskProof.task);
+    const taskRuntimeEntry = getRuntimeWorkbenchEntryForModificationTask(matchedTask);
     if (!taskRuntimeEntry?.sourceUrl) {
-      throw new Error(`Task ${matchedTaskProof.task.taskId} did not resolve to a runtime workbench entry for ${targetProjectId}.`);
+      throw new Error(`Task ${matchedTask.taskId} did not resolve to a runtime workbench entry for ${targetProjectId}.`);
     }
     baseResult.taskRuntimeEntrySourceUrl = taskRuntimeEntry.sourceUrl;
+    baseResult.runtimeWorkbenchEntryKind = taskRuntimeEntry.kind ?? null;
+    baseResult.runtimeWorkbenchEntryRequestSource = taskRuntimeEntry.requestSource ?? null;
 
-    if (taskRuntimeEntry.sourceUrl !== matchedTaskProof.pageProofEntry.entry.sourceUrl) {
-      throw new Error(`Task ${matchedTaskProof.task.taskId} did not prefer the persisted page proof for ${targetProjectId}.`);
+    if (taskRuntimeEntry.kind !== "resource-map") {
+      throw new Error(`Task ${matchedTask.taskId} resolved to ${taskRuntimeEntry.kind ?? "unknown"} instead of a request-backed resource-map entry.`);
     }
 
-    openProjectModificationTask(matchedTaskProof.task.taskId, "runtime");
+    openProjectModificationTask(matchedTask.taskId, "runtime");
     await waitForRendererCondition(
       () => state.workflowUi?.activePanel === "runtime"
         && state.workbenchMode === "runtime"
-        && getRuntimeWorkbenchSourceUrl() === matchedTaskProof.pageProofEntry.entry.sourceUrl
+        && getRuntimeWorkbenchSourceUrl() === taskRuntimeEntry.sourceUrl
         && state.runtimeUi.launched === false,
-      `${matchedTaskProof.task.taskId} task runtime open to stay on the blocked-launch runtime surface`
+      `${matchedTask.taskId} task runtime open to stay on the blocked-launch runtime surface`
     );
 
     baseResult.runtimeModeSelected = state.workbenchMode === "runtime";
-    baseResult.taskRuntimeOpenUsesPersistedPageProof = true;
+    baseResult.taskRuntimeOpenUsesRequestBackedWorkbenchEntry = getRuntimeWorkbenchSourceUrl() === taskRuntimeEntry.sourceUrl
+      && taskRuntimeEntry.kind === "resource-map";
     baseResult.embeddedRuntimeLaunched = Boolean(state.runtimeUi.launched);
+    baseResult.runtimeDebugHostActionVisible = Boolean(document.querySelector('button[data-runtime-action="open-debug-host"]:not([hidden])'));
+    baseResult.runtimeSourceDebugHostActionVisible = Boolean(document.querySelector('button[data-runtime-source-action="open-debug-host"]'));
+    baseResult.runtimeStatusHeading = elements.runtimeStatus?.querySelector(".runtime-workbench-callout strong")?.textContent?.trim() ?? null;
+    const runtimeStatusText = elements.runtimeStatus?.textContent?.replace(/\s+/g, " ").trim() ?? "";
+    baseResult.runtimeStatusMentionsOfficialDailyPath = /official daily path/i.test(runtimeStatusText);
+    if (baseResult.runtimeDebugHostActionVisible || baseResult.runtimeSourceDebugHostActionVisible) {
+      throw new Error(`Selected-project runtime reopen smoke still exposed Debug Host actions for ${targetProjectId}.`);
+    }
+    if (baseResult.runtimeStatusHeading !== "Selected-project runtime surface") {
+      throw new Error(`Selected-project runtime reopen smoke expected a selected-project runtime heading, received ${baseResult.runtimeStatusHeading ?? "none"}.`);
+    }
+    if (baseResult.runtimeStatusMentionsOfficialDailyPath) {
+      throw new Error(`Selected-project runtime reopen smoke still described ${targetProjectId} as the official daily runtime path.`);
+    }
     baseResult.previewStatus = elements.previewStatus?.textContent?.trim() ?? null;
     document.body.dataset.liveRuntimeSelectedProjectReopenSmoke = "pass";
     await emitLiveRuntimeSelectedProjectReopenSmoke({
@@ -16872,8 +16915,11 @@ function renderOnboardingCard() {
     vabs: "VABS stays visible as a read-only blocker and readiness module for this project.",
     project: "Project scaffolding and workspace refresh stay separate from the runtime/composer workflow."
   };
+  const debugHostAvailable = canUseRuntimeDebugHostForSelectedProject();
   const bridgeActions = [
-    `<button type="button" class="copy-button" data-runtime-action="open-debug-host">Use Debug Host</button>`,
+    debugHostAvailable
+      ? `<button type="button" class="copy-button" data-runtime-action="open-debug-host">Use Debug Host</button>`
+      : "",
     workflowBridge.donorAsset
       ? `<button type="button" class="copy-button" data-focus-donor-asset-id="${escapeAttribute(workflowBridge.donorAsset.assetId)}">Focus Asset</button>`
       : "",
@@ -20629,7 +20675,7 @@ function renderInspector() {
                             ? "Open Runtime Mode on the best available Debug Host proof (not page-specific yet)"
                             : `Open Runtime Mode on the strongest runtime trace for ${escapeAttribute(page.pageName)}`}"
                         >${page?.runtimeMatchKind === "debug-host-fallback" ? "Open Runtime Proof" : "Open Page Runtime"}</button>
-                      ` : taskSectionContext.task.canOpenRuntime ? `
+                      ` : taskSectionContext.task.canOpenRuntime && canUseRuntimeDebugHostForSelectedProject() ? `
                         <button
                           type="button"
                           class="copy-button"
@@ -20641,6 +20687,8 @@ function renderInspector() {
                           data-task-reconstruction-runtime-hint-tokens="${escapeAttribute(JSON.stringify(getProjectModificationTaskPageMatchTokens(page)))}"
                           title="Use the dedicated Runtime Debug Host when this page cue has no loaded runtime trace yet"
                         >Use Debug Host</button>
+                      ` : taskSectionContext.task.canOpenRuntime ? `
+                        <span class="muted-copy">Debug Host remains validated only for project_001. Keep this task on grounded request-backed runtime entries when they exist.</span>
                       ` : ""}
                       ${replaceableSelectedObject && page.matchedTaskKitAsset && page.matchedTaskKitAsset.assetId !== donorAsset?.assetId ? `
                         <button
@@ -20827,6 +20875,7 @@ function renderActivityLog() {
 
 function renderRuntimeWorkbenchAssetList() {
   const entries = getRuntimeWorkbenchEntries();
+  const debugHostAvailable = canUseRuntimeDebugHostForSelectedProject();
   const focusedSourceUrl = getRuntimeWorkbenchSourceUrl()
     ?? getRuntimeOverrideCandidate().runtimeSourceUrl
     ?? entries[0]?.sourceUrl
@@ -20836,10 +20885,16 @@ function renderRuntimeWorkbenchAssetList() {
     && ["png", "webp", "jpg", "jpeg", "svg"].includes(String(entry.fileType ?? "").toLowerCase())
   ));
   const workbenchMessage = entries.length === 0
-    ? "Open Debug Host to populate the official runtime workbench. The embedded path has not recorded any usable runtime source entries in this session yet."
+    ? debugHostAvailable
+      ? "Open Debug Host to populate the official runtime workbench. The embedded path has not recorded any usable runtime source entries in this session yet."
+      : "This selected project does not yet have any grounded runtime workbench items. Stay in Compose or seed request-backed runtime evidence before expecting a live runtime reopen path."
     : embeddedRequestBackedImages.length === 0
-      ? "No request-backed static image is available from the weaker embedded runtime path yet. The dedicated Runtime Debug Host result is ranked first and should be treated as the official daily runtime path."
-      : "Request-backed runtime items are ranked with the strongest debug-host/static candidates first so you can jump quickly into source, evidence, compose, and override actions.";
+      ? debugHostAvailable
+        ? "No request-backed static image is available from the weaker embedded runtime path yet. The dedicated Runtime Debug Host result is ranked first and should be treated as the official daily runtime path."
+        : "The current selected project still has no request-backed static image candidate. Use the grounded runtime workbench evidence that exists here without pretending Debug Host is available for this project."
+      : debugHostAvailable
+        ? "Request-backed runtime items are ranked with the strongest debug-host/static candidates first so you can jump quickly into source, evidence, compose, and override actions."
+        : "Request-backed runtime items are available for this selected project. Use the runtime workbench to reopen grounded traces and bounded overrides while Debug Host remains project_001-only.";
 
   const listMarkup = entries.slice(0, 10).map((entry) => {
     const isFocused = focusedSourceUrl === entry.sourceUrl;
@@ -20851,7 +20906,9 @@ function renderRuntimeWorkbenchAssetList() {
     ].filter(Boolean).join(" ");
     const actionButtons = [
       `<button type="button" class="copy-button" data-runtime-source-url="${escapeAttribute(entry.sourceUrl)}" data-runtime-source-action="select">${isFocused ? "Focused" : "Use Trace"}</button>`,
-      `<button type="button" class="copy-button" data-runtime-source-url="${escapeAttribute(entry.sourceUrl)}" data-runtime-source-action="open-debug-host">Use Debug Host</button>`,
+      debugHostAvailable
+        ? `<button type="button" class="copy-button" data-runtime-source-url="${escapeAttribute(entry.sourceUrl)}" data-runtime-source-action="open-debug-host">Use Debug Host</button>`
+        : "",
       entry.donorAsset ? `<button type="button" class="copy-button" data-focus-donor-asset-id="${escapeAttribute(entry.donorAsset.assetId)}">Asset</button>` : "",
       entry.evidenceItem ? `<button type="button" class="copy-button" data-focus-donor-evidence-id="${escapeAttribute(entry.evidenceItem.evidenceId)}">Evidence</button>` : "",
       entry.sceneObject ? `<button type="button" class="copy-button" data-focus-scene-object-id="${escapeAttribute(entry.sceneObject.id)}">Compose</button>` : "",
@@ -20927,6 +20984,27 @@ function renderRuntimeWorkbench() {
   const runtimeAssetUseEntries = getRuntimeAssetUseEntries();
   const latestResourceEntry = getRuntimeResourceMapEntries()[0] ?? null;
   const debugHostResult = state.runtimeUi.debugHost;
+  const debugHostAvailable = canUseRuntimeDebugHostForSelectedProject();
+  const runtimeCalloutHeading = debugHostAvailable ? "Official daily path" : "Selected-project runtime surface";
+  const runtimeCalloutMessage = debugHostAvailable
+    ? (debugHostResult?.status === "pass"
+        ? `Use Debug Host is now the practical runtime workflow for project_001. The latest run proved ${debugHostResult.candidateRuntimeRelativePath ?? debugHostResult.candidateRuntimeSourceUrl ?? "the current request-backed image"} with ${debugHostResult.overrideHitCountAfterReload ?? 0} override hit${Number(debugHostResult.overrideHitCountAfterReload ?? 0) === 1 ? "" : "s"} after reload.`
+        : "Use Debug Host to run the official runtime trace and override-proof cycle. The integrated embedded runtime remains available, but it is secondary until it exposes stronger asset truth.")
+    : runtimeLaunch?.entryUrl
+      ? "The runtime workbench is the truthful selected-project surface here. Embedded launch is indexed, but the dedicated Runtime Debug Host still remains validated only for project_001."
+      : "The runtime workbench is the truthful selected-project surface here. Use request-backed traces, donor/evidence jumps, and bounded overrides without pretending embedded launch or Debug Host are available for this project yet.";
+  const runtimeDebugHostCardTitle = debugHostAvailable
+    ? (debugHostResult?.status === "pass"
+        ? `${debugHostResult.overrideHitCountAfterReload ?? 0} override hit${debugHostResult.overrideHitCountAfterReload === 1 ? "" : "s"} proved`
+        : "Open Debug Host to start official runtime work")
+    : "Validated only for project_001";
+  const runtimeDebugHostCardBody = debugHostAvailable
+    ? (debugHostResult
+        ? debugHostResult.error
+          ?? `${debugHostResult.candidateRuntimeRelativePath ?? debugHostResult.candidateRuntimeSourceUrl ?? "No request-backed candidate"} · ${debugHostResult.candidateRequestSource ?? "request source unknown"}`
+        : "The dedicated Runtime Debug Host uses the same local mirror, but it is the path that currently proves request-backed static image work.")
+    : getRuntimeDebugHostUnavailableMessage();
+  const launchButtonMarkup = `<button type="button" class="copy-button" data-runtime-action="launch" ${runtimeLaunch.entryUrl ? "" : "disabled"}>Launch Embedded Runtime</button>`;
 
   if (elements.runtimeWorkbench) {
     elements.runtimeWorkbench.hidden = !runtimeModeActive;
@@ -20993,7 +21071,9 @@ function renderRuntimeWorkbench() {
     <div class="tree-row runtime-status-summary">
       <strong>Runtime Workbench</strong>
       <span>${escapeHtml(currentStatus)}. ${runtimeLaunch.localRuntimePackageAvailable
-        ? "The grounded local runtime mirror is active on this machine, and the dedicated Runtime Debug Host is the official daily runtime path."
+        ? debugHostAvailable
+          ? "The grounded local runtime mirror is active on this machine, and the dedicated Runtime Debug Host is the official daily runtime path."
+          : "The grounded local runtime mirror is active on this machine. Keep using the selected-project runtime workbench surface here while Debug Host stays validated only for project_001."
         : "No local donor runtime mirror is captured, so runtime work still falls back to the recorded donor entry."}</span>
       <div class="chip-row">
         <span>${escapeHtml(runtimeLaunch.captureSessionId ?? "runtime session unknown")}</span>
@@ -21005,26 +21085,19 @@ function renderRuntimeWorkbench() {
       </div>
     </div>
     <div class="tree-row runtime-workbench-callout">
-      <strong>Official daily path</strong>
-      <span>${escapeHtml(debugHostResult?.status === "pass"
-        ? `Use Debug Host is now the practical runtime workflow for project_001. The latest run proved ${debugHostResult.candidateRuntimeRelativePath ?? debugHostResult.candidateRuntimeSourceUrl ?? "the current request-backed image"} with ${debugHostResult.overrideHitCountAfterReload ?? 0} override hit${Number(debugHostResult.overrideHitCountAfterReload ?? 0) === 1 ? "" : "s"} after reload.`
-        : "Use Debug Host to run the official runtime trace and override-proof cycle. The integrated embedded runtime remains available, but it is secondary until it exposes stronger asset truth.")}</span>
+      <strong>${escapeHtml(runtimeCalloutHeading)}</strong>
+      <span>${escapeHtml(runtimeCalloutMessage)}</span>
       <div class="evidence-actions">
-        <button type="button" class="copy-button" data-runtime-action="open-debug-host">Use Debug Host</button>
-        <button type="button" class="copy-button" data-runtime-action="launch">Launch Embedded Runtime</button>
+        ${debugHostAvailable ? `<button type="button" class="copy-button" data-runtime-action="open-debug-host">Use Debug Host</button>` : ""}
+        ${launchButtonMarkup}
         <button type="button" class="copy-button" data-switch-workflow-panel="runtime" data-switch-workbench-mode="scene" data-switch-status="Compose Mode is active. The runtime workbench kept the current project context.">Switch To Compose</button>
       </div>
     </div>
     <div class="detail-grid runtime-detail-grid">
-      <div class="detail-card ${debugHostResult?.status === "pass" ? "is-positive" : debugHostResult?.error ? "is-alert" : ""}">
+      <div class="detail-card ${debugHostAvailable ? (debugHostResult?.status === "pass" ? "is-positive" : debugHostResult?.error ? "is-alert" : "") : "is-alert"}">
         <span>Runtime Debug Host</span>
-        <strong>${escapeHtml(debugHostResult?.status === "pass"
-          ? `${debugHostResult.overrideHitCountAfterReload ?? 0} override hit${debugHostResult.overrideHitCountAfterReload === 1 ? "" : "s"} proved`
-          : "Open Debug Host to start official runtime work")}</strong>
-        <small>${escapeHtml(debugHostResult
-          ? debugHostResult.error
-            ?? `${debugHostResult.candidateRuntimeRelativePath ?? debugHostResult.candidateRuntimeSourceUrl ?? "No request-backed candidate"} · ${debugHostResult.candidateRequestSource ?? "request source unknown"}`
-          : "The dedicated Runtime Debug Host uses the same local mirror, but it is the path that currently proves request-backed static image work.")}</small>
+        <strong>${escapeHtml(runtimeDebugHostCardTitle)}</strong>
+        <small>${escapeHtml(runtimeDebugHostCardBody)}</small>
       </div>
       <div class="detail-card">
         <span>Runtime Entry</span>
@@ -21139,31 +21212,34 @@ function renderRuntimeInspector() {
     entry.requestCategory === "static-asset"
     && ["png", "webp", "jpg", "jpeg", "svg"].includes(String(entry.fileType ?? "").toLowerCase())
   ));
+  const debugHostAvailable = canUseRuntimeDebugHostForSelectedProject();
   const inspectorTitle = activeWorkbenchEntry?.relativePath
     ?? (lastPick?.targetTag
       ? `Picked ${lastPick.targetTag}`
       : runtimeLaunch?.captureSessionId ?? "Runtime Mode");
   const officialPathSection = renderInspectorSection(
-    "Official Runtime Path",
-    state.runtimeUi.debugHost?.status === "pass" ? "proved" : "ready",
+    debugHostAvailable ? "Official Runtime Path" : "Selected-project runtime surface",
+    debugHostAvailable ? (state.runtimeUi.debugHost?.status === "pass" ? "proved" : "ready") : "request-backed",
     `
       <div class="tree-row runtime-workbench-summary">
-        <strong>Official Runtime Work Mode</strong>
-        <span>${escapeHtml(state.runtimeUi.debugHost?.status === "pass"
-          ? `Debug Host already proved ${state.runtimeUi.debugHost.candidateRuntimeRelativePath ?? state.runtimeUi.debugHost.candidateRuntimeSourceUrl ?? "the current request-backed candidate"} with ${state.runtimeUi.debugHost.overrideHitCountAfterReload ?? 0} override hit${Number(state.runtimeUi.debugHost.overrideHitCountAfterReload ?? 0) === 1 ? "" : "s"} after reload.`
-          : "Use Debug Host first when you need trustworthy runtime asset selection or override proof. The embedded runtime trace below remains secondary until it exposes stronger asset truth.")}</span>
+        <strong>${escapeHtml(debugHostAvailable ? "Official Runtime Work Mode" : "Request-backed runtime workbench")}</strong>
+        <span>${escapeHtml(debugHostAvailable
+          ? (state.runtimeUi.debugHost?.status === "pass"
+              ? `Debug Host already proved ${state.runtimeUi.debugHost.candidateRuntimeRelativePath ?? state.runtimeUi.debugHost.candidateRuntimeSourceUrl ?? "the current request-backed candidate"} with ${state.runtimeUi.debugHost.overrideHitCountAfterReload ?? 0} override hit${Number(state.runtimeUi.debugHost.overrideHitCountAfterReload ?? 0) === 1 ? "" : "s"} after reload.`
+              : "Use Debug Host first when you need trustworthy runtime asset selection or override proof. The embedded runtime trace below remains secondary until it exposes stronger asset truth.")
+          : "This selected project should stay on the grounded runtime workbench surface. Request-backed reopen and bounded overrides are usable here even while Debug Host remains validated only for project_001.")}</span>
         <div class="evidence-actions">
-          <button type="button" class="copy-button" data-runtime-action="open-debug-host">Use Debug Host</button>
+          ${debugHostAvailable ? `<button type="button" class="copy-button" data-runtime-action="open-debug-host">Use Debug Host</button>` : ""}
           ${activeWorkbenchEntry?.donorAsset ? `<button type="button" class="copy-button" data-focus-donor-asset-id="${escapeAttribute(activeWorkbenchEntry.donorAsset.assetId)}">Focus Asset</button>` : ""}
           ${activeWorkbenchEntry?.evidenceItem ? `<button type="button" class="copy-button" data-focus-donor-evidence-id="${escapeAttribute(activeWorkbenchEntry.evidenceItem.evidenceId)}">Focus Evidence</button>` : ""}
           ${activeWorkbenchEntry?.sceneObject ? `<button type="button" class="copy-button" data-focus-scene-object-id="${escapeAttribute(activeWorkbenchEntry.sceneObject.id)}">Focus Compose Object</button>` : ""}
         </div>
       </div>
       <div class="detail-grid runtime-workbench-grid">
-        <div class="detail-card ${state.runtimeUi.debugHost?.status === "pass" ? "is-positive" : "is-alert"}">
+        <div class="detail-card ${debugHostAvailable ? (state.runtimeUi.debugHost?.status === "pass" ? "is-positive" : "is-alert") : "is-alert"}">
           <span>Preferred Candidate</span>
-          <strong>${escapeHtml(activeWorkbenchEntry?.relativePath ?? "Open Debug Host to choose a runtime candidate")}</strong>
-          <small>${escapeHtml(activeWorkbenchEntry?.note ?? "No request-backed runtime workbench item is selected yet.")}</small>
+          <strong>${escapeHtml(activeWorkbenchEntry?.relativePath ?? (debugHostAvailable ? "Open Debug Host to choose a runtime candidate" : "Select a grounded request-backed runtime candidate"))}</strong>
+          <small>${escapeHtml(activeWorkbenchEntry?.note ?? (debugHostAvailable ? "No request-backed runtime workbench item is selected yet." : "No grounded request-backed runtime workbench item is selected for this project yet."))}</small>
         </div>
         <div class="detail-card ${activeWorkbenchEntry?.donorAsset ? "is-positive" : "is-alert"}">
           <span>Source Bridge</span>
@@ -21188,7 +21264,9 @@ function renderRuntimeInspector() {
               : "No active override for the selected workbench source")}</strong>
           <small>${escapeHtml(embeddedRequestBackedImages.length > 0
             ? "Embedded runtime has request-backed image evidence in this session."
-            : "Embedded runtime still has no request-backed static image in this session; treat Debug Host as the trustworthy override-proof path.")}</small>
+            : debugHostAvailable
+              ? "Embedded runtime still has no request-backed static image in this session; treat Debug Host as the trustworthy override-proof path."
+              : "Embedded runtime still has no request-backed static image in this session, so keep using the grounded selected-project workbench surface instead of pretending Debug Host is available.")}</small>
         </div>
         <div class="detail-card ${selectedSceneSectionRuntimeContext?.preferredWorkbenchEntry || selectedSceneSectionRuntimeContext?.preferredReference ? "is-positive" : ""}">
           <span>Selected Scene Section</span>
@@ -21436,7 +21514,9 @@ function renderRuntimeInspector() {
       <p>Runtime Debug Workbench</p>
       <h3>${escapeHtml(inspectorTitle)}</h3>
     </div>
-    <p class="inspector-purpose">The dedicated Runtime Debug Host is the official daily runtime path for <code>project_001</code>. This panel is grouped around the practical work loop: official path first, runtime asset list second, live trace third, and deeper source/override coverage last.</p>
+    <p class="inspector-purpose">${escapeHtml(debugHostAvailable
+      ? "The dedicated Runtime Debug Host is the official daily runtime path for project_001. This panel is grouped around the practical work loop: official path first, runtime asset list second, live trace third, and deeper source/override coverage last."
+      : "This selected project stays on the grounded runtime workbench surface. Request-backed reopen, donor/evidence jumps, and bounded overrides remain available here even while Debug Host and embedded launch are not yet validated for this project.")}</p>
     <div class="chip-row">
       <span>${escapeHtml(runtimeLaunch?.availability ?? "blocked")}</span>
       <span>${escapeHtml(runtimeLaunch?.runtimeSourceLabel ?? "Blocked")}</span>
@@ -21566,10 +21646,11 @@ function renderAll() {
       let disabled = false;
       const workflowBridge = getRuntimeWorkflowBridge();
       const runtimeOverrideCandidate = getRuntimeOverrideCandidate();
+      const debugHostAvailable = canUseRuntimeDebugHostForSelectedProject();
       if (action === "launch") {
         disabled = !Boolean(runtimeLaunch?.entryUrl);
       } else if (action === "open-debug-host") {
-        disabled = !Boolean(runtimeLaunch?.entryUrl);
+        disabled = !debugHostAvailable;
       } else if (action === "reload" || action === "inspect-toggle" || action === "focus-note" || action === "focus-init") {
         disabled = !state.runtimeUi.launched;
       } else if (action === "pause" || action === "resume" || action === "step") {
@@ -21589,6 +21670,9 @@ function renderAll() {
       }
 
       button.disabled = disabled;
+      if (action === "open-debug-host") {
+        button.hidden = !debugHostAvailable;
+      }
       if (action === "inspect-toggle") {
         button.dataset.tone = state.runtimeUi.inspectEnabled ? "active" : "default";
         button.textContent = state.runtimeUi.inspectEnabled ? "Inspecting Runtime" : "Pick / Inspect";

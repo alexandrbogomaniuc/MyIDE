@@ -22,8 +22,15 @@ interface ReopenPayload {
   runtimeWorkbenchHasPageProofEntry?: boolean;
   taskRuntimeEntryKind?: string | null;
   taskRuntimeEntrySourceUrl?: string | null;
+  runtimeWorkbenchEntryKind?: string | null;
+  runtimeWorkbenchEntryRequestSource?: string | null;
   runtimeModeSelected?: boolean;
   taskRuntimeOpenUsesPersistedPageProof?: boolean;
+  taskRuntimeOpenUsesRequestBackedWorkbenchEntry?: boolean;
+  runtimeDebugHostActionVisible?: boolean;
+  runtimeSourceDebugHostActionVisible?: boolean;
+  runtimeStatusHeading?: string | null;
+  runtimeStatusMentionsOfficialDailyPath?: boolean;
   embeddedRuntimeLaunched?: boolean;
   previewStatus?: string | null;
 }
@@ -181,6 +188,18 @@ async function readOptionalUtf8(filePath: string): Promise<string | null> {
   }
 }
 
+async function readOptionalBuffer(filePath: string): Promise<Buffer | null> {
+  try {
+    return await fs.readFile(filePath);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException | undefined)?.code === "ENOENT") {
+      return null;
+    }
+
+    throw error;
+  }
+}
+
 async function restoreOptionalUtf8(filePath: string, originalRaw: string | null): Promise<void> {
   if (originalRaw === null) {
     await fs.rm(filePath, { force: true });
@@ -189,6 +208,16 @@ async function restoreOptionalUtf8(filePath: string, originalRaw: string | null)
 
   await fs.mkdir(path.dirname(filePath), { recursive: true });
   await fs.writeFile(filePath, originalRaw, "utf8");
+}
+
+async function restoreOptionalBuffer(filePath: string, originalBuffer: Buffer | null): Promise<void> {
+  if (originalBuffer === null) {
+    await fs.rm(filePath, { force: true });
+    return;
+  }
+
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
+  await fs.writeFile(filePath, originalBuffer);
 }
 
 async function cleanupEmptyDirectory(directoryPath: string): Promise<void> {
@@ -220,13 +249,18 @@ async function main(): Promise<void> {
   const reportsRoot = path.join(workspaceRoot, reportsRootRelativePath);
   const runtimeRoot = path.join(workspaceRoot, runtimeRootRelativePath);
   const handoffPath = path.join(reportsRoot, "modification-handoff.json");
-  const sourceArtifactPath = path.join(reportsRoot, "selected-project-runtime-reopen.smoke.json");
+  const sourceBundlePath = path.join(reportsRoot, "selected-project-runtime-reopen.smoke.json");
+  const sourceAssetPath = path.join(reportsRoot, "selected-project-runtime-reopen", "big-win-ribbon.png");
+  const requestLogPath = path.join(runtimeRoot, "local-mirror", "request-log.latest.json");
   const runtimeProofPath = path.join(runtimeRoot, "page-runtime-proofs.latest.json");
-  const repoSourceArtifactPath = path.relative(workspaceRoot, sourceArtifactPath).replace(/\\/g, "/");
-  const repoRuntimeProofPath = path.relative(workspaceRoot, runtimeProofPath).replace(/\\/g, "/");
+  const repoSourceBundlePath = path.relative(workspaceRoot, sourceBundlePath).replace(/\\/g, "/");
+  const repoSourceAssetPath = path.relative(workspaceRoot, sourceAssetPath).replace(/\\/g, "/");
+  const repoRequestLogPath = path.relative(workspaceRoot, requestLogPath).replace(/\\/g, "/");
   const baselineStatus = await captureGitStatus(workspaceRoot);
   const originalHandoffRaw = await readOptionalUtf8(handoffPath);
-  const originalSourceArtifactRaw = await readOptionalUtf8(sourceArtifactPath);
+  const originalSourceBundleRaw = await readOptionalUtf8(sourceBundlePath);
+  const originalSourceAssetRaw = await readOptionalBuffer(sourceAssetPath);
+  const originalRequestLogRaw = await readOptionalUtf8(requestLogPath);
   const originalRuntimeProofRaw = await readOptionalUtf8(runtimeProofPath);
   const runtimeSourceUrl = "https://example.invalid/runtime/img/big-win-ribbon.png";
   const taskId = "task.runtime.reopen.project_002.smoke";
@@ -236,29 +270,31 @@ async function main(): Promise<void> {
   let payload: ReopenPayload | null = null;
 
   try {
+    await fs.mkdir(path.dirname(sourceAssetPath), { recursive: true });
     await fs.mkdir(reportsRoot, { recursive: true });
-    await fs.mkdir(runtimeRoot, { recursive: true });
+    await fs.mkdir(path.dirname(requestLogPath), { recursive: true });
 
     const generatedAt = new Date().toISOString();
+    await fs.writeFile(sourceAssetPath, Buffer.from("project_002_runtime_reopen_source_placeholder", "utf8"));
     await fs.writeFile(
-      sourceArtifactPath,
+      sourceBundlePath,
       `${JSON.stringify({
         generatedAt,
-        nextTextureFitApplyStep: "Open Runtime and reuse the persisted page proof for the selected project.",
+        nextTextureFitApplyStep: "Open Runtime and reuse the request-backed runtime workbench entry for the selected project.",
         pages: [
           {
             pageName,
             pageState: "ready",
-            selectedMode: "page-runtime-proof",
-            selectedReason: "Smoke-seeded persisted page proof for selected-project runtime reopen.",
-            selectedLocalPath: repoRuntimeProofPath,
+            selectedMode: "page-source",
+            selectedReason: "Smoke-seeded selected-project runtime reopen from request-backed resource-map evidence.",
+            selectedLocalPath: repoSourceAssetPath,
             topAffectedSlotName: "smoke.slot.big_win",
             topAffectedAttachmentName: "smoke.attachment.big_win",
             affectedLayerCount: 1,
             affectedSlotNames: ["smoke.slot.big_win"],
             affectedAttachmentNames: ["smoke.attachment.big_win"],
             regionNames: ["big-win-ribbon"],
-            nextFitApplyStep: "Open Runtime and keep the runtime workbench active even while launch stays blocked."
+            nextFitApplyStep: "Open Runtime and keep the request-backed runtime workbench entry active even while launch stays blocked."
           }
         ]
       }, null, 2)}\n`,
@@ -281,7 +317,7 @@ async function main(): Promise<void> {
         queueItemCount: 1,
         readyTaskCount: 1,
         blockedTaskCount: 0,
-        nextOperatorAction: "Open Runtime from the modification board and continue from the persisted page proof.",
+        nextOperatorAction: "Open Runtime from the modification board and continue from the request-backed runtime workbench entry.",
         tasks: [
           {
             taskId,
@@ -297,10 +333,10 @@ async function main(): Promise<void> {
             preferredWorkbenchMode: "runtime",
             sourceArtifactKind: "texture-fit-apply-bundle",
             sourceArtifactState: "ready",
-            sourceArtifactPath: repoSourceArtifactPath,
-            supportingArtifactPaths: [],
-            rationale: "Smoke-seeded modification task proving selected-project runtime reopen stays truthful while live launch is blocked.",
-            nextAction: "Open Runtime and verify the persisted page proof stays project-aware.",
+            sourceArtifactPath: repoSourceBundlePath,
+            supportingArtifactPaths: [repoSourceAssetPath],
+            rationale: "Smoke-seeded modification task proving selected-project runtime reopen can stay on grounded request-backed workbench evidence while live launch is blocked.",
+            nextAction: "Open Runtime and verify the request-backed workbench entry stays project-aware.",
             canOpenCompose: true,
             canOpenRuntime: true
           }
@@ -309,26 +345,36 @@ async function main(): Promise<void> {
       "utf8"
     );
 
+    await fs.rm(runtimeProofPath, { force: true });
     await fs.writeFile(
-      runtimeProofPath,
+      requestLogPath,
       `${JSON.stringify({
         projectId,
         generatedAtUtc: generatedAt,
-        snapshotRepoRelativePath: repoRuntimeProofPath,
+        snapshotRepoRelativePath: repoRequestLogPath,
         entryCount: 1,
         entries: [
           {
-            taskId,
-            pageName,
-            sourceUrl: runtimeSourceUrl,
-            runtimeLabel: "big_win",
-            profileId: null,
+            canonicalSourceUrl: runtimeSourceUrl,
+            latestRequestUrl: runtimeSourceUrl,
             requestSource: "upstream-request",
-            requestBacked: true,
-            relativePath: "img/big-win-ribbon.png",
+            lastCaptureMethod: "server-route",
+            captureMethods: ["server-route"],
+            requestCategory: "static-asset",
+            resourceType: "image",
+            runtimeRelativePath: "img/big-win-ribbon.png",
+            runtimeFilename: "big-win-ribbon.png",
+            fileType: "png",
             localMirrorRepoRelativePath: null,
-            overrideHitCountAfterReload: 0,
-            savedAtUtc: generatedAt
+            localMirrorAbsolutePath: null,
+            overrideRepoRelativePath: null,
+            overrideAbsolutePath: null,
+            hitCount: 2,
+            lastHitAtUtc: generatedAt,
+            lastStage: "smoke",
+            stageHitCounts: {
+              smoke: 2
+            }
           }
         ]
       }, null, 2)}\n`,
@@ -362,12 +408,20 @@ async function main(): Promise<void> {
     assert.equal(payload.projectId, projectId, `Selected-project reopen smoke did not load ${projectId}.`);
     assert.equal(payload.runtimeLaunchBlocked, true, "Selected-project reopen smoke should keep launch blocked.");
     assert.equal(payload.runtimeLaunchEntryUrl, null, "Selected-project reopen smoke should not fake an embedded launch URL.");
-    assert.equal(payload.pageRuntimeProofLoaded, true, "Selected-project reopen smoke did not load the seeded page proof.");
-    assert.equal(payload.runtimeWorkbenchHasPageProofEntry, true, "Selected-project reopen smoke did not surface the page proof in the runtime workbench.");
-    assert.equal(payload.taskRuntimeEntryKind, "page-proof", "Selected-project reopen smoke should match the task through the persisted page proof.");
+    assert.equal(payload.pageRuntimeProofLoaded, false, "Selected-project reopen smoke should not rely on a persisted page proof.");
+    assert.equal(payload.runtimeWorkbenchHasPageProofEntry, false, "Selected-project reopen smoke should not surface a page-proof runtime entry.");
+    assert(payload.taskRuntimeEntryKind, "Selected-project reopen smoke should match the task through broader runtime evidence.");
+    assert.notEqual(payload.taskRuntimeEntryKind, "page-proof", "Selected-project reopen smoke should not match the task through a persisted page proof.");
     assert.equal(payload.taskRuntimeEntrySourceUrl, runtimeSourceUrl, "Selected-project reopen smoke used the wrong runtime source.");
+    assert.equal(payload.runtimeWorkbenchEntryKind, "resource-map", "Selected-project reopen smoke should reopen from a request-backed runtime resource-map entry.");
+    assert.equal(payload.runtimeWorkbenchEntryRequestSource, "upstream-request", "Selected-project reopen smoke should preserve the selected-project request source.");
     assert.equal(payload.runtimeModeSelected, true, "Selected-project reopen smoke did not keep the runtime workbench active.");
-    assert.equal(payload.taskRuntimeOpenUsesPersistedPageProof, true, "Selected-project reopen smoke did not reopen from the persisted page proof.");
+    assert.equal(payload.taskRuntimeOpenUsesPersistedPageProof, false, "Selected-project reopen smoke should not report page-proof reopen.");
+    assert.equal(payload.taskRuntimeOpenUsesRequestBackedWorkbenchEntry, true, "Selected-project reopen smoke did not reopen from the request-backed workbench entry.");
+    assert.equal(payload.runtimeDebugHostActionVisible, false, "Selected-project reopen smoke should not expose the runtime Debug Host action for project_002.");
+    assert.equal(payload.runtimeSourceDebugHostActionVisible, false, "Selected-project reopen smoke should not expose source-level Debug Host actions for project_002.");
+    assert.equal(payload.runtimeStatusHeading, "Selected-project runtime surface", "Selected-project reopen smoke should keep the runtime status heading project-aware.");
+    assert.equal(payload.runtimeStatusMentionsOfficialDailyPath, false, "Selected-project reopen smoke should not claim project_002 is on the official daily runtime path.");
     assert.equal(payload.embeddedRuntimeLaunched, false, "Selected-project reopen smoke should not launch the embedded runtime.");
 
     console.log("PASS smoke:electron-runtime-selected-project-reopen");
@@ -376,9 +430,13 @@ async function main(): Promise<void> {
     console.log(`Runtime source: ${payload.taskRuntimeEntrySourceUrl ?? runtimeSourceUrl}`);
   } finally {
     await restoreOptionalUtf8(handoffPath, originalHandoffRaw);
-    await restoreOptionalUtf8(sourceArtifactPath, originalSourceArtifactRaw);
+    await restoreOptionalUtf8(sourceBundlePath, originalSourceBundleRaw);
+    await restoreOptionalBuffer(sourceAssetPath, originalSourceAssetRaw);
+    await restoreOptionalUtf8(requestLogPath, originalRequestLogRaw);
     await restoreOptionalUtf8(runtimeProofPath, originalRuntimeProofRaw);
 
+    await cleanupEmptyDirectory(path.join(reportsRoot, "selected-project-runtime-reopen"));
+    await cleanupEmptyDirectory(path.join(runtimeRoot, "local-mirror"));
     await cleanupEmptyDirectory(reportsRoot);
     await cleanupEmptyDirectory(runtimeRoot);
     const restoredStatus = await captureGitStatus(workspaceRoot);
