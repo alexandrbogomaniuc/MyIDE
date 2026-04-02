@@ -160,6 +160,8 @@ export interface DonorScanPaths {
   sectionReconstructionProfilesPath: string;
   sectionSkinBlueprintsRoot: string;
   sectionSkinBlueprintProfilesPath: string;
+  sectionSkinRenderPlansRoot: string;
+  sectionSkinRenderPlanProfilesPath: string;
   captureRunPath: string;
   blockerSummaryPath: string;
   scanSummaryPath: string;
@@ -1027,6 +1029,100 @@ export interface SectionSkinBlueprintProfilesFile {
   sections: SectionSkinBlueprintProfileRecord[];
 }
 
+export type SectionSkinRenderPlanState =
+  | "ready-for-layered-render-reconstruction"
+  | "needs-manual-render-review";
+
+export type SectionSkinRenderLayerState =
+  | "atlas-region-exact"
+  | "missing-atlas-region";
+
+export interface SectionSkinRenderBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface SectionSkinRenderOffsets {
+  x: number;
+  y: number;
+  originalWidth: number;
+  originalHeight: number;
+}
+
+export interface SectionSkinRenderLayerRecord {
+  orderIndex: number;
+  slotName: string;
+  attachmentName: string | null;
+  attachmentPath: string | null;
+  pageName: string | null;
+  regionName: string | null;
+  layerState: SectionSkinRenderLayerState;
+  rotated: boolean;
+  bounds: SectionSkinRenderBounds | null;
+  offsets: SectionSkinRenderOffsets | null;
+  localPagePath: string | null;
+}
+
+export interface SectionSkinRenderPlanFile {
+  schemaVersion: string;
+  donorId: string;
+  donorName: string;
+  generatedAt: string;
+  familyName: string;
+  sectionKey: string;
+  skinName: string;
+  renderState: SectionSkinRenderPlanState;
+  blueprintState: SectionSkinBlueprintState;
+  reconstructionState: SectionReconstructionBundleState;
+  attachmentCount: number;
+  mappedAttachmentCount: number;
+  unmappedAttachmentCount: number;
+  atlasPageCount: number;
+  atlasPageNames: string[];
+  slotCount: number;
+  exactLocalSourceCount: number;
+  relatedLocalSourceCount: number;
+  sampleLocalSourcePath: string | null;
+  atlasSourcePath: string | null;
+  spineSourcePath: string | null;
+  sectionBundlePath: string;
+  reconstructionBundlePath: string;
+  worksetPath: string;
+  skinBlueprintPath: string;
+  layerCount: number;
+  mappedLayerCount: number;
+  unmappedLayerCount: number;
+  nextRenderStep: string;
+  layers: SectionSkinRenderLayerRecord[];
+}
+
+export interface SectionSkinRenderPlanProfileRecord {
+  familyName: string;
+  sectionKey: string;
+  skinName: string;
+  renderState: SectionSkinRenderPlanState;
+  layerCount: number;
+  mappedLayerCount: number;
+  unmappedLayerCount: number;
+  atlasPageCount: number;
+  exactLocalSourceCount: number;
+  sampleLocalSourcePath: string | null;
+  atlasSourcePath: string | null;
+  renderPlanPath: string;
+  nextRenderStep: string;
+}
+
+export interface SectionSkinRenderPlanProfilesFile {
+  schemaVersion: string;
+  donorId: string;
+  donorName: string;
+  generatedAt: string;
+  sectionCount: number;
+  sections: SectionSkinRenderPlanProfileRecord[];
+}
+
 export interface SectionActionRunFile {
   schemaVersion: string;
   donorId: string;
@@ -1040,6 +1136,7 @@ export interface SectionActionRunFile {
   worksetPath: string | null;
   reconstructionBundlePath: string | null;
   skinBlueprintPath: string | null;
+  skinRenderPlanPath: string | null;
   exactLocalSourceCount: number;
   attachmentCount: number;
   mappedAttachmentCount: number;
@@ -1140,6 +1237,8 @@ export function buildDonorScanPaths(donorId: string): DonorScanPaths {
     sectionReconstructionProfilesPath: path.join(harvestRoot, "section-reconstruction-profiles.json"),
     sectionSkinBlueprintsRoot: path.join(harvestRoot, "section-skin-blueprints"),
     sectionSkinBlueprintProfilesPath: path.join(harvestRoot, "section-skin-blueprint-profiles.json"),
+    sectionSkinRenderPlansRoot: path.join(harvestRoot, "section-skin-render-plans"),
+    sectionSkinRenderPlanProfilesPath: path.join(harvestRoot, "section-skin-render-plan-profiles.json"),
     captureRunPath: path.join(harvestRoot, "next-capture-run.json"),
     blockerSummaryPath: path.join(harvestRoot, "blocker-summary.md"),
     scanSummaryPath: path.join(harvestRoot, "scan-summary.json")

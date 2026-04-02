@@ -158,6 +158,23 @@ async function main(): Promise<void> {
           .slice(0, 6)
       : [];
   }
+  const hasSectionSkinRenderPlanProfiles = await fileExists(paths.sectionSkinRenderPlanProfilesPath);
+  let sectionSkinRenderPlanProfilesCount: number | null = null;
+  let topSectionSkinRenderPlanKeys: string[] = [];
+  if (hasSectionSkinRenderPlanProfiles) {
+    const sectionSkinRenderPlanProfiles = await readJsonFile<{
+      sectionCount?: number;
+      sections?: Array<{ sectionKey?: string }>;
+    }>(paths.sectionSkinRenderPlanProfilesPath);
+    assert.ok(typeof sectionSkinRenderPlanProfiles.sectionCount === "number", "section skin render plan profiles should record section counts");
+    sectionSkinRenderPlanProfilesCount = sectionSkinRenderPlanProfiles.sectionCount ?? 0;
+    topSectionSkinRenderPlanKeys = Array.isArray(sectionSkinRenderPlanProfiles.sections)
+      ? sectionSkinRenderPlanProfiles.sections
+          .map((section) => typeof section?.sectionKey === "string" ? section.sectionKey : "")
+          .filter((value) => value.length > 0)
+          .slice(0, 6)
+      : [];
+  }
 
   console.log("PASS donor-scan:verify");
   console.log(`Donor: ${donorId}`);
@@ -180,6 +197,9 @@ async function main(): Promise<void> {
   }
   if (sectionSkinBlueprintProfilesCount !== null) {
     console.log(`Section skin blueprint profiles: ${sectionSkinBlueprintProfilesCount} (${topSectionSkinBlueprintKeys.join(", ")})`);
+  }
+  if (sectionSkinRenderPlanProfilesCount !== null) {
+    console.log(`Section skin render plan profiles: ${sectionSkinRenderPlanProfilesCount} (${topSectionSkinRenderPlanKeys.join(", ")})`);
   }
   console.log(`Raw-payload-blocked targets: ${scanSummary.rawPayloadBlockedCaptureTargetCount}`);
   console.log(`Raw-payload-blocked families: ${scanSummary.rawPayloadBlockedFamilyCount} (${scanSummary.rawPayloadBlockedFamilyNames.join(", ")})`);

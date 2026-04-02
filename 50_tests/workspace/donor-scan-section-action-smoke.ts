@@ -9,6 +9,32 @@ async function main(): Promise<void> {
   const donorId = `donor_smoke_section_action_${Date.now().toString(36)}`;
   const donorRoot = path.join(workspaceRoot, "10_donors", donorId, "evidence", "local_only", "harvest");
   await fs.mkdir(donorRoot, { recursive: true });
+  const localFilesRoot = path.join(donorRoot, "files", "cdn.example.invalid");
+  await fs.mkdir(localFilesRoot, { recursive: true });
+  await fs.writeFile(path.join(localFilesRoot, "big_win.atlas"), [
+    "big_win.png",
+    "size:1024,1024",
+    "filter:Linear,Linear",
+    "decor",
+    "bounds:10,20,120,130",
+    "decor2",
+    "bounds:150,20,140,150",
+    "shine",
+    "bounds:320,20,160,180",
+    "",
+    "big_win_2.png",
+    "size:1024,1024",
+    "filter:Linear,Linear",
+    "BW_back",
+    "bounds:40,60,220,240"
+  ].join("\n"));
+  await fs.writeFile(path.join(localFilesRoot, "big_win.json"), JSON.stringify({
+    skeleton: { spine: "4.1.0" },
+    bones: [{ name: "root" }],
+    slots: [{ name: "background", bone: "root" }],
+    skins: [{ name: "BW", attachments: { background: { BW_back: { path: "images/BW_back" } } } }],
+    animations: { idle: {} }
+  }, null, 2));
 
   const sectionBundlesPath = path.join(donorRoot, "family-reconstruction-section-bundles.json");
   await fs.writeFile(sectionBundlesPath, JSON.stringify({
@@ -40,12 +66,30 @@ async function main(): Promise<void> {
         relatedLocalSourceCount: 1,
         localSources: [
           {
+            localPath: `10_donors/${donorId}/evidence/local_only/harvest/files/cdn.example.invalid/big_win.json`,
+            sourceUrl: "https://example.invalid/img/spines/big_win.json",
+            resolvedUrl: "https://example.invalid/img/spines/big_win.json",
+            sourceKind: "bundle-reference",
+            relation: "same-family",
+            familyName: "big_win",
+            referenceText: "img/spines/big_win.json"
+          },
+          {
+            localPath: `10_donors/${donorId}/evidence/local_only/harvest/files/cdn.example.invalid/big_win.atlas`,
+            sourceUrl: "https://example.invalid/img/spines/big_win.atlas",
+            resolvedUrl: "https://example.invalid/img/spines/big_win.atlas",
+            sourceKind: "harvest-local",
+            relation: "same-family",
+            familyName: "big_win",
+            referenceText: "img/spines/big_win.atlas"
+          },
+          {
             localPath: "10_donors/example/files/img/big-win/big-win-bg.png_80_90.png",
             sourceUrl: "https://example.invalid/img/big-win/big-win-bg.png_80_90.png",
             resolvedUrl: "https://example.invalid/img/big-win/big-win-bg.png_80_90.png",
             sourceKind: "bundle-image-variant",
-            relation: "same-family",
-            familyName: "big_win",
+            relation: "related-family",
+            familyName: "big_win.png",
             referenceText: "img/big-win/big-win-bg.png"
           }
         ],
@@ -62,6 +106,33 @@ async function main(): Promise<void> {
             matchType: "path-exact",
             regionName: "BW_back",
             pageName: "big_win_2.png"
+          },
+          {
+            skinName: "BW",
+            slotName: "decor",
+            attachmentName: "decor",
+            attachmentPath: "decor",
+            matchType: "path-exact",
+            regionName: "decor",
+            pageName: "big_win.png"
+          },
+          {
+            skinName: "BW",
+            slotName: "decor2",
+            attachmentName: "decor2",
+            attachmentPath: "decor2",
+            matchType: "path-exact",
+            regionName: "decor2",
+            pageName: "big_win.png"
+          },
+          {
+            skinName: "BW",
+            slotName: "shine",
+            attachmentName: "shine",
+            attachmentPath: "shine",
+            matchType: "path-exact",
+            regionName: "shine",
+            pageName: "big_win.png"
           }
         ]
       }
@@ -79,6 +150,7 @@ async function main(): Promise<void> {
   assert.ok(result.worksetPath, "section action should write a workset");
   assert.ok(result.reconstructionBundlePath, "section action should write a reconstruction bundle");
   assert.ok(result.skinBlueprintPath, "section action should write a skin blueprint");
+  assert.ok(result.skinRenderPlanPath, "section action should write a skin render plan");
   assert.equal(result.mappedAttachmentCount, 4, "section action should preserve mapped attachment counts");
   assert.equal(result.exactLocalSourceCount, 2, "section action should preserve exact local source counts");
 
@@ -89,6 +161,7 @@ async function main(): Promise<void> {
     worksetPath?: string | null;
     reconstructionBundlePath?: string | null;
     skinBlueprintPath?: string | null;
+    skinRenderPlanPath?: string | null;
     mappedAttachmentCount?: number;
   };
   assert.equal(sectionActionRun.sectionKey, "big_win/BW", "section action run should preserve section key");
@@ -96,6 +169,7 @@ async function main(): Promise<void> {
   assert.ok(sectionActionRun.worksetPath, "section action run should point at the prepared workset");
   assert.ok(sectionActionRun.reconstructionBundlePath, "section action run should point at the prepared reconstruction bundle");
   assert.ok(sectionActionRun.skinBlueprintPath, "section action run should point at the prepared skin blueprint");
+  assert.ok(sectionActionRun.skinRenderPlanPath, "section action run should point at the prepared skin render plan");
   assert.equal(sectionActionRun.mappedAttachmentCount, 4, "section action run should persist mapped attachment counts");
 
   const worksetPath = result.worksetPath ?? "";
@@ -164,6 +238,38 @@ async function main(): Promise<void> {
     : null;
   assert.ok(skinProfile, "section skin blueprint profiles should include the prepared section");
   assert.equal(skinProfile?.blueprintState, "ready-for-slot-order-reconstruction", "section skin blueprint profiles should preserve blueprint readiness");
+
+  const skinRenderPlanPath = result.skinRenderPlanPath ?? "";
+  const resolvedSkinRenderPlanPath = path.isAbsolute(skinRenderPlanPath) ? skinRenderPlanPath : path.join(workspaceRoot, skinRenderPlanPath);
+  const skinRenderPlan = JSON.parse(await fs.readFile(resolvedSkinRenderPlanPath, "utf8")) as {
+    sectionKey?: string;
+    renderState?: string;
+    layerCount?: number;
+    mappedLayerCount?: number;
+    atlasSourcePath?: string | null;
+    layers?: Array<{ slotName?: string; layerState?: string; bounds?: { width?: number } | null }>;
+  };
+  assert.equal(skinRenderPlan.sectionKey, "big_win/BW", "section skin render plan should preserve section key");
+  assert.equal(skinRenderPlan.renderState, "ready-for-layered-render-reconstruction", "section skin render plan should mark atlas-grounded sections as render ready");
+  assert.equal(skinRenderPlan.layerCount, 4, "section skin render plan should preserve ordered layer counts");
+  assert.equal(skinRenderPlan.mappedLayerCount, 4, "section skin render plan should map each grounded layer");
+  assert.equal(skinRenderPlan.atlasSourcePath, `10_donors/${donorId}/evidence/local_only/harvest/files/cdn.example.invalid/big_win.atlas`, "section skin render plan should retain the local atlas source path");
+  assert.ok(Array.isArray(skinRenderPlan.layers) && skinRenderPlan.layers.length === 4, "section skin render plan should expose ordered layers");
+  assert.equal(skinRenderPlan.layers?.[0]?.slotName, "background", "section skin render plan should preserve slot order");
+  assert.equal(skinRenderPlan.layers?.[0]?.layerState, "atlas-region-exact", "section skin render plan should record atlas-region matches");
+  assert.equal(skinRenderPlan.layers?.[0]?.bounds?.width, 220, "section skin render plan should preserve atlas geometry");
+
+  const skinRenderPlanProfilesPath = path.join(donorRoot, "section-skin-render-plan-profiles.json");
+  const skinRenderPlanProfiles = JSON.parse(await fs.readFile(skinRenderPlanProfilesPath, "utf8")) as {
+    sectionCount?: number;
+    sections?: Array<{ sectionKey?: string; renderState?: string; renderPlanPath?: string }>;
+  };
+  assert.ok((skinRenderPlanProfiles.sectionCount ?? 0) >= 1, "section skin render plan profiles should record prepared sections");
+  const renderProfile = Array.isArray(skinRenderPlanProfiles.sections)
+    ? skinRenderPlanProfiles.sections.find((section) => section?.sectionKey === "big_win/BW")
+    : null;
+  assert.ok(renderProfile, "section skin render plan profiles should include the prepared section");
+  assert.equal(renderProfile?.renderState, "ready-for-layered-render-reconstruction", "section skin render plan profiles should preserve render readiness");
 
   console.log("PASS donor-scan:section-action");
   console.log(`Donor: ${donorId}`);

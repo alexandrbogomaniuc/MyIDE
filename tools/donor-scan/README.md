@@ -37,7 +37,7 @@ and answers early:
 - `npm run donor-scan:run-family-action -- --donor-id donor_XXX --family big_win --limit 10`
   - Execute the current family action from `capture-family-actions.json`. Capture-oriented families reuse the existing donor-scan capture runner; evidence/reconstruction families prepare grounded worksets, and `use-local-sources` families now also emit reconstruction-ready family bundles instead of stopping at an advisory note.
 - `npm run donor-scan:run-section-action -- --donor-id donor_XXX --section big_win/BW`
-  - Prepare one grounded reconstruction section workset directly from `family-reconstruction-section-bundles.json` when a specific section is already ready to leave the family queue. That same action now also emits a normalized section reconstruction bundle, a section skin blueprint, and refreshes the donor-wide section reconstruction/blueprint profiles.
+  - Prepare one grounded reconstruction section workset directly from `family-reconstruction-section-bundles.json` when a specific section is already ready to leave the family queue. That same action now also emits a normalized section reconstruction bundle, a section skin blueprint, a section skin render plan, and refreshes the donor-wide section reconstruction/blueprint/render-plan profiles.
 
 ## Outputs
 
@@ -73,6 +73,8 @@ Key files:
 - `section-reconstruction-profiles.json`
 - `section-skin-blueprints/<family>--<section>.json`
 - `section-skin-blueprint-profiles.json`
+- `section-skin-render-plans/<family>--<section>.json`
+- `section-skin-render-plan-profiles.json`
 - `next-capture-run.json`
 - `package-graph.json`
 - `blocker-summary.md`
@@ -132,6 +134,8 @@ The file stays grounded: it only summarizes local sources donor scan already cap
 That same section action now also writes `section-reconstruction-bundles/<family>--<section>.json`, which groups one grounded section by atlas page and slot while preserving the mapped attachment set, local source evidence, and next reconstruction step. `section-reconstruction-profiles.json` is the compact donor-wide summary of those prepared section bundles.
 
 That same section action now also writes `section-skin-blueprints/<family>--<section>.json`, which turns one grounded section reconstruction bundle into an ordered slot/page blueprint for deeper skin reconstruction. `section-skin-blueprint-profiles.json` is the compact donor-wide summary of those prepared section skin blueprints.
+
+When a grounded local `.atlas` is present for that same section, the action now also writes `section-skin-render-plans/<family>--<section>.json`, which turns the ordered blueprint into layered render records with real atlas bounds, offsets, rotation, and page ownership. `section-skin-render-plan-profiles.json` is the compact donor-wide summary of those prepared section render plans.
 
 `donor-scan:capture-family-sources` is the next step after that dossier. It does not invent new URLs. Instead, it turns the grounded family evidence back into a family-specific source-material queue, prioritizes optimized variant-backed and bundle-backed family assets before raw atlas-page retries, and refreshes donor scan after the run.
 
