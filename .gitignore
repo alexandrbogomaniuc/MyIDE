@@ -19,3 +19,4 @@ progress.md
 40_projects/project_001/donor-assets/local-index.json
 40_projects/project_001/overrides/
 40_projects/project_001/runtime/local-mirror/
+40_projects/**/runtime/page-runtime-proofs.latest.json

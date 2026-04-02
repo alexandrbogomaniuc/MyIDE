@@ -41,15 +41,23 @@ type JsonObject = { [key: string]: JsonValue | undefined };
 
 const workspaceRoot = path.resolve(__dirname, "../../..");
 
-function assertSupportedProject(projectId: string): void {
-  if (projectId !== "project_001") {
-    throw new Error(`Runtime page proofs are currently scoped to project_001 only. Received: ${projectId}`);
+function assertValidProjectId(projectId: string): void {
+  if (typeof projectId !== "string" || !/^[A-Za-z0-9._-]+$/.test(projectId)) {
+    throw new Error(`Runtime page proofs require a safe projectId. Received: ${String(projectId)}`);
   }
 }
 
+function getProjectRuntimeRoot(projectId: string): string {
+  assertValidProjectId(projectId);
+  return path.join(workspaceRoot, "40_projects", projectId, "runtime");
+}
+
 function getRuntimePageProofSnapshotPath(projectId: string): string {
-  assertSupportedProject(projectId);
-  return path.join(workspaceRoot, "40_projects", projectId, "runtime", "local-mirror", "page-runtime-proofs.latest.json");
+  return path.join(getProjectRuntimeRoot(projectId), "page-runtime-proofs.latest.json");
+}
+
+function getLegacyRuntimePageProofSnapshotPath(projectId: string): string {
+  return path.join(getProjectRuntimeRoot(projectId), "local-mirror", "page-runtime-proofs.latest.json");
 }
 
 function toRepoRelativePath(filePath: string): string {
@@ -127,20 +135,20 @@ function sortEntries(entries: RuntimePageProofEntry[]): RuntimePageProofEntry[] 
   });
 }
 
-function buildStatus(projectId: string, entries: RuntimePageProofEntry[]): RuntimePageProofStatus {
+function buildStatus(projectId: string, entries: RuntimePageProofEntry[], snapshotPath = getRuntimePageProofSnapshotPath(projectId)): RuntimePageProofStatus {
   return {
     projectId,
     generatedAtUtc: new Date().toISOString(),
-    snapshotRepoRelativePath: toRepoRelativePath(getRuntimePageProofSnapshotPath(projectId)),
+    snapshotRepoRelativePath: toRepoRelativePath(snapshotPath),
     entryCount: entries.length,
     entries: sortEntries(entries)
   };
 }
 
 export async function buildRuntimePageProofStatus(projectId: string): Promise<RuntimePageProofStatus | null> {
-  assertSupportedProject(projectId);
   const snapshotPath = getRuntimePageProofSnapshotPath(projectId);
-  const raw = await readOptionalJsonFile(snapshotPath);
+  const legacySnapshotPath = getLegacyRuntimePageProofSnapshotPath(projectId);
+  const raw = await readOptionalJsonFile(snapshotPath) ?? await readOptionalJsonFile(legacySnapshotPath);
   if (!raw) {
     return null;
   }
@@ -148,11 +156,14 @@ export async function buildRuntimePageProofStatus(projectId: string): Promise<Ru
   const entries = Array.isArray(raw.entries)
     ? raw.entries.map((entry) => normalizeEntry(entry)).filter((entry): entry is RuntimePageProofEntry => Boolean(entry))
     : [];
-  return buildStatus(projectId, entries);
+  const resolvedSnapshotPath = await readOptionalJsonFile(snapshotPath)
+    ? snapshotPath
+    : legacySnapshotPath;
+  return buildStatus(projectId, entries, resolvedSnapshotPath);
 }
 
 export async function saveRuntimePageProof(projectId: string, input: SaveRuntimePageProofInput): Promise<RuntimePageProofStatus> {
-  assertSupportedProject(projectId);
+  assertValidProjectId(projectId);
   if (typeof input.taskId !== "string" || input.taskId.trim().length === 0) {
     throw new Error("Runtime page proof save requires a taskId.");
   }
@@ -182,8 +193,8 @@ export async function saveRuntimePageProof(projectId: string, input: SaveRuntime
   const nextEntries = existingEntries
     .filter((entry) => `${entry.taskId.toLowerCase()}::${entry.pageName.toLowerCase()}` !== proofKey)
     .concat(nextEntry);
-  const status = buildStatus(projectId, nextEntries);
   const snapshotPath = getRuntimePageProofSnapshotPath(projectId);
+  const status = buildStatus(projectId, nextEntries, snapshotPath);
   mkdirSync(path.dirname(snapshotPath), { recursive: true });
   await fs.writeFile(snapshotPath, `${JSON.stringify(status, null, 2)}\n`, "utf8");
   return status;

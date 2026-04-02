@@ -3771,7 +3771,7 @@ export async function loadProjectSlice(requestedProjectId?: string): Promise<Pro
   const runtimeResourceMap = selectedProjectId === "project_001"
     ? buildRuntimeResourceMapStatus(selectedProjectId)
     : null;
-  const runtimePageProofs = selectedProjectId === "project_001"
+  const runtimePageProofs = selectedProject
     ? await buildRuntimePageProofStatus(selectedProjectId)
     : null;
   const runtimeOverrides = selectedProjectId === "project_001"
