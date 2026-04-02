@@ -171,6 +171,7 @@ async function main(): Promise<void> {
   assert.ok(result.skinTextureSourceFitBundlePath, "section action should write a skin texture source-fit bundle");
   assert.ok(result.skinTextureFitReviewBundlePath, "section action should write a skin texture fit-review bundle");
   assert.ok(result.skinTextureFitDecisionBundlePath, "section action should write a skin texture fit-decision bundle");
+  assert.ok(result.skinTextureFitApprovalBundlePath, "section action should write a skin texture fit-approval bundle");
   assert.equal(result.mappedAttachmentCount, 4, "section action should preserve mapped attachment counts");
   assert.equal(result.exactLocalSourceCount, 2, "section action should preserve exact local source counts");
 
@@ -202,6 +203,7 @@ async function main(): Promise<void> {
     skinTextureSourceFitBundlePath?: string | null;
     skinTextureFitReviewBundlePath?: string | null;
     skinTextureFitDecisionBundlePath?: string | null;
+    skinTextureFitApprovalBundlePath?: string | null;
     mappedAttachmentCount?: number;
   };
   assert.equal(sectionActionRun.sectionKey, "big_win/BW", "section action run should preserve section key");
@@ -230,6 +232,7 @@ async function main(): Promise<void> {
   assert.ok(sectionActionRun.skinTextureSourceFitBundlePath, "section action run should point at the prepared skin texture source-fit bundle");
   assert.ok(sectionActionRun.skinTextureFitReviewBundlePath, "section action run should point at the prepared skin texture fit-review bundle");
   assert.ok(sectionActionRun.skinTextureFitDecisionBundlePath, "section action run should point at the prepared skin texture fit-decision bundle");
+  assert.ok(sectionActionRun.skinTextureFitApprovalBundlePath, "section action run should point at the prepared skin texture fit-approval bundle");
   assert.equal(sectionActionRun.mappedAttachmentCount, 4, "section action run should persist mapped attachment counts");
 
   const worksetPath = result.worksetPath ?? "";
@@ -506,6 +509,42 @@ async function main(): Promise<void> {
     : null;
   assert.ok(textureFitDecisionProfile, "section skin texture fit-decision bundle profiles should include the prepared section");
   assert.equal(textureFitDecisionProfile?.missingSourceDimensionCount, 2, "section skin texture fit-decision bundle profiles should preserve missing source dimension counts");
+
+  const skinTextureFitApprovalBundlePath = result.skinTextureFitApprovalBundlePath ?? "";
+  const resolvedSkinTextureFitApprovalBundlePath = path.isAbsolute(skinTextureFitApprovalBundlePath)
+    ? skinTextureFitApprovalBundlePath
+    : path.join(workspaceRoot, skinTextureFitApprovalBundlePath);
+  const skinTextureFitApprovalBundle = JSON.parse(await fs.readFile(resolvedSkinTextureFitApprovalBundlePath, "utf8")) as {
+    sectionKey?: string;
+    textureFitApprovalState?: string;
+    pageCount?: number;
+    sourceDimensionCount?: number;
+    missingSourceDimensionCount?: number;
+    approvalReadyPageCount?: number;
+    blockedPageCount?: number;
+    pages?: Array<{ pageName?: string; pageState?: string; selectedTransform?: { mode?: string | null } | null }>;
+  };
+  assert.equal(skinTextureFitApprovalBundle.sectionKey, "big_win/BW", "section skin texture fit-approval bundle should preserve section key");
+  assert.equal(skinTextureFitApprovalBundle.pageCount, 2, "section skin texture fit-approval bundle should preserve atlas page counts");
+  assert.equal(skinTextureFitApprovalBundle.sourceDimensionCount, 0, "section skin texture fit-approval bundle should preserve missing source-dimension counts in the smoke fixture");
+  assert.equal(skinTextureFitApprovalBundle.missingSourceDimensionCount, 2, "section skin texture fit-approval bundle should keep missing source-dimension counts");
+  assert.equal(skinTextureFitApprovalBundle.approvalReadyPageCount, 0, "section skin texture fit-approval bundle should block approvals when source dimensions are missing");
+  assert.equal(skinTextureFitApprovalBundle.blockedPageCount, 2, "section skin texture fit-approval bundle should count blocked pages when source dimensions are missing");
+  assert.ok(typeof skinTextureFitApprovalBundle.textureFitApprovalState === "string" && skinTextureFitApprovalBundle.textureFitApprovalState.length > 0, "section skin texture fit-approval bundle should record a fit-approval state");
+  assert.ok(Array.isArray(skinTextureFitApprovalBundle.pages) && skinTextureFitApprovalBundle.pages.length === 2, "section skin texture fit-approval bundle should expose per-page approval rows");
+  assert.equal(skinTextureFitApprovalBundle.pages?.[0]?.selectedTransform ?? null, null, "section skin texture fit-approval bundle should avoid selected transforms when source dimensions are missing");
+
+  const skinTextureFitApprovalBundleProfilesPath = path.join(donorRoot, "section-skin-texture-fit-approval-bundle-profiles.json");
+  const skinTextureFitApprovalBundleProfiles = JSON.parse(await fs.readFile(skinTextureFitApprovalBundleProfilesPath, "utf8")) as {
+    sectionCount?: number;
+    sections?: Array<{ sectionKey?: string; textureFitApprovalState?: string; missingSourceDimensionCount?: number; textureFitApprovalBundlePath?: string }>;
+  };
+  assert.ok((skinTextureFitApprovalBundleProfiles.sectionCount ?? 0) >= 1, "section skin texture fit-approval bundle profiles should record prepared sections");
+  const textureFitApprovalProfile = Array.isArray(skinTextureFitApprovalBundleProfiles.sections)
+    ? skinTextureFitApprovalBundleProfiles.sections.find((section) => section?.sectionKey === "big_win/BW")
+    : null;
+  assert.ok(textureFitApprovalProfile, "section skin texture fit-approval bundle profiles should include the prepared section");
+  assert.equal(textureFitApprovalProfile?.missingSourceDimensionCount, 2, "section skin texture fit-approval bundle profiles should preserve missing source dimension counts");
 
   const skinMaterialPlanPath = result.skinMaterialPlanPath ?? "";
   const resolvedSkinMaterialPlanPath = path.isAbsolute(skinMaterialPlanPath) ? skinMaterialPlanPath : path.join(workspaceRoot, skinMaterialPlanPath);
