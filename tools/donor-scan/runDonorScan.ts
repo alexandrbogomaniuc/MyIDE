@@ -12,6 +12,7 @@ import { summarizeCaptureFamilySourceProfiles } from "./summarizeCaptureFamilySo
 import { summarizeCaptureFamilyActions } from "./summarizeCaptureFamilyActions";
 import { summarizeFamilyReconstructionProfiles } from "./summarizeFamilyReconstructionProfiles";
 import { summarizeFamilyReconstructionMaps } from "./summarizeFamilyReconstructionMaps";
+import { summarizeFamilyReconstructionSections } from "./summarizeFamilyReconstructionSections";
 import {
   type CaptureRunFile,
   type DiscoveredDonorUrl,
@@ -431,6 +432,8 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
       topFamilyReconstructionProfileNames: [],
       familyReconstructionMapCount: 0,
       topFamilyReconstructionMapNames: [],
+      familyReconstructionSectionCount: 0,
+      topFamilyReconstructionSectionKeys: [],
       nextCaptureTargetCount: 0,
       rawPayloadBlockedCaptureTargetCount: 0,
       rawPayloadBlockedFamilyCount: 0,
@@ -476,6 +479,8 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
       topFamilyReconstructionProfileNames: [],
       familyReconstructionMapCount: 0,
       topFamilyReconstructionMapNames: [],
+      familyReconstructionSectionCount: 0,
+      topFamilyReconstructionSectionKeys: [],
       nextCaptureTargetCount: 0,
       rawPayloadBlockedCaptureTargetCount: 0,
       rawPayloadBlockedFamilyCount: 0,
@@ -591,6 +596,12 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
     familyReconstructionProfiles
   });
   await writeJsonFile(paths.familyReconstructionMapsPath, familyReconstructionMaps);
+  const familyReconstructionSections = summarizeFamilyReconstructionSections({
+    donorId: options.donorId,
+    donorName: options.donorName,
+    familyReconstructionMaps
+  });
+  await writeJsonFile(paths.familyReconstructionSectionsPath, familyReconstructionSections);
   const prioritizedFamilySourceProfiles = captureFamilySourceProfiles.families.filter((family) =>
     family.blockedTargetCount > 0
     || family.atlasManifestKinds.length > 0
@@ -616,6 +627,10 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
     family.mappedAttachmentCount > 0
     || family.spineAttachmentCount > 0
     || family.atlasRegionCount > 0
+  );
+  const prioritizedFamilyReconstructionSections = familyReconstructionSections.sections.filter((section) =>
+    section.mappedAttachmentCount > 0
+    || section.attachmentCount > 0
   );
   const rawPayloadBlockedFamilies = captureBlockerFamilies.families
     .filter((family) => family.blockerClass === "raw-payload-blocked");
@@ -688,6 +703,10 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
     topFamilyReconstructionMapNames: prioritizedFamilyReconstructionMaps
       .slice(0, 8)
       .map((family) => family.familyName),
+    familyReconstructionSectionCount: familyReconstructionSections.sectionCount,
+    topFamilyReconstructionSectionKeys: prioritizedFamilyReconstructionSections
+      .slice(0, 8)
+      .map((section) => section.sectionKey),
     rawPayloadBlockedCaptureTargetCount: nextCaptureTargets.targets.filter((target) => target.blockerClass === "raw-payload-blocked").length,
     rawPayloadBlockedFamilyCount: rawPayloadBlockedFamilies.length,
     rawPayloadBlockedFamilyNames: rawPayloadBlockedFamilies.slice(0, 8).map((family) => family.familyName),
@@ -762,6 +781,10 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
     topFamilyReconstructionMapNames: prioritizedFamilyReconstructionMaps
       .slice(0, 8)
       .map((family) => family.familyName),
+    familyReconstructionSectionCount: familyReconstructionSections.sectionCount,
+    topFamilyReconstructionSectionKeys: prioritizedFamilyReconstructionSections
+      .slice(0, 8)
+      .map((section) => section.sectionKey),
     rawPayloadBlockedCaptureTargetCount: nextCaptureTargets.targets.filter((target) => target.blockerClass === "raw-payload-blocked").length,
     rawPayloadBlockedFamilyCount: rawPayloadBlockedFamilies.length,
     rawPayloadBlockedFamilyNames: rawPayloadBlockedFamilies.slice(0, 8).map((family) => family.familyName),

@@ -211,6 +211,18 @@ async function main(): Promise<void> {
     assert.equal(uiMap?.reconstructionBundlePath, familyActionRun.reconstructionBundlePath ?? null, "reconstruction map should point at the reconstruction bundle");
     assert.ok(typeof uiMap?.sampleLocalSourcePath === "string" && uiMap.sampleLocalSourcePath.length > 0, "reconstruction map should expose a sample local source path");
 
+    const reconstructionSectionsPath = path.join(donorRoot, "evidence", "local_only", "harvest", "family-reconstruction-sections.json");
+    const reconstructionSections = JSON.parse(await fs.readFile(reconstructionSectionsPath, "utf8")) as {
+      sectionCount?: number;
+      sections?: Array<{
+        familyName?: string;
+        sectionKey?: string;
+        attachmentCount?: number;
+      }>;
+    };
+    assert.ok(typeof reconstructionSections.sectionCount === "number", "reconstruction sections summary should record a section count");
+    assert.ok(Array.isArray(reconstructionSections.sections), "reconstruction sections summary should expose a section list");
+
     console.log("PASS donor-scan:family-action");
     console.log(`Donor: ${donorId}`);
     console.log(`Prepared workset: ${familyActionRun.worksetPath}`);

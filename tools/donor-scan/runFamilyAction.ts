@@ -3,6 +3,7 @@ import { buildFamilyReconstructionBundle } from "./buildFamilyReconstructionBund
 import { captureNextTargets } from "./captureNextTargets";
 import { summarizeFamilyReconstructionProfiles } from "./summarizeFamilyReconstructionProfiles";
 import { summarizeFamilyReconstructionMaps } from "./summarizeFamilyReconstructionMaps";
+import { summarizeFamilyReconstructionSections } from "./summarizeFamilyReconstructionSections";
 import {
   type BundleAssetMapFile,
   type CaptureFamilyActionClass,
@@ -299,6 +300,12 @@ export async function runFamilyAction(options: RunFamilyActionOptions): Promise<
       familyReconstructionProfiles
     });
     await writeJsonFile(paths.familyReconstructionMapsPath, familyReconstructionMaps);
+    const familyReconstructionSections = summarizeFamilyReconstructionSections({
+      donorId,
+      donorName: captureFamilyActions.donorName,
+      familyReconstructionMaps
+    });
+    await writeJsonFile(paths.familyReconstructionSectionsPath, familyReconstructionSections);
   }
 
   const nextOperatorAction = `${familyAction.familyName}: ${familyAction.nextStep}`;

@@ -63,6 +63,7 @@ Key files:
 - `family-reconstruction-bundles/<family>.json` for `use-local-sources` families
 - `family-reconstruction-profiles.json`
 - `family-reconstruction-maps.json`
+- `family-reconstruction-sections.json`
 - `next-capture-run.json`
 - `package-graph.json`
 - `blocker-summary.md`
@@ -112,6 +113,8 @@ When a ranked image target has exhausted only raw/direct grounded URLs and donor
 The file stays grounded: it only summarizes local sources donor scan already captured and normalized.
 
 `family-reconstruction-maps.json` goes one step deeper for reconstruction-ready families. When local Spine JSON plus atlas text exist, donor scan now maps grounded slot/attachment evidence back to atlas regions and pages, counts mapped vs unmapped attachments, and records the next reconstruction step without inventing new runtime payloads.
+
+`family-reconstruction-sections.json` is the next reusable step after those family-wide maps. It breaks one reconstruction-ready family down into grounded section units, currently using Spine skin groupings when that evidence exists, and records per-section mapped coverage, atlas page counts, animation names, and the next section-level reconstruction step.
 
 `donor-scan:capture-family-sources` is the next step after that dossier. It does not invent new URLs. Instead, it turns the grounded family evidence back into a family-specific source-material queue, prioritizes optimized variant-backed and bundle-backed family assets before raw atlas-page retries, and refreshes donor scan after the run.
 

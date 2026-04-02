@@ -152,6 +152,7 @@ export interface DonorScanPaths {
   familyReconstructionBundlesRoot: string;
   familyReconstructionProfilesPath: string;
   familyReconstructionMapsPath: string;
+  familyReconstructionSectionsPath: string;
   captureRunPath: string;
   blockerSummaryPath: string;
   scanSummaryPath: string;
@@ -352,6 +353,8 @@ export interface DonorScanResult {
   topFamilyReconstructionProfileNames: string[];
   familyReconstructionMapCount: number;
   topFamilyReconstructionMapNames: string[];
+  familyReconstructionSectionCount: number;
+  topFamilyReconstructionSectionKeys: string[];
   rawPayloadBlockedCaptureTargetCount: number;
   rawPayloadBlockedFamilyCount: number;
   rawPayloadBlockedFamilyNames: string[];
@@ -742,6 +745,42 @@ export interface FamilyReconstructionMapsFile {
   families: FamilyReconstructionMapRecord[];
 }
 
+export type FamilyReconstructionSectionType = "spine-skin";
+export type FamilyReconstructionSectionState =
+  | "ready-for-skin-reconstruction"
+  | "needs-manual-section-review";
+
+export interface FamilyReconstructionSectionRecord {
+  familyName: string;
+  sectionKey: string;
+  sectionType: FamilyReconstructionSectionType;
+  skinName: string;
+  readiness: FamilyReconstructionReadiness;
+  profileState: FamilyReconstructionProfileState;
+  sectionState: FamilyReconstructionSectionState;
+  attachmentCount: number;
+  mappedAttachmentCount: number;
+  unmappedAttachmentCount: number;
+  atlasPageCount: number;
+  atlasPageNames: string[];
+  atlasRegionCount: number;
+  regionPreview: string[];
+  slotPreview: string[];
+  animationNames: string[];
+  sampleLocalSourcePath: string | null;
+  reconstructionMapPath: string;
+  nextSectionStep: string;
+}
+
+export interface FamilyReconstructionSectionsFile {
+  schemaVersion: string;
+  donorId: string;
+  donorName: string;
+  generatedAt: string;
+  sectionCount: number;
+  sections: FamilyReconstructionSectionRecord[];
+}
+
 export interface FamilyActionRunFile {
   schemaVersion: string;
   donorId: string;
@@ -827,6 +866,7 @@ export function buildDonorScanPaths(donorId: string): DonorScanPaths {
     familyReconstructionBundlesRoot: path.join(harvestRoot, "family-reconstruction-bundles"),
     familyReconstructionProfilesPath: path.join(harvestRoot, "family-reconstruction-profiles.json"),
     familyReconstructionMapsPath: path.join(harvestRoot, "family-reconstruction-maps.json"),
+    familyReconstructionSectionsPath: path.join(harvestRoot, "family-reconstruction-sections.json"),
     captureRunPath: path.join(harvestRoot, "next-capture-run.json"),
     blockerSummaryPath: path.join(harvestRoot, "blocker-summary.md"),
     scanSummaryPath: path.join(harvestRoot, "scan-summary.json")
