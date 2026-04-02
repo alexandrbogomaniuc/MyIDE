@@ -154,6 +154,7 @@ async function main(): Promise<void> {
   assert.ok(result.skinMaterialPlanPath, "section action should write a skin material plan");
   assert.ok(result.skinMaterialReviewBundlePath, "section action should write a skin material review bundle");
   assert.ok(result.skinPageMatchBundlePath, "section action should write a skin page match bundle");
+  assert.ok(result.skinTextureSourcePlanPath, "section action should write a skin texture source plan");
   assert.equal(result.mappedAttachmentCount, 4, "section action should preserve mapped attachment counts");
   assert.equal(result.exactLocalSourceCount, 2, "section action should preserve exact local source counts");
 
@@ -168,6 +169,7 @@ async function main(): Promise<void> {
     skinMaterialPlanPath?: string | null;
     skinMaterialReviewBundlePath?: string | null;
     skinPageMatchBundlePath?: string | null;
+    skinTextureSourcePlanPath?: string | null;
     mappedAttachmentCount?: number;
   };
   assert.equal(sectionActionRun.sectionKey, "big_win/BW", "section action run should preserve section key");
@@ -179,6 +181,7 @@ async function main(): Promise<void> {
   assert.ok(sectionActionRun.skinMaterialPlanPath, "section action run should point at the prepared skin material plan");
   assert.ok(sectionActionRun.skinMaterialReviewBundlePath, "section action run should point at the prepared skin material review bundle");
   assert.ok(sectionActionRun.skinPageMatchBundlePath, "section action run should point at the prepared skin page match bundle");
+  assert.ok(sectionActionRun.skinTextureSourcePlanPath, "section action run should point at the prepared skin texture source plan");
   assert.equal(sectionActionRun.mappedAttachmentCount, 4, "section action run should persist mapped attachment counts");
 
   const worksetPath = result.worksetPath ?? "";
@@ -401,6 +404,46 @@ async function main(): Promise<void> {
   assert.equal(pageMatchProfile?.matchState, "ready-for-page-match-lock", "section skin page match bundle profiles should preserve page-match readiness");
   assert.equal(pageMatchProfile?.proposedMatchCount, 2, "section skin page match bundle profiles should preserve proposed match counts");
   assert.equal(pageMatchProfile?.blockedPageCount, 0, "section skin page match bundle profiles should preserve blocked page counts");
+
+  const skinTextureSourcePlanPath = result.skinTextureSourcePlanPath ?? "";
+  const resolvedSkinTextureSourcePlanPath = path.isAbsolute(skinTextureSourcePlanPath) ? skinTextureSourcePlanPath : path.join(workspaceRoot, skinTextureSourcePlanPath);
+  const skinTextureSourcePlan = JSON.parse(await fs.readFile(resolvedSkinTextureSourcePlanPath, "utf8")) as {
+    sectionKey?: string;
+    textureSourceState?: string;
+    pageCount?: number;
+    exactPageSourceCount?: number;
+    proposedPageSourceCount?: number;
+    missingPageSourceCount?: number;
+    topTextureSourceLocalPath?: string | null;
+    pages?: Array<{ pageName?: string; sourceSelection?: string; sourceLocalPath?: string | null }>;
+    layers?: Array<{ slotName?: string; sourceSelection?: string; sourceLocalPath?: string | null }>;
+  };
+  assert.equal(skinTextureSourcePlan.sectionKey, "big_win/BW", "section skin texture source plan should preserve section key");
+  assert.equal(skinTextureSourcePlan.textureSourceState, "ready-with-proposed-page-sources", "section skin texture source plan should stay honest when only proposed page matches exist");
+  assert.equal(skinTextureSourcePlan.pageCount, 2, "section skin texture source plan should preserve atlas page count");
+  assert.equal(skinTextureSourcePlan.exactPageSourceCount, 0, "section skin texture source plan should preserve missing exact page sources");
+  assert.equal(skinTextureSourcePlan.proposedPageSourceCount, 2, "section skin texture source plan should preserve proposed page sources");
+  assert.equal(skinTextureSourcePlan.missingPageSourceCount, 0, "section skin texture source plan should avoid false missing pages when proposed sources exist");
+  assert.ok(typeof skinTextureSourcePlan.topTextureSourceLocalPath === "string" && skinTextureSourcePlan.topTextureSourceLocalPath.length > 0, "section skin texture source plan should expose a top texture source preview");
+  assert.ok(Array.isArray(skinTextureSourcePlan.pages) && skinTextureSourcePlan.pages.length === 2, "section skin texture source plan should expose per-page source records");
+  assert.equal(skinTextureSourcePlan.pages?.[0]?.sourceSelection, "proposed-page-match", "section skin texture source plan should preserve proposed page-source selections");
+  assert.ok(typeof skinTextureSourcePlan.pages?.[0]?.sourceLocalPath === "string" && skinTextureSourcePlan.pages[0].sourceLocalPath.length > 0, "section skin texture source plan should preserve the chosen page source");
+  assert.ok(Array.isArray(skinTextureSourcePlan.layers) && skinTextureSourcePlan.layers.length === 4, "section skin texture source plan should expose layer-level source rows");
+  assert.equal(skinTextureSourcePlan.layers?.[0]?.sourceSelection, "proposed-page-match", "section skin texture source plan should project page-source selections down to layers");
+
+  const skinTextureSourcePlanProfilesPath = path.join(donorRoot, "section-skin-texture-source-plan-profiles.json");
+  const skinTextureSourcePlanProfiles = JSON.parse(await fs.readFile(skinTextureSourcePlanProfilesPath, "utf8")) as {
+    sectionCount?: number;
+    sections?: Array<{ sectionKey?: string; textureSourceState?: string; textureSourcePlanPath?: string; proposedPageSourceCount?: number; missingPageSourceCount?: number }>;
+  };
+  assert.ok((skinTextureSourcePlanProfiles.sectionCount ?? 0) >= 1, "section skin texture source plan profiles should record prepared sections");
+  const textureSourceProfile = Array.isArray(skinTextureSourcePlanProfiles.sections)
+    ? skinTextureSourcePlanProfiles.sections.find((section) => section?.sectionKey === "big_win/BW")
+    : null;
+  assert.ok(textureSourceProfile, "section skin texture source plan profiles should include the prepared section");
+  assert.equal(textureSourceProfile?.textureSourceState, "ready-with-proposed-page-sources", "section skin texture source plan profiles should preserve texture-source readiness");
+  assert.equal(textureSourceProfile?.proposedPageSourceCount, 2, "section skin texture source plan profiles should preserve proposed page-source counts");
+  assert.equal(textureSourceProfile?.missingPageSourceCount, 0, "section skin texture source plan profiles should preserve missing page-source counts");
 
   console.log("PASS donor-scan:section-action");
   console.log(`Donor: ${donorId}`);

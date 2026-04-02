@@ -16,6 +16,7 @@ import { summarizeFamilyReconstructionSections } from "./summarizeFamilyReconstr
 import { summarizeFamilyReconstructionSectionBundles } from "./summarizeFamilyReconstructionSectionBundles";
 import { summarizeSectionSkinMaterialReviewBundleProfiles } from "./summarizeSectionSkinMaterialReviewBundleProfiles";
 import { summarizeSectionSkinPageMatchBundleProfiles } from "./summarizeSectionSkinPageMatchBundleProfiles";
+import { summarizeSectionSkinTextureSourcePlanProfiles } from "./summarizeSectionSkinTextureSourcePlanProfiles";
 import {
   type CaptureRunFile,
   type DiscoveredDonorUrl,
@@ -671,6 +672,16 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
     section.proposedMatchCount > 0
     || section.exactPageImageCount > 0
   );
+  const sectionSkinTextureSourcePlanProfiles = await summarizeSectionSkinTextureSourcePlanProfiles({
+    donorId: options.donorId,
+    donorName: options.donorName,
+    textureSourcePlansRoot: paths.sectionSkinTextureSourcePlansRoot
+  });
+  await writeJsonFile(paths.sectionSkinTextureSourcePlanProfilesPath, sectionSkinTextureSourcePlanProfiles);
+  const prioritizedSectionSkinTextureSourcePlanProfiles = sectionSkinTextureSourcePlanProfiles.sections.filter((section) =>
+    section.proposedPageSourceCount > 0
+    || section.exactPageSourceCount > 0
+  );
   const rawPayloadBlockedFamilies = captureBlockerFamilies.families
     .filter((family) => family.blockerClass === "raw-payload-blocked");
 
@@ -756,6 +767,10 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
       .map((section) => section.sectionKey),
     sectionSkinPageMatchBundleCount: sectionSkinPageMatchBundleProfiles.sectionCount,
     topSectionSkinPageMatchBundleKeys: prioritizedSectionSkinPageMatchBundleProfiles
+      .slice(0, 8)
+      .map((section) => section.sectionKey),
+    sectionSkinTextureSourcePlanCount: sectionSkinTextureSourcePlanProfiles.sectionCount,
+    topSectionSkinTextureSourcePlanKeys: prioritizedSectionSkinTextureSourcePlanProfiles
       .slice(0, 8)
       .map((section) => section.sectionKey),
     rawPayloadBlockedCaptureTargetCount: nextCaptureTargets.targets.filter((target) => target.blockerClass === "raw-payload-blocked").length,
