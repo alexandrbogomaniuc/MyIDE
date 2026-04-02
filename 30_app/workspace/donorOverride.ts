@@ -71,9 +71,9 @@ interface RuntimeAssetOverridePaths {
 const workspaceRoot = path.resolve(__dirname, "../../..");
 const supportedFileTypes = new Set<SupportedDonorAssetType>(["png", "webp", "jpg", "jpeg", "svg"]);
 
-function assertSupportedProject(projectId: string): void {
-  if (projectId !== "project_001") {
-    throw new Error(`Runtime asset overrides are currently scoped to project_001 only. Received: ${projectId}`);
+function assertValidProjectId(projectId: string): void {
+  if (typeof projectId !== "string" || !/^[A-Za-z0-9._-]+$/.test(projectId)) {
+    throw new Error(`Runtime asset overrides require a safe projectId. Received: ${String(projectId)}`);
   }
 }
 
@@ -90,7 +90,7 @@ function sanitizeSlug(value: string): string {
 }
 
 function getRuntimeAssetOverridePaths(projectId: string): RuntimeAssetOverridePaths {
-  assertSupportedProject(projectId);
+  assertValidProjectId(projectId);
   const projectRoot = path.join(workspaceRoot, "40_projects", projectId);
   return {
     manifestPath: path.join(projectRoot, "overrides", "runtime-asset-overrides.json"),
@@ -259,7 +259,7 @@ export function buildRuntimeAssetOverrideRedirectMap(status: RuntimeAssetOverrid
 }
 
 export async function createRuntimeAssetOverride(input: CreateRuntimeAssetOverrideInput): Promise<RuntimeAssetOverrideStatus> {
-  assertSupportedProject(input.projectId);
+  assertValidProjectId(input.projectId);
   const sourceInfo = parseRuntimeSourceInfo(input.runtimeSourceUrl);
   const donorAsset = await loadDonorAsset(input.projectId, input.donorAssetId);
   if (donorAsset.fileType !== sourceInfo.fileType) {
@@ -308,7 +308,7 @@ export async function createRuntimeAssetOverride(input: CreateRuntimeAssetOverri
 }
 
 export async function clearRuntimeAssetOverride(projectId: string, runtimeSourceUrl: string): Promise<RuntimeAssetOverrideStatus> {
-  assertSupportedProject(projectId);
+  assertValidProjectId(projectId);
   const normalizedUrl = new URL(runtimeSourceUrl).toString();
   const manifest = await readManifest(projectId);
   const removedEntry = manifest.entries.find((entry) => entry.runtimeSourceUrl === normalizedUrl) ?? null;

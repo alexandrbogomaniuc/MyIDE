@@ -80,9 +80,15 @@ const supportedHosts = new Set([
   "translations.bgaming-network.com"
 ]);
 
-function assertSupportedProject(projectId: string): void {
+function assertValidProjectId(projectId: string): void {
+  if (typeof projectId !== "string" || !/^[A-Za-z0-9._-]+$/.test(projectId)) {
+    throw new Error(`Local runtime mirror requires a safe projectId. Received: ${String(projectId)}`);
+  }
+}
+
+function assertProjectSupportsLiveRuntimeCapture(projectId: string): void {
   if (projectId !== "project_001") {
-    throw new Error(`Local runtime mirror is currently scoped to project_001 only. Received: ${projectId}`);
+    throw new Error(`Live local runtime capture is currently scoped to project_001 only. Received: ${projectId}`);
   }
 }
 
@@ -95,7 +101,7 @@ function getLocalRuntimeMirrorPaths(projectId: string): {
   filesRoot: string;
   manifestPath: string;
 } {
-  assertSupportedProject(projectId);
+  assertValidProjectId(projectId);
   const mirrorRoot = path.join(workspaceRoot, "40_projects", projectId, "runtime", "local-mirror");
   return {
     mirrorRoot,
@@ -125,7 +131,7 @@ function buildEmptyMirrorStatus(projectId: string, publicEntryUrl: string | null
 }
 
 function getMirrorLaunchUrl(projectId: string): string {
-  assertSupportedProject(projectId);
+  assertValidProjectId(projectId);
   return `http://127.0.0.1:${localMirrorPort}/runtime/${projectId}/launch`;
 }
 
@@ -134,13 +140,13 @@ export function getLocalRuntimeMirrorPort(): number {
 }
 
 export function buildLocalRuntimeMirrorAssetUrl(projectId: string, relativePath: string): string {
-  assertSupportedProject(projectId);
+  assertValidProjectId(projectId);
   const normalizedRelativePath = relativePath.replace(/^\/+/, "");
   return `http://127.0.0.1:${localMirrorPort}/runtime/${projectId}/assets/${normalizedRelativePath}`;
 }
 
 export function buildLocalRuntimeMirrorProxyUrl(projectId: string, sourceUrl: string): string {
-  assertSupportedProject(projectId);
+  assertValidProjectId(projectId);
   const encoded = encodeURIComponent(sourceUrl);
   return `http://127.0.0.1:${localMirrorPort}/runtime/${projectId}/mirror?source=${encoded}`;
 }
@@ -593,7 +599,7 @@ async function writeMirrorEntryIfAvailable(projectId: string, sourceUrl: string)
 }
 
 export async function captureLocalRuntimeMirror(projectId: string): Promise<CapturedRuntimeMirrorResult> {
-  assertSupportedProject(projectId);
+  assertProjectSupportsLiveRuntimeCapture(projectId);
   const sessionReadme = await readOptionalTextFile(donorRuntimeSessionReadme);
   const publicEntryUrl = sessionReadme ? extractPublicEntryUrl(sessionReadme) : null;
   if (!publicEntryUrl) {
@@ -689,12 +695,13 @@ export async function captureLocalRuntimeMirror(projectId: string): Promise<Capt
 }
 
 export async function buildLocalRuntimeMirrorStatus(projectId: string): Promise<LocalRuntimeMirrorStatus> {
-  assertSupportedProject(projectId);
-  const sessionReadme = await readOptionalTextFile(donorRuntimeSessionReadme);
+  const sessionReadme = projectId === "project_001"
+    ? await readOptionalTextFile(donorRuntimeSessionReadme)
+    : null;
   const publicEntryUrl = sessionReadme ? extractPublicEntryUrl(sessionReadme) : null;
   const manifest = await readManifest(projectId);
   if (!manifest) {
-    return buildEmptyMirrorStatus(projectId, publicEntryUrl, "No local runtime mirror has been captured for project_001 yet.");
+    return buildEmptyMirrorStatus(projectId, publicEntryUrl, "No local runtime mirror has been captured for this project yet.");
   }
 
   const { mirrorRoot, manifestPath } = getLocalRuntimeMirrorPaths(projectId);
@@ -842,7 +849,7 @@ export async function buildLocalRuntimeLaunchHtml(projectId: string): Promise<{
   finalUrl: string;
   publicEntryUrl: string;
 }> {
-  assertSupportedProject(projectId);
+  assertProjectSupportsLiveRuntimeCapture(projectId);
   const status = await buildLocalRuntimeMirrorStatus(projectId);
   const publicEntryUrl = status.publicEntryUrl;
   if (!publicEntryUrl) {

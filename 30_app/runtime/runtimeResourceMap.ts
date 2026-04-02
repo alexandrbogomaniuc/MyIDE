@@ -86,9 +86,9 @@ export interface RecordRuntimeResourceRequestInput {
 const workspaceRoot = path.resolve(__dirname, "../../..");
 const runtimeResourceMaps = new Map<string, Map<string, RuntimeResourceMapEntry>>();
 
-function assertSupportedProject(projectId: string): void {
-  if (projectId !== "project_001") {
-    throw new Error(`Runtime resource map is currently scoped to project_001 only. Received: ${projectId}`);
+function assertValidProjectId(projectId: string): void {
+  if (typeof projectId !== "string" || !/^[A-Za-z0-9._-]+$/.test(projectId)) {
+    throw new Error(`Runtime resource map requires a safe projectId. Received: ${String(projectId)}`);
   }
 }
 
@@ -101,7 +101,7 @@ function toRepoRelativePath(filePath: string | null | undefined): string | null 
 }
 
 function getRuntimeResourceMapSnapshotPath(projectId: string): string {
-  assertSupportedProject(projectId);
+  assertValidProjectId(projectId);
   return path.join(workspaceRoot, "40_projects", projectId, "runtime", "local-mirror", "request-log.latest.json");
 }
 
@@ -318,13 +318,13 @@ export function getRuntimeResourceMapSnapshotRepoRelativePath(projectId: string)
 }
 
 export function resetRuntimeResourceMap(projectId: string): RuntimeResourceMapStatus {
-  assertSupportedProject(projectId);
+  assertValidProjectId(projectId);
   runtimeResourceMaps.set(projectId, new Map<string, RuntimeResourceMapEntry>());
   return buildRuntimeResourceMapStatus(projectId);
 }
 
 export function recordRuntimeResourceRequest(input: RecordRuntimeResourceRequestInput): RuntimeResourceMapEntry {
-  assertSupportedProject(input.projectId);
+  assertValidProjectId(input.projectId);
   const resourceMap = getProjectRuntimeResourceMap(input.projectId);
   const canonicalSourceUrl = String(input.canonicalSourceUrl || input.requestUrl);
   const existing = resourceMap.get(canonicalSourceUrl);
@@ -366,7 +366,7 @@ export function recordRuntimeResourceRequest(input: RecordRuntimeResourceRequest
 }
 
 export function buildRuntimeResourceMapStatus(projectId: string): RuntimeResourceMapStatus {
-  assertSupportedProject(projectId);
+  assertValidProjectId(projectId);
   const entries = Array.from(getProjectRuntimeResourceMap(projectId).values())
     .sort((left, right) => {
       const rightStamp = right.lastHitAtUtc ?? "";
@@ -387,8 +387,25 @@ export function buildRuntimeResourceMapStatus(projectId: string): RuntimeResourc
   };
 }
 
+export async function loadRuntimeResourceMapStatus(projectId: string): Promise<RuntimeResourceMapStatus> {
+  assertValidProjectId(projectId);
+  const resourceMap = getProjectRuntimeResourceMap(projectId);
+  if (resourceMap.size === 0) {
+    const snapshot = await readRuntimeResourceMapSnapshot(projectId);
+    for (const entry of snapshot?.entries ?? []) {
+      resourceMap.set(entry.canonicalSourceUrl, {
+        ...entry,
+        captureMethods: [...entry.captureMethods],
+        stageHitCounts: { ...entry.stageHitCounts }
+      });
+    }
+  }
+
+  return buildRuntimeResourceMapStatus(projectId);
+}
+
 export async function exportRuntimeResourceMapSnapshot(projectId: string): Promise<RuntimeResourceMapStatus> {
-  assertSupportedProject(projectId);
+  assertValidProjectId(projectId);
   const snapshotPath = getRuntimeResourceMapSnapshotPath(projectId);
   const status = buildRuntimeResourceMapStatus(projectId);
   await fs.mkdir(path.dirname(snapshotPath), { recursive: true });
@@ -397,7 +414,7 @@ export async function exportRuntimeResourceMapSnapshot(projectId: string): Promi
 }
 
 export function exportRuntimeResourceMapSnapshotSync(projectId: string): RuntimeResourceMapStatus {
-  assertSupportedProject(projectId);
+  assertValidProjectId(projectId);
   const snapshotPath = getRuntimeResourceMapSnapshotPath(projectId);
   const status = buildRuntimeResourceMapStatus(projectId);
   mkdirSync(path.dirname(snapshotPath), { recursive: true });
@@ -406,7 +423,7 @@ export function exportRuntimeResourceMapSnapshotSync(projectId: string): Runtime
 }
 
 export async function readRuntimeResourceMapSnapshot(projectId: string): Promise<RuntimeResourceMapStatus | null> {
-  assertSupportedProject(projectId);
+  assertValidProjectId(projectId);
   const snapshotPath = getRuntimeResourceMapSnapshotPath(projectId);
 
   try {

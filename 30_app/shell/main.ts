@@ -33,6 +33,7 @@ import {
 } from "../runtime/localRuntimeMirror";
 import {
   buildRuntimeResourceMapStatus,
+  loadRuntimeResourceMapStatus,
   exportRuntimeResourceMapSnapshotSync,
   recordRuntimeResourceRequest,
   resetRuntimeResourceMap
@@ -2338,7 +2339,7 @@ ipcMain.handle("myide:save-project-editor", async (_event, projectId: string, da
   return saveEditableProjectData(path.resolve(__dirname, "../../..", selectedProject.keyPaths.projectRoot), data);
 });
 ipcMain.handle("myide:get-runtime-resource-map", async (_event, projectId: string) => {
-  return buildRuntimeResourceMapStatus(projectId);
+  return loadRuntimeResourceMapStatus(projectId);
 });
 ipcMain.handle("myide:save-runtime-page-proof", async (_event, projectId: string, proof: SaveRuntimePageProofInput) => {
   return saveRuntimePageProof(projectId, proof);

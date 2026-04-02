@@ -35,7 +35,7 @@ import {
   type LocalRuntimeMirrorStatus
 } from "../runtime/localRuntimeMirror";
 import {
-  buildRuntimeResourceMapStatus,
+  loadRuntimeResourceMapStatus,
   type RuntimeResourceMapStatus
 } from "../runtime/runtimeResourceMap";
 import {
@@ -3241,8 +3241,46 @@ async function buildRuntimeLaunchStatus(
   selectedProjectId: string,
   runtimeMirror: LocalRuntimeMirrorStatus | null
 ): Promise<RuntimeLaunchStatus | null> {
+  const runtimeMirrorSourcePaths = runtimeMirror
+    ? [
+      runtimeMirror.manifestRepoRelativePath,
+      runtimeMirror.mirrorRootRepoRelativePath
+    ]
+    : [];
+
   if (selectedProjectId !== "project_001") {
-    return null;
+    return {
+      projectId: selectedProjectId,
+      availability: "blocked",
+      launchSurface: "blocked",
+      localRuntimePackageAvailable: Boolean(runtimeMirror?.available),
+      blocker: runtimeMirror?.available
+        ? "A project-local runtime mirror is indexed for this project, but integrated Runtime Mode launch is still only grounded for the validated project."
+        : runtimeMirror?.blocker ?? "No grounded donor runtime entry is indexed for this project yet.",
+      entryUrl: null,
+      resolvedRuntimeHost: runtimeMirror?.publicEntryUrl ?? null,
+      runtimeSourceLabel: "Blocked",
+      captureSessionId: null,
+      evidenceIds: [],
+      sourcePaths: runtimeMirrorSourcePaths,
+      availableActions: [],
+      roundId: null,
+      currencyCode: null,
+      wrapperVersion: null,
+      buildVersion: null,
+      gameVersion: null,
+      pixiVersion: null,
+      spineVersion: null,
+      observedAssetGroups: [],
+      notes: runtimeMirror?.available
+        ? [
+          "A project-local runtime mirror is present for this project.",
+          "Integrated Runtime Mode launch is still only grounded for the validated project, so Compose and runtime evidence remain the truthful path here."
+        ]
+        : [
+          "No grounded donor runtime entry is indexed for this project yet."
+        ]
+    };
   }
 
   const [sessionReadme, observationNotes, initResponse] = await Promise.all([
@@ -3314,13 +3352,6 @@ async function buildRuntimeLaunchStatus(
     "Runtime Mode launches the recorded public donor runtime URL inside the shell when available.",
     "No local donor HTML/runtime package is present under the project_001 donor local-only roots."
   ];
-
-  const runtimeMirrorSourcePaths = runtimeMirror?.available
-    ? [
-      runtimeMirror.manifestRepoRelativePath,
-      runtimeMirror.mirrorRootRepoRelativePath
-    ]
-    : [];
 
   if (!entryUrl) {
     return {
@@ -3788,17 +3819,17 @@ export async function loadProjectSlice(requestedProjectId?: string): Promise<Pro
   const donorAssetCatalog = await loadDonorAssetCatalog(selectedProject, selectedProjectId);
   const donorScan = await loadDonorScanStatus(selectedProject);
   const investigation = await loadInvestigationStatus(selectedProject);
-  const runtimeMirror = selectedProjectId === "project_001"
+  const runtimeMirror = selectedProject
     ? await buildLocalRuntimeMirrorStatus(selectedProjectId)
     : null;
   const runtimeLaunch = await buildRuntimeLaunchStatus(selectedProjectId, runtimeMirror);
-  const runtimeResourceMap = selectedProjectId === "project_001"
-    ? buildRuntimeResourceMapStatus(selectedProjectId)
+  const runtimeResourceMap = selectedProject
+    ? await loadRuntimeResourceMapStatus(selectedProjectId)
     : null;
   const runtimePageProofs = selectedProject
     ? await buildRuntimePageProofStatus(selectedProjectId)
     : null;
-  const runtimeOverrides = selectedProjectId === "project_001"
+  const runtimeOverrides = selectedProject
     ? await buildRuntimeAssetOverrideStatus(selectedProjectId)
     : null;
   const editableProject = await loadSelectedEditableProject(workspace, selectedProjectId);
