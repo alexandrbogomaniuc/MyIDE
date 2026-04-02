@@ -29,6 +29,7 @@ interface LiveDonorImportPayload {
   sourceEvidenceFocusCompleted?: boolean;
   taskKitPageRuntimeTraceCompleted?: boolean;
   taskKitPageRuntimeTraceMode?: string | null;
+  taskKitPageRuntimeProfileId?: string | null;
   taskKitPageRuntimeSourceUrl?: string | null;
   taskKitPageRuntimeSourceLabel?: string | null;
   taskKitPageRuntimeBlocked?: string | null;
@@ -442,6 +443,13 @@ async function main(): Promise<void> {
         || payload.taskKitPageRuntimeTraceMode === "debug-host-blocked",
       "Renderer did not report whether the page-aware runtime trace used a matched workbench source, a passing Debug Host proof, or a concrete Debug Host blocker."
     );
+    if (payload.taskKitPageRuntimeTraceMode === "debug-host-pass" || payload.taskKitPageRuntimeTraceMode === "debug-host-blocked") {
+      assert.equal(
+        payload.taskKitPageRuntimeProfileId,
+        "max-bet",
+        "Renderer did not use the scenario-recommended bounded Runtime Debug Host profile for the active big_win task."
+      );
+    }
     assert.equal(payload.replacementPersistVerified, true, "Renderer did not preserve the donor-backed replacement layout/layer after reload.");
     assert.equal(payload.replacementLinkageVerified, true, "Renderer did not preserve donor linkage for the donor-backed replacement after reload.");
     assert.equal(payload.replacementReloadedLayerId, payload.replacementLayerId, "Renderer reloaded the donor-backed replacement on a different layer.");

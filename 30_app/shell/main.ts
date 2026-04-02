@@ -51,6 +51,7 @@ import { runFamilyAction } from "../../tools/donor-scan/runFamilyAction";
 import { runScenarioScan } from "../../tools/donor-scan/runScenarioScan";
 import { runPromotionQueue } from "../../tools/donor-scan/runPromotionQueue";
 import { runSectionAction } from "../../tools/donor-scan/runSectionAction";
+import { getScenarioProfile } from "../../tools/donor-scan/scenarioProfiles";
 
 const isBridgeSmokeMode = process.env.MYIDE_BRIDGE_SMOKE === "1";
 const isRuntimeDebugSmokeMode = process.env.MYIDE_RUNTIME_DEBUG_SMOKE === "1";
@@ -143,6 +144,7 @@ interface RuntimeDebugHostOptions {
   smokeMode?: boolean;
   closeWhenDone?: boolean;
   proofMode?: boolean;
+  profileId?: string | null;
 }
 
 type RuntimeDebugHostResult = Record<string, unknown>;
@@ -434,6 +436,9 @@ async function clearRuntimeWebviewCache(): Promise<{ cleared: true; partition: s
 async function clearRuntimeSessionCache(partition: string): Promise<{ cleared: true; partition: string }> {
   const runtimeSession = session.fromPartition(partition);
   await runtimeSession.clearCache();
+  await runtimeSession.clearStorageData({
+    storages: ["serviceworkers", "cachestorage"]
+  });
   return {
     cleared: true,
     partition
@@ -531,6 +536,39 @@ function sendRuntimeDebugSpace(window: BrowserWindow): void {
   }
 }
 
+function getRuntimeDebugProofProfile(profileId?: string | null) {
+  const requestedProfileId = typeof profileId === "string" && profileId.trim().length > 0
+    ? profileId.trim()
+    : (process.env.MYIDE_RUNTIME_DEBUG_PROFILE ?? "autoplay");
+  return getScenarioProfile(requestedProfileId) ?? getScenarioProfile("autoplay") ?? null;
+}
+
+async function runRuntimeDebugProofSequence(window: BrowserWindow, profileId?: string | null): Promise<{
+  profileId: string | null;
+  spinCountAttempted: number;
+}> {
+  const profile = getRuntimeDebugProofProfile(profileId);
+  const actionSet = new Set(Array.isArray(profile?.suggestedRuntimeActions) ? profile.suggestedRuntimeActions : []);
+  const spinCount = actionSet.has("spin") ? Math.max(1, Number(profile?.boundedSpinCount ?? 1)) : 0;
+
+  if (actionSet.has("enter")) {
+    setRuntimeRequestStage("enter");
+    await sendRuntimeDebugCenterClick(window);
+    await delay(1500);
+  }
+
+  for (let index = 0; index < spinCount; index += 1) {
+    setRuntimeRequestStage("spin");
+    sendRuntimeDebugSpace(window);
+    await delay(1600);
+  }
+
+  return {
+    profileId: profile?.profileId ?? null,
+    spinCountAttempted: spinCount
+  };
+}
+
 async function loadPreferredRuntimeDebugDonorAsset(): Promise<IndexedDonorAsset | null> {
   const donorIndex = await readProjectDonorAssetIndex("project_001") ?? await buildProjectDonorAssetIndex("project_001");
   return donorIndex.assets.find((entry) => entry.fileType === "png")
@@ -546,6 +584,7 @@ async function runRuntimeDebugHost(options: RuntimeDebugHostOptions = {}): Promi
   const smokeMode = options.smokeMode ?? isRuntimeDebugSmokeMode;
   const closeWhenDone = options.closeWhenDone ?? !showWindow;
   const proofMode = options.proofMode ?? smokeMode;
+  const proofProfileId = options.profileId ?? null;
 
   if (smokeMode) {
     console.log("MYIDE_RUNTIME_DEBUG_MAIN_READY");
@@ -720,13 +759,7 @@ async function runRuntimeDebugHost(options: RuntimeDebugHostOptions = {}): Promi
       return payload;
     }
 
-    setRuntimeRequestStage("start");
-    await sendRuntimeDebugCenterClick(debugWindow);
-    await delay(2500);
-
-    setRuntimeRequestStage("spin");
-    sendRuntimeDebugSpace(debugWindow);
-    await delay(2500);
+    const proofSequence = await runRuntimeDebugProofSequence(debugWindow, proofProfileId);
 
     const statusBeforeOverride = await safeExecuteDebugScript<RuntimeDebugBridgeStatus>(debugWindow, buildRuntimeDebugStatusScript());
     const bridgeAssetCandidate = selectRuntimeDebugBridgeAssetCandidate(statusBeforeOverride);
@@ -823,6 +856,8 @@ async function runRuntimeDebugHost(options: RuntimeDebugHostOptions = {}): Promi
       candidateCaptureMethods: candidate?.captureMethods ?? [],
       localMirrorSourcePath: candidate?.localMirrorRepoRelativePath ?? null,
       overrideDonorAssetId: donorAsset?.assetId ?? null,
+      proofProfileId: proofSequence.profileId,
+      proofSpinCountAttempted: proofSequence.spinCountAttempted,
       overrideCreated,
       overrideCleared,
       overrideHitCountAfterReload,
@@ -2204,8 +2239,9 @@ ipcMain.handle("myide:set-runtime-request-stage", async (_event, stage: string) 
   return { stage: runtimeRequestStage };
 });
 ipcMain.handle("myide:clear-runtime-cache", async () => clearRuntimeWebviewCache());
-ipcMain.handle("myide:open-runtime-debug-host", async () => {
+ipcMain.handle("myide:open-runtime-debug-host", async (_event, options?: RuntimeDebugHostOptions | null) => {
   return runRuntimeDebugHost({
+    ...(options ?? {}),
     showWindow: true,
     smokeMode: false,
     closeWhenDone: false

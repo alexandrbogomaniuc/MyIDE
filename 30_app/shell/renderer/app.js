@@ -3156,6 +3156,10 @@ async function clearRuntimeOverrideForSource(sourceUrl, options = {}) {
 
 async function openRuntimeDebugHostWindow(options = {}) {
   const switchToRuntime = options?.switchToRuntime === true;
+  const proofMode = options?.proofMode === true;
+  const profileId = typeof options?.profileId === "string" && options.profileId.trim().length > 0
+    ? options.profileId.trim()
+    : null;
   const statusPrefix = typeof options?.statusPrefix === "string" && options.statusPrefix.trim().length > 0
     ? options.statusPrefix.trim()
     : null;
@@ -3165,7 +3169,14 @@ async function openRuntimeDebugHostWindow(options = {}) {
     return null;
   }
 
-  const result = await api.openRuntimeDebugHost();
+  const result = await api.openRuntimeDebugHost(
+    proofMode || profileId
+      ? {
+          proofMode,
+          profileId
+        }
+      : undefined
+  );
   state.runtimeUi.debugHost = result ?? null;
   await refreshRuntimeResourceMap({ silent: true });
   if (typeof result?.candidateRuntimeSourceUrl === "string" && result.candidateRuntimeSourceUrl.length > 0) {
@@ -4594,6 +4605,7 @@ async function runLiveDonorImportSmoke() {
     sourceEvidenceFocusCompleted: false,
     taskKitPageRuntimeTraceCompleted: false,
     taskKitPageRuntimeTraceMode: null,
+    taskKitPageRuntimeProfileId: null,
     taskKitPageRuntimeSourceUrl: null,
     taskKitPageRuntimeSourceLabel: null,
     taskKitPageRuntimeBlocked: null,
@@ -4904,6 +4916,9 @@ async function runLiveDonorImportSmoke() {
       baseResult.taskKitPageRuntimeTraceMode = debugHostResult?.status === "pass"
         ? "debug-host-pass"
         : "debug-host-blocked";
+      baseResult.taskKitPageRuntimeProfileId = typeof debugHostResult?.proofProfileId === "string"
+        ? debugHostResult.proofProfileId
+        : null;
       baseResult.taskKitPageRuntimeSourceUrl = debugHostResult?.candidateRuntimeSourceUrl ?? null;
       baseResult.taskKitPageRuntimeSourceLabel = runtimeLabel;
       baseResult.taskKitPageRuntimeBlocked = debugHostResult?.error ?? debugHostResult?.overrideBlocked ?? null;
@@ -12917,9 +12932,15 @@ function handleNavigationClick(event) {
   if (taskDebugHostButton instanceof HTMLElement) {
     event.preventDefault();
     const runtimeLabel = taskDebugHostButton.dataset.taskReconstructionRuntimeLabel ?? "Page cue";
+    const runtimeProfileId = typeof taskDebugHostButton.dataset.taskReconstructionRuntimeProfileId === "string"
+      && taskDebugHostButton.dataset.taskReconstructionRuntimeProfileId.length > 0
+      ? taskDebugHostButton.dataset.taskReconstructionRuntimeProfileId
+      : "autoplay";
     void openRuntimeDebugHostWindow({
+      proofMode: true,
+      profileId: runtimeProfileId,
       switchToRuntime: true,
-      statusPrefix: `${runtimeLabel} requested the stronger Runtime Debug Host proof path`
+      statusPrefix: `${runtimeLabel} requested the stronger Runtime Debug Host proof path using ${labelizeStatus(runtimeProfileId)}`
     });
     return true;
   }
@@ -19578,6 +19599,7 @@ function renderInspector() {
                           class="copy-button"
                           data-task-reconstruction-open-debug-host="1"
                           data-task-reconstruction-runtime-label="${escapeAttribute(page.pageName)}"
+                          data-task-reconstruction-runtime-profile-id="${escapeAttribute(taskSectionContext.task.recommendedRuntimeProfile ?? "autoplay")}"
                           title="Use the dedicated Runtime Debug Host when this page cue has no loaded runtime trace yet"
                         >Use Debug Host</button>
                       ` : ""}

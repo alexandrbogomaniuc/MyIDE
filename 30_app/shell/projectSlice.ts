@@ -22,6 +22,10 @@ import {
   type RuntimeAssetOverrideStatus
 } from "../workspace/donorOverride";
 import {
+  findScenarioDefinition,
+  matchScenarioIds
+} from "../investigation/scenarioCoverage";
+import {
   readProjectModificationHandoff,
   type ProjectModificationHandoffFile,
   type ProjectModificationTask
@@ -1074,6 +1078,7 @@ export interface ModificationHandoffSummary {
     supportingArtifactPaths: string[];
     preferredWorkflowPanel: string;
     preferredWorkbenchMode: string;
+    recommendedRuntimeProfile: string | null;
     nextAction: string;
     rationale: string;
     canOpenCompose: boolean;
@@ -3579,6 +3584,31 @@ async function loadInvestigationStatus(selectedProject: WorkspaceProjectSummary 
   };
 }
 
+function getRecommendedRuntimeProfileForTask(task: Pick<ProjectModificationTask, "displayName" | "familyName" | "sectionKey">): string | null {
+  const scenarioIds = Array.from(new Set([
+    ...matchScenarioIds(task.familyName ?? ""),
+    ...matchScenarioIds(task.sectionKey ?? ""),
+    ...matchScenarioIds(task.displayName ?? "")
+  ]));
+  const scenarioDefinitions = scenarioIds
+    .map((scenarioId) => findScenarioDefinition(scenarioId))
+    .filter((definition): definition is NonNullable<typeof definition> => Boolean(definition))
+    .sort((left, right) => left.order - right.order);
+
+  for (const definition of scenarioDefinitions) {
+    const boundedProfile = definition.recommendedProfiles.find((profileId) => (
+      profileId === "default-bet"
+      || profileId === "max-bet"
+      || profileId === "autoplay"
+    ));
+    if (boundedProfile) {
+      return boundedProfile;
+    }
+  }
+
+  return null;
+}
+
 async function loadModificationHandoffStatus(selectedProject: WorkspaceProjectSummary | null): Promise<ModificationHandoffSummary | null> {
   if (!selectedProject) {
     return null;
@@ -3647,6 +3677,7 @@ async function loadModificationHandoffStatus(selectedProject: WorkspaceProjectSu
         : [],
       preferredWorkflowPanel: typeof task.preferredWorkflowPanel === "string" ? task.preferredWorkflowPanel : "compose",
       preferredWorkbenchMode: typeof task.preferredWorkbenchMode === "string" ? task.preferredWorkbenchMode : "scene",
+      recommendedRuntimeProfile: getRecommendedRuntimeProfileForTask(task),
       nextAction: typeof task.nextAction === "string" ? task.nextAction : "Open Modification / Compose and continue from the strongest prepared artifact.",
       rationale: typeof task.rationale === "string" ? task.rationale : "Prepared modification task is grounded by the strongest available donor-scan artifact.",
       canOpenCompose: Boolean(task.canOpenCompose ?? true),

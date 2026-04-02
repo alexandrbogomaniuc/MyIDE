@@ -154,7 +154,7 @@ contextBridge.exposeInMainWorld("myideApi", {
   resetRuntimeResourceMap: (projectId: string): Promise<unknown> => ipcRenderer.invoke("myide:reset-runtime-resource-map", projectId),
   setRuntimeRequestStage: (stage: string): Promise<unknown> => ipcRenderer.invoke("myide:set-runtime-request-stage", stage),
   clearRuntimeCache: (): Promise<unknown> => ipcRenderer.invoke("myide:clear-runtime-cache"),
-  openRuntimeDebugHost: (): Promise<unknown> => ipcRenderer.invoke("myide:open-runtime-debug-host"),
+  openRuntimeDebugHost: (options?: Record<string, unknown>): Promise<unknown> => ipcRenderer.invoke("myide:open-runtime-debug-host", options ?? null),
   runDonorScanCapture: (donorId: string, limit?: number, family?: string, mode?: string): Promise<unknown> => ipcRenderer.invoke("myide:run-donor-scan-capture", donorId, limit, family, mode),
   runDonorScanFamilyAction: (donorId: string, family: string, limit?: number): Promise<unknown> => ipcRenderer.invoke("myide:run-donor-scan-family-action", donorId, family, limit),
   runDonorScenarioProfile: (donorId: string, profileId: string, minutes?: number, donorName?: string): Promise<unknown> => ipcRenderer.invoke("myide:run-donor-scan-scenario", donorId, profileId, minutes, donorName),
