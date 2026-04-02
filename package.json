@@ -82,6 +82,7 @@
     "smoke:electron-live-align": "npm run build && node dist/50_tests/workspace/electron-live-align-smoke.js",
     "smoke:electron-live-undo-redo": "npm run build && node dist/50_tests/workspace/electron-live-undo-redo-smoke.js",
     "smoke:electron-donor-import": "npm run build && node dist/50_tests/workspace/electron-donor-import-smoke.js",
+    "smoke:electron-runtime-page-proof-relaunch": "npm run build && node dist/50_tests/workspace/electron-runtime-page-proof-relaunch-smoke.js",
     "smoke:electron-runtime-debug": "npm run build && node dist/50_tests/workspace/electron-runtime-debug-smoke.js",
     "smoke:electron-runtime-mode": "npm run build && node dist/50_tests/workspace/electron-runtime-mode-smoke.js",
     "smoke:runtime-page-proof-storage": "npm run build && node dist/50_tests/workspace/runtime-page-proof-storage-smoke.js",

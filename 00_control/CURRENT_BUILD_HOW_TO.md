@@ -27,7 +27,7 @@ For the current build, Investigation is the important new truth surface. Use it 
 14. If you need grounded runtime proof for that same page cue, use **Open Page Runtime** when a page-linked runtime trace already exists, or **Use Debug Host** when the dedicated Runtime Debug Host is still the strongest truthful path.
 15. For the current `big_win/BW` slice, that Debug Host fallback is now page-scoped: it can recover the upstream `big-win` page asset identity even when the local mirror manifest does not already contain that page file, and it can still prove the bounded override hit after reload.
 16. After that Debug Host proof passes, reopen the same task page card: it should now offer a direct **Open Page Runtime** link for the proved source, and task-level **Open Runtime** should land on that same page-scoped runtime trace.
-17. Save the imported task, let the workspace sync, and reopen it once: the same page card should still expose the direct **Open Page Runtime** link after reload, and task-level **Open Runtime** should still land on the proved page-scoped runtime source without another Debug Host pass.
+17. Save the imported task, let the workspace sync, and reopen it after both workspace reload and a fresh app relaunch: the same page card should still expose the direct **Open Page Runtime** link, and task-level **Open Runtime** should still land on the proved page-scoped runtime source without another Debug Host pass.
 
 ## 1. Launch The Current Build
 1. Finder double-click daily start: `./run/Start-MyIDE-Workbench.command`.

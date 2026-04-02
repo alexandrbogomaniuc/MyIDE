@@ -282,6 +282,15 @@ function isLiveDonorImportSmokeMode() {
   }
 }
 
+function isLiveRuntimePageProofRelaunchSmokeMode() {
+  try {
+    const search = typeof window.location?.search === "string" ? window.location.search : "";
+    return new URLSearchParams(search).get("liveRuntimePageProofRelaunchSmoke") === "1";
+  } catch {
+    return false;
+  }
+}
+
 function isLiveRuntimeSmokeMode() {
   try {
     const search = typeof window.location?.search === "string" ? window.location.search : "";
@@ -529,6 +538,20 @@ async function emitLiveDonorImportSmoke(payload) {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.log(`MYIDE_LIVE_DONOR_IMPORT:${JSON.stringify({ status: "fail", error: `live donor import payload serialization failed: ${message}` })}`);
+  }
+}
+
+async function emitLiveRuntimePageProofRelaunchSmoke(payload) {
+  try {
+    if (window.myideApi && typeof window.myideApi.reportLiveRuntimePageProofRelaunchSmokeResult === "function") {
+      window.myideApi.reportLiveRuntimePageProofRelaunchSmokeResult(payload);
+      return;
+    }
+
+    console.log(`MYIDE_LIVE_RUNTIME_PAGE_PROOF_RELAUNCH:${JSON.stringify(payload)}`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.log(`MYIDE_LIVE_RUNTIME_PAGE_PROOF_RELAUNCH:${JSON.stringify({ status: "fail", error: `live runtime page proof relaunch payload serialization failed: ${message}` })}`);
   }
 }
 
@@ -787,6 +810,11 @@ async function bootRenderer() {
 
   if (isLiveDonorImportSmokeMode()) {
     await runLiveDonorImportSmoke();
+    return;
+  }
+
+  if (isLiveRuntimePageProofRelaunchSmokeMode()) {
+    await runLiveRuntimePageProofRelaunchSmoke();
     return;
   }
 
@@ -6095,6 +6123,135 @@ async function runLiveDonorImportSmoke() {
   }
 }
 
+async function runLiveRuntimePageProofRelaunchSmoke() {
+  const targetProjectId = "project_001";
+  const startedAt = new Date().toISOString();
+  const baseResult = {
+    startedAt,
+    projectId: targetProjectId,
+    preloadExecuted: Boolean(window.myideApi),
+    myideApiExposed: Boolean(window.myideApi && typeof window.myideApi.loadProjectSlice === "function"),
+    projectLoaded: false,
+    taskId: null,
+    pageName: null,
+    pageRuntimeProofLoaded: false,
+    pageRuntimeProofEntryCount: Array.isArray(state.bundle?.runtimePageProofs?.entries) ? state.bundle.runtimePageProofs.entries.length : 0,
+    pageRuntimeProofSourceUrl: null,
+    runtimeWorkbenchHasPageProofEntry: false,
+    taskRuntimeEntryKind: null,
+    taskRuntimeEntrySourceUrl: null,
+    taskRuntimeOpenUsesPersistedPageProof: false,
+    runtimeDebugHostStatePresent: false,
+    previewStatus: null
+  };
+
+  try {
+    const api = window.myideApi;
+    if (
+      !api
+      || typeof api.loadProjectSlice !== "function"
+      || typeof api.reportRendererReady !== "function"
+    ) {
+      throw new Error("Renderer live runtime page proof relaunch smoke could not access the required desktop bridge helpers.");
+    }
+
+    await waitForRendererCondition(
+      () => Boolean(state.bundle && getWorkspaceProjects().length > 0),
+      "workspace discovery for runtime page proof relaunch smoke"
+    );
+
+    if (state.selectedProjectId !== targetProjectId) {
+      const projectButton = await waitForRendererCondition(
+        () => elements.projectBrowser?.querySelector(`[data-project-id="${targetProjectId}"]`) ?? null,
+        `project browser entry for ${targetProjectId}`
+      );
+      clickRendererElement(projectButton);
+    }
+
+    await waitForRendererCondition(
+      () => state.selectedProjectId === targetProjectId && Boolean(state.bundle),
+      `${targetProjectId} to load for the runtime page proof relaunch smoke`
+    );
+    baseResult.projectLoaded = true;
+    baseResult.pageRuntimeProofEntryCount = Array.isArray(state.bundle?.runtimePageProofs?.entries)
+      ? state.bundle.runtimePageProofs.entries.length
+      : 0;
+
+    const tasksWithPageProof = getProjectModificationTasks()
+      .map((task) => {
+        const matchedPage = getProjectModificationTaskReconstructionPages(task)
+          .find((page) => getProjectModificationTaskPageRuntimeProofEntry(task.taskId, page.pageName)?.entry) ?? null;
+        if (!matchedPage) {
+          return null;
+        }
+
+        const pageProofEntry = getProjectModificationTaskPageRuntimeProofEntry(task.taskId, matchedPage.pageName);
+        return pageProofEntry?.entry
+          ? {
+            task,
+            page: matchedPage,
+            pageProofEntry
+          }
+          : null;
+      })
+      .filter(Boolean);
+    const matchedTaskProof = tasksWithPageProof[0] ?? null;
+    if (!matchedTaskProof?.pageProofEntry?.entry?.sourceUrl) {
+      throw new Error("No persisted page runtime proof is available to verify across a fresh app relaunch.");
+    }
+
+    baseResult.taskId = matchedTaskProof.task.taskId;
+    baseResult.pageName = matchedTaskProof.page.pageName;
+    baseResult.pageRuntimeProofLoaded = true;
+    baseResult.pageRuntimeProofSourceUrl = matchedTaskProof.pageProofEntry.entry.sourceUrl;
+
+    const persistedWorkbenchEntry = getRuntimeWorkbenchEntries()
+      .find((entry) => entry?.kind === "page-runtime-proof" && entry?.sourceUrl === matchedTaskProof.pageProofEntry.entry.sourceUrl) ?? null;
+    baseResult.runtimeWorkbenchHasPageProofEntry = Boolean(persistedWorkbenchEntry);
+
+    const taskRuntimeMatch = getProjectModificationTaskRuntimeMatchForPage(matchedTaskProof.task, matchedTaskProof.page);
+    baseResult.taskRuntimeEntryKind = taskRuntimeMatch?.matchKind ?? null;
+
+    const taskRuntimeEntry = getRuntimeWorkbenchEntryForModificationTask(matchedTaskProof.task);
+    if (!taskRuntimeEntry?.sourceUrl) {
+      throw new Error(`Task ${matchedTaskProof.task.taskId} did not reopen with a runtime workbench entry from the persisted page proof.`);
+    }
+    baseResult.taskRuntimeEntrySourceUrl = taskRuntimeEntry.sourceUrl;
+
+    if (taskRuntimeEntry.sourceUrl !== matchedTaskProof.pageProofEntry.entry.sourceUrl) {
+      throw new Error(`Task ${matchedTaskProof.task.taskId} did not prefer the persisted page proof on fresh relaunch.`);
+    }
+
+    openProjectModificationTask(matchedTaskProof.task.taskId, "runtime");
+    await waitForRendererCondition(
+      () => state.workflowUi?.activePanel === "runtime"
+        && state.workbenchMode === "runtime"
+        && getRuntimeWorkbenchSourceUrl() === matchedTaskProof.pageProofEntry.entry.sourceUrl,
+      `${matchedTaskProof.task.taskId} task runtime open to use the persisted page runtime proof after fresh relaunch`
+    );
+
+    baseResult.taskRuntimeOpenUsesPersistedPageProof = true;
+    baseResult.runtimeDebugHostStatePresent = Boolean(state.runtimeUi?.debugHost?.status);
+    baseResult.previewStatus = elements.previewStatus?.textContent?.trim() ?? null;
+    document.body.dataset.liveRuntimePageProofRelaunchSmoke = "pass";
+    await emitLiveRuntimePageProofRelaunchSmoke({
+      ...baseResult,
+      status: "pass"
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const failureMessage = `Live runtime page proof relaunch smoke failed: ${message}`;
+    setPreviewStatus(failureMessage);
+    document.body.dataset.liveRuntimePageProofRelaunchSmoke = "fail";
+    await emitLiveRuntimePageProofRelaunchSmoke({
+      ...baseResult,
+      status: "fail",
+      error: message,
+      previewStatus: failureMessage
+    });
+  }
+}
+
 async function runLiveUndoRedoSmoke() {
   const targetProjectId = "project_001";
   const presetKey = "banner";
@@ -9746,6 +9903,62 @@ function setProjectModificationTaskPageRuntimeProof(taskId, pageName, proof, opt
   return nextProofs[proofKey] ?? null;
 }
 
+async function persistProjectModificationTaskPageRuntimeProof({
+  taskId = null,
+  pageName = null,
+  sourceUrl = null,
+  runtimeLabel = null,
+  profileId = null,
+  requestSource = null,
+  requestBacked = true,
+  relativePath = null,
+  localMirrorRepoRelativePath = null,
+  overrideHitCountAfterReload = 0
+} = {}) {
+  if (!taskId || !pageName || typeof sourceUrl !== "string" || sourceUrl.length === 0) {
+    return null;
+  }
+
+  const canonicalSourceUrl = getRuntimeCanonicalSourceUrl(sourceUrl) ?? sourceUrl;
+  const proof = {
+    sourceUrl: canonicalSourceUrl,
+    runtimeLabel: runtimeLabel ?? pageName,
+    profileId: typeof profileId === "string" && profileId.length > 0 ? profileId : null,
+    requestSource: typeof requestSource === "string" && requestSource.length > 0 ? requestSource : null,
+    requestBacked: requestBacked !== false,
+    relativePath: typeof relativePath === "string" && relativePath.length > 0 ? relativePath : null,
+    localMirrorRepoRelativePath: typeof localMirrorRepoRelativePath === "string" && localMirrorRepoRelativePath.length > 0 ? localMirrorRepoRelativePath : null,
+    overrideHitCountAfterReload: Number(overrideHitCountAfterReload ?? 0),
+    savedAtUtc: new Date().toISOString()
+  };
+
+  setProjectModificationTaskPageRuntimeProof(taskId, pageName, proof, { render: false });
+  const api = window.myideApi;
+  if (api && typeof api.saveRuntimePageProof === "function" && typeof state.selectedProjectId === "string" && state.selectedProjectId.length > 0) {
+    try {
+      const persistedStatus = await api.saveRuntimePageProof(state.selectedProjectId, {
+        taskId,
+        pageName,
+        sourceUrl: proof.sourceUrl,
+        runtimeLabel: proof.runtimeLabel,
+        profileId: proof.profileId,
+        requestSource: proof.requestSource,
+        requestBacked: proof.requestBacked,
+        relativePath: proof.relativePath,
+        localMirrorRepoRelativePath: proof.localMirrorRepoRelativePath,
+        overrideHitCountAfterReload: proof.overrideHitCountAfterReload
+      });
+      if (persistedStatus) {
+        applyProjectModificationTaskPageRuntimeProofStatus(persistedStatus, { render: false });
+      }
+    } catch (error) {
+      pushLog(`Could not persist page runtime proof for ${taskId}/${pageName}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  return proof;
+}
+
 function getRuntimeWorkbenchEntryBySourceUrl(sourceUrl) {
   const canonicalSourceUrl = typeof sourceUrl === "string" && sourceUrl.length > 0
     ? (getRuntimeCanonicalSourceUrl(sourceUrl) ?? sourceUrl)
@@ -10165,7 +10378,9 @@ async function proveProjectModificationTaskPageRuntime({
       statusPrefix: `${runtimeLabel ?? pageName ?? "Page cue"} requested the stronger Runtime Debug Host proof path using ${labelizeStatus(runtimeProfileId ?? "autoplay")}`
   });
   if (taskId && pageName && typeof result?.candidateRuntimeSourceUrl === "string" && result.candidateRuntimeSourceUrl.length > 0) {
-    const proof = {
+    await persistProjectModificationTaskPageRuntimeProof({
+      taskId,
+      pageName,
       sourceUrl: result.candidateRuntimeSourceUrl,
       runtimeLabel: runtimeLabel ?? pageName,
       profileId: typeof result?.proofProfileId === "string" ? result.proofProfileId : (runtimeProfileId ?? null),
@@ -10173,32 +10388,8 @@ async function proveProjectModificationTaskPageRuntime({
       requestBacked: true,
       relativePath: typeof result?.candidateRuntimeRelativePath === "string" ? result.candidateRuntimeRelativePath : null,
       localMirrorRepoRelativePath: typeof result?.localMirrorSourcePath === "string" ? result.localMirrorSourcePath : null,
-      overrideHitCountAfterReload: Number(result?.overrideHitCountAfterReload ?? 0),
-      savedAtUtc: new Date().toISOString()
-    };
-    setProjectModificationTaskPageRuntimeProof(taskId, pageName, proof, { render: false });
-    const api = window.myideApi;
-    if (api && typeof api.saveRuntimePageProof === "function" && typeof state.selectedProjectId === "string" && state.selectedProjectId.length > 0) {
-      try {
-        const persistedStatus = await api.saveRuntimePageProof(state.selectedProjectId, {
-          taskId,
-          pageName,
-          sourceUrl: proof.sourceUrl,
-          runtimeLabel: proof.runtimeLabel,
-          profileId: proof.profileId,
-          requestSource: proof.requestSource,
-          requestBacked: proof.requestBacked,
-          relativePath: proof.relativePath,
-          localMirrorRepoRelativePath: proof.localMirrorRepoRelativePath,
-          overrideHitCountAfterReload: proof.overrideHitCountAfterReload
-        });
-        if (persistedStatus) {
-          applyProjectModificationTaskPageRuntimeProofStatus(persistedStatus, { render: false });
-        }
-      } catch (error) {
-        pushLog(`Could not persist page runtime proof for ${taskId}/${pageName}: ${error instanceof Error ? error.message : String(error)}`);
-      }
-    }
+      overrideHitCountAfterReload: Number(result?.overrideHitCountAfterReload ?? 0)
+    });
   }
 
   return result ?? null;
@@ -13262,6 +13453,26 @@ function handleNavigationClick(event) {
     const runtimeLabel = taskRuntimeTraceButton.dataset.taskReconstructionRuntimeLabel
       ?? getRuntimeResourceRelativePath(runtimeSourceUrl)
       ?? runtimeSourceUrl;
+    const taskId = typeof taskRuntimeTraceButton.dataset.taskReconstructionTaskId === "string"
+      && taskRuntimeTraceButton.dataset.taskReconstructionTaskId.length > 0
+      ? taskRuntimeTraceButton.dataset.taskReconstructionTaskId
+      : null;
+    const pageName = typeof taskRuntimeTraceButton.dataset.taskReconstructionPageName === "string"
+      && taskRuntimeTraceButton.dataset.taskReconstructionPageName.length > 0
+      ? taskRuntimeTraceButton.dataset.taskReconstructionPageName
+      : null;
+    const runtimeEntry = getRuntimeWorkbenchEntryBySourceUrl(runtimeSourceUrl);
+    void persistProjectModificationTaskPageRuntimeProof({
+      taskId,
+      pageName,
+      sourceUrl: runtimeSourceUrl,
+      runtimeLabel,
+      requestSource: runtimeEntry?.requestSource ?? null,
+      requestBacked: runtimeEntry?.requestBacked !== false,
+      relativePath: runtimeEntry?.relativePath ?? getRuntimeResourceRelativePath(runtimeSourceUrl),
+      localMirrorRepoRelativePath: runtimeEntry?.localMirrorRepoRelativePath ?? null,
+      overrideHitCountAfterReload: Number(runtimeEntry?.overrideHitCountAfterReload ?? 0)
+    });
     setRuntimeWorkbenchSource(runtimeSourceUrl, { render: false });
     setWorkbenchMode("runtime", { silent: true });
     state.workflowUi.activePanel = "runtime";
@@ -19954,6 +20165,8 @@ function renderInspector() {
                           type="button"
                           class="copy-button"
                           data-task-reconstruction-runtime-source-url="${escapeAttribute(pageRuntimeEntry.sourceUrl)}"
+                          data-task-reconstruction-task-id="${escapeAttribute(taskSectionContext.task.taskId)}"
+                          data-task-reconstruction-page-name="${escapeAttribute(page.pageName)}"
                           data-task-reconstruction-runtime-label="${escapeAttribute(page.pageName)}"
                           title="${page?.runtimeMatchKind === "debug-host-fallback"
                             ? "Open Runtime Mode on the best available Debug Host proof (not page-specific yet)"

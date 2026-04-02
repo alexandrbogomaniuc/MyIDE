@@ -65,6 +65,7 @@ const isLivePersistSmokeMode = process.env.MYIDE_LIVE_PERSIST_SMOKE === "1";
 const isLiveDragSmokeMode = process.env.MYIDE_LIVE_DRAG_SMOKE === "1";
 const isLiveCreateDragSmokeMode = process.env.MYIDE_LIVE_CREATE_DRAG_SMOKE === "1";
 const isLiveDonorImportSmokeMode = process.env.MYIDE_LIVE_DONOR_IMPORT_SMOKE === "1";
+const isLiveRuntimePageProofRelaunchSmokeMode = process.env.MYIDE_LIVE_RUNTIME_PAGE_PROOF_RELAUNCH_SMOKE === "1";
 const isLiveRuntimeSmokeMode = process.env.MYIDE_LIVE_RUNTIME_SMOKE === "1";
 const isLiveDuplicateDeleteSmokeMode = process.env.MYIDE_LIVE_DUPLICATE_DELETE_SMOKE === "1";
 const isLiveReorderSmokeMode = process.env.MYIDE_LIVE_REORDER_SMOKE === "1";
@@ -139,6 +140,11 @@ interface LiveRuntimeSmokePayload {
   error?: string;
 }
 
+interface LiveRuntimePageProofRelaunchSmokePayload {
+  status?: string;
+  error?: string;
+}
+
 interface RuntimeDebugSmokePayload {
   status?: string;
   error?: string;
@@ -191,6 +197,7 @@ let activeLivePersistSmokeReporter: ((payload: LivePersistSmokePayload) => void)
 let activeLiveDragSmokeReporter: ((payload: LiveDragSmokePayload) => void) | null = null;
 let activeLiveCreateDragSmokeReporter: ((payload: LiveCreateDragSmokePayload) => void) | null = null;
 let activeLiveDonorImportSmokeReporter: ((payload: LiveDonorImportSmokePayload) => void) | null = null;
+let activeLiveRuntimePageProofRelaunchSmokeReporter: ((payload: LiveRuntimePageProofRelaunchSmokePayload) => void) | null = null;
 let activeLiveRuntimeSmokeReporter: ((payload: LiveRuntimeSmokePayload) => void) | null = null;
 let activeLiveDuplicateDeleteSmokeReporter: ((payload: LiveDuplicateDeleteSmokePayload) => void) | null = null;
 let activeLiveReorderSmokeReporter: ((payload: LiveReorderSmokePayload) => void) | null = null;
@@ -306,6 +313,18 @@ function finishLiveCreateDragSmoke(exitCode: number, message: string): void {
 }
 
 function finishLiveDonorImportSmoke(exitCode: number, message: string): void {
+  if (exitCode === 0) {
+    console.log(message);
+  } else {
+    console.error(message);
+  }
+
+  setTimeout(() => {
+    app.exit(exitCode);
+  }, 0);
+}
+
+function finishLiveRuntimePageProofRelaunchSmoke(exitCode: number, message: string): void {
   if (exitCode === 0) {
     console.log(message);
   } else {
@@ -1783,6 +1802,43 @@ function attachLiveDonorImportSmokeHandlers(window: BrowserWindow): void {
   };
 }
 
+function attachLiveRuntimePageProofRelaunchSmokeHandlers(window: BrowserWindow): void {
+  if (!isLiveRuntimePageProofRelaunchSmokeMode) {
+    return;
+  }
+
+  console.log("MYIDE_LIVE_RUNTIME_PAGE_PROOF_RELAUNCH_MAIN_READY");
+  const timeoutMs = Number.parseInt(process.env.MYIDE_LIVE_RUNTIME_PAGE_PROOF_RELAUNCH_TIMEOUT_MS ?? "90000", 10);
+  const smokeTimeout = setTimeout(() => {
+    finishLiveRuntimePageProofRelaunchSmoke(1, "FAIL smoke:electron-runtime-page-proof-relaunch - timeout waiting for renderer relaunch payload");
+  }, Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 90000);
+
+  const clearSmokeTimeout = () => {
+    clearTimeout(smokeTimeout);
+  };
+
+  window.webContents.on("did-fail-load", (_event, errorCode, errorDescription) => {
+    clearSmokeTimeout();
+    finishLiveRuntimePageProofRelaunchSmoke(1, `FAIL smoke:electron-runtime-page-proof-relaunch - renderer failed to load (${errorCode} ${errorDescription})`);
+  });
+
+  window.webContents.on("render-process-gone", (_event, details) => {
+    clearSmokeTimeout();
+    finishLiveRuntimePageProofRelaunchSmoke(1, `FAIL smoke:electron-runtime-page-proof-relaunch - renderer process exited (${details.reason})`);
+  });
+
+  activeLiveRuntimePageProofRelaunchSmokeReporter = (payload) => {
+    clearSmokeTimeout();
+    console.log(`MYIDE_LIVE_RUNTIME_PAGE_PROOF_RELAUNCH_RESULT:${JSON.stringify(payload)}`);
+    if (payload.status === "pass") {
+      finishLiveRuntimePageProofRelaunchSmoke(0, "PASS smoke:electron-runtime-page-proof-relaunch");
+      return;
+    }
+
+    finishLiveRuntimePageProofRelaunchSmoke(1, `FAIL smoke:electron-runtime-page-proof-relaunch - ${payload.error ?? "renderer reported failure"}`);
+  };
+}
+
 function attachLiveRuntimeSmokeHandlers(window: BrowserWindow): void {
   if (!isLiveRuntimeSmokeMode) {
     return;
@@ -2071,6 +2127,7 @@ function createWindow(): void {
   attachLiveDragSmokeHandlers(window);
   attachLiveCreateDragSmokeHandlers(window);
   attachLiveDonorImportSmokeHandlers(window);
+  attachLiveRuntimePageProofRelaunchSmokeHandlers(window);
   attachLiveRuntimeSmokeHandlers(window);
   attachLiveDuplicateDeleteSmokeHandlers(window);
   attachLiveReorderSmokeHandlers(window);
@@ -2112,6 +2169,7 @@ function createWindow(): void {
     ...(isLiveCreateDragSmokeMode ? { liveCreateDragSmoke: "1" } : {}),
     ...(shouldKeepLiveCreateDragWindowOpen ? { liveCreateDragKeepOpen: "1" } : {}),
     ...(isLiveDonorImportSmokeMode ? { liveDonorImportSmoke: "1" } : {}),
+    ...(isLiveRuntimePageProofRelaunchSmokeMode ? { liveRuntimePageProofRelaunchSmoke: "1" } : {}),
     ...(isLiveRuntimeSmokeMode ? { liveRuntimeSmoke: "1" } : {}),
     ...(isLiveDuplicateDeleteSmokeMode ? { liveDuplicateDeleteSmoke: "1" } : {}),
     ...(shouldKeepLiveDuplicateDeleteWindowOpen ? { liveDuplicateDeleteKeepOpen: "1" } : {}),
@@ -2187,6 +2245,12 @@ ipcMain.on("myide:live-create-drag-smoke-result", (_event, payload: LiveCreateDr
 ipcMain.on("myide:live-donor-import-smoke-result", (_event, payload: LiveDonorImportSmokePayload) => {
   if (typeof activeLiveDonorImportSmokeReporter === "function") {
     activeLiveDonorImportSmokeReporter(payload ?? {});
+  }
+});
+
+ipcMain.on("myide:live-runtime-page-proof-relaunch-smoke-result", (_event, payload: LiveRuntimePageProofRelaunchSmokePayload) => {
+  if (typeof activeLiveRuntimePageProofRelaunchSmokeReporter === "function") {
+    activeLiveRuntimePageProofRelaunchSmokeReporter(payload ?? {});
   }
 });
 

@@ -124,6 +124,9 @@ contextBridge.exposeInMainWorld("myideApi", {
   reportLiveDonorImportSmokeResult: (payload: unknown): void => {
     ipcRenderer.send("myide:live-donor-import-smoke-result", payload);
   },
+  reportLiveRuntimePageProofRelaunchSmokeResult: (payload: unknown): void => {
+    ipcRenderer.send("myide:live-runtime-page-proof-relaunch-smoke-result", payload);
+  },
   reportLiveRuntimeSmokeResult: (payload: unknown): void => {
     ipcRenderer.send("myide:live-runtime-smoke-result", payload);
   },

@@ -145,21 +145,33 @@ function buildStatus(projectId: string, entries: RuntimePageProofEntry[], snapsh
   };
 }
 
+async function writeRuntimePageProofStatus(snapshotPath: string, status: RuntimePageProofStatus): Promise<void> {
+  mkdirSync(path.dirname(snapshotPath), { recursive: true });
+  await fs.writeFile(snapshotPath, `${JSON.stringify(status, null, 2)}\n`, "utf8");
+}
+
 export async function buildRuntimePageProofStatus(projectId: string): Promise<RuntimePageProofStatus | null> {
   const snapshotPath = getRuntimePageProofSnapshotPath(projectId);
   const legacySnapshotPath = getLegacyRuntimePageProofSnapshotPath(projectId);
-  const raw = await readOptionalJsonFile(snapshotPath) ?? await readOptionalJsonFile(legacySnapshotPath);
-  if (!raw) {
+  const snapshotRaw = await readOptionalJsonFile(snapshotPath);
+  if (snapshotRaw) {
+    const entries = Array.isArray(snapshotRaw.entries)
+      ? snapshotRaw.entries.map((entry) => normalizeEntry(entry)).filter((entry): entry is RuntimePageProofEntry => Boolean(entry))
+      : [];
+    return buildStatus(projectId, entries, snapshotPath);
+  }
+
+  const legacyRaw = await readOptionalJsonFile(legacySnapshotPath);
+  if (!legacyRaw) {
     return null;
   }
 
-  const entries = Array.isArray(raw.entries)
-    ? raw.entries.map((entry) => normalizeEntry(entry)).filter((entry): entry is RuntimePageProofEntry => Boolean(entry))
+  const entries = Array.isArray(legacyRaw.entries)
+    ? legacyRaw.entries.map((entry) => normalizeEntry(entry)).filter((entry): entry is RuntimePageProofEntry => Boolean(entry))
     : [];
-  const resolvedSnapshotPath = await readOptionalJsonFile(snapshotPath)
-    ? snapshotPath
-    : legacySnapshotPath;
-  return buildStatus(projectId, entries, resolvedSnapshotPath);
+  const migratedStatus = buildStatus(projectId, entries, snapshotPath);
+  await writeRuntimePageProofStatus(snapshotPath, migratedStatus);
+  return migratedStatus;
 }
 
 export async function saveRuntimePageProof(projectId: string, input: SaveRuntimePageProofInput): Promise<RuntimePageProofStatus> {
@@ -195,7 +207,6 @@ export async function saveRuntimePageProof(projectId: string, input: SaveRuntime
     .concat(nextEntry);
   const snapshotPath = getRuntimePageProofSnapshotPath(projectId);
   const status = buildStatus(projectId, nextEntries, snapshotPath);
-  mkdirSync(path.dirname(snapshotPath), { recursive: true });
-  await fs.writeFile(snapshotPath, `${JSON.stringify(status, null, 2)}\n`, "utf8");
+  await writeRuntimePageProofStatus(snapshotPath, status);
   return status;
 }

@@ -39,7 +39,7 @@ That dedicated Debug Host path is now also page-scoped for the active task cue, 
 
 After that page-scoped proof succeeds, the same page card now upgrades into a direct **Open Page Runtime** link for that proved source, and task-level **Open Runtime** reuses the same page-scoped runtime trace instead of sending the operator back through Debug Host again.
 
-That proved page-scoped runtime link now also survives a workspace reload for the same project: once the active task has been saved and reloaded, the same page card and task-level runtime action still reuse the proved `big-win` runtime source instead of forcing another Debug Host pass.
+That proved page-scoped runtime link now also survives both workspace reload and a fresh app relaunch for the same project: once the active task has been saved, the same page card and task-level runtime action still reuse the proved `big-win` runtime source instead of forcing another Debug Host pass.
 
 ## Current Phase
 - Current milestone: IDE-LIFECYCLE-A lifecycle backbone on top of the existing runtime-first shell, donor scan, and compose/runtime proving slices.
