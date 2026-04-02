@@ -4,11 +4,13 @@ import { buildSectionSkinBlueprint } from "./buildSectionSkinBlueprint";
 import { buildSectionSkinRenderPlan } from "./buildSectionSkinRenderPlan";
 import { buildSectionSkinMaterialPlan } from "./buildSectionSkinMaterialPlan";
 import { buildSectionSkinMaterialReviewBundle } from "./buildSectionSkinMaterialReviewBundle";
+import { buildSectionSkinPageMatchBundle } from "./buildSectionSkinPageMatchBundle";
 import { summarizeSectionReconstructionProfiles } from "./summarizeSectionReconstructionProfiles";
 import { summarizeSectionSkinBlueprintProfiles } from "./summarizeSectionSkinBlueprintProfiles";
 import { summarizeSectionSkinRenderPlanProfiles } from "./summarizeSectionSkinRenderPlanProfiles";
 import { summarizeSectionSkinMaterialPlanProfiles } from "./summarizeSectionSkinMaterialPlanProfiles";
 import { summarizeSectionSkinMaterialReviewBundleProfiles } from "./summarizeSectionSkinMaterialReviewBundleProfiles";
+import { summarizeSectionSkinPageMatchBundleProfiles } from "./summarizeSectionSkinPageMatchBundleProfiles";
 import type {
   FamilyReconstructionSectionBundleRecord,
   FamilyReconstructionSectionBundlesFile,
@@ -42,6 +44,7 @@ export interface RunSectionActionResult {
   skinRenderPlanPath: string | null;
   skinMaterialPlanPath: string | null;
   skinMaterialReviewBundlePath: string | null;
+  skinPageMatchBundlePath: string | null;
   exactLocalSourceCount: number;
   attachmentCount: number;
   mappedAttachmentCount: number;
@@ -127,6 +130,7 @@ function buildBlockedResult(
     skinRenderPlanPath: null,
     skinMaterialPlanPath: null,
     skinMaterialReviewBundlePath: null,
+    skinPageMatchBundlePath: null,
     exactLocalSourceCount: sectionBundle.exactLocalSourceCount,
     attachmentCount: sectionBundle.attachmentCount,
     mappedAttachmentCount: sectionBundle.mappedAttachmentCount,
@@ -174,6 +178,7 @@ export async function runSectionAction(options: RunSectionActionOptions): Promis
       skinRenderPlanPath: null,
       skinMaterialPlanPath: null,
       skinMaterialReviewBundlePath: null,
+      skinPageMatchBundlePath: null,
       exactLocalSourceCount: sectionBundle.exactLocalSourceCount,
       attachmentCount: sectionBundle.attachmentCount,
       mappedAttachmentCount: sectionBundle.mappedAttachmentCount,
@@ -234,6 +239,15 @@ export async function runSectionAction(options: RunSectionActionOptions): Promis
     `${sanitizeSectionSegment(sectionBundle.familyName)}--${sanitizeSectionSegment(sectionBundle.sectionKey)}.json`
   );
   await writeJsonFile(skinMaterialReviewBundlePath, skinMaterialReviewBundle);
+  const skinPageMatchBundle = buildSectionSkinPageMatchBundle({
+    materialReviewBundle: skinMaterialReviewBundle,
+    materialReviewBundlePath: toRepoRelativePath(skinMaterialReviewBundlePath)
+  });
+  const skinPageMatchBundlePath = path.join(
+    paths.sectionSkinPageMatchBundlesRoot,
+    `${sanitizeSectionSegment(sectionBundle.familyName)}--${sanitizeSectionSegment(sectionBundle.sectionKey)}.json`
+  );
+  await writeJsonFile(skinPageMatchBundlePath, skinPageMatchBundle);
   const sectionReconstructionProfiles = await summarizeSectionReconstructionProfiles({
     donorId,
     donorName: sectionBundles.donorName,
@@ -264,8 +278,14 @@ export async function runSectionAction(options: RunSectionActionOptions): Promis
     reviewBundlesRoot: paths.sectionSkinMaterialReviewBundlesRoot
   });
   await writeJsonFile(paths.sectionSkinMaterialReviewBundleProfilesPath, sectionSkinMaterialReviewBundleProfiles);
+  const sectionSkinPageMatchBundleProfiles = await summarizeSectionSkinPageMatchBundleProfiles({
+    donorId,
+    donorName: sectionBundles.donorName,
+    pageMatchBundlesRoot: paths.sectionSkinPageMatchBundlesRoot
+  });
+  await writeJsonFile(paths.sectionSkinPageMatchBundleProfilesPath, sectionSkinPageMatchBundleProfiles);
 
-  const nextOperatorAction = `${sectionBundle.sectionKey}: use the prepared section skin material review bundle to lock per-page atlas image matches before deeper skin reconstruction.`;
+  const nextOperatorAction = `${sectionBundle.sectionKey}: use the prepared section skin page-match bundle to review and lock proposed atlas page-image matches before deeper skin reconstruction.`;
   const sectionActionRun: SectionActionRunFile = {
     schemaVersion: "0.1.0",
     donorId,
@@ -282,6 +302,7 @@ export async function runSectionAction(options: RunSectionActionOptions): Promis
     skinRenderPlanPath: toRepoRelativePath(skinRenderPlanPath),
     skinMaterialPlanPath: toRepoRelativePath(skinMaterialPlanPath),
     skinMaterialReviewBundlePath: toRepoRelativePath(skinMaterialReviewBundlePath),
+    skinPageMatchBundlePath: toRepoRelativePath(skinPageMatchBundlePath),
     exactLocalSourceCount: sectionBundle.exactLocalSourceCount,
     attachmentCount: sectionBundle.attachmentCount,
     mappedAttachmentCount: sectionBundle.mappedAttachmentCount,
@@ -305,6 +326,7 @@ export async function runSectionAction(options: RunSectionActionOptions): Promis
     skinRenderPlanPath,
     skinMaterialPlanPath,
     skinMaterialReviewBundlePath,
+    skinPageMatchBundlePath,
     exactLocalSourceCount: sectionBundle.exactLocalSourceCount,
     attachmentCount: sectionBundle.attachmentCount,
     mappedAttachmentCount: sectionBundle.mappedAttachmentCount,
@@ -362,6 +384,12 @@ async function main(): Promise<void> {
   }
   if (result.skinMaterialPlanPath) {
     console.log(`Skin material plan: ${toRepoRelativePath(result.skinMaterialPlanPath)}`);
+  }
+  if (result.skinMaterialReviewBundlePath) {
+    console.log(`Skin material review: ${toRepoRelativePath(result.skinMaterialReviewBundlePath)}`);
+  }
+  if (result.skinPageMatchBundlePath) {
+    console.log(`Skin page match: ${toRepoRelativePath(result.skinPageMatchBundlePath)}`);
   }
   console.log(`Mapped attachments: ${result.mappedAttachmentCount}/${result.attachmentCount}`);
   console.log(`Grounded local sources: ${result.exactLocalSourceCount}`);

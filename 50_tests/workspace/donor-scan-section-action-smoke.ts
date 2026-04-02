@@ -153,6 +153,7 @@ async function main(): Promise<void> {
   assert.ok(result.skinRenderPlanPath, "section action should write a skin render plan");
   assert.ok(result.skinMaterialPlanPath, "section action should write a skin material plan");
   assert.ok(result.skinMaterialReviewBundlePath, "section action should write a skin material review bundle");
+  assert.ok(result.skinPageMatchBundlePath, "section action should write a skin page match bundle");
   assert.equal(result.mappedAttachmentCount, 4, "section action should preserve mapped attachment counts");
   assert.equal(result.exactLocalSourceCount, 2, "section action should preserve exact local source counts");
 
@@ -166,6 +167,7 @@ async function main(): Promise<void> {
     skinRenderPlanPath?: string | null;
     skinMaterialPlanPath?: string | null;
     skinMaterialReviewBundlePath?: string | null;
+    skinPageMatchBundlePath?: string | null;
     mappedAttachmentCount?: number;
   };
   assert.equal(sectionActionRun.sectionKey, "big_win/BW", "section action run should preserve section key");
@@ -176,6 +178,7 @@ async function main(): Promise<void> {
   assert.ok(sectionActionRun.skinRenderPlanPath, "section action run should point at the prepared skin render plan");
   assert.ok(sectionActionRun.skinMaterialPlanPath, "section action run should point at the prepared skin material plan");
   assert.ok(sectionActionRun.skinMaterialReviewBundlePath, "section action run should point at the prepared skin material review bundle");
+  assert.ok(sectionActionRun.skinPageMatchBundlePath, "section action run should point at the prepared skin page match bundle");
   assert.equal(sectionActionRun.mappedAttachmentCount, 4, "section action run should persist mapped attachment counts");
 
   const worksetPath = result.worksetPath ?? "";
@@ -357,6 +360,47 @@ async function main(): Promise<void> {
   assert.equal(materialReviewProfile?.reviewState, "ready-for-candidate-review", "section skin material review bundle profiles should preserve review readiness");
   assert.equal(materialReviewProfile?.reviewReadyPageCount, 2, "section skin material review bundle profiles should preserve review-ready page counts");
   assert.equal(materialReviewProfile?.blockedPageCount, 0, "section skin material review bundle profiles should preserve blocked page counts");
+
+  const skinPageMatchBundlePath = result.skinPageMatchBundlePath ?? "";
+  const resolvedSkinPageMatchBundlePath = path.isAbsolute(skinPageMatchBundlePath) ? skinPageMatchBundlePath : path.join(workspaceRoot, skinPageMatchBundlePath);
+  const skinPageMatchBundle = JSON.parse(await fs.readFile(resolvedSkinPageMatchBundlePath, "utf8")) as {
+    sectionKey?: string;
+    matchState?: string;
+    pageCount?: number;
+    proposedMatchCount?: number;
+    blockedPageCount?: number;
+    pages?: Array<{
+      pageName?: string;
+      pageState?: string;
+      proposedMatchLocalPath?: string | null;
+      proposedMatchScore?: number | null;
+      proposedMatchReasons?: string[];
+    }>;
+  };
+  assert.equal(skinPageMatchBundle.sectionKey, "big_win/BW", "section skin page match bundle should preserve section key");
+  assert.equal(skinPageMatchBundle.matchState, "ready-for-page-match-lock", "section skin page match bundle should mark candidate-backed sections as ready for page-match lock");
+  assert.equal(skinPageMatchBundle.pageCount, 2, "section skin page match bundle should preserve atlas page count");
+  assert.equal(skinPageMatchBundle.proposedMatchCount, 2, "section skin page match bundle should count proposed page matches");
+  assert.equal(skinPageMatchBundle.blockedPageCount, 0, "section skin page match bundle should keep candidate-backed pages out of the blocked count");
+  assert.ok(Array.isArray(skinPageMatchBundle.pages) && skinPageMatchBundle.pages.length === 2, "section skin page match bundle should expose per-page match rows");
+  assert.equal(skinPageMatchBundle.pages?.[0]?.pageState, "proposed-page-match", "section skin page match bundle should mark candidate-backed pages as proposed matches");
+  assert.ok(typeof skinPageMatchBundle.pages?.[0]?.proposedMatchLocalPath === "string" && skinPageMatchBundle.pages[0].proposedMatchLocalPath.length > 0, "section skin page match bundle should preserve the proposed local match");
+  assert.ok((skinPageMatchBundle.pages?.[0]?.proposedMatchScore ?? 0) > 0, "section skin page match bundle should preserve the proposed match score");
+  assert.ok(Array.isArray(skinPageMatchBundle.pages?.[0]?.proposedMatchReasons) && (skinPageMatchBundle.pages?.[0]?.proposedMatchReasons?.length ?? 0) >= 1, "section skin page match bundle should preserve grounded proposal reasons");
+
+  const skinPageMatchBundleProfilesPath = path.join(donorRoot, "section-skin-page-match-bundle-profiles.json");
+  const skinPageMatchBundleProfiles = JSON.parse(await fs.readFile(skinPageMatchBundleProfilesPath, "utf8")) as {
+    sectionCount?: number;
+    sections?: Array<{ sectionKey?: string; matchState?: string; pageMatchBundlePath?: string; proposedMatchCount?: number; blockedPageCount?: number }>;
+  };
+  assert.ok((skinPageMatchBundleProfiles.sectionCount ?? 0) >= 1, "section skin page match bundle profiles should record prepared sections");
+  const pageMatchProfile = Array.isArray(skinPageMatchBundleProfiles.sections)
+    ? skinPageMatchBundleProfiles.sections.find((section) => section?.sectionKey === "big_win/BW")
+    : null;
+  assert.ok(pageMatchProfile, "section skin page match bundle profiles should include the prepared section");
+  assert.equal(pageMatchProfile?.matchState, "ready-for-page-match-lock", "section skin page match bundle profiles should preserve page-match readiness");
+  assert.equal(pageMatchProfile?.proposedMatchCount, 2, "section skin page match bundle profiles should preserve proposed match counts");
+  assert.equal(pageMatchProfile?.blockedPageCount, 0, "section skin page match bundle profiles should preserve blocked page counts");
 
   console.log("PASS donor-scan:section-action");
   console.log(`Donor: ${donorId}`);

@@ -15,6 +15,7 @@ import { summarizeFamilyReconstructionMaps } from "./summarizeFamilyReconstructi
 import { summarizeFamilyReconstructionSections } from "./summarizeFamilyReconstructionSections";
 import { summarizeFamilyReconstructionSectionBundles } from "./summarizeFamilyReconstructionSectionBundles";
 import { summarizeSectionSkinMaterialReviewBundleProfiles } from "./summarizeSectionSkinMaterialReviewBundleProfiles";
+import { summarizeSectionSkinPageMatchBundleProfiles } from "./summarizeSectionSkinPageMatchBundleProfiles";
 import {
   type CaptureRunFile,
   type DiscoveredDonorUrl,
@@ -660,6 +661,16 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
     section.reviewReadyPageCount > 0
     || section.exactPageImageCount > 0
   );
+  const sectionSkinPageMatchBundleProfiles = await summarizeSectionSkinPageMatchBundleProfiles({
+    donorId: options.donorId,
+    donorName: options.donorName,
+    pageMatchBundlesRoot: paths.sectionSkinPageMatchBundlesRoot
+  });
+  await writeJsonFile(paths.sectionSkinPageMatchBundleProfilesPath, sectionSkinPageMatchBundleProfiles);
+  const prioritizedSectionSkinPageMatchBundleProfiles = sectionSkinPageMatchBundleProfiles.sections.filter((section) =>
+    section.proposedMatchCount > 0
+    || section.exactPageImageCount > 0
+  );
   const rawPayloadBlockedFamilies = captureBlockerFamilies.families
     .filter((family) => family.blockerClass === "raw-payload-blocked");
 
@@ -741,6 +752,10 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
       .map((section) => section.sectionKey),
     sectionSkinMaterialReviewBundleCount: sectionSkinMaterialReviewBundleProfiles.sectionCount,
     topSectionSkinMaterialReviewBundleKeys: prioritizedSectionSkinMaterialReviewBundleProfiles
+      .slice(0, 8)
+      .map((section) => section.sectionKey),
+    sectionSkinPageMatchBundleCount: sectionSkinPageMatchBundleProfiles.sectionCount,
+    topSectionSkinPageMatchBundleKeys: prioritizedSectionSkinPageMatchBundleProfiles
       .slice(0, 8)
       .map((section) => section.sectionKey),
     rawPayloadBlockedCaptureTargetCount: nextCaptureTargets.targets.filter((target) => target.blockerClass === "raw-payload-blocked").length,

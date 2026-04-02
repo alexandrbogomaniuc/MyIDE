@@ -166,6 +166,8 @@ export interface DonorScanPaths {
   sectionSkinMaterialPlanProfilesPath: string;
   sectionSkinMaterialReviewBundlesRoot: string;
   sectionSkinMaterialReviewBundleProfilesPath: string;
+  sectionSkinPageMatchBundlesRoot: string;
+  sectionSkinPageMatchBundleProfilesPath: string;
   captureRunPath: string;
   blockerSummaryPath: string;
   scanSummaryPath: string;
@@ -1288,6 +1290,84 @@ export interface SectionSkinMaterialReviewBundleProfilesFile {
   sections: SectionSkinMaterialReviewBundleProfileRecord[];
 }
 
+export type SectionSkinPageMatchState =
+  | "ready-with-exact-page-images"
+  | "ready-for-page-match-lock"
+  | "needs-page-source-discovery";
+
+export type SectionSkinPageMatchPageState =
+  | "ready-with-exact-page-image"
+  | "proposed-page-match"
+  | "blocked-missing-page-source";
+
+export interface SectionSkinPageMatchPageRecord {
+  orderIndex: number;
+  pageName: string;
+  pageState: SectionSkinPageMatchPageState;
+  layerCount: number;
+  slotNames: string[];
+  exactPageLocalPath: string | null;
+  proposedMatchLocalPath: string | null;
+  proposedMatchScore: number | null;
+  proposedMatchReasons: string[];
+  proposedMatchMatchedTokens: string[];
+  proposedMatchRelation: SectionSkinMaterialCandidateRecord["relation"] | null;
+  proposedMatchSourceKind: SectionSkinMaterialCandidateRecord["sourceKind"] | null;
+}
+
+export interface SectionSkinPageMatchBundleFile {
+  schemaVersion: string;
+  donorId: string;
+  donorName: string;
+  generatedAt: string;
+  familyName: string;
+  sectionKey: string;
+  skinName: string;
+  matchState: SectionSkinPageMatchState;
+  reviewState: SectionSkinMaterialReviewState;
+  materialState: SectionSkinMaterialState;
+  renderState: SectionSkinRenderPlanState;
+  blueprintState: SectionSkinBlueprintState;
+  reconstructionState: SectionReconstructionBundleState;
+  pageCount: number;
+  exactPageImageCount: number;
+  proposedMatchCount: number;
+  blockedPageCount: number;
+  topProposedMatchLocalPath: string | null;
+  sampleLocalSourcePath: string | null;
+  atlasSourcePath: string | null;
+  materialReviewBundlePath: string;
+  materialPlanPath: string;
+  renderPlanPath: string;
+  nextMatchStep: string;
+  pages: SectionSkinPageMatchPageRecord[];
+}
+
+export interface SectionSkinPageMatchBundleProfileRecord {
+  familyName: string;
+  sectionKey: string;
+  skinName: string;
+  matchState: SectionSkinPageMatchState;
+  pageCount: number;
+  exactPageImageCount: number;
+  proposedMatchCount: number;
+  blockedPageCount: number;
+  topProposedMatchLocalPath: string | null;
+  sampleLocalSourcePath: string | null;
+  atlasSourcePath: string | null;
+  pageMatchBundlePath: string;
+  nextMatchStep: string;
+}
+
+export interface SectionSkinPageMatchBundleProfilesFile {
+  schemaVersion: string;
+  donorId: string;
+  donorName: string;
+  generatedAt: string;
+  sectionCount: number;
+  sections: SectionSkinPageMatchBundleProfileRecord[];
+}
+
 export interface SectionActionRunFile {
   schemaVersion: string;
   donorId: string;
@@ -1304,6 +1384,7 @@ export interface SectionActionRunFile {
   skinRenderPlanPath: string | null;
   skinMaterialPlanPath: string | null;
   skinMaterialReviewBundlePath: string | null;
+  skinPageMatchBundlePath: string | null;
   exactLocalSourceCount: number;
   attachmentCount: number;
   mappedAttachmentCount: number;
@@ -1410,6 +1491,8 @@ export function buildDonorScanPaths(donorId: string): DonorScanPaths {
     sectionSkinMaterialPlanProfilesPath: path.join(harvestRoot, "section-skin-material-plan-profiles.json"),
     sectionSkinMaterialReviewBundlesRoot: path.join(harvestRoot, "section-skin-material-review-bundles"),
     sectionSkinMaterialReviewBundleProfilesPath: path.join(harvestRoot, "section-skin-material-review-bundle-profiles.json"),
+    sectionSkinPageMatchBundlesRoot: path.join(harvestRoot, "section-skin-page-match-bundles"),
+    sectionSkinPageMatchBundleProfilesPath: path.join(harvestRoot, "section-skin-page-match-bundle-profiles.json"),
     captureRunPath: path.join(harvestRoot, "next-capture-run.json"),
     blockerSummaryPath: path.join(harvestRoot, "blocker-summary.md"),
     scanSummaryPath: path.join(harvestRoot, "scan-summary.json")
