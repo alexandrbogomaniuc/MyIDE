@@ -43,6 +43,9 @@ interface LiveDonorImportPayload {
   taskKitSceneSectionBannerRuntimeSummary?: string | null;
   taskKitSceneSectionDetailRuntimeChipLabel?: string | null;
   taskKitSceneSectionDetailRuntimeNote?: string | null;
+  taskKitRuntimeWorkbenchSelectedSceneSectionTitle?: string | null;
+  taskKitRuntimeWorkbenchSelectedSceneSectionSummary?: string | null;
+  taskKitSectionLabel?: string | null;
   importedAssetCount?: number | null;
   importedFileTypes?: string[];
   importModes?: string[];
@@ -514,6 +517,15 @@ async function main(): Promise<void> {
     assert(
       /request-backed runtime workbench/i.test(payload.taskKitSceneSectionDetailRuntimeNote ?? ""),
       "Renderer did not expose the exact request-backed runtime note on the imported scene-section detail card."
+    );
+    assert.equal(
+      payload.taskKitRuntimeWorkbenchSelectedSceneSectionTitle,
+      payload.taskKitSectionLabel,
+      "Renderer did not keep the selected scene-section runtime workbench card anchored to the imported scene section."
+    );
+    assert(
+      /request-backed runtime workbench/i.test(payload.taskKitRuntimeWorkbenchSelectedSceneSectionSummary ?? ""),
+      "Renderer did not expose the exact request-backed runtime summary on the selected scene-section runtime workbench card."
     );
     assert.equal(payload.replacementPersistVerified, true, "Renderer did not preserve the donor-backed replacement layout/layer after reload.");
     assert.equal(payload.replacementLinkageVerified, true, "Renderer did not preserve donor linkage for the donor-backed replacement after reload.");

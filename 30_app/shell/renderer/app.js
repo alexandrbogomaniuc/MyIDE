@@ -4967,6 +4967,8 @@ async function runLiveDonorImportSmoke() {
     taskKitSceneSectionBannerRuntimeSummary: null,
     taskKitSceneSectionDetailRuntimeChipLabel: null,
     taskKitSceneSectionDetailRuntimeNote: null,
+    taskKitRuntimeWorkbenchSelectedSceneSectionTitle: null,
+    taskKitRuntimeWorkbenchSelectedSceneSectionSummary: null,
     importedAssetCount: 0,
     importedFileTypes: [],
     importModes: [],
@@ -5417,6 +5419,20 @@ async function runLiveDonorImportSmoke() {
       `${preparedModificationTask.taskId} task runtime open to use the persisted page runtime proof`
     );
     baseResult.taskKitTaskRuntimeOpenUsesPersistedPageProof = true;
+    const selectedSceneSectionRuntimeWorkbenchCard = await waitForRendererCondition(
+      () => {
+        const inspectorCards = Array.from(elements.inspector?.querySelectorAll(".detail-card") ?? []);
+        const selectedSceneSectionCard = inspectorCards.find((card) => (
+          card.querySelector("span")?.textContent?.trim() === "Selected Scene Section"
+        )) ?? null;
+        const title = selectedSceneSectionCard?.querySelector("strong")?.textContent?.trim() ?? null;
+        const summary = selectedSceneSectionCard?.querySelector("small")?.textContent?.trim() ?? null;
+        return selectedSceneSectionCard && title && summary ? { title, summary } : null;
+      },
+      `${preparedModificationTask.taskId} selected scene-section runtime workbench card`
+    );
+    baseResult.taskKitRuntimeWorkbenchSelectedSceneSectionTitle = selectedSceneSectionRuntimeWorkbenchCard.title;
+    baseResult.taskKitRuntimeWorkbenchSelectedSceneSectionSummary = selectedSceneSectionRuntimeWorkbenchCard.summary;
 
     openProjectModificationTask(preparedModificationTask.taskId, "compose");
     await waitForRendererCondition(
@@ -11653,6 +11669,9 @@ function openProjectModificationTask(taskId, mode = "preferred") {
   }
 
   if (targetMode === "runtime") {
+    if (importedSceneSection?.memberObjectIds?.length) {
+      setSelectedObjectIds(importedSceneSection.memberObjectIds, importedSceneSection.memberObjectIds[0] ?? null);
+    }
     setWorkbenchMode("runtime", { silent: true });
     state.workflowUi.activePanel = "runtime";
   } else if (importedSceneSection?.memberObjectIds?.length) {
@@ -22213,7 +22232,7 @@ function renderRuntimeInspector() {
           <span>Selected Scene Section</span>
           <strong>${escapeHtml(selectedSceneKitContext?.sectionLabel ?? "No imported scene section selected in Compose")}</strong>
           <small>${escapeHtml(selectedSceneSectionRuntimeContext?.preferredWorkbenchEntry
-            ? `Runtime-linked through ${selectedSceneSectionRuntimeContext.preferredWorkbenchEntry.relativePath ?? selectedSceneSectionRuntimeContext.preferredWorkbenchEntry.sourceUrl}.`
+            ? `${selectedSceneSectionRuntimeContext.runtimeWorkbenchSurfaceTitle ?? "Grounded runtime workbench"} · ${selectedSceneSectionRuntimeContext.preferredWorkbenchEntry.relativePath ?? selectedSceneSectionRuntimeContext.preferredWorkbenchEntry.sourceUrl}.`
             : selectedSceneSectionRuntimeContext?.preferredReference
               ? `Supported by ${selectedSceneSectionRuntimeContext.preferredReference.label}.`
               : "Switch back to Compose and select one imported scene section member to keep the runtime workbench anchored to that grouped game part.")}</small>
