@@ -196,6 +196,8 @@ export interface DonorScanPaths {
   sectionSkinTextureRenderBundleProfilesPath: string;
   sectionSkinTextureCanvasBundlesRoot: string;
   sectionSkinTextureCanvasBundleProfilesPath: string;
+  sectionSkinTextureSourceFitBundlesRoot: string;
+  sectionSkinTextureSourceFitBundleProfilesPath: string;
   captureRunPath: string;
   blockerSummaryPath: string;
   scanSummaryPath: string;
@@ -2863,6 +2865,136 @@ export interface SectionSkinTextureCanvasBundleProfilesFile {
   sections: SectionSkinTextureCanvasBundleProfileRecord[];
 }
 
+export type SectionSkinTextureSourceFitState =
+  | "ready-with-exact-page-source-fits"
+  | "ready-with-uniform-page-source-fits"
+  | "ready-with-non-uniform-page-source-fits"
+  | "needs-source-dimension-review"
+  | "needs-atlas-page-size-review"
+  | "needs-page-lock-resolution";
+
+export type SectionSkinTextureSourceFitPageState =
+  | "exact-page-source-fit"
+  | "uniform-scale-page-source-fit"
+  | "non-uniform-scale-page-source-fit"
+  | "missing-source-dimensions"
+  | "missing-atlas-page-size"
+  | "needs-page-lock-resolution";
+
+export interface SectionSkinTextureSourceFitPageRecord {
+  orderIndex: number;
+  pageName: string;
+  pageState: SectionSkinTextureSourceFitPageState;
+  sourcePageState: SectionSkinTextureRenderPageState;
+  canvasWidth: number | null;
+  canvasHeight: number | null;
+  sourceWidth: number | null;
+  sourceHeight: number | null;
+  selectedLocalPath: string | null;
+  selectedCandidateRank: number | null;
+  selectedCandidateScore: number | null;
+  selectedCandidateReasons: string[];
+  selectedCandidateMatchedTokens: string[];
+  atlasPageLocalPath: string | null;
+  drawOperationCount: number;
+  readyDrawOperationCount: number;
+  blockedDrawOperationCount: number;
+  exactFit: boolean;
+  uniformScaleFit: boolean;
+  nonUniformScaleFit: boolean;
+  scaleX: number | null;
+  scaleY: number | null;
+  scaleDelta: number | null;
+  slotNames: string[];
+  regionNames: string[];
+}
+
+export interface SectionSkinTextureSourceFitBundleFile {
+  schemaVersion: string;
+  donorId: string;
+  donorName: string;
+  generatedAt: string;
+  familyName: string;
+  sectionKey: string;
+  skinName: string;
+  textureSourceFitState: SectionSkinTextureSourceFitState;
+  textureCanvasState: SectionSkinTextureCanvasState;
+  textureRenderState: SectionSkinTextureRenderState;
+  textureAssemblyState: SectionSkinTextureAssemblyState;
+  textureLockState: SectionSkinTextureLockState;
+  pageLockApplyState: SectionSkinPageLockApplyState;
+  pageLockApprovalState: SectionSkinPageLockApprovalState;
+  textureReconstructionState: SectionSkinTextureReconstructionState;
+  textureSourceState: SectionSkinTextureSourceState;
+  matchState: SectionSkinPageMatchState;
+  reviewState: SectionSkinMaterialReviewState;
+  materialState: SectionSkinMaterialState;
+  renderState: SectionSkinRenderPlanState;
+  blueprintState: SectionSkinBlueprintState;
+  reconstructionState: SectionReconstructionBundleState;
+  pageCount: number;
+  pageSizeCount: number;
+  sourceDimensionCount: number;
+  missingPageSizeCount: number;
+  missingSourceDimensionCount: number;
+  exactPageLockCount: number;
+  appliedPageLockCount: number;
+  unresolvedPageLockCount: number;
+  exactPageFitCount: number;
+  uniformScalePageFitCount: number;
+  nonUniformScalePageFitCount: number;
+  readyPageCount: number;
+  blockedPageCount: number;
+  uniqueSelectedLocalPathCount: number;
+  drawOperationCount: number;
+  readyDrawOperationCount: number;
+  blockedDrawOperationCount: number;
+  topFittedLocalPath: string | null;
+  sampleLocalSourcePath: string | null;
+  atlasSourcePath: string | null;
+  textureCanvasBundlePath: string;
+  nextTextureSourceFitStep: string;
+  pages: SectionSkinTextureSourceFitPageRecord[];
+}
+
+export interface SectionSkinTextureSourceFitBundleProfileRecord {
+  familyName: string;
+  sectionKey: string;
+  skinName: string;
+  textureSourceFitState: SectionSkinTextureSourceFitState;
+  pageCount: number;
+  pageSizeCount: number;
+  sourceDimensionCount: number;
+  missingPageSizeCount: number;
+  missingSourceDimensionCount: number;
+  exactPageLockCount: number;
+  appliedPageLockCount: number;
+  unresolvedPageLockCount: number;
+  exactPageFitCount: number;
+  uniformScalePageFitCount: number;
+  nonUniformScalePageFitCount: number;
+  readyPageCount: number;
+  blockedPageCount: number;
+  uniqueSelectedLocalPathCount: number;
+  drawOperationCount: number;
+  readyDrawOperationCount: number;
+  blockedDrawOperationCount: number;
+  topFittedLocalPath: string | null;
+  sampleLocalSourcePath: string | null;
+  atlasSourcePath: string | null;
+  textureSourceFitBundlePath: string;
+  nextTextureSourceFitStep: string;
+}
+
+export interface SectionSkinTextureSourceFitBundleProfilesFile {
+  schemaVersion: string;
+  donorId: string;
+  donorName: string;
+  generatedAt: string;
+  sectionCount: number;
+  sections: SectionSkinTextureSourceFitBundleProfileRecord[];
+}
+
 export interface SectionActionRunFile {
   schemaVersion: string;
   donorId: string;
@@ -2894,6 +3026,7 @@ export interface SectionActionRunFile {
   skinTextureAssemblyBundlePath: string | null;
   skinTextureRenderBundlePath: string | null;
   skinTextureCanvasBundlePath: string | null;
+  skinTextureSourceFitBundlePath: string | null;
   exactLocalSourceCount: number;
   attachmentCount: number;
   mappedAttachmentCount: number;
@@ -3030,6 +3163,8 @@ export function buildDonorScanPaths(donorId: string): DonorScanPaths {
     sectionSkinTextureRenderBundleProfilesPath: path.join(harvestRoot, "section-skin-texture-render-bundle-profiles.json"),
     sectionSkinTextureCanvasBundlesRoot: path.join(harvestRoot, "section-skin-texture-canvas-bundles"),
     sectionSkinTextureCanvasBundleProfilesPath: path.join(harvestRoot, "section-skin-texture-canvas-bundle-profiles.json"),
+    sectionSkinTextureSourceFitBundlesRoot: path.join(harvestRoot, "section-skin-texture-source-fit-bundles"),
+    sectionSkinTextureSourceFitBundleProfilesPath: path.join(harvestRoot, "section-skin-texture-source-fit-bundle-profiles.json"),
     captureRunPath: path.join(harvestRoot, "next-capture-run.json"),
     blockerSummaryPath: path.join(harvestRoot, "blocker-summary.md"),
     scanSummaryPath: path.join(harvestRoot, "scan-summary.json")

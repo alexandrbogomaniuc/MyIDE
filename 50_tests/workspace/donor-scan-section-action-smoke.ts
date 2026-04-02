@@ -168,6 +168,7 @@ async function main(): Promise<void> {
   assert.ok(result.skinTextureAssemblyBundlePath, "section action should write a skin texture assembly bundle");
   assert.ok(result.skinTextureRenderBundlePath, "section action should write a skin texture render bundle");
   assert.ok(result.skinTextureCanvasBundlePath, "section action should write a skin texture canvas bundle");
+  assert.ok(result.skinTextureSourceFitBundlePath, "section action should write a skin texture source-fit bundle");
   assert.equal(result.mappedAttachmentCount, 4, "section action should preserve mapped attachment counts");
   assert.equal(result.exactLocalSourceCount, 2, "section action should preserve exact local source counts");
 
@@ -196,6 +197,7 @@ async function main(): Promise<void> {
     skinTextureAssemblyBundlePath?: string | null;
     skinTextureRenderBundlePath?: string | null;
     skinTextureCanvasBundlePath?: string | null;
+    skinTextureSourceFitBundlePath?: string | null;
     mappedAttachmentCount?: number;
   };
   assert.equal(sectionActionRun.sectionKey, "big_win/BW", "section action run should preserve section key");
@@ -221,6 +223,7 @@ async function main(): Promise<void> {
   assert.ok(sectionActionRun.skinTextureAssemblyBundlePath, "section action run should point at the prepared skin texture assembly bundle");
   assert.ok(sectionActionRun.skinTextureRenderBundlePath, "section action run should point at the prepared skin texture render bundle");
   assert.ok(sectionActionRun.skinTextureCanvasBundlePath, "section action run should point at the prepared skin texture canvas bundle");
+  assert.ok(sectionActionRun.skinTextureSourceFitBundlePath, "section action run should point at the prepared skin texture source-fit bundle");
   assert.equal(sectionActionRun.mappedAttachmentCount, 4, "section action run should persist mapped attachment counts");
 
   const worksetPath = result.worksetPath ?? "";
@@ -393,6 +396,38 @@ async function main(): Promise<void> {
     : null;
   assert.ok(textureCanvasProfile, "section skin texture canvas bundle profiles should include the prepared section");
   assert.equal(textureCanvasProfile?.drawOperationCount, 4, "section skin texture canvas bundle profiles should preserve draw operation counts");
+
+  const skinTextureSourceFitBundlePath = result.skinTextureSourceFitBundlePath ?? "";
+  const resolvedSkinTextureSourceFitBundlePath = path.isAbsolute(skinTextureSourceFitBundlePath)
+    ? skinTextureSourceFitBundlePath
+    : path.join(workspaceRoot, skinTextureSourceFitBundlePath);
+  const skinTextureSourceFitBundle = JSON.parse(await fs.readFile(resolvedSkinTextureSourceFitBundlePath, "utf8")) as {
+    sectionKey?: string;
+    textureSourceFitState?: string;
+    pageCount?: number;
+    sourceDimensionCount?: number;
+    missingSourceDimensionCount?: number;
+    pages?: Array<{ pageName?: string; sourceWidth?: number | null; sourceHeight?: number | null; pageState?: string }>;
+  };
+  assert.equal(skinTextureSourceFitBundle.sectionKey, "big_win/BW", "section skin texture source-fit bundle should preserve section key");
+  assert.equal(skinTextureSourceFitBundle.pageCount, 2, "section skin texture source-fit bundle should preserve atlas page counts");
+  assert.equal(skinTextureSourceFitBundle.sourceDimensionCount, 0, "section skin texture source-fit bundle should report missing source dimensions in the smoke fixture");
+  assert.equal(skinTextureSourceFitBundle.missingSourceDimensionCount, 2, "section skin texture source-fit bundle should count missing source dimensions");
+  assert.ok(typeof skinTextureSourceFitBundle.textureSourceFitState === "string" && skinTextureSourceFitBundle.textureSourceFitState.length > 0, "section skin texture source-fit bundle should record a source-fit state");
+  assert.ok(Array.isArray(skinTextureSourceFitBundle.pages) && skinTextureSourceFitBundle.pages.length === 2, "section skin texture source-fit bundle should expose per-page fit rows");
+  assert.equal(skinTextureSourceFitBundle.pages?.[0]?.sourceWidth ?? null, null, "section skin texture source-fit bundle should surface missing source widths when the fixture has no image file");
+
+  const skinTextureSourceFitBundleProfilesPath = path.join(donorRoot, "section-skin-texture-source-fit-bundle-profiles.json");
+  const skinTextureSourceFitBundleProfiles = JSON.parse(await fs.readFile(skinTextureSourceFitBundleProfilesPath, "utf8")) as {
+    sectionCount?: number;
+    sections?: Array<{ sectionKey?: string; textureSourceFitState?: string; missingSourceDimensionCount?: number; textureSourceFitBundlePath?: string }>;
+  };
+  assert.ok((skinTextureSourceFitBundleProfiles.sectionCount ?? 0) >= 1, "section skin texture source-fit bundle profiles should record prepared sections");
+  const textureSourceFitProfile = Array.isArray(skinTextureSourceFitBundleProfiles.sections)
+    ? skinTextureSourceFitBundleProfiles.sections.find((section) => section?.sectionKey === "big_win/BW")
+    : null;
+  assert.ok(textureSourceFitProfile, "section skin texture source-fit bundle profiles should include the prepared section");
+  assert.equal(textureSourceFitProfile?.missingSourceDimensionCount, 2, "section skin texture source-fit bundle profiles should preserve missing source dimension counts");
 
   const skinMaterialPlanPath = result.skinMaterialPlanPath ?? "";
   const resolvedSkinMaterialPlanPath = path.isAbsolute(skinMaterialPlanPath) ? skinMaterialPlanPath : path.join(workspaceRoot, skinMaterialPlanPath);

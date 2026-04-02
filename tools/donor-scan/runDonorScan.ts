@@ -30,6 +30,7 @@ import { summarizeSectionSkinTextureLockBundleProfiles } from "./summarizeSectio
 import { summarizeSectionSkinTextureAssemblyBundleProfiles } from "./summarizeSectionSkinTextureAssemblyBundleProfiles";
 import { summarizeSectionSkinTextureRenderBundleProfiles } from "./summarizeSectionSkinTextureRenderBundleProfiles";
 import { summarizeSectionSkinTextureCanvasBundleProfiles } from "./summarizeSectionSkinTextureCanvasBundleProfiles";
+import { summarizeSectionSkinTextureSourceFitBundleProfiles } from "./summarizeSectionSkinTextureSourceFitBundleProfiles";
 import {
   type CaptureRunFile,
   type DiscoveredDonorUrl,
@@ -841,6 +842,19 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
     || section.pageSizeCount > 0
     || section.unresolvedPageLockCount > 0
   );
+  const sectionSkinTextureSourceFitBundleProfiles = await summarizeSectionSkinTextureSourceFitBundleProfiles({
+    donorId: options.donorId,
+    donorName: options.donorName,
+    textureSourceFitBundlesRoot: paths.sectionSkinTextureSourceFitBundlesRoot
+  });
+  await writeJsonFile(paths.sectionSkinTextureSourceFitBundleProfilesPath, sectionSkinTextureSourceFitBundleProfiles);
+  const prioritizedSectionSkinTextureSourceFitBundleProfiles = sectionSkinTextureSourceFitBundleProfiles.sections.filter((section) =>
+    section.readyPageCount > 0
+    || section.blockedPageCount > 0
+    || section.missingSourceDimensionCount > 0
+    || section.nonUniformScalePageFitCount > 0
+    || section.unresolvedPageLockCount > 0
+  );
   const rawPayloadBlockedFamilies = captureBlockerFamilies.families
     .filter((family) => family.blockerClass === "raw-payload-blocked");
 
@@ -978,6 +992,10 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
       .map((section) => section.sectionKey),
     sectionSkinTextureCanvasBundleCount: sectionSkinTextureCanvasBundleProfiles.sectionCount,
     topSectionSkinTextureCanvasBundleKeys: prioritizedSectionSkinTextureCanvasBundleProfiles
+      .slice(0, 8)
+      .map((section) => section.sectionKey),
+    sectionSkinTextureSourceFitBundleCount: sectionSkinTextureSourceFitBundleProfiles.sectionCount,
+    topSectionSkinTextureSourceFitBundleKeys: prioritizedSectionSkinTextureSourceFitBundleProfiles
       .slice(0, 8)
       .map((section) => section.sectionKey),
     sectionSkinTextureInputBundleCount: sectionSkinTextureInputBundleProfiles.sectionCount,
