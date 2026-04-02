@@ -27,6 +27,8 @@ After a task kit has been imported once, the same prepared task now reopens that
 
 When one grouped section is selected in Compose, the inspector can now surface task-aware edit actions for that active Modification task, including task-local replace actions that preserve layout while staying on the same grouped section.
 
+If that task is grounded by a page-fit artifact such as the `big_win/BW` fit-apply bundle, the same inspector now also shows page-aware reconstruction cues: lead page name, fit mode, strongest affected slot or attachment, and a page-local **Use This Page Source** action when the selected object can be swapped from that grounded page source directly.
+
 ## Current Phase
 - Current milestone: IDE-LIFECYCLE-A lifecycle backbone on top of the existing runtime-first shell, donor scan, and compose/runtime proving slices.
 - Active validated donor slice: `donor_001_mystery_garden`.

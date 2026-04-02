@@ -21,6 +21,7 @@ For the current build, Investigation is the important new truth surface. Use it 
 8. If the task exposes grounded donor-backed task-kit images, use **Show Task Kit** to focus that ready section in the donor palette or **Import Task Kit** to move straight into bounded compose work from the task itself.
 9. Once a task kit has been imported, **Start Task** and **Open Compose** now reopen that grouped scene section directly instead of dropping you back onto a generic compose surface.
 10. When one grouped section member is selected, use the new task-aware inspector replace actions to swap that object from the active task kit while keeping the current grouped section and layout intact.
+11. If the active task is grounded by a fit-apply page bundle, use the page-aware reconstruction guide in that same inspector to see the lead page, fit mode, affected slot or attachment cue, and the page-local **Use This Page Source** action before widening out to the full task kit.
 
 ## 1. Launch The Current Build
 1. Finder double-click daily start: `./run/Start-MyIDE-Workbench.command`.

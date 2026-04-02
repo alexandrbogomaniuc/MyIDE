@@ -31,6 +31,7 @@ The operational workflow is now:
 6. When a task also carries grounded local image sources, use **Show Task Kit** or **Import Task Kit** to focus or import the donor-backed source kit for that specific task instead of manually hunting through the wider donor palette.
 7. After that import exists, the same task now reopens on its grouped Compose section so task-local editing can continue from the imported kit instead of from a blank or unrelated selection.
 8. When one grouped section member is selected, the inspector now exposes task-aware replace actions from that task kit so editing can continue on the current section without leaving Compose.
+9. If that task is backed by a page-fit bundle, the same inspector also shows a page-aware reconstruction guide with grounded page names, fit modes, affected slot or attachment cues, and page-local **Use This Page Source** actions for the selected object when a direct grounded swap is available.
 
 ## Preferred Launchers
 - `./run/start-workbench.sh`

@@ -4765,6 +4765,16 @@ async function runLiveDonorImportSmoke() {
     );
     baseResult.taskKitEditableMemberId = taskKitEditableMemberId;
 
+    const taskReconstructionGuideCard = await waitForRendererCondition(
+      () => elements.inspector?.querySelector('[data-task-reconstruction-related="1"], [data-task-reconstruction-page]') ?? null,
+      `${preparedModificationTask.taskId} page-aware reconstruction guide`
+    );
+    if (!(taskReconstructionGuideCard instanceof HTMLElement) || !taskReconstructionGuideCard.dataset.taskReconstructionPage) {
+      throw new Error(`Page-aware reconstruction guidance is missing for ${preparedModificationTask.taskId}.`);
+    }
+    baseResult.taskKitPageGuideName = taskReconstructionGuideCard.dataset.taskReconstructionPage;
+    baseResult.taskKitPageGuideVerified = true;
+
     const taskSectionReplaceButton = await waitForRendererCondition(
       () => elements.inspector?.querySelector("[data-task-section-replace-asset-id]") ?? null,
       `${preparedModificationTask.taskId} task-aware replace button`
@@ -5694,11 +5704,11 @@ async function runLiveDonorImportSmoke() {
       throw new Error("The donor source evidence jump did not complete.");
     }
 
-    if (!baseResult.taskKitImportCompleted || !baseResult.taskKitComposeLandingVerified || !baseResult.taskKitQuickReplaceVerified) {
-      throw new Error("The prepared modification task did not complete grouped Compose landing plus task-aware replace verification.");
+    if (!baseResult.taskKitImportCompleted || !baseResult.taskKitComposeLandingVerified || !baseResult.taskKitPageGuideVerified || !baseResult.taskKitQuickReplaceVerified) {
+      throw new Error("The prepared modification task did not complete grouped Compose landing, page-aware guidance, plus task-aware replace verification.");
     }
 
-    const successMessage = `Live donor import smoke passed: imported task kit ${baseResult.taskKitGroupKey ?? "n/a"} into scene section ${baseResult.taskKitSectionLabel ?? "n/a"}, reopened active task ${baseResult.taskKitTaskId ?? "n/a"} on that grouped compose surface, replaced ${baseResult.taskKitEditableMemberId ?? "n/a"} with task-aware source ${baseResult.taskKitQuickReplaceAssetId ?? "n/a"}, then imported ${importedAssets.length} donor assets (${baseResult.importedFileTypes.join(", ")}), moved ${primaryImportedAsset.objectId} to (${baseResult.draggedX}, ${baseResult.draggedY}), resized it to ${baseResult.resizedWidth}×${baseResult.resizedHeight}, multi-selected/aligned/distributed donor-backed objects, replaced ${baseResult.replacementObjectId ?? "n/a"} with donor asset ${baseResult.replacementDonorEvidenceId ?? "n/a"}, and reloaded donor linkage for every donor-backed object.`;
+    const successMessage = `Live donor import smoke passed: imported task kit ${baseResult.taskKitGroupKey ?? "n/a"} into scene section ${baseResult.taskKitSectionLabel ?? "n/a"}, reopened active task ${baseResult.taskKitTaskId ?? "n/a"} on that grouped compose surface, surfaced page-aware guide ${baseResult.taskKitPageGuideName ?? "n/a"}, replaced ${baseResult.taskKitEditableMemberId ?? "n/a"} with task-aware source ${baseResult.taskKitQuickReplaceAssetId ?? "n/a"}, then imported ${importedAssets.length} donor assets (${baseResult.importedFileTypes.join(", ")}), moved ${primaryImportedAsset.objectId} to (${baseResult.draggedX}, ${baseResult.draggedY}), resized it to ${baseResult.resizedWidth}×${baseResult.resizedHeight}, multi-selected/aligned/distributed donor-backed objects, replaced ${baseResult.replacementObjectId ?? "n/a"} with donor asset ${baseResult.replacementDonorEvidenceId ?? "n/a"}, and reloaded donor linkage for every donor-backed object.`;
     setPreviewStatus(successMessage);
     baseResult.previewStatus = successMessage;
     document.body.dataset.liveDonorImportSmoke = "pass";
@@ -9258,6 +9268,74 @@ function getProjectModificationTaskSceneSection(task, editorData = state.editorD
   return groupKey ? getSceneSectionEntryForDonorAssetGroupKey(groupKey, editorData) : null;
 }
 
+function getProjectModificationTaskReconstructionPages(task) {
+  return Array.isArray(task?.reconstructionPages)
+    ? task.reconstructionPages.filter((page) => page && typeof page.pageName === "string" && page.pageName.length > 0)
+    : [];
+}
+
+function getProjectModificationTaskPageMatchTokens(page) {
+  return uniqueStrings([
+    page?.pageName,
+    page?.topAffectedSlotName,
+    page?.topAffectedAttachmentName,
+    ...(Array.isArray(page?.affectedSlotNames) ? page.affectedSlotNames : []),
+    ...(Array.isArray(page?.affectedAttachmentNames) ? page.affectedAttachmentNames : []),
+    ...(Array.isArray(page?.regionNames) ? page.regionNames : [])
+  ].map((value) => slugifyValue(value)).filter(Boolean));
+}
+
+function getProjectModificationTaskKitAssetForPage(taskKitAssets, page) {
+  const pageSourceBasename = getPathBasename(page?.selectedLocalPath);
+  if (!pageSourceBasename) {
+    return null;
+  }
+
+  return taskKitAssets.find((asset) => uniqueStrings([
+    getPathBasename(asset?.repoRelativePath),
+    getPathBasename(asset?.absolutePath),
+    getPathBasename(asset?.filename),
+    getPathBasename(asset?.title)
+  ].filter(Boolean)).includes(pageSourceBasename)) ?? null;
+}
+
+function getProjectModificationTaskPageMatchScore(page, {
+  selectedObject = null,
+  selectedDonorAsset = null
+} = {}) {
+  let score = 0;
+  const pageSourceBasename = getPathBasename(page?.selectedLocalPath);
+  const selectedAssetBasenames = uniqueStrings([
+    getPathBasename(selectedDonorAsset?.repoRelativePath),
+    getPathBasename(selectedDonorAsset?.absolutePath),
+    getPathBasename(selectedDonorAsset?.filename),
+    getPathBasename(selectedDonorAsset?.title)
+  ].filter(Boolean));
+
+  if (pageSourceBasename && selectedAssetBasenames.includes(pageSourceBasename)) {
+    score += 120;
+  }
+
+  const objectTokens = uniqueStrings([
+    selectedObject?.id,
+    selectedObject?.displayName,
+    selectedObject?.assetRef,
+    selectedObject?.placeholderRef,
+    selectedObject?.type,
+    selectedDonorAsset?.filename,
+    selectedDonorAsset?.title
+  ].map((value) => slugifyValue(value)).filter(Boolean));
+  const pageTokens = getProjectModificationTaskPageMatchTokens(page);
+
+  if (objectTokens.some((token) => pageTokens.includes(token))) {
+    score += 60;
+  } else if (objectTokens.some((token) => pageTokens.some((pageToken) => pageToken.includes(token) || token.includes(pageToken)))) {
+    score += 25;
+  }
+
+  return score;
+}
+
 function getProjectModificationTaskContextForSceneKit(sceneKitContext, {
   selectedObject = getSelectedObject()
 } = {}) {
@@ -9274,16 +9352,61 @@ function getProjectModificationTaskContextForSceneKit(sceneKitContext, {
   const taskKitGroupSummary = getProjectModificationTaskKitGroupSummary(task);
   const taskKitAssets = taskKitGroupSummary ? getDonorAssetItemsForGroup(taskKitGroupSummary.key) : [];
   const selectedDonorAsset = getDonorAssetForObject(selectedObject);
-  const quickReplaceAssets = taskKitAssets
-    .filter((asset) => asset?.assetId && asset.assetId !== selectedDonorAsset?.assetId)
-    .slice(0, 4);
-  const visibleReplaceAssets = quickReplaceAssets.length > 0 ? quickReplaceAssets : taskKitAssets.slice(0, 4);
+  const reconstructionPages = getProjectModificationTaskReconstructionPages(task)
+    .map((page) => ({
+      ...page,
+      matchedTaskKitAsset: getProjectModificationTaskKitAssetForPage(taskKitAssets, page),
+      matchScore: getProjectModificationTaskPageMatchScore(page, {
+        selectedObject,
+        selectedDonorAsset
+      })
+    }))
+    .sort((left, right) => {
+      const scoreDiff = (right.matchScore ?? 0) - (left.matchScore ?? 0);
+      if (scoreDiff !== 0) {
+        return scoreDiff;
+      }
+
+      return String(left.pageName ?? "").localeCompare(String(right.pageName ?? ""));
+    });
+  const selectedReconstructionPage = reconstructionPages[0]?.matchScore > 0
+    ? reconstructionPages[0]
+    : null;
+  const orderedReconstructionPages = selectedReconstructionPage
+    ? [
+      selectedReconstructionPage,
+      ...reconstructionPages.filter((page) => page.pageName !== selectedReconstructionPage.pageName)
+    ]
+    : reconstructionPages;
+  const visibleReconstructionPages = orderedReconstructionPages.slice(0, 3);
+  const preferredReplaceAssets = [];
+  const preferredReplaceAssetIds = new Set();
+  if (selectedReconstructionPage?.matchedTaskKitAsset?.assetId && selectedReconstructionPage.matchedTaskKitAsset.assetId !== selectedDonorAsset?.assetId) {
+    preferredReplaceAssets.push(selectedReconstructionPage.matchedTaskKitAsset);
+    preferredReplaceAssetIds.add(selectedReconstructionPage.matchedTaskKitAsset.assetId);
+  }
+  for (const asset of taskKitAssets) {
+    if (!asset?.assetId || asset.assetId === selectedDonorAsset?.assetId || preferredReplaceAssetIds.has(asset.assetId)) {
+      continue;
+    }
+
+    preferredReplaceAssets.push(asset);
+    preferredReplaceAssetIds.add(asset.assetId);
+    if (preferredReplaceAssets.length >= 4) {
+      break;
+    }
+  }
+  const visibleReplaceAssets = preferredReplaceAssets.length > 0 ? preferredReplaceAssets : taskKitAssets.slice(0, 4);
 
   return {
     task,
     isActiveTask: activeTask?.taskId === task.taskId,
     taskKitGroupSummary,
     taskKitAssets,
+    selectedDonorAsset,
+    selectedReconstructionPage,
+    visibleReconstructionPages,
+    hiddenReconstructionPageCount: Math.max(0, reconstructionPages.length - visibleReconstructionPages.length),
     visibleReplaceAssets,
     hiddenReplaceAssetCount: Math.max(0, taskKitAssets.length - visibleReplaceAssets.length)
   };
@@ -9418,6 +9541,10 @@ function renderProjectModificationTaskRow(task) {
   const runtimeEntry = getRuntimeWorkbenchEntryForModificationTask(task);
   const taskKitGroupSummary = getProjectModificationTaskKitGroupSummary(task);
   const importedSceneSection = getProjectModificationTaskSceneSection(task);
+  const reconstructionPages = getProjectModificationTaskReconstructionPages(task);
+  const pageGuideSummary = reconstructionPages.length > 0
+    ? `${reconstructionPages.length} page cue${reconstructionPages.length === 1 ? "" : "s"} · ${reconstructionPages[0].pageName}${reconstructionPages[0].selectedMode ? ` ${reconstructionPages[0].selectedMode}` : ""}`
+    : "page guide · no page-aware reconstruction cues yet";
   const runtimeLabel = runtimeEntry
     ? (runtimeEntry.relativePath ?? runtimeEntry.localMirrorRepoRelativePath ?? runtimeEntry.sourceUrl)
     : "No grounded runtime source matched yet";
@@ -9430,6 +9557,7 @@ function renderProjectModificationTaskRow(task) {
       <small>${escapeHtml(task.nextAction)}</small>
       <small>${task.sourceArtifactPath ? `source artifact · ${escapeHtml(task.sourceArtifactPath)}` : "source artifact · pending"}</small>
       <small>runtime context · ${escapeHtml(runtimeLabel)}</small>
+      <small>${escapeHtml(pageGuideSummary)}</small>
       <small>${taskKitGroupSummary ? `task kit · ${escapeHtml(taskKitGroupSummary.label)} (${escapeHtml(String(taskKitGroupSummary.count))} source image${taskKitGroupSummary.count === 1 ? "" : "s"})` : "task kit · no donor-backed import kit yet"}</small>
       <small>${importedSceneSection ? `compose surface · ${escapeHtml(importedSceneSection.label)} (${escapeHtml(String(importedSceneSection.count))} grouped object${importedSceneSection.count === 1 ? "" : "s"})` : "compose surface · import the task kit to create the grouped scene section"}</small>
       <div class="evidence-actions">
@@ -9472,6 +9600,10 @@ function renderActiveProjectModificationTaskCard() {
   const runtimeEntry = getRuntimeWorkbenchEntryForModificationTask(task);
   const taskKitGroupSummary = getProjectModificationTaskKitGroupSummary(task);
   const importedSceneSection = getProjectModificationTaskSceneSection(task);
+  const reconstructionPages = getProjectModificationTaskReconstructionPages(task);
+  const pageGuideSummary = reconstructionPages.length > 0
+    ? `${reconstructionPages.length} page cue${reconstructionPages.length === 1 ? "" : "s"} ready. Lead page ${reconstructionPages[0].pageName}${reconstructionPages[0].selectedMode ? ` uses ${reconstructionPages[0].selectedMode}` : ""}.`
+    : "No page-aware reconstruction guide is available for this task yet.";
   const runtimeSummary = runtimeEntry
     ? (runtimeEntry.relativePath ?? runtimeEntry.localMirrorRepoRelativePath ?? runtimeEntry.sourceUrl)
     : "No request-backed runtime workbench source is matched yet.";
@@ -9489,6 +9621,7 @@ function renderActiveProjectModificationTaskCard() {
       </div>
       <small>${escapeHtml(task.nextAction)}</small>
       <small>Runtime context · ${escapeHtml(runtimeSummary)}</small>
+      <small>${escapeHtml(pageGuideSummary)}</small>
       <small>${taskKitGroupSummary ? `Donor task kit · ${escapeHtml(taskKitGroupSummary.label)} on ${escapeHtml(taskKitGroupSummary.suggestedLayerId)}` : "This task does not yet expose an importable donor-backed task kit."}</small>
       <small>${importedSceneSection ? `Compose surface · ${escapeHtml(importedSceneSection.label)} with ${escapeHtml(String(importedSceneSection.count))} grouped object${importedSceneSection.count === 1 ? "" : "s"}.` : "Compose surface · import the task kit to create a grouped editable scene section."}</small>
       <div class="evidence-actions">
@@ -18891,6 +19024,56 @@ function renderInspector() {
         </div>
         <small>${escapeHtml(taskSectionContext.task.nextAction)}</small>
         <small>${escapeHtml(taskSectionContext.task.rationale)}</small>
+        ${taskSectionContext.visibleReconstructionPages.length > 0 ? `
+          <div class="evidence-linked-objects">
+            <div class="evidence-subsection-head donor-replace-head">
+              <strong>Page-Aware Reconstruction Guide</strong>
+              <span class="muted-copy">${escapeHtml(taskSectionContext.selectedReconstructionPage
+                ? `Selected object most likely maps to ${taskSectionContext.selectedReconstructionPage.pageName}. Use that grounded page cue first, then widen out to the rest of the section bundle.`
+                : "This task artifact already identifies the grounded page sources, fit modes, and affected slots or attachments for this grouped section.")}</span>
+            </div>
+            <div class="detail-grid donor-linkage-grid">
+              ${taskSectionContext.visibleReconstructionPages.map((page) => {
+                const usesSelectedSource = page.matchedTaskKitAsset?.assetId && page.matchedTaskKitAsset.assetId === donorAsset?.assetId;
+                const leadTarget = page.topAffectedAttachmentName
+                  ? `attachment · ${page.topAffectedAttachmentName}`
+                  : page.topAffectedSlotName
+                    ? `slot · ${page.topAffectedSlotName}`
+                    : "No top slot or attachment cue recorded yet";
+                const cueSummary = `${page.affectedLayerCount} affected layer${page.affectedLayerCount === 1 ? "" : "s"} · ${page.affectedSlotNames.length} slot cue${page.affectedSlotNames.length === 1 ? "" : "s"} · ${page.affectedAttachmentNames.length} attachment cue${page.affectedAttachmentNames.length === 1 ? "" : "s"}`;
+
+                return `
+                  <div
+                    class="detail-card ${taskSectionContext.selectedReconstructionPage?.pageName === page.pageName ? "is-positive" : ""}"
+                    data-task-reconstruction-page="${escapeAttribute(page.pageName)}"
+                    data-task-reconstruction-related="${taskSectionContext.selectedReconstructionPage?.pageName === page.pageName ? "1" : "0"}"
+                  >
+                    <span>${escapeHtml(page.pageName)}${taskSectionContext.selectedReconstructionPage?.pageName === page.pageName ? " · selected object cue" : ""}</span>
+                    <strong>${escapeHtml(labelizeStatus(page.selectedMode ?? page.pageState ?? "page"))}${page.topAffectedSlotName || page.topAffectedAttachmentName ? ` · ${escapeHtml(page.topAffectedSlotName ?? page.topAffectedAttachmentName)}` : ""}</strong>
+                    <small>${escapeHtml(leadTarget)}</small>
+                    <small>${escapeHtml(page.nextReconstructionStep ?? page.selectedReason ?? "Continue using the grounded page source for final section reconstruction.")}</small>
+                    <small>${page.selectedLocalPath ? `source · ${escapeHtml(getPathBasename(page.selectedLocalPath) ?? page.selectedLocalPath)}` : "source · pending"}</small>
+                    <small>${escapeHtml(cueSummary)}</small>
+                    <div class="evidence-actions">
+                      ${replaceableSelectedObject && page.matchedTaskKitAsset && page.matchedTaskKitAsset.assetId !== donorAsset?.assetId ? `
+                        <button
+                          type="button"
+                          class="copy-button"
+                          data-task-section-replace-asset-id="${escapeAttribute(page.matchedTaskKitAsset.assetId)}"
+                          data-task-section-task-id="${escapeAttribute(taskSectionContext.task.taskId)}"
+                          title="Replace ${escapeAttribute(replaceableSelectedObject.displayName)} with the grounded source for ${escapeAttribute(page.pageName)}"
+                        >Use This Page Source</button>
+                      ` : ""}
+                      ${usesSelectedSource ? `<span class="muted-copy">Selected object already uses this grounded page source.</span>` : ""}
+                      ${page.selectedLocalPath ? renderCopyButton(page.selectedLocalPath, `${taskSectionContext.task.displayName} ${page.pageName} source path`, "Copy Page Source") : ""}
+                    </div>
+                  </div>
+                `;
+              }).join("")}
+            </div>
+            ${taskSectionContext.hiddenReconstructionPageCount > 0 ? `<p class="muted-copy">+${escapeHtml(String(taskSectionContext.hiddenReconstructionPageCount))} more page cue${taskSectionContext.hiddenReconstructionPageCount === 1 ? "" : "s"} remain in this source artifact. Use Show Task Kit or Copy Task Artifact for the full grounded bundle.</p>` : ""}
+          </div>
+        ` : ""}
         <div class="evidence-linked-objects">
           <div class="evidence-subsection-head donor-replace-head">
             <strong>Task-Aware Replace</strong>

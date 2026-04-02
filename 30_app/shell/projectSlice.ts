@@ -1078,7 +1078,24 @@ export interface ModificationHandoffSummary {
     rationale: string;
     canOpenCompose: boolean;
     canOpenRuntime: boolean;
+    nextReconstructionStep: string | null;
+    reconstructionPages: ModificationTaskReconstructionPageSummary[];
   }>;
+}
+
+export interface ModificationTaskReconstructionPageSummary {
+  pageName: string;
+  pageState: string | null;
+  selectedMode: string | null;
+  selectedReason: string | null;
+  selectedLocalPath: string | null;
+  topAffectedSlotName: string | null;
+  topAffectedAttachmentName: string | null;
+  affectedLayerCount: number;
+  affectedSlotNames: string[];
+  affectedAttachmentNames: string[];
+  regionNames: string[];
+  nextReconstructionStep: string | null;
 }
 
 export interface ProjectSliceBundle {
@@ -3375,6 +3392,14 @@ function getObjectArray(value: JsonValue | undefined): JsonObject[] {
   return value.filter((item): item is JsonObject => Boolean(item) && typeof item === "object" && !Array.isArray(item));
 }
 
+function getStringArray(value: JsonValue | undefined): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.filter((item): item is string => typeof item === "string" && item.length > 0);
+}
+
 async function loadInvestigationStatus(selectedProject: WorkspaceProjectSummary | null): Promise<InvestigationStatusSummary | null> {
   const donorId = selectedProject?.donor?.donorId;
   if (!donorId) {
@@ -3565,31 +3590,71 @@ async function loadModificationHandoffStatus(selectedProject: WorkspaceProjectSu
     return null;
   }
 
-  const topTasks = Array.isArray(handoff.tasks)
+  const topTaskInputs = Array.isArray(handoff.tasks)
     ? handoff.tasks
-      .map((task) => ({
-        taskId: typeof task.taskId === "string" ? task.taskId : "",
-        displayName: typeof task.displayName === "string" ? task.displayName : "",
-        familyName: typeof task.familyName === "string" ? task.familyName : "",
-        sectionKey: typeof task.sectionKey === "string" ? task.sectionKey : null,
-        taskStatus: typeof task.taskStatus === "string" ? task.taskStatus : "unknown",
-        recommendedWorkbench: typeof task.recommendedWorkbench === "string" ? task.recommendedWorkbench : "compose-runtime",
-        sourceArtifactKind: typeof task.sourceArtifactKind === "string" ? task.sourceArtifactKind : "queue-source",
-        sourceArtifactState: typeof task.sourceArtifactState === "string" ? task.sourceArtifactState : null,
-        sourceArtifactPath: typeof task.sourceArtifactPath === "string" ? task.sourceArtifactPath : null,
-        supportingArtifactPaths: Array.isArray(task.supportingArtifactPaths)
-          ? task.supportingArtifactPaths.filter((value): value is string => typeof value === "string")
-          : [],
-        preferredWorkflowPanel: typeof task.preferredWorkflowPanel === "string" ? task.preferredWorkflowPanel : "compose",
-        preferredWorkbenchMode: typeof task.preferredWorkbenchMode === "string" ? task.preferredWorkbenchMode : "scene",
-        nextAction: typeof task.nextAction === "string" ? task.nextAction : "Open Modification / Compose and continue from the strongest prepared artifact.",
-        rationale: typeof task.rationale === "string" ? task.rationale : "Prepared modification task is grounded by the strongest available donor-scan artifact.",
-        canOpenCompose: Boolean(task.canOpenCompose ?? true),
-        canOpenRuntime: Boolean(task.canOpenRuntime ?? true)
-      }))
-      .filter((task) => task.taskId.length > 0)
+      .filter((task): task is ProjectModificationTask => Boolean(task) && typeof task.taskId === "string" && task.taskId.length > 0)
       .slice(0, 8)
     : [];
+  const topTasks = await Promise.all(topTaskInputs.map(async (task) => {
+    const sourceArtifactPath = typeof task.sourceArtifactPath === "string" ? task.sourceArtifactPath : null;
+    const sourceArtifactAbsolutePath = sourceArtifactPath
+      ? path.join(workspaceRoot, sourceArtifactPath)
+      : null;
+    const sourceArtifactFile = sourceArtifactAbsolutePath
+      ? await readOptionalJsonFile(sourceArtifactAbsolutePath)
+      : null;
+    const nextReconstructionStep = sourceArtifactFile && typeof sourceArtifactFile.nextTextureFitApplyStep === "string"
+      ? sourceArtifactFile.nextTextureFitApplyStep
+      : null;
+    const reconstructionPages = sourceArtifactFile
+      ? getObjectArray(sourceArtifactFile.pages)
+        .map((page): ModificationTaskReconstructionPageSummary | null => {
+          const pageName = typeof page.pageName === "string" ? page.pageName : null;
+          if (!pageName) {
+            return null;
+          }
+
+          return {
+            pageName,
+            pageState: typeof page.pageState === "string" ? page.pageState : null,
+            selectedMode: typeof page.selectedMode === "string" ? page.selectedMode : null,
+            selectedReason: typeof page.selectedReason === "string" ? page.selectedReason : null,
+            selectedLocalPath: typeof page.selectedLocalPath === "string" ? page.selectedLocalPath : null,
+            topAffectedSlotName: typeof page.topAffectedSlotName === "string" ? page.topAffectedSlotName : null,
+            topAffectedAttachmentName: typeof page.topAffectedAttachmentName === "string" ? page.topAffectedAttachmentName : null,
+            affectedLayerCount: typeof page.affectedLayerCount === "number" ? page.affectedLayerCount : 0,
+            affectedSlotNames: getStringArray(page.affectedSlotNames ?? page.slotNames),
+            affectedAttachmentNames: getStringArray(page.affectedAttachmentNames),
+            regionNames: getStringArray(page.regionNames ?? page.affectedRegionNames),
+            nextReconstructionStep: typeof page.nextFitApplyStep === "string" ? page.nextFitApplyStep : null
+          };
+        })
+        .filter((page): page is ModificationTaskReconstructionPageSummary => Boolean(page))
+      : [];
+
+    return {
+      taskId: typeof task.taskId === "string" ? task.taskId : "",
+      displayName: typeof task.displayName === "string" ? task.displayName : "",
+      familyName: typeof task.familyName === "string" ? task.familyName : "",
+      sectionKey: typeof task.sectionKey === "string" ? task.sectionKey : null,
+      taskStatus: typeof task.taskStatus === "string" ? task.taskStatus : "unknown",
+      recommendedWorkbench: typeof task.recommendedWorkbench === "string" ? task.recommendedWorkbench : "compose-runtime",
+      sourceArtifactKind: typeof task.sourceArtifactKind === "string" ? task.sourceArtifactKind : "queue-source",
+      sourceArtifactState: typeof task.sourceArtifactState === "string" ? task.sourceArtifactState : null,
+      sourceArtifactPath,
+      supportingArtifactPaths: Array.isArray(task.supportingArtifactPaths)
+        ? task.supportingArtifactPaths.filter((value): value is string => typeof value === "string")
+        : [],
+      preferredWorkflowPanel: typeof task.preferredWorkflowPanel === "string" ? task.preferredWorkflowPanel : "compose",
+      preferredWorkbenchMode: typeof task.preferredWorkbenchMode === "string" ? task.preferredWorkbenchMode : "scene",
+      nextAction: typeof task.nextAction === "string" ? task.nextAction : "Open Modification / Compose and continue from the strongest prepared artifact.",
+      rationale: typeof task.rationale === "string" ? task.rationale : "Prepared modification task is grounded by the strongest available donor-scan artifact.",
+      canOpenCompose: Boolean(task.canOpenCompose ?? true),
+      canOpenRuntime: Boolean(task.canOpenRuntime ?? true),
+      nextReconstructionStep,
+      reconstructionPages
+    };
+  }));
 
   return {
     projectId: typeof handoff.projectId === "string" ? handoff.projectId : selectedProject.projectId,
