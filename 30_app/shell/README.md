@@ -34,6 +34,7 @@ The operational workflow is now:
 9. If that task is backed by a page-fit bundle, the same inspector also shows a page-aware reconstruction guide with grounded page names, fit modes, affected slot or attachment cues, and page-local **Use This Page Source** actions for the selected object when a direct grounded swap is available.
 10. Those page-aware guide cards can now either select the best single grouped Compose member for that grounded page cue or widen out to the grouped members already using that grounded page source, which keeps page-level reconstruction work on the current grouped section instead of sending the operator back into broad palette browsing.
 11. The same page-aware guide cards can also jump straight to the grounded donor asset or donor evidence for that page cue, then return to the active grouped Compose section without losing the task context.
+12. Those same page-aware guide cards can now also jump into Runtime Mode: if the page cue already has a grounded runtime workbench source, the card opens that exact trace; otherwise it can launch the dedicated Runtime Debug Host as the stronger request-backed runtime proof path.
 
 ## Preferred Launchers
 - `./run/start-workbench.sh`
@@ -44,6 +45,7 @@ The operational workflow is now:
   - Direct launcher for the official Runtime Debug Host path.
 - `./run/refresh-runtime-assets.sh`
   - Safe runtime mirror/request refresh without opening the full shell.
+- If another MyIDE session already holds the default runtime mirror port, you can run smoke/debug commands with `MYIDE_RUNTIME_LOCAL_MIRROR_PORT=<free-port>` to launch a second bounded local mirror for verification.
 
 ## Current scope
 - Load a local web UI.

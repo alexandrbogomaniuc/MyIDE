@@ -3154,11 +3154,15 @@ async function clearRuntimeOverrideForSource(sourceUrl, options = {}) {
   }
 }
 
-async function openRuntimeDebugHostWindow() {
+async function openRuntimeDebugHostWindow(options = {}) {
+  const switchToRuntime = options?.switchToRuntime === true;
+  const statusPrefix = typeof options?.statusPrefix === "string" && options.statusPrefix.trim().length > 0
+    ? options.statusPrefix.trim()
+    : null;
   const api = window.myideApi;
   if (!api || typeof api.openRuntimeDebugHost !== "function") {
     setPreviewStatus("Runtime Debug Host is not available in this renderer session.");
-    return;
+    return null;
   }
 
   const result = await api.openRuntimeDebugHost();
@@ -3166,19 +3170,25 @@ async function openRuntimeDebugHostWindow() {
   if (typeof result?.candidateRuntimeSourceUrl === "string" && result.candidateRuntimeSourceUrl.length > 0) {
     state.runtimeUi.workbenchSourceUrl = getRuntimeCanonicalSourceUrl(result.candidateRuntimeSourceUrl) ?? result.candidateRuntimeSourceUrl;
   }
+  if (switchToRuntime) {
+    setWorkbenchMode("runtime", { silent: true });
+    state.workflowUi.activePanel = "runtime";
+  }
   renderAll();
 
   const runtimeSourceLabel = typeof result?.runtimeSourceLabel === "string" ? result.runtimeSourceLabel : "runtime source unknown";
   const candidatePath = result?.candidateRuntimeRelativePath ?? result?.candidateRuntimeSourceUrl ?? "no request-backed static image candidate";
   const hitCount = Number(result?.overrideHitCountAfterReload ?? 0);
   const error = typeof result?.error === "string" ? result.error : null;
+  const prefix = statusPrefix ? `${statusPrefix}. ` : "";
 
   if (error) {
-    setPreviewStatus(`Opened Runtime Debug Host on ${runtimeSourceLabel}, but it reported: ${error}`);
-    return;
+    setPreviewStatus(`${prefix}Opened Runtime Debug Host on ${runtimeSourceLabel}, but it reported: ${error}`);
+    return result ?? null;
   }
 
-  setPreviewStatus(`Opened Runtime Debug Host on ${runtimeSourceLabel}. Candidate ${candidatePath} recorded ${hitCount} override hit${hitCount === 1 ? "" : "s"} after reload.`);
+  setPreviewStatus(`${prefix}Opened Runtime Debug Host on ${runtimeSourceLabel}. Candidate ${candidatePath} recorded ${hitCount} override hit${hitCount === 1 ? "" : "s"} after reload.`);
+  return result ?? null;
 }
 
 async function runDonorScanCapture(limit = 5, family = null, mode = "ranked-targets") {
@@ -4581,6 +4591,11 @@ async function runLiveDonorImportSmoke() {
     distributionCompleted: false,
     sourceAssetFocusCompleted: false,
     sourceEvidenceFocusCompleted: false,
+    taskKitPageRuntimeTraceCompleted: false,
+    taskKitPageRuntimeTraceMode: null,
+    taskKitPageRuntimeSourceUrl: null,
+    taskKitPageRuntimeSourceLabel: null,
+    taskKitPageRuntimeBlocked: null,
     importedAssetCount: 0,
     importedFileTypes: [],
     importModes: [],
@@ -4848,6 +4863,70 @@ async function runLiveDonorImportSmoke() {
     await waitForRendererCondition(
       () => state.selectedObjectId === taskKitEditableMemberId && getSelectedObjectIds().length === 1,
       `${taskKitEditableMemberId} to become the single selected task member after source trace jumps`
+    );
+
+    const taskRuntimeTraceButton = await waitForRendererCondition(
+      () => elements.inspector?.querySelector("[data-task-reconstruction-runtime-source-url], [data-task-reconstruction-open-debug-host]") ?? null,
+      `${preparedModificationTask.taskId} page runtime trace action`
+    );
+    if (!(taskRuntimeTraceButton instanceof HTMLElement)) {
+      throw new Error(`Page-aware runtime trace action is missing for ${preparedModificationTask.taskId}.`);
+    }
+    if (taskRuntimeTraceButton.dataset.taskReconstructionRuntimeSourceUrl) {
+      const runtimeSourceUrl = taskRuntimeTraceButton.dataset.taskReconstructionRuntimeSourceUrl;
+      const runtimeLabel = taskRuntimeTraceButton.dataset.taskReconstructionRuntimeLabel ?? runtimeSourceUrl;
+      clickRendererElement(taskRuntimeTraceButton);
+      await waitForRendererCondition(
+        () => state.workflowUi?.activePanel === "runtime"
+          && state.workbenchMode === "runtime"
+          && getRuntimeWorkbenchSourceUrl() === runtimeSourceUrl,
+        `${preparedModificationTask.taskId} page runtime trace to focus ${runtimeLabel}`
+      );
+      baseResult.taskKitPageRuntimeTraceCompleted = true;
+      baseResult.taskKitPageRuntimeTraceMode = "matched-workbench";
+      baseResult.taskKitPageRuntimeSourceUrl = runtimeSourceUrl;
+      baseResult.taskKitPageRuntimeSourceLabel = runtimeLabel;
+    } else {
+      const runtimeLabel = taskRuntimeTraceButton.dataset.taskReconstructionRuntimeLabel ?? baseResult.taskKitPageGuideName ?? preparedModificationTask.taskId;
+      clickRendererElement(taskRuntimeTraceButton);
+      const debugHostResult = await waitForRendererCondition(
+        () => state.workflowUi?.activePanel === "runtime"
+          && state.workbenchMode === "runtime"
+          && state.runtimeUi?.debugHost
+          && typeof state.runtimeUi.debugHost.status === "string"
+          ? state.runtimeUi.debugHost
+          : null,
+        `${preparedModificationTask.taskId} page runtime trace to prove a debug-host candidate`,
+        { timeoutMs: 120000 }
+      );
+      baseResult.taskKitPageRuntimeTraceCompleted = true;
+      baseResult.taskKitPageRuntimeTraceMode = debugHostResult?.status === "pass"
+        ? "debug-host-pass"
+        : "debug-host-blocked";
+      baseResult.taskKitPageRuntimeSourceUrl = debugHostResult?.candidateRuntimeSourceUrl ?? null;
+      baseResult.taskKitPageRuntimeSourceLabel = runtimeLabel;
+      baseResult.taskKitPageRuntimeBlocked = debugHostResult?.error ?? debugHostResult?.overrideBlocked ?? null;
+    }
+
+    openProjectModificationTask(preparedModificationTask.taskId, "compose");
+    await waitForRendererCondition(
+      () => {
+        const entry = getSceneSectionEntryForDonorAssetGroupKey(preparedTaskKitGroup.key);
+        return entry
+          && state.modificationTaskUi?.activeTaskId === preparedModificationTask.taskId
+          && state.workflowUi?.activePanel === "compose"
+          && getSelectedObjectIds().some((objectId) => entry.memberObjectIds.includes(objectId))
+          ? entry
+          : null;
+      },
+      `${preparedModificationTask.taskId} to reopen on the imported scene section after runtime trace jump`
+    );
+    focusSceneObjectInWorkflow(taskKitEditableMemberId, {
+      statusMessage: `Re-selected ${taskKitEditableMemberId} after returning from the page runtime trace.`
+    });
+    await waitForRendererCondition(
+      () => state.selectedObjectId === taskKitEditableMemberId && getSelectedObjectIds().length === 1,
+      `${taskKitEditableMemberId} to become the single selected task member after runtime trace jump`
     );
 
     const taskLeadMemberButton = await waitForRendererCondition(
@@ -5826,11 +5905,11 @@ async function runLiveDonorImportSmoke() {
       throw new Error("The donor source evidence jump did not complete.");
     }
 
-    if (!baseResult.taskKitImportCompleted || !baseResult.taskKitComposeLandingVerified || !baseResult.taskKitPageGuideVerified || !baseResult.taskKitPageSourceAssetFocusVerified || !baseResult.taskKitPageSourceEvidenceFocusVerified || !baseResult.taskKitLeadMemberSelectionVerified || !baseResult.taskKitPageMemberSelectionVerified || !baseResult.taskKitQuickReplaceVerified) {
-      throw new Error("The prepared modification task did not complete grouped Compose landing, page-aware guidance, page-source asset/evidence jumps, lead-member selection, page-member selection, plus task-aware replace verification.");
+    if (!baseResult.taskKitImportCompleted || !baseResult.taskKitComposeLandingVerified || !baseResult.taskKitPageGuideVerified || !baseResult.taskKitPageSourceAssetFocusVerified || !baseResult.taskKitPageSourceEvidenceFocusVerified || !baseResult.taskKitPageRuntimeTraceCompleted || !baseResult.taskKitLeadMemberSelectionVerified || !baseResult.taskKitPageMemberSelectionVerified || !baseResult.taskKitQuickReplaceVerified) {
+      throw new Error("The prepared modification task did not complete grouped Compose landing, page-aware guidance, page-source asset/evidence/runtime jumps, lead-member selection, page-member selection, plus task-aware replace verification.");
     }
 
-    const successMessage = `Live donor import smoke passed: imported task kit ${baseResult.taskKitGroupKey ?? "n/a"} into scene section ${baseResult.taskKitSectionLabel ?? "n/a"}, reopened active task ${baseResult.taskKitTaskId ?? "n/a"} on that grouped compose surface, surfaced page-aware guide ${baseResult.taskKitPageGuideName ?? "n/a"}, focused page source asset ${baseResult.taskKitPageSourceAssetId ?? "n/a"} and evidence ${baseResult.taskKitPageSourceEvidenceId ?? "n/a"}, selected lead member ${baseResult.taskKitLeadMemberSelectionId ?? "n/a"}, selected ${baseResult.taskKitPageMemberSelectionCount ?? 0} page-linked scene member${baseResult.taskKitPageMemberSelectionCount === 1 ? "" : "s"}, replaced ${baseResult.taskKitEditableMemberId ?? "n/a"} with task-aware source ${baseResult.taskKitQuickReplaceAssetId ?? "n/a"}, then imported ${importedAssets.length} donor assets (${baseResult.importedFileTypes.join(", ")}), moved ${primaryImportedAsset.objectId} to (${baseResult.draggedX}, ${baseResult.draggedY}), resized it to ${baseResult.resizedWidth}×${baseResult.resizedHeight}, multi-selected/aligned/distributed donor-backed objects, replaced ${baseResult.replacementObjectId ?? "n/a"} with donor asset ${baseResult.replacementDonorEvidenceId ?? "n/a"}, and reloaded donor linkage for every donor-backed object.`;
+    const successMessage = `Live donor import smoke passed: imported task kit ${baseResult.taskKitGroupKey ?? "n/a"} into scene section ${baseResult.taskKitSectionLabel ?? "n/a"}, reopened active task ${baseResult.taskKitTaskId ?? "n/a"} on that grouped compose surface, surfaced page-aware guide ${baseResult.taskKitPageGuideName ?? "n/a"}, focused page source asset ${baseResult.taskKitPageSourceAssetId ?? "n/a"}, evidence ${baseResult.taskKitPageSourceEvidenceId ?? "n/a"}, and runtime trace ${baseResult.taskKitPageRuntimeSourceLabel ?? baseResult.taskKitPageRuntimeSourceUrl ?? "n/a"}${baseResult.taskKitPageRuntimeBlocked ? ` (${baseResult.taskKitPageRuntimeBlocked})` : ""}, selected lead member ${baseResult.taskKitLeadMemberSelectionId ?? "n/a"}, selected ${baseResult.taskKitPageMemberSelectionCount ?? 0} page-linked scene member${baseResult.taskKitPageMemberSelectionCount === 1 ? "" : "s"}, replaced ${baseResult.taskKitEditableMemberId ?? "n/a"} with task-aware source ${baseResult.taskKitQuickReplaceAssetId ?? "n/a"}, then imported ${importedAssets.length} donor assets (${baseResult.importedFileTypes.join(", ")}), moved ${primaryImportedAsset.objectId} to (${baseResult.draggedX}, ${baseResult.draggedY}), resized it to ${baseResult.resizedWidth}×${baseResult.resizedHeight}, multi-selected/aligned/distributed donor-backed objects, replaced ${baseResult.replacementObjectId ?? "n/a"} with donor asset ${baseResult.replacementDonorEvidenceId ?? "n/a"}, and reloaded donor linkage for every donor-backed object.`;
     setPreviewStatus(successMessage);
     baseResult.previewStatus = successMessage;
     document.body.dataset.liveDonorImportSmoke = "pass";
@@ -9525,6 +9604,49 @@ function getProjectModificationTaskLeadSceneMemberForPage(page) {
   return bestMember;
 }
 
+function getProjectModificationTaskRuntimeEntryForPage(page) {
+  const pageSourceBasename = getPathBasename(page?.selectedLocalPath);
+  const matchedAssetId = page?.matchedTaskKitAsset?.assetId ?? null;
+  const pageTokens = getProjectModificationTaskPageMatchTokens(page);
+  let bestEntry = null;
+  let bestScore = Number.NEGATIVE_INFINITY;
+
+  for (const entry of getRuntimeWorkbenchEntries()) {
+    const entryBasenames = uniqueStrings([
+      getPathBasename(entry?.relativePath),
+      getPathBasename(entry?.localMirrorRepoRelativePath),
+      getPathBasename(entry?.sourceUrl)
+    ].filter(Boolean));
+    const entryHaystack = `${entry?.relativePath ?? ""} ${entry?.localMirrorRepoRelativePath ?? ""} ${entry?.sourceUrl ?? ""}`.toLowerCase();
+    let score = Number.NEGATIVE_INFINITY;
+
+    if (matchedAssetId && entry?.donorAsset?.assetId === matchedAssetId) {
+      score = 180;
+    } else if (pageSourceBasename && entryBasenames.includes(pageSourceBasename)) {
+      score = 160;
+    } else if (pageTokens.some((token) => token.length >= 3 && entryHaystack.includes(token))) {
+      score = 90;
+    }
+
+    if (score > Number.NEGATIVE_INFINITY && entry?.kind === "debug-host-proof") {
+      score += 30;
+    }
+    if (score > Number.NEGATIVE_INFINITY && Number(entry?.overrideHitCountAfterReload ?? 0) > 0) {
+      score += 15;
+    }
+    if (score > Number.NEGATIVE_INFINITY && entry?.requestBacked) {
+      score += 10;
+    }
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestEntry = entry;
+    }
+  }
+
+  return bestScore > Number.NEGATIVE_INFINITY ? bestEntry : null;
+}
+
 function getProjectModificationTaskContextForSceneKit(sceneKitContext, {
   selectedObject = getSelectedObject()
 } = {}) {
@@ -9562,6 +9684,7 @@ function getProjectModificationTaskContextForSceneKit(sceneKitContext, {
   for (const page of reconstructionPages) {
     page.matchedSceneMembers = getProjectModificationTaskSceneMembersForPage(sceneKitContext, page);
     page.leadSceneMember = getProjectModificationTaskLeadSceneMemberForPage(page);
+    page.matchedRuntimeWorkbenchEntry = getProjectModificationTaskRuntimeEntryForPage(page);
   }
   const selectedReconstructionPage = reconstructionPages[0]?.matchScore > 0
     ? reconstructionPages[0]
@@ -12688,6 +12811,32 @@ function handleNavigationClick(event) {
     }
     setPreviewStatus(workbenchButton.dataset.switchStatus
       ?? `${getWorkbenchModeLabel(workbenchButton.dataset.switchWorkbenchMode)} Mode is active.`);
+    return true;
+  }
+
+  const taskRuntimeTraceButton = target.closest("[data-task-reconstruction-runtime-source-url]");
+  if (taskRuntimeTraceButton instanceof HTMLElement && taskRuntimeTraceButton.dataset.taskReconstructionRuntimeSourceUrl) {
+    event.preventDefault();
+    const runtimeSourceUrl = taskRuntimeTraceButton.dataset.taskReconstructionRuntimeSourceUrl;
+    const runtimeLabel = taskRuntimeTraceButton.dataset.taskReconstructionRuntimeLabel
+      ?? getRuntimeResourceRelativePath(runtimeSourceUrl)
+      ?? runtimeSourceUrl;
+    setRuntimeWorkbenchSource(runtimeSourceUrl, { render: false });
+    setWorkbenchMode("runtime", { silent: true });
+    state.workflowUi.activePanel = "runtime";
+    renderAll();
+    setPreviewStatus(`Runtime Mode is active. Page cue ${runtimeLabel} is now focused on ${getRuntimeResourceRelativePath(runtimeSourceUrl) ?? runtimeSourceUrl}.`);
+    return true;
+  }
+
+  const taskDebugHostButton = target.closest("[data-task-reconstruction-open-debug-host]");
+  if (taskDebugHostButton instanceof HTMLElement) {
+    event.preventDefault();
+    const runtimeLabel = taskDebugHostButton.dataset.taskReconstructionRuntimeLabel ?? "Page cue";
+    void openRuntimeDebugHostWindow({
+      switchToRuntime: true,
+      statusPrefix: `${runtimeLabel} requested the stronger Runtime Debug Host proof path`
+    });
     return true;
   }
 
@@ -19258,12 +19407,18 @@ function renderInspector() {
             <div class="detail-grid donor-linkage-grid">
               ${taskSectionContext.visibleReconstructionPages.map((page) => {
                 const usesSelectedSource = page.matchedTaskKitAsset?.assetId && page.matchedTaskKitAsset.assetId === donorAsset?.assetId;
+                const pageRuntimeEntry = page.matchedRuntimeWorkbenchEntry ?? null;
                 const leadTarget = page.topAffectedAttachmentName
                   ? `attachment · ${page.topAffectedAttachmentName}`
                   : page.topAffectedSlotName
                     ? `slot · ${page.topAffectedSlotName}`
                     : "No top slot or attachment cue recorded yet";
                 const cueSummary = `${page.affectedLayerCount} affected layer${page.affectedLayerCount === 1 ? "" : "s"} · ${page.affectedSlotNames.length} slot cue${page.affectedSlotNames.length === 1 ? "" : "s"} · ${page.affectedAttachmentNames.length} attachment cue${page.affectedAttachmentNames.length === 1 ? "" : "s"}`;
+                const runtimeSummary = pageRuntimeEntry
+                  ? `runtime · ${pageRuntimeEntry.relativePath ?? pageRuntimeEntry.localMirrorRepoRelativePath ?? pageRuntimeEntry.sourceUrl}`
+                  : taskSectionContext.task.canOpenRuntime
+                    ? "runtime · no page-linked runtime trace is loaded yet; use Debug Host for the stronger request-backed proof path."
+                    : "runtime · runtime trace is not available for this task yet.";
 
                 return `
                   <div
@@ -19276,6 +19431,7 @@ function renderInspector() {
                     <small>${escapeHtml(leadTarget)}</small>
                     <small>${escapeHtml(page.nextReconstructionStep ?? page.selectedReason ?? "Continue using the grounded page source for final section reconstruction.")}</small>
                     <small>${page.selectedLocalPath ? `source · ${escapeHtml(getPathBasename(page.selectedLocalPath) ?? page.selectedLocalPath)}` : "source · pending"}</small>
+                    <small>${escapeHtml(runtimeSummary)}</small>
                     <small>${escapeHtml(cueSummary)}</small>
                     <small>${escapeHtml(page.matchedSceneMembers.length > 0
                       ? `${page.matchedSceneMembers.length} grouped member${page.matchedSceneMembers.length === 1 ? "" : "s"} already use this page source`
@@ -19312,6 +19468,23 @@ function renderInspector() {
                           data-focus-donor-evidence-id="${escapeAttribute(page.matchedTaskKitAsset.evidenceId)}"
                           title="Focus the donor evidence item for ${escapeAttribute(page.pageName)}"
                         >Show Page Evidence</button>
+                      ` : ""}
+                      ${pageRuntimeEntry?.sourceUrl ? `
+                        <button
+                          type="button"
+                          class="copy-button"
+                          data-task-reconstruction-runtime-source-url="${escapeAttribute(pageRuntimeEntry.sourceUrl)}"
+                          data-task-reconstruction-runtime-label="${escapeAttribute(page.pageName)}"
+                          title="Open Runtime Mode on the strongest runtime trace for ${escapeAttribute(page.pageName)}"
+                        >Open Page Runtime</button>
+                      ` : taskSectionContext.task.canOpenRuntime ? `
+                        <button
+                          type="button"
+                          class="copy-button"
+                          data-task-reconstruction-open-debug-host="1"
+                          data-task-reconstruction-runtime-label="${escapeAttribute(page.pageName)}"
+                          title="Use the dedicated Runtime Debug Host when this page cue has no loaded runtime trace yet"
+                        >Use Debug Host</button>
                       ` : ""}
                       ${replaceableSelectedObject && page.matchedTaskKitAsset && page.matchedTaskKitAsset.assetId !== donorAsset?.assetId ? `
                         <button

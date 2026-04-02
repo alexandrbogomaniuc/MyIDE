@@ -33,6 +33,8 @@ Those page-aware cards can now either select the best single grouped Compose mem
 
 The same page-aware cards can now also jump straight to the grounded donor asset or donor evidence behind that page cue, then return to the active grouped Compose section to continue editing on the same task surface.
 
+Those same page-aware cards can now also jump into runtime proof from the active task surface: when a page-linked runtime source is already grounded, they open that exact runtime trace in Runtime Mode; otherwise they can launch the dedicated Runtime Debug Host without leaving the modification workflow.
+
 ## Current Phase
 - Current milestone: IDE-LIFECYCLE-A lifecycle backbone on top of the existing runtime-first shell, donor scan, and compose/runtime proving slices.
 - Active validated donor slice: `donor_001_mystery_garden`.

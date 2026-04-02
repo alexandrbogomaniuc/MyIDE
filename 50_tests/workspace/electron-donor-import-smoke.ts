@@ -27,6 +27,11 @@ interface LiveDonorImportPayload {
   distributionCompleted?: boolean;
   sourceAssetFocusCompleted?: boolean;
   sourceEvidenceFocusCompleted?: boolean;
+  taskKitPageRuntimeTraceCompleted?: boolean;
+  taskKitPageRuntimeTraceMode?: string | null;
+  taskKitPageRuntimeSourceUrl?: string | null;
+  taskKitPageRuntimeSourceLabel?: string | null;
+  taskKitPageRuntimeBlocked?: string | null;
   importedAssetCount?: number | null;
   importedFileTypes?: string[];
   importModes?: string[];
@@ -430,6 +435,13 @@ async function main(): Promise<void> {
     assert.equal(payload.distributionCompleted, true, "Renderer did not complete the multi-object distribution proof.");
     assert.equal(payload.sourceAssetFocusCompleted, true, "Renderer did not complete the source donor asset focus jump.");
     assert.equal(payload.sourceEvidenceFocusCompleted, true, "Renderer did not complete the source donor evidence focus jump.");
+    assert.equal(payload.taskKitPageRuntimeTraceCompleted, true, "Renderer did not complete the page-aware runtime trace jump from the active modification guide.");
+    assert(
+      payload.taskKitPageRuntimeTraceMode === "matched-workbench"
+        || payload.taskKitPageRuntimeTraceMode === "debug-host-pass"
+        || payload.taskKitPageRuntimeTraceMode === "debug-host-blocked",
+      "Renderer did not report whether the page-aware runtime trace used a matched workbench source, a passing Debug Host proof, or a concrete Debug Host blocker."
+    );
     assert.equal(payload.replacementPersistVerified, true, "Renderer did not preserve the donor-backed replacement layout/layer after reload.");
     assert.equal(payload.replacementLinkageVerified, true, "Renderer did not preserve donor linkage for the donor-backed replacement after reload.");
     assert.equal(payload.replacementReloadedLayerId, payload.replacementLayerId, "Renderer reloaded the donor-backed replacement on a different layer.");

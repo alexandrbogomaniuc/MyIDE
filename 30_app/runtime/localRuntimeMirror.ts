@@ -51,7 +51,15 @@ interface MirrorCaptureAttemptResult {
 }
 
 const workspaceRoot = path.resolve(__dirname, "../../..");
-const localMirrorPort = 38901;
+const defaultLocalMirrorPort = 38901;
+const configuredLocalMirrorPort = (() => {
+  const rawValue = process.env.MYIDE_RUNTIME_LOCAL_MIRROR_PORT;
+  const parsedValue = Number.parseInt(rawValue ?? "", 10);
+  return Number.isInteger(parsedValue) && parsedValue > 0 && parsedValue < 65536
+    ? parsedValue
+    : defaultLocalMirrorPort;
+})();
+const localMirrorPort = configuredLocalMirrorPort;
 const donorRuntimeSessionReadme = path.join(
   workspaceRoot,
   "10_donors",
