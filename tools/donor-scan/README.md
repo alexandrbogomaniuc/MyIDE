@@ -201,6 +201,8 @@ After that review seam, donor scan now also writes `section-skin-texture-fit-dec
 
 After the decision seam, donor scan now also writes `section-skin-texture-fit-approval-bundles/<family>--<section>.json`, which packages the selected transform per atlas page together with affected-layer context from the section render plan. `section-skin-texture-fit-approval-bundle-profiles.json` is the donor-wide summary of those approval-ready sections. When the state is `ready-for-fit-approval`, the blocker is no longer “pick a transform”; it is “approve the selected transform before final texture reconstruction.”
 
+After the approval seam, donor scan now also writes `section-skin-texture-fit-apply-bundles/<family>--<section>.json`, which turns those approved per-page transform choices into one explicit downstream applied-fit handoff. `section-skin-texture-fit-apply-bundle-profiles.json` is the donor-wide summary of those applied sections. When the state is `ready-with-applied-fit-transforms`, the blocker is no longer “approve the transform”; it is “use the applied fit surface for final texture reconstruction.”
+
 `donor-scan:capture-family-sources` is the next step after that dossier. It does not invent new URLs. Instead, it turns the grounded family evidence back into a family-specific source-material queue, prioritizes optimized variant-backed and bundle-backed family assets before raw atlas-page retries, and refreshes donor scan after the run.
 
 That reopened-target behavior is already proven on the live Mystery Garden donor: once donor scan started surfacing optimized variant URLs from bundle-backed sibling image families, guided capture successfully downloaded atlas-adjacent payloads such as `h1`, `h2`, `stick`, and `wild` from those newly grounded URLs.

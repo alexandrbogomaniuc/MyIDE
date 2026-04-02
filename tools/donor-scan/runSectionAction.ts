@@ -23,6 +23,7 @@ import { buildSectionSkinTextureSourceFitBundle } from "./buildSectionSkinTextur
 import { buildSectionSkinTextureFitReviewBundle } from "./buildSectionSkinTextureFitReviewBundle";
 import { buildSectionSkinTextureFitDecisionBundle } from "./buildSectionSkinTextureFitDecisionBundle";
 import { buildSectionSkinTextureFitApprovalBundle } from "./buildSectionSkinTextureFitApprovalBundle";
+import { buildSectionSkinTextureFitApplyBundle } from "./buildSectionSkinTextureFitApplyBundle";
 import { summarizeSectionReconstructionProfiles } from "./summarizeSectionReconstructionProfiles";
 import { summarizeSectionSkinBlueprintProfiles } from "./summarizeSectionSkinBlueprintProfiles";
 import { summarizeSectionSkinRenderPlanProfiles } from "./summarizeSectionSkinRenderPlanProfiles";
@@ -47,6 +48,7 @@ import { summarizeSectionSkinTextureSourceFitBundleProfiles } from "./summarizeS
 import { summarizeSectionSkinTextureFitReviewBundleProfiles } from "./summarizeSectionSkinTextureFitReviewBundleProfiles";
 import { summarizeSectionSkinTextureFitDecisionBundleProfiles } from "./summarizeSectionSkinTextureFitDecisionBundleProfiles";
 import { summarizeSectionSkinTextureFitApprovalBundleProfiles } from "./summarizeSectionSkinTextureFitApprovalBundleProfiles";
+import { summarizeSectionSkinTextureFitApplyBundleProfiles } from "./summarizeSectionSkinTextureFitApplyBundleProfiles";
 import type {
   FamilyReconstructionSectionBundleRecord,
   FamilyReconstructionSectionBundlesFile,
@@ -99,6 +101,7 @@ export interface RunSectionActionResult {
   skinTextureFitReviewBundlePath: string | null;
   skinTextureFitDecisionBundlePath: string | null;
   skinTextureFitApprovalBundlePath: string | null;
+  skinTextureFitApplyBundlePath: string | null;
   exactLocalSourceCount: number;
   attachmentCount: number;
   mappedAttachmentCount: number;
@@ -203,6 +206,7 @@ function buildBlockedResult(
     skinTextureFitReviewBundlePath: null,
     skinTextureFitDecisionBundlePath: null,
     skinTextureFitApprovalBundlePath: null,
+    skinTextureFitApplyBundlePath: null,
     exactLocalSourceCount: sectionBundle.exactLocalSourceCount,
     attachmentCount: sectionBundle.attachmentCount,
     mappedAttachmentCount: sectionBundle.mappedAttachmentCount,
@@ -269,6 +273,7 @@ export async function runSectionAction(options: RunSectionActionOptions): Promis
       skinTextureFitReviewBundlePath: null,
       skinTextureFitDecisionBundlePath: null,
       skinTextureFitApprovalBundlePath: null,
+      skinTextureFitApplyBundlePath: null,
       exactLocalSourceCount: sectionBundle.exactLocalSourceCount,
       attachmentCount: sectionBundle.attachmentCount,
       mappedAttachmentCount: sectionBundle.mappedAttachmentCount,
@@ -521,6 +526,15 @@ export async function runSectionAction(options: RunSectionActionOptions): Promis
     `${sanitizeSectionSegment(sectionBundle.familyName)}--${sanitizeSectionSegment(sectionBundle.sectionKey)}.json`
   );
   await writeJsonFile(skinTextureFitApprovalBundlePath, skinTextureFitApprovalBundle);
+  const skinTextureFitApplyBundle = buildSectionSkinTextureFitApplyBundle({
+    textureFitApprovalBundle: skinTextureFitApprovalBundle,
+    textureFitApprovalBundlePath: toRepoRelativePath(skinTextureFitApprovalBundlePath)
+  });
+  const skinTextureFitApplyBundlePath = path.join(
+    paths.sectionSkinTextureFitApplyBundlesRoot,
+    `${sanitizeSectionSegment(sectionBundle.familyName)}--${sanitizeSectionSegment(sectionBundle.sectionKey)}.json`
+  );
+  await writeJsonFile(skinTextureFitApplyBundlePath, skinTextureFitApplyBundle);
   const sectionReconstructionProfiles = await summarizeSectionReconstructionProfiles({
     donorId,
     donorName: sectionBundles.donorName,
@@ -665,8 +679,14 @@ export async function runSectionAction(options: RunSectionActionOptions): Promis
     textureFitApprovalBundlesRoot: paths.sectionSkinTextureFitApprovalBundlesRoot
   });
   await writeJsonFile(paths.sectionSkinTextureFitApprovalBundleProfilesPath, sectionSkinTextureFitApprovalBundleProfiles);
+  const sectionSkinTextureFitApplyBundleProfiles = await summarizeSectionSkinTextureFitApplyBundleProfiles({
+    donorId,
+    donorName: sectionBundles.donorName,
+    textureFitApplyBundlesRoot: paths.sectionSkinTextureFitApplyBundlesRoot
+  });
+  await writeJsonFile(paths.sectionSkinTextureFitApplyBundleProfilesPath, sectionSkinTextureFitApplyBundleProfiles);
 
-  const nextOperatorAction = skinTextureFitApprovalBundle.nextTextureFitApprovalStep;
+  const nextOperatorAction = skinTextureFitApplyBundle.nextTextureFitApplyStep;
   const sectionActionRun: SectionActionRunFile = {
     schemaVersion: "0.1.0",
     donorId,
@@ -702,6 +722,7 @@ export async function runSectionAction(options: RunSectionActionOptions): Promis
     skinTextureFitReviewBundlePath: toRepoRelativePath(skinTextureFitReviewBundlePath),
     skinTextureFitDecisionBundlePath: toRepoRelativePath(skinTextureFitDecisionBundlePath),
     skinTextureFitApprovalBundlePath: toRepoRelativePath(skinTextureFitApprovalBundlePath),
+    skinTextureFitApplyBundlePath: toRepoRelativePath(skinTextureFitApplyBundlePath),
     exactLocalSourceCount: sectionBundle.exactLocalSourceCount,
     attachmentCount: sectionBundle.attachmentCount,
     mappedAttachmentCount: sectionBundle.mappedAttachmentCount,
@@ -744,6 +765,7 @@ export async function runSectionAction(options: RunSectionActionOptions): Promis
     skinTextureFitReviewBundlePath,
     skinTextureFitDecisionBundlePath,
     skinTextureFitApprovalBundlePath,
+    skinTextureFitApplyBundlePath,
     exactLocalSourceCount: sectionBundle.exactLocalSourceCount,
     attachmentCount: sectionBundle.attachmentCount,
     mappedAttachmentCount: sectionBundle.mappedAttachmentCount,
@@ -861,6 +883,9 @@ async function main(): Promise<void> {
   }
   if (result.skinTextureFitApprovalBundlePath) {
     console.log(`Skin texture fit approval: ${toRepoRelativePath(result.skinTextureFitApprovalBundlePath)}`);
+  }
+  if (result.skinTextureFitApplyBundlePath) {
+    console.log(`Skin texture fit apply: ${toRepoRelativePath(result.skinTextureFitApplyBundlePath)}`);
   }
   console.log(`Mapped attachments: ${result.mappedAttachmentCount}/${result.attachmentCount}`);
   console.log(`Grounded local sources: ${result.exactLocalSourceCount}`);

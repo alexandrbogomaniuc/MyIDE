@@ -34,6 +34,7 @@ import { summarizeSectionSkinTextureSourceFitBundleProfiles } from "./summarizeS
 import { summarizeSectionSkinTextureFitReviewBundleProfiles } from "./summarizeSectionSkinTextureFitReviewBundleProfiles";
 import { summarizeSectionSkinTextureFitDecisionBundleProfiles } from "./summarizeSectionSkinTextureFitDecisionBundleProfiles";
 import { summarizeSectionSkinTextureFitApprovalBundleProfiles } from "./summarizeSectionSkinTextureFitApprovalBundleProfiles";
+import { summarizeSectionSkinTextureFitApplyBundleProfiles } from "./summarizeSectionSkinTextureFitApplyBundleProfiles";
 import {
   type CaptureRunFile,
   type DiscoveredDonorUrl,
@@ -901,6 +902,21 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
     || section.proposedStretchDecisionCount > 0
     || section.unresolvedPageLockCount > 0
   );
+  const sectionSkinTextureFitApplyBundleProfiles = await summarizeSectionSkinTextureFitApplyBundleProfiles({
+    donorId: options.donorId,
+    donorName: options.donorName,
+    textureFitApplyBundlesRoot: paths.sectionSkinTextureFitApplyBundlesRoot
+  });
+  await writeJsonFile(paths.sectionSkinTextureFitApplyBundleProfilesPath, sectionSkinTextureFitApplyBundleProfiles);
+  const prioritizedSectionSkinTextureFitApplyBundleProfiles = sectionSkinTextureFitApplyBundleProfiles.sections.filter((section) =>
+    section.readyPageCount > 0
+    || section.blockedPageCount > 0
+    || section.missingSourceDimensionCount > 0
+    || section.appliedContainFitCount > 0
+    || section.appliedCoverFitCount > 0
+    || section.appliedStretchFitCount > 0
+    || section.unresolvedPageLockCount > 0
+  );
   const rawPayloadBlockedFamilies = captureBlockerFamilies.families
     .filter((family) => family.blockerClass === "raw-payload-blocked");
 
@@ -1054,6 +1070,10 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
       .map((section) => section.sectionKey),
     sectionSkinTextureFitApprovalBundleCount: sectionSkinTextureFitApprovalBundleProfiles.sectionCount,
     topSectionSkinTextureFitApprovalBundleKeys: prioritizedSectionSkinTextureFitApprovalBundleProfiles
+      .slice(0, 8)
+      .map((section) => section.sectionKey),
+    sectionSkinTextureFitApplyBundleCount: sectionSkinTextureFitApplyBundleProfiles.sectionCount,
+    topSectionSkinTextureFitApplyBundleKeys: prioritizedSectionSkinTextureFitApplyBundleProfiles
       .slice(0, 8)
       .map((section) => section.sectionKey),
     sectionSkinTextureInputBundleCount: sectionSkinTextureInputBundleProfiles.sectionCount,
