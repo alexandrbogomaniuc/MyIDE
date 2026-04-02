@@ -22,6 +22,7 @@ For the current build, Investigation is the important new truth surface. Use it 
 9. Once a task kit has been imported, **Start Task** and **Open Compose** now reopen that grouped scene section directly instead of dropping you back onto a generic compose surface.
 10. When one grouped section member is selected, use the new task-aware inspector replace actions to swap that object from the active task kit while keeping the current grouped section and layout intact.
 11. If the active task is grounded by a fit-apply page bundle, use the page-aware reconstruction guide in that same inspector to see the lead page, fit mode, affected slot or attachment cue, and the page-local **Use This Page Source** action before widening out to the full task kit.
+12. The same page-aware cards can now also select the grouped section members already tied to that page source, so you can move from the page cue straight into the current Compose section before doing a replacement.
 
 ## 1. Launch The Current Build
 1. Finder double-click daily start: `./run/Start-MyIDE-Workbench.command`.
