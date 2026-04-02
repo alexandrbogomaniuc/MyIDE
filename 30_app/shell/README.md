@@ -27,6 +27,7 @@ The operational workflow is now:
 2. Follow the explicit operator-assist action when the bounded pass stops helping.
 3. Promote ready families/sections into Modification explicitly instead of treating readiness as an implied state change.
 4. Prepare the project modification board so promoted donor items resolve into explicit compose/runtime tasks with the strongest grounded artifact per task.
+5. Start a prepared task from the board so the shell switches into Compose or Runtime with the strongest grounded runtime source it can match for that task.
 
 ## Preferred Launchers
 - `./run/start-workbench.sh`

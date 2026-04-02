@@ -48,6 +48,9 @@ const state = {
   workflowUi: {
     activePanel: "runtime"
   },
+  modificationTaskUi: {
+    activeTaskId: null
+  },
   runtimeUi: {
     launched: false,
     loading: false,
@@ -9060,6 +9063,242 @@ function getProjectModificationHandoff() {
   return state.bundle?.modificationHandoff ?? null;
 }
 
+function getProjectModificationTasks() {
+  const handoff = getProjectModificationHandoff();
+  return Array.isArray(handoff?.topTasks) ? handoff.topTasks : [];
+}
+
+function getProjectModificationTask(taskId) {
+  if (typeof taskId !== "string" || taskId.length === 0) {
+    return null;
+  }
+
+  return getProjectModificationTasks().find((task) => task.taskId === taskId) ?? null;
+}
+
+function getActiveProjectModificationTask() {
+  return getProjectModificationTask(state.modificationTaskUi?.activeTaskId ?? null);
+}
+
+function normalizeRepoLikePath(value) {
+  if (typeof value !== "string" || value.trim().length === 0) {
+    return null;
+  }
+
+  const normalized = value.trim().replace(/\\/g, "/").replace(/^\/+/, "");
+  return normalized.length > 0 ? normalized : null;
+}
+
+function getPathBasename(value) {
+  const normalized = normalizeRepoLikePath(value);
+  if (!normalized) {
+    return null;
+  }
+
+  const segments = normalized.split("/").filter((segment) => segment.length > 0);
+  return segments.length > 0 ? segments[segments.length - 1] : null;
+}
+
+function getModificationTaskArtifactPaths(task) {
+  return uniqueStrings([
+    task?.sourceArtifactPath,
+    ...(Array.isArray(task?.supportingArtifactPaths) ? task.supportingArtifactPaths : [])
+  ].filter((value) => typeof value === "string" && value.length > 0));
+}
+
+function getRuntimeWorkbenchEntryForModificationTask(task) {
+  if (!task) {
+    return null;
+  }
+
+  const artifactPaths = getModificationTaskArtifactPaths(task)
+    .map((value) => normalizeRepoLikePath(value))
+    .filter(Boolean);
+  if (artifactPaths.length === 0) {
+    return null;
+  }
+
+  const artifactBasenames = uniqueStrings(artifactPaths.map((value) => getPathBasename(value)).filter(Boolean));
+  const artifactPathSet = new Set(artifactPaths);
+  const artifactBasenameSet = new Set(artifactBasenames);
+  const familyToken = typeof task.familyName === "string" ? task.familyName.toLowerCase() : "";
+  const sectionToken = typeof task.sectionKey === "string" ? task.sectionKey.toLowerCase().replace(/[^a-z0-9]+/g, "") : "";
+
+  let bestEntry = null;
+  let bestScore = Number.NEGATIVE_INFINITY;
+
+  for (const entry of getRuntimeWorkbenchEntries()) {
+    const localMirrorPath = normalizeRepoLikePath(entry.localMirrorRepoRelativePath);
+    const relativePath = normalizeRepoLikePath(entry.relativePath);
+    const sourceUrl = normalizeRepoLikePath(entry.sourceUrl);
+    const localMirrorBasename = getPathBasename(localMirrorPath);
+    const relativeBasename = getPathBasename(relativePath);
+    const sourceBasename = getPathBasename(sourceUrl);
+
+    let score = Number.NEGATIVE_INFINITY;
+    if (localMirrorPath && artifactPathSet.has(localMirrorPath)) {
+      score = 120;
+    } else if (relativePath && artifactPaths.some((artifactPath) => artifactPath.endsWith(relativePath))) {
+      score = 100;
+    } else if (localMirrorBasename && artifactBasenameSet.has(localMirrorBasename)) {
+      score = 80;
+    } else if (relativeBasename && artifactBasenameSet.has(relativeBasename)) {
+      score = 70;
+    } else if (sourceBasename && artifactBasenameSet.has(sourceBasename)) {
+      score = 60;
+    }
+
+    const entryHaystack = `${relativePath ?? ""} ${localMirrorPath ?? ""} ${sourceUrl ?? ""}`.toLowerCase();
+    if (score > Number.NEGATIVE_INFINITY && familyToken && entryHaystack.includes(familyToken.replace(/_/g, "-"))) {
+      score += 5;
+    }
+    if (score > Number.NEGATIVE_INFINITY && sectionToken && entryHaystack.replace(/[^a-z0-9]+/g, "").includes(sectionToken)) {
+      score += 5;
+    }
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestEntry = entry;
+    }
+  }
+
+  return bestScore > Number.NEGATIVE_INFINITY ? bestEntry : null;
+}
+
+function setActiveProjectModificationTask(taskId, options = {}) {
+  const task = getProjectModificationTask(taskId);
+  state.modificationTaskUi.activeTaskId = task?.taskId ?? null;
+  if (options.render !== false) {
+    renderAll();
+  }
+  return task;
+}
+
+function openProjectModificationTask(taskId, mode = "preferred") {
+  const task = setActiveProjectModificationTask(taskId, { render: false });
+  if (!task) {
+    setPreviewStatus("Could not find that prepared modification task in the current project handoff.");
+    renderAll();
+    return;
+  }
+
+  const runtimeEntry = getRuntimeWorkbenchEntryForModificationTask(task);
+  const targetMode = mode === "runtime"
+    ? "runtime"
+    : mode === "compose"
+      ? "compose"
+      : task.preferredWorkflowPanel === "runtime"
+        ? "runtime"
+        : "compose";
+
+  if (runtimeEntry?.sourceUrl) {
+    setRuntimeWorkbenchSource(runtimeEntry.sourceUrl, { render: false });
+  }
+
+  if (targetMode === "runtime") {
+    setWorkbenchMode("runtime", { silent: true });
+    state.workflowUi.activePanel = "runtime";
+  } else {
+    setWorkbenchMode(task.preferredWorkbenchMode === "runtime" ? "runtime" : "scene", { silent: true });
+    state.workflowUi.activePanel = "compose";
+  }
+
+  renderAll();
+  setPreviewStatus(
+    runtimeEntry
+      ? `${task.displayName}${task.sectionKey ? ` ${task.sectionKey}` : ""} is now the active modification task. ${targetMode === "runtime" ? "Runtime" : "Compose"} is active with grounded runtime source ${runtimeEntry.relativePath ?? runtimeEntry.localMirrorRepoRelativePath ?? runtimeEntry.sourceUrl}.`
+      : `${task.displayName}${task.sectionKey ? ` ${task.sectionKey}` : ""} is now the active modification task. ${targetMode === "runtime" ? "Runtime" : "Compose"} is active, but no request-backed runtime workbench source is matched yet. Continue from source artifact ${task.sourceArtifactPath ?? "pending artifact"}.`
+  );
+}
+
+function renderProjectModificationTaskRow(task) {
+  if (!task) {
+    return "";
+  }
+
+  const runtimeEntry = getRuntimeWorkbenchEntryForModificationTask(task);
+  const runtimeLabel = runtimeEntry
+    ? (runtimeEntry.relativePath ?? runtimeEntry.localMirrorRepoRelativePath ?? runtimeEntry.sourceUrl)
+    : "No grounded runtime source matched yet";
+  const isActive = state.modificationTaskUi?.activeTaskId === task.taskId;
+
+  return `
+    <div class="investigation-row">
+      <strong>${escapeHtml(task.displayName)} <code>${escapeHtml(task.taskStatus)}</code>${isActive ? ` <code>active</code>` : ""}</strong>
+      <small>${escapeHtml(task.familyName)}${task.sectionKey ? ` · ${escapeHtml(task.sectionKey)}` : ""} · ${escapeHtml(task.sourceArtifactKind)} · ${escapeHtml(task.preferredWorkflowPanel)}</small>
+      <small>${escapeHtml(task.nextAction)}</small>
+      <small>${task.sourceArtifactPath ? `source artifact · ${escapeHtml(task.sourceArtifactPath)}` : "source artifact · pending"}</small>
+      <small>runtime context · ${escapeHtml(runtimeLabel)}</small>
+      <div class="evidence-actions">
+        <button
+          type="button"
+          class="copy-button"
+          data-project-modification-action="start-task"
+          data-project-modification-task-id="${escapeAttribute(task.taskId)}"
+        >Start Task</button>
+        <button
+          type="button"
+          class="copy-button"
+          data-project-modification-action="open-compose-task"
+          data-project-modification-task-id="${escapeAttribute(task.taskId)}"
+          ${task.canOpenCompose ? "" : "disabled"}
+        >Open Compose</button>
+        <button
+          type="button"
+          class="copy-button"
+          data-project-modification-action="open-runtime-task"
+          data-project-modification-task-id="${escapeAttribute(task.taskId)}"
+          ${task.canOpenRuntime ? "" : "disabled"}
+        >Open Runtime</button>
+        ${task.sourceArtifactPath ? renderCopyButton(task.sourceArtifactPath, `${task.displayName} source artifact path`, "Copy Source Artifact") : ""}
+      </div>
+    </div>
+  `;
+}
+
+function renderActiveProjectModificationTaskCard() {
+  const task = getActiveProjectModificationTask();
+  if (!task) {
+    return "";
+  }
+
+  const runtimeEntry = getRuntimeWorkbenchEntryForModificationTask(task);
+  const runtimeSummary = runtimeEntry
+    ? (runtimeEntry.relativePath ?? runtimeEntry.localMirrorRepoRelativePath ?? runtimeEntry.sourceUrl)
+    : "No request-backed runtime workbench source is matched yet.";
+
+  return `
+    <div class="tree-row">
+      <strong>Active Modification Task</strong>
+      <span>${escapeHtml(task.displayName)}${task.sectionKey ? ` · ${escapeHtml(task.sectionKey)}` : ""} · ${escapeHtml(task.sourceArtifactKind)}</span>
+      <div class="chip-row">
+        <span>${escapeHtml(task.taskStatus)}</span>
+        <span>${escapeHtml(task.preferredWorkflowPanel)}</span>
+        <span>${runtimeEntry ? "runtime matched" : "runtime not matched"}</span>
+      </div>
+      <small>${escapeHtml(task.nextAction)}</small>
+      <small>Runtime context · ${escapeHtml(runtimeSummary)}</small>
+      <div class="evidence-actions">
+        <button
+          type="button"
+          class="copy-button"
+          data-project-modification-action="open-compose-task"
+          data-project-modification-task-id="${escapeAttribute(task.taskId)}"
+          ${task.canOpenCompose ? "" : "disabled"}
+        >Open Compose</button>
+        <button
+          type="button"
+          class="copy-button"
+          data-project-modification-action="open-runtime-task"
+          data-project-modification-task-id="${escapeAttribute(task.taskId)}"
+          ${task.canOpenRuntime ? "" : "disabled"}
+        >Open Runtime</button>
+        ${task.sourceArtifactPath ? renderCopyButton(task.sourceArtifactPath, `${task.displayName} source artifact path`, "Copy Source Artifact") : ""}
+      </div>
+    </div>
+  `;
+}
+
 function getSelectedObject() {
   if (!state.editorData || !Array.isArray(state.editorData.objects)) {
     return null;
@@ -12008,6 +12247,21 @@ function handleNavigationClick(event) {
       void prepareProjectModificationBoard();
       return true;
     }
+    const taskId = typeof projectModificationActionButton.dataset.projectModificationTaskId === "string"
+      ? projectModificationActionButton.dataset.projectModificationTaskId.trim()
+      : "";
+    if (projectModificationActionButton.dataset.projectModificationAction === "start-task") {
+      openProjectModificationTask(taskId, "preferred");
+      return true;
+    }
+    if (projectModificationActionButton.dataset.projectModificationAction === "open-compose-task") {
+      openProjectModificationTask(taskId, "compose");
+      return true;
+    }
+    if (projectModificationActionButton.dataset.projectModificationAction === "open-runtime-task") {
+      openProjectModificationTask(taskId, "runtime");
+      return true;
+    }
   }
 
   const focusSceneObjectButton = target.closest("[data-focus-scene-object-id]");
@@ -14311,6 +14565,9 @@ async function reloadWorkspace(isInitialLoad, requestedProjectId = null) {
         ? "runtime"
         : "compose"
   };
+  state.modificationTaskUi = {
+    activeTaskId: null
+  };
   reconcileSelectedObject();
   ensureSyncStatusForSelectedProject();
 
@@ -15845,15 +16102,11 @@ function renderInvestigationPanel() {
           ${modificationHandoff?.sourceQueuePath ? renderCopyButton(modificationHandoff.sourceQueuePath, "modification source queue path", "Copy Queue Source") : ""}
           ${modificationHandoff?.reportPath ? renderCopyButton(modificationHandoff.reportPath, "project modification handoff path", "Copy Report Path") : ""}
         </div>
+        ${renderActiveProjectModificationTaskCard()}
         <div class="investigation-list">
-          ${handoffTopTasks.length > 0 ? handoffTopTasks.map((task) => `
-            <div class="investigation-row">
-              <strong>${escapeHtml(task.displayName)} <code>${escapeHtml(task.taskStatus)}</code></strong>
-              <small>${escapeHtml(task.familyName)}${task.sectionKey ? ` · ${escapeHtml(task.sectionKey)}` : ""} · ${escapeHtml(task.sourceArtifactKind)} · ${escapeHtml(task.preferredWorkflowPanel)}</small>
-              <small>${escapeHtml(task.nextAction)}</small>
-              <small>${task.sourceArtifactPath ? `source artifact · ${escapeHtml(task.sourceArtifactPath)}` : "source artifact · pending"}</small>
-            </div>
-          `).join("") : `<div class="investigation-row"><strong>No project-facing modification board yet</strong><small>Promote ready investigation items, then prepare the modification board to surface compose/runtime tasks here.</small></div>`}
+          ${handoffTopTasks.length > 0
+            ? handoffTopTasks.map((task) => renderProjectModificationTaskRow(task)).join("")
+            : `<div class="investigation-row"><strong>No project-facing modification board yet</strong><small>Promote ready investigation items, then prepare the modification board to surface compose/runtime tasks here.</small></div>`}
         </div>
       </div>
 
@@ -16463,10 +16716,11 @@ function renderProjectSummary() {
         ` : ""}
         ${modificationHandoff?.reportPath ? renderCopyButton(modificationHandoff.reportPath, "project modification handoff path", "Copy Report Path") : ""}
       </div>
-      <div class="detail-list">
-        ${Array.isArray(modificationHandoff?.topTasks) && modificationHandoff.topTasks.length > 0 ? modificationHandoff.topTasks.slice(0, 4).map((task) => `
-          <small><strong>${escapeHtml(task.displayName)}</strong> · ${escapeHtml(task.taskStatus)} · ${escapeHtml(task.sourceArtifactKind)}${task.sectionKey ? ` · ${escapeHtml(task.sectionKey)}` : ""}${task.sourceArtifactPath ? ` · <code>${escapeHtml(task.sourceArtifactPath)}</code>` : ""}</small>
-        `).join("") : `<small>${queuedModificationCount > 0 ? "Prepare the modification board to resolve the strongest compose/runtime-ready artifact per queued item." : "Investigation will surface ready sections here after promotion."}</small>`}
+      ${renderActiveProjectModificationTaskCard()}
+      <div class="investigation-list">
+        ${Array.isArray(modificationHandoff?.topTasks) && modificationHandoff.topTasks.length > 0
+          ? modificationHandoff.topTasks.slice(0, 4).map((task) => renderProjectModificationTaskRow(task)).join("")
+          : `<div class="investigation-row"><strong>No prepared project task rows yet</strong><small>${queuedModificationCount > 0 ? "Prepare the modification board to resolve the strongest compose/runtime-ready artifact per queued item." : "Investigation will surface ready sections here after promotion."}</small></div>`}
       </div>
     </div>
     ${vabsStatusMarkup}

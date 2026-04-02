@@ -19,6 +19,8 @@ The operational rule is now:
 
 The IDE now tries bounded self-investigation first, then tells the operator what to do next, and only then promotes ready families/sections into Modification.
 
+Once a project modification board exists, the next step is no longer another donor-only report: operators can start a prepared task and let the shell move into Compose or Runtime with the strongest grounded task context it can match.
+
 ## Current Phase
 - Current milestone: IDE-LIFECYCLE-A lifecycle backbone on top of the existing runtime-first shell, donor scan, and compose/runtime proving slices.
 - Active validated donor slice: `donor_001_mystery_garden`.

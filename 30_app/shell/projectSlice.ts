@@ -1054,10 +1054,17 @@ export interface ModificationHandoffSummary {
     familyName: string;
     sectionKey: string | null;
     taskStatus: string;
+    recommendedWorkbench: string;
     sourceArtifactKind: string;
+    sourceArtifactState: string | null;
     sourceArtifactPath: string | null;
+    supportingArtifactPaths: string[];
     preferredWorkflowPanel: string;
+    preferredWorkbenchMode: string;
     nextAction: string;
+    rationale: string;
+    canOpenCompose: boolean;
+    canOpenRuntime: boolean;
   }>;
 }
 
@@ -3311,10 +3318,19 @@ async function loadModificationHandoffStatus(selectedProject: WorkspaceProjectSu
         familyName: typeof task.familyName === "string" ? task.familyName : "",
         sectionKey: typeof task.sectionKey === "string" ? task.sectionKey : null,
         taskStatus: typeof task.taskStatus === "string" ? task.taskStatus : "unknown",
+        recommendedWorkbench: typeof task.recommendedWorkbench === "string" ? task.recommendedWorkbench : "compose-runtime",
         sourceArtifactKind: typeof task.sourceArtifactKind === "string" ? task.sourceArtifactKind : "queue-source",
+        sourceArtifactState: typeof task.sourceArtifactState === "string" ? task.sourceArtifactState : null,
         sourceArtifactPath: typeof task.sourceArtifactPath === "string" ? task.sourceArtifactPath : null,
+        supportingArtifactPaths: Array.isArray(task.supportingArtifactPaths)
+          ? task.supportingArtifactPaths.filter((value): value is string => typeof value === "string")
+          : [],
         preferredWorkflowPanel: typeof task.preferredWorkflowPanel === "string" ? task.preferredWorkflowPanel : "compose",
-        nextAction: typeof task.nextAction === "string" ? task.nextAction : "Open Modification / Compose and continue from the strongest prepared artifact."
+        preferredWorkbenchMode: typeof task.preferredWorkbenchMode === "string" ? task.preferredWorkbenchMode : "scene",
+        nextAction: typeof task.nextAction === "string" ? task.nextAction : "Open Modification / Compose and continue from the strongest prepared artifact.",
+        rationale: typeof task.rationale === "string" ? task.rationale : "Prepared modification task is grounded by the strongest available donor-scan artifact.",
+        canOpenCompose: Boolean(task.canOpenCompose ?? true),
+        canOpenRuntime: Boolean(task.canOpenRuntime ?? true)
       }))
       .filter((task) => task.taskId.length > 0)
       .slice(0, 8)
