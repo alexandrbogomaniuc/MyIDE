@@ -29,6 +29,7 @@ The operational workflow is now:
 4. Prepare the project modification board so promoted donor items resolve into explicit compose/runtime tasks with the strongest grounded artifact per task.
 5. Start a prepared task from the board so the shell switches into Compose or Runtime with the strongest grounded runtime source it can match for that task.
 6. When a task also carries grounded local image sources, use **Show Task Kit** or **Import Task Kit** to focus or import the donor-backed source kit for that specific task instead of manually hunting through the wider donor palette.
+7. After that import exists, the same task now reopens on its grouped Compose section so task-local editing can continue from the imported kit instead of from a blank or unrelated selection.
 
 ## Preferred Launchers
 - `./run/start-workbench.sh`

@@ -23,6 +23,8 @@ Once a project modification board exists, the next step is no longer another don
 
 Prepared tasks can now also expose donor-backed task kits in the donor palette, so ready sections are not limited to a status row. When the grounded section bundle carries local image sources, the shell can show **Show Task Kit** and **Import Task Kit** for that task and reuse the existing grouped donor import flow in Compose.
 
+After a task kit has been imported once, the same prepared task now reopens that grouped Compose section directly, so Lane A work can keep moving on the strongest real editing surface instead of falling back to a generic board row.
+
 ## Current Phase
 - Current milestone: IDE-LIFECYCLE-A lifecycle backbone on top of the existing runtime-first shell, donor scan, and compose/runtime proving slices.
 - Active validated donor slice: `donor_001_mystery_garden`.

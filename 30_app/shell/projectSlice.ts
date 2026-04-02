@@ -1,4 +1,5 @@
 import { promises as fs } from "node:fs";
+import { createHash } from "node:crypto";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { loadWorkspaceSlice, type WorkspaceProjectSummary, type WorkspaceSliceBundle } from "./workspaceSlice";
@@ -1534,7 +1535,7 @@ function buildModificationTaskAssetGroupDescription(task: Pick<ProjectModificati
 
 function buildModificationTaskAssetId(projectId: string, taskId: string, localPath: string): string {
   const raw = `${projectId}::${taskId}::${localPath}`;
-  const hash = Buffer.from(raw).toString("base64url").slice(0, 18).toLowerCase();
+  const hash = createHash("sha1").update(raw).digest("hex").slice(0, 18);
   return `donor.asset.task-${hash}`;
 }
 

@@ -8,6 +8,11 @@ async function main(): Promise<void> {
 
   assert.ok(handoff, "project_001 should expose a prepared modification handoff");
   assert.ok(donorAssetCatalog, "project_001 should expose a donor asset catalog");
+  assert.equal(
+    new Set(donorAssetCatalog.assets.map((asset) => asset.assetId)).size,
+    donorAssetCatalog.assets.length,
+    "donor asset ids should stay unique across indexed assets, package families, and modification task kits"
+  );
 
   const targetTask = handoff.topTasks.find((task) => task.sectionKey === "big_win/BW") ?? handoff.topTasks[0];
   assert.ok(targetTask, "expected at least one prepared modification task");

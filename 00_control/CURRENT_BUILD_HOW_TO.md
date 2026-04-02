@@ -19,6 +19,7 @@ For the current build, Investigation is the important new truth surface. Use it 
 6. Then run `npm run project:prepare-modification -- --project-id project_001` or use **Prepare Modification Board** in the shell so the promoted donor queue becomes explicit compose/runtime tasks for the project.
 7. Once the modification board is ready, use **Start Task**, **Open Compose**, or **Open Runtime** from that board instead of continuing to scan the same ready section endlessly.
 8. If the task exposes grounded donor-backed task-kit images, use **Show Task Kit** to focus that ready section in the donor palette or **Import Task Kit** to move straight into bounded compose work from the task itself.
+9. Once a task kit has been imported, **Start Task** and **Open Compose** now reopen that grouped scene section directly instead of dropping you back onto a generic compose surface.
 
 ## 1. Launch The Current Build
 1. Finder double-click daily start: `./run/Start-MyIDE-Workbench.command`.

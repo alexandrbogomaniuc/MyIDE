@@ -566,6 +566,10 @@
       filename: asset.filename,
       fileType: asset.fileType,
       sourceCategory: asset.sourceCategory,
+      assetGroupKey: asset.assetGroupKey,
+      assetGroupLabel: asset.assetGroupLabel,
+      assetGroupKind: asset.assetGroupKind,
+      assetGroupDescription: asset.assetGroupDescription,
       repoRelativePath: asset.repoRelativePath,
       width: asset.width ?? null,
       height: asset.height ?? null

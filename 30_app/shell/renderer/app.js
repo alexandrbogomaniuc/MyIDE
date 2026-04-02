@@ -4685,6 +4685,73 @@ async function runLiveDonorImportSmoke() {
         "default viewport state"
       );
     }
+
+    const preparedModificationTask = getProjectModificationTasks().find((task) => Boolean(getProjectModificationTaskKitGroupSummary(task))) ?? null;
+    if (!preparedModificationTask) {
+      throw new Error("No prepared modification task with a grounded task kit is available for the live donor import smoke.");
+    }
+
+    const preparedTaskKitGroup = getProjectModificationTaskKitGroupSummary(preparedModificationTask);
+    if (!preparedTaskKitGroup) {
+      throw new Error(`Prepared modification task ${preparedModificationTask.taskId} is missing its grounded task kit group.`);
+    }
+
+    baseResult.taskKitTaskId = preparedModificationTask.taskId;
+    baseResult.taskKitGroupKey = preparedTaskKitGroup.key;
+
+    const preparedTaskStartButton = await waitForRendererCondition(
+      () => document.querySelector(`[data-project-modification-action="start-task"][data-project-modification-task-id="${preparedModificationTask.taskId}"]`) ?? null,
+      `start-task button for ${preparedModificationTask.taskId}`
+    );
+    clickRendererElement(preparedTaskStartButton);
+    await waitForRendererCondition(
+      () => state.modificationTaskUi?.activeTaskId === preparedModificationTask.taskId
+        && state.donorAssetUi?.assetGroupFilter === preparedTaskKitGroup.key,
+      `${preparedModificationTask.taskId} to become the active modification task`
+    );
+    baseResult.taskKitTaskStartCompleted = true;
+
+    const preparedTaskImportButton = await waitForRendererCondition(
+      () => document.querySelector(`[data-import-donor-asset-group-key="${preparedTaskKitGroup.key}"]`) ?? null,
+      `task-kit import button for ${preparedTaskKitGroup.key}`
+    );
+    clickRendererElement(preparedTaskImportButton);
+    const importedTaskSceneSection = await waitForRendererCondition(
+      () => {
+        const entry = getSceneSectionEntryForDonorAssetGroupKey(preparedTaskKitGroup.key);
+        return entry
+          && entry.memberObjectIds.length > 0
+          && state.workflowUi?.activePanel === "compose"
+          && getSelectedObjectIds().some((objectId) => entry.memberObjectIds.includes(objectId))
+          ? entry
+          : null;
+      },
+      `${preparedTaskKitGroup.key} imported scene section`
+    );
+    baseResult.taskKitImportCompleted = true;
+    baseResult.taskKitSectionId = importedTaskSceneSection.id;
+    baseResult.taskKitSectionLabel = importedTaskSceneSection.label;
+    baseResult.taskKitSectionObjectCount = importedTaskSceneSection.count;
+    baseResult.taskKitComposeSelectionCount = getSelectedObjectIds().length;
+
+    openProjectModificationTask(preparedModificationTask.taskId, "compose");
+    await waitForRendererCondition(
+      () => {
+        const entry = getSceneSectionEntryForDonorAssetGroupKey(preparedTaskKitGroup.key);
+        return entry
+          && state.modificationTaskUi?.activeTaskId === preparedModificationTask.taskId
+          && state.workflowUi?.activePanel === "compose"
+          && getSelectedObjectIds().some((objectId) => entry.memberObjectIds.includes(objectId))
+          ? entry
+          : null;
+      },
+      `${preparedModificationTask.taskId} to reopen on the imported scene section`
+    );
+    baseResult.taskKitComposeLandingVerified = true;
+
+    state.donorAssetUi.assetGroupFilter = "all";
+    renderAll();
+
     const donorAssetCatalog = getDonorAssetCatalog();
     const usableDonorAssets = Array.isArray(donorAssetCatalog?.assets)
       ? donorAssetCatalog.assets
@@ -5592,7 +5659,11 @@ async function runLiveDonorImportSmoke() {
       throw new Error("The donor source evidence jump did not complete.");
     }
 
-    const successMessage = `Live donor import smoke passed for ${importedAssets.length} donor assets (${baseResult.importedFileTypes.join(", ")}): moved ${primaryImportedAsset.objectId} to (${baseResult.draggedX}, ${baseResult.draggedY}), resized it to ${baseResult.resizedWidth}×${baseResult.resizedHeight}, multi-selected/aligned/distributed donor-backed objects, replaced ${baseResult.replacementObjectId ?? "n/a"} with donor asset ${baseResult.replacementDonorEvidenceId ?? "n/a"}, and reloaded donor linkage for every donor-backed object.`;
+    if (!baseResult.taskKitImportCompleted || !baseResult.taskKitComposeLandingVerified) {
+      throw new Error("The prepared modification task did not land on an imported grouped scene section.");
+    }
+
+    const successMessage = `Live donor import smoke passed: imported task kit ${baseResult.taskKitGroupKey ?? "n/a"} into scene section ${baseResult.taskKitSectionLabel ?? "n/a"}, reopened active task ${baseResult.taskKitTaskId ?? "n/a"} on that grouped compose surface, then imported ${importedAssets.length} donor assets (${baseResult.importedFileTypes.join(", ")}), moved ${primaryImportedAsset.objectId} to (${baseResult.draggedX}, ${baseResult.draggedY}), resized it to ${baseResult.resizedWidth}×${baseResult.resizedHeight}, multi-selected/aligned/distributed donor-backed objects, replaced ${baseResult.replacementObjectId ?? "n/a"} with donor asset ${baseResult.replacementDonorEvidenceId ?? "n/a"}, and reloaded donor linkage for every donor-backed object.`;
     setPreviewStatus(successMessage);
     baseResult.previewStatus = successMessage;
     document.body.dataset.liveDonorImportSmoke = "pass";
@@ -8112,6 +8183,18 @@ function bindActions() {
   elements.workflowPanelbar?.addEventListener("click", (event) => {
     handleNavigationClick(event);
   });
+  elements.panelInvestigation?.addEventListener("click", (event) => {
+    handleNavigationClick(event);
+  });
+  elements.panelDonor?.addEventListener("click", (event) => {
+    handleNavigationClick(event);
+  });
+  elements.panelCompose?.addEventListener("click", (event) => {
+    handleNavigationClick(event);
+  });
+  elements.workflowVabsPanel?.addEventListener("click", (event) => {
+    handleNavigationClick(event);
+  });
   elements.workbenchModebar?.addEventListener("click", (event) => {
     const target = event.target;
     if (!(target instanceof HTMLElement)) {
@@ -9076,6 +9159,14 @@ function getProjectModificationTask(taskId) {
   return getProjectModificationTasks().find((task) => task.taskId === taskId) ?? null;
 }
 
+function getProjectModificationTaskByKitGroupKey(groupKey) {
+  if (typeof groupKey !== "string" || groupKey.length === 0) {
+    return null;
+  }
+
+  return getProjectModificationTasks().find((task) => getProjectModificationTaskKitGroupKey(task) === groupKey) ?? null;
+}
+
 function getActiveProjectModificationTask() {
   return getProjectModificationTask(state.modificationTaskUi?.activeTaskId ?? null);
 }
@@ -9117,6 +9208,19 @@ function getProjectModificationTaskKitGroupKey(task) {
 function getProjectModificationTaskKitGroupSummary(task) {
   const groupKey = getProjectModificationTaskKitGroupKey(task);
   return groupKey ? getDonorAssetGroupSummary(groupKey) : null;
+}
+
+function getSceneSectionEntryForDonorAssetGroupKey(groupKey, editorData = state.editorData) {
+  if (typeof groupKey !== "string" || groupKey.length === 0) {
+    return null;
+  }
+
+  return getSceneSectionEntries(editorData).find((entry) => entry?.provenance?.primaryGroupKey === groupKey) ?? null;
+}
+
+function getProjectModificationTaskSceneSection(task, editorData = state.editorData) {
+  const groupKey = getProjectModificationTaskKitGroupKey(task);
+  return groupKey ? getSceneSectionEntryForDonorAssetGroupKey(groupKey, editorData) : null;
 }
 
 function getRuntimeWorkbenchEntryForModificationTask(task) {
@@ -9209,6 +9313,7 @@ function openProjectModificationTask(taskId, mode = "preferred") {
   }
 
   const taskKitGroupSummary = getProjectModificationTaskKitGroupSummary(task);
+  const importedSceneSection = getProjectModificationTaskSceneSection(task);
   if (taskKitGroupSummary) {
     state.donorAssetUi.assetGroupFilter = taskKitGroupSummary.key;
     const taskKitAsset = getDonorAssetItemsForGroup(taskKitGroupSummary.key)[0] ?? null;
@@ -9218,6 +9323,14 @@ function openProjectModificationTask(taskId, mode = "preferred") {
   if (targetMode === "runtime") {
     setWorkbenchMode("runtime", { silent: true });
     state.workflowUi.activePanel = "runtime";
+  } else if (importedSceneSection?.memberObjectIds?.length) {
+    focusSceneObjectGroupInWorkflow(importedSceneSection.memberObjectIds, {
+      label: "scene section",
+      statusMessage: runtimeEntry
+        ? `Opened ${task.displayName}${task.sectionKey ? ` ${task.sectionKey}` : ""} and selected imported scene section ${importedSceneSection.label} in Compose Mode. Runtime-linked source: ${runtimeEntry.relativePath ?? runtimeEntry.localMirrorRepoRelativePath ?? runtimeEntry.sourceUrl}.`
+        : `Opened ${task.displayName}${task.sectionKey ? ` ${task.sectionKey}` : ""} and selected imported scene section ${importedSceneSection.label} in Compose Mode. Continue editing the grouped task kit from source artifact ${task.sourceArtifactPath ?? "pending artifact"}.`
+    });
+    return;
   } else {
     setWorkbenchMode(task.preferredWorkbenchMode === "runtime" ? "runtime" : "scene", { silent: true });
     state.workflowUi.activePanel = "compose";
@@ -9238,6 +9351,7 @@ function renderProjectModificationTaskRow(task) {
 
   const runtimeEntry = getRuntimeWorkbenchEntryForModificationTask(task);
   const taskKitGroupSummary = getProjectModificationTaskKitGroupSummary(task);
+  const importedSceneSection = getProjectModificationTaskSceneSection(task);
   const runtimeLabel = runtimeEntry
     ? (runtimeEntry.relativePath ?? runtimeEntry.localMirrorRepoRelativePath ?? runtimeEntry.sourceUrl)
     : "No grounded runtime source matched yet";
@@ -9251,6 +9365,7 @@ function renderProjectModificationTaskRow(task) {
       <small>${task.sourceArtifactPath ? `source artifact · ${escapeHtml(task.sourceArtifactPath)}` : "source artifact · pending"}</small>
       <small>runtime context · ${escapeHtml(runtimeLabel)}</small>
       <small>${taskKitGroupSummary ? `task kit · ${escapeHtml(taskKitGroupSummary.label)} (${escapeHtml(String(taskKitGroupSummary.count))} source image${taskKitGroupSummary.count === 1 ? "" : "s"})` : "task kit · no donor-backed import kit yet"}</small>
+      <small>${importedSceneSection ? `compose surface · ${escapeHtml(importedSceneSection.label)} (${escapeHtml(String(importedSceneSection.count))} grouped object${importedSceneSection.count === 1 ? "" : "s"})` : "compose surface · import the task kit to create the grouped scene section"}</small>
       <div class="evidence-actions">
         <button
           type="button"
@@ -9274,6 +9389,8 @@ function renderProjectModificationTaskRow(task) {
         >Open Runtime</button>
         ${taskKitGroupSummary ? `<button type="button" class="copy-button" data-focus-donor-asset-group-key="${escapeAttribute(taskKitGroupSummary.key)}">Show Task Kit</button>` : ""}
         ${taskKitGroupSummary ? `<button type="button" class="copy-button" data-import-donor-asset-group-key="${escapeAttribute(taskKitGroupSummary.key)}">Import Task Kit</button>` : ""}
+        ${importedSceneSection ? `<button type="button" class="copy-button" data-focus-scene-section-id="${escapeAttribute(importedSceneSection.id)}">Select Imported Kit</button>` : ""}
+        ${importedSceneSection ? `<button type="button" class="copy-button" data-frame-scene-section-id="${escapeAttribute(importedSceneSection.id)}">Frame Imported Kit</button>` : ""}
         ${task.sourceArtifactPath ? renderCopyButton(task.sourceArtifactPath, `${task.displayName} source artifact path`, "Copy Source Artifact") : ""}
       </div>
     </div>
@@ -9288,6 +9405,7 @@ function renderActiveProjectModificationTaskCard() {
 
   const runtimeEntry = getRuntimeWorkbenchEntryForModificationTask(task);
   const taskKitGroupSummary = getProjectModificationTaskKitGroupSummary(task);
+  const importedSceneSection = getProjectModificationTaskSceneSection(task);
   const runtimeSummary = runtimeEntry
     ? (runtimeEntry.relativePath ?? runtimeEntry.localMirrorRepoRelativePath ?? runtimeEntry.sourceUrl)
     : "No request-backed runtime workbench source is matched yet.";
@@ -9301,10 +9419,12 @@ function renderActiveProjectModificationTaskCard() {
         <span>${escapeHtml(task.preferredWorkflowPanel)}</span>
         <span>${runtimeEntry ? "runtime matched" : "runtime not matched"}</span>
         <span>${taskKitGroupSummary ? `${escapeHtml(String(taskKitGroupSummary.count))} task-kit source${taskKitGroupSummary.count === 1 ? "" : "s"}` : "no task kit"}</span>
+        <span>${importedSceneSection ? "scene kit imported" : "scene kit not imported"}</span>
       </div>
       <small>${escapeHtml(task.nextAction)}</small>
       <small>Runtime context · ${escapeHtml(runtimeSummary)}</small>
       <small>${taskKitGroupSummary ? `Donor task kit · ${escapeHtml(taskKitGroupSummary.label)} on ${escapeHtml(taskKitGroupSummary.suggestedLayerId)}` : "This task does not yet expose an importable donor-backed task kit."}</small>
+      <small>${importedSceneSection ? `Compose surface · ${escapeHtml(importedSceneSection.label)} with ${escapeHtml(String(importedSceneSection.count))} grouped object${importedSceneSection.count === 1 ? "" : "s"}.` : "Compose surface · import the task kit to create a grouped editable scene section."}</small>
       <div class="evidence-actions">
         <button
           type="button"
@@ -9322,6 +9442,8 @@ function renderActiveProjectModificationTaskCard() {
         >Open Runtime</button>
         ${taskKitGroupSummary ? `<button type="button" class="copy-button" data-focus-donor-asset-group-key="${escapeAttribute(taskKitGroupSummary.key)}">Show Task Kit</button>` : ""}
         ${taskKitGroupSummary ? `<button type="button" class="copy-button" data-import-donor-asset-group-key="${escapeAttribute(taskKitGroupSummary.key)}">Import Task Kit</button>` : ""}
+        ${importedSceneSection ? `<button type="button" class="copy-button" data-focus-scene-section-id="${escapeAttribute(importedSceneSection.id)}">Select Imported Kit</button>` : ""}
+        ${importedSceneSection ? `<button type="button" class="copy-button" data-frame-scene-section-id="${escapeAttribute(importedSceneSection.id)}">Frame Imported Kit</button>` : ""}
         ${task.sourceArtifactPath ? renderCopyButton(task.sourceArtifactPath, `${task.displayName} source artifact path`, "Copy Source Artifact") : ""}
       </div>
     </div>
@@ -17660,11 +17782,32 @@ function handleImportDonorAssetGroup(groupKey) {
     return false;
   }
 
+  const linkedTask = getProjectModificationTaskByKitGroupKey(groupKey);
+  if (linkedTask) {
+    setActiveProjectModificationTask(linkedTask.taskId, { render: false });
+  }
+
+  if (groupSummary?.kind === "modification-task-kit") {
+    state.donorAssetUi.assetGroupFilter = groupKey;
+  }
   setSelectedObjectIds(createdObjectIds, createdObjectIds[0]);
   state.donorAssetUi.highlightedAssetId = donorAssets[0]?.assetId ?? null;
+  const importedSceneSection = containerObjectId ? getSceneSectionEntryById(containerObjectId) : getSceneSectionEntryForDonorAssetGroupKey(groupKey);
+  if (importedSceneSection?.memberObjectIds?.length) {
+    focusSceneObjectGroupInWorkflow(importedSceneSection.memberObjectIds, {
+      label: "scene section",
+      statusMessage: linkedTask
+        ? `Imported ${createdObjectIds.length} donor-backed objects from task kit ${groupSummary?.label ?? groupKey} onto ${createdLayerName} and selected scene section ${importedSceneSection.label} for active task ${linkedTask.displayName}${linkedTask.sectionKey ? ` ${linkedTask.sectionKey}` : ""} in Compose Mode. Save to persist this grouped task kit import.`
+        : `Imported ${createdObjectIds.length} donor-backed objects from ${sceneKitSummary?.importLabel ?? "scene kit"} ${groupSummary?.label ?? groupKey} onto ${createdLayerName} and selected scene section ${importedSceneSection.label} in Compose Mode. Save to persist this grouped kit import.`
+    });
+    return true;
+  }
+
   ensureSelectedObject();
   renderAll();
-  setPreviewStatus(`Imported ${createdObjectIds.length} donor-backed objects from ${sceneKitSummary?.importLabel ?? "scene kit"} ${groupSummary?.label ?? groupKey} onto ${createdLayerName}. Save to persist this grouped kit import.`);
+  setPreviewStatus(linkedTask
+    ? `Imported ${createdObjectIds.length} donor-backed objects from task kit ${groupSummary?.label ?? groupKey} onto ${createdLayerName}. Active task ${linkedTask.displayName}${linkedTask.sectionKey ? ` ${linkedTask.sectionKey}` : ""} is ready for grouped compose work. Save to persist this task kit import.`
+    : `Imported ${createdObjectIds.length} donor-backed objects from ${sceneKitSummary?.importLabel ?? "scene kit"} ${groupSummary?.label ?? groupKey} onto ${createdLayerName}. Save to persist this grouped kit import.`);
   return true;
 }
 
