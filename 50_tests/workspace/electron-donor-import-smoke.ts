@@ -450,6 +450,13 @@ async function main(): Promise<void> {
         "Renderer did not use the scenario-recommended bounded Runtime Debug Host profile for the active big_win task."
       );
     }
+    if (payload.taskKitPageRuntimeTraceMode === "debug-host-pass") {
+      assert.ok(
+        typeof payload.taskKitPageRuntimeSourceUrl === "string"
+          && /big_win|big-win/i.test(payload.taskKitPageRuntimeSourceUrl),
+        `Renderer did not land the page-aware Runtime Debug Host proof on a big_win-family runtime asset. Saw ${payload.taskKitPageRuntimeSourceUrl ?? "<missing>"}.`
+      );
+    }
     assert.equal(payload.replacementPersistVerified, true, "Renderer did not preserve the donor-backed replacement layout/layer after reload.");
     assert.equal(payload.replacementLinkageVerified, true, "Renderer did not preserve donor linkage for the donor-backed replacement after reload.");
     assert.equal(payload.replacementReloadedLayerId, payload.replacementLayerId, "Renderer reloaded the donor-backed replacement on a different layer.");

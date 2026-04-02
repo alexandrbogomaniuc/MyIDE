@@ -38,6 +38,7 @@ import {
   resetRuntimeResourceMap
 } from "../runtime/runtimeResourceMap";
 import {
+  preferUpstreamRuntimeDebugCandidate,
   buildRuntimeDebugCenterPickScript,
   buildRuntimeDebugPrimeAssetRequestScript,
   buildRuntimeDebugStatusScript,
@@ -145,6 +146,7 @@ interface RuntimeDebugHostOptions {
   closeWhenDone?: boolean;
   proofMode?: boolean;
   profileId?: string | null;
+  candidateHintTokens?: string[] | null;
 }
 
 type RuntimeDebugHostResult = Record<string, unknown>;
@@ -569,9 +571,13 @@ async function runRuntimeDebugProofSequence(window: BrowserWindow, profileId?: s
   };
 }
 
-async function loadPreferredRuntimeDebugDonorAsset(): Promise<IndexedDonorAsset | null> {
+async function loadPreferredRuntimeDebugDonorAsset(preferredFileType?: string | null): Promise<IndexedDonorAsset | null> {
   const donorIndex = await readProjectDonorAssetIndex("project_001") ?? await buildProjectDonorAssetIndex("project_001");
-  return donorIndex.assets.find((entry) => entry.fileType === "png")
+  const normalizedPreferredFileType = typeof preferredFileType === "string" && preferredFileType.trim().length > 0
+    ? preferredFileType.trim().toLowerCase()
+    : null;
+  return donorIndex.assets.find((entry) => normalizedPreferredFileType !== null && entry.fileType === normalizedPreferredFileType)
+    ?? donorIndex.assets.find((entry) => entry.fileType === "png")
     ?? donorIndex.assets.find((entry) => entry.fileType === "webp")
     ?? donorIndex.assets[0]
     ?? null;
@@ -585,6 +591,9 @@ async function runRuntimeDebugHost(options: RuntimeDebugHostOptions = {}): Promi
   const closeWhenDone = options.closeWhenDone ?? !showWindow;
   const proofMode = options.proofMode ?? smokeMode;
   const proofProfileId = options.profileId ?? null;
+  const candidateHintTokens = Array.isArray(options.candidateHintTokens)
+    ? options.candidateHintTokens.filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+    : [];
 
   if (smokeMode) {
     console.log("MYIDE_RUNTIME_DEBUG_MAIN_READY");
@@ -711,7 +720,9 @@ async function runRuntimeDebugHost(options: RuntimeDebugHostOptions = {}): Promi
     const initialStatus = await safeExecuteDebugScript<RuntimeDebugBridgeStatus>(debugWindow, buildRuntimeDebugStatusScript());
     const initialPick = await safeExecuteDebugScript<RuntimeDebugPickPayload>(debugWindow, buildRuntimeDebugCenterPickScript());
     const initialResourceMap = buildRuntimeResourceMapStatus("project_001");
-    const initialCandidate = selectRuntimeDebugCandidate(initialResourceMap);
+    const initialCandidate = preferUpstreamRuntimeDebugCandidate(initialResourceMap, selectRuntimeDebugCandidate(initialResourceMap, {
+      preferredTokens: candidateHintTokens
+    }));
 
     if (!proofMode) {
       const payload = {
@@ -762,9 +773,13 @@ async function runRuntimeDebugHost(options: RuntimeDebugHostOptions = {}): Promi
     const proofSequence = await runRuntimeDebugProofSequence(debugWindow, proofProfileId);
 
     const statusBeforeOverride = await safeExecuteDebugScript<RuntimeDebugBridgeStatus>(debugWindow, buildRuntimeDebugStatusScript());
-    const bridgeAssetCandidate = selectRuntimeDebugBridgeAssetCandidate(statusBeforeOverride);
+    const bridgeAssetCandidate = selectRuntimeDebugBridgeAssetCandidate(statusBeforeOverride, {
+      preferredTokens: candidateHintTokens
+    });
     let resourceMapBeforeOverride = buildRuntimeResourceMapStatus("project_001");
-    let candidate = selectRuntimeDebugCandidate(resourceMapBeforeOverride);
+    let candidate = preferUpstreamRuntimeDebugCandidate(resourceMapBeforeOverride, selectRuntimeDebugCandidate(resourceMapBeforeOverride, {
+      preferredTokens: candidateHintTokens
+    }));
 
     if (!candidate && bridgeAssetCandidate) {
       setRuntimeRequestStage("prime");
@@ -772,10 +787,12 @@ async function runRuntimeDebugHost(options: RuntimeDebugHostOptions = {}): Promi
       await safeExecuteDebugScript(debugWindow, buildRuntimeDebugPrimeAssetRequestScript(requestUrl));
       await delay(1500);
       resourceMapBeforeOverride = buildRuntimeResourceMapStatus("project_001");
-      candidate = selectRuntimeDebugCandidate(resourceMapBeforeOverride);
+      candidate = preferUpstreamRuntimeDebugCandidate(resourceMapBeforeOverride, selectRuntimeDebugCandidate(resourceMapBeforeOverride, {
+        preferredTokens: candidateHintTokens
+      }));
     }
 
-    const donorAsset = await loadPreferredRuntimeDebugDonorAsset();
+    const donorAsset = await loadPreferredRuntimeDebugDonorAsset(candidate?.fileType ?? bridgeAssetCandidate?.fileType ?? null);
 
     let overrideCreated = false;
     let overrideCleared = false;
@@ -856,6 +873,7 @@ async function runRuntimeDebugHost(options: RuntimeDebugHostOptions = {}): Promi
       candidateCaptureMethods: candidate?.captureMethods ?? [],
       localMirrorSourcePath: candidate?.localMirrorRepoRelativePath ?? null,
       overrideDonorAssetId: donorAsset?.assetId ?? null,
+      candidateHintTokens,
       proofProfileId: proofSequence.profileId,
       proofSpinCountAttempted: proofSequence.spinCountAttempted,
       overrideCreated,
@@ -974,11 +992,16 @@ function getRuntimeObservedRequestMetadata(requestUrl: string): {
       if (parsedUrl.pathname.startsWith("/runtime/project_001/assets/")) {
         const runtimeRelativePath = getRuntimeMirrorRelativePathFromUrl(requestUrl);
         const localMirrorEntry = findLocalRuntimeMirrorEntryByRelativePath(runtimeLocalMirrorStatus, runtimeRelativePath);
-        const canonicalSourceUrl = localMirrorEntry?.sourceUrl ?? requestUrl;
-        const overrideAbsolutePath = localMirrorEntry ? getRuntimeOverrideAbsolutePath(localMirrorEntry.sourceUrl) : null;
+        const fallbackSourceUrl = runtimeRelativePath ? buildRuntimeUpstreamFallbackUrl(runtimeRelativePath) : null;
+        const canonicalSourceUrl = localMirrorEntry?.sourceUrl ?? fallbackSourceUrl ?? requestUrl;
+        const overrideAbsolutePath = getRuntimeOverrideAbsolutePath(canonicalSourceUrl);
         return {
           canonicalSourceUrl,
-          requestSource: overrideAbsolutePath ? "project-local-override" : "local-mirror-asset",
+          requestSource: overrideAbsolutePath
+            ? "project-local-override"
+            : localMirrorEntry
+              ? "local-mirror-asset"
+              : "upstream-request",
           localMirrorAbsolutePath: localMirrorEntry?.absolutePath ?? null,
           overrideAbsolutePath,
           runtimeRelativePath,
@@ -1421,6 +1444,29 @@ async function handleRuntimeMirrorRequest(request: IncomingMessage, response: Se
     const relativePath = parsedUrl.pathname.replace("/runtime/project_001/assets/", "");
     const mirrorFile = await readLocalRuntimeMirrorFileByRelativePath("project_001", relativePath);
     if (!mirrorFile) {
+      const fallbackSourceUrl = buildRuntimeUpstreamFallbackUrl(relativePath);
+      const overrideAbsolutePath = getRuntimeOverrideAbsolutePath(fallbackSourceUrl);
+      if (overrideAbsolutePath) {
+        const overrideContent = new Uint8Array(await import("node:fs").then(({ promises }) => promises.readFile(overrideAbsolutePath)));
+        const fallbackFileType = path.extname(new URL(fallbackSourceUrl).pathname).replace(/^\./, "").toLowerCase()
+          || path.extname(overrideAbsolutePath).replace(/^\./, "").toLowerCase()
+          || "bin";
+        recordRuntimeOverrideHit(fallbackSourceUrl);
+        recordRuntimeResourceHit(parsedUrl.toString(), fallbackSourceUrl, "project-local-override", {
+          overrideAbsolutePath,
+          fileType: fallbackFileType,
+          runtimeRelativePath: relativePath,
+          resourceType: "image"
+        });
+        sendRuntimeMirrorResponse(response, 200, {
+          "content-type": getRuntimeMirrorContentType(fallbackFileType),
+          "cache-control": "no-store",
+          "x-myide-runtime-source": "project-local-override",
+          "x-myide-runtime-final-url": fallbackSourceUrl,
+          "x-myide-runtime-local-path": overrideAbsolutePath
+        }, overrideContent);
+        return;
+      }
       try {
         const upstreamFallback = await fetchRuntimeUpstreamFallbackAsset(relativePath);
         recordRuntimeResourceHit(parsedUrl.toString(), upstreamFallback.sourceUrl, "upstream-request", {

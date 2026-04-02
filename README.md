@@ -35,6 +35,8 @@ The same page-aware cards can now also jump straight to the grounded donor asset
 
 Those same page-aware cards can now also jump into runtime proof from the active task surface: when a page-linked runtime source is already grounded, they open that exact runtime trace in Runtime Mode; otherwise they can launch the dedicated Runtime Debug Host without leaving the modification workflow.
 
+That dedicated Debug Host path is now also page-scoped for the active task cue, so the `big_win/BW` guide can land on an upstream `big-win` runtime asset such as `big-win-ribbon.png_80_80.webp` and prove the bounded override hit after reload even when that page asset was not part of the original local mirror manifest.
+
 ## Current Phase
 - Current milestone: IDE-LIFECYCLE-A lifecycle backbone on top of the existing runtime-first shell, donor scan, and compose/runtime proving slices.
 - Active validated donor slice: `donor_001_mystery_garden`.

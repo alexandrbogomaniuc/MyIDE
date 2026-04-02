@@ -25,6 +25,7 @@ For the current build, Investigation is the important new truth surface. Use it 
 12. The same page-aware cards can now either select the best single grouped section member for that page cue or widen out to all grouped members already tied to that page source, so you can move from the page cue straight into the current Compose section before doing a replacement.
 13. If you need to inspect the grounded donor source before replacing anything, use **Show Page Asset** or **Show Page Evidence** on that same page-aware card, then reopen the active task section and keep editing from the same grouped Compose surface.
 14. If you need grounded runtime proof for that same page cue, use **Open Page Runtime** when a page-linked runtime trace already exists, or **Use Debug Host** when the dedicated Runtime Debug Host is still the strongest truthful path.
+15. For the current `big_win/BW` slice, that Debug Host fallback is now page-scoped: it can recover the upstream `big-win` page asset identity even when the local mirror manifest does not already contain that page file, and it can still prove the bounded override hit after reload.
 
 ## 1. Launch The Current Build
 1. Finder double-click daily start: `./run/Start-MyIDE-Workbench.command`.

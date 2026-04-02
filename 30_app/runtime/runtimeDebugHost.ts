@@ -1,3 +1,4 @@
+import path from "node:path";
 import type { RuntimeResourceMapEntry, RuntimeResourceMapStatus } from "./runtimeResourceMap";
 
 export interface RuntimeDebugBridgeStatus {
@@ -102,6 +103,10 @@ export interface RuntimeDebugCandidate {
   localMirrorRepoRelativePath: string | null;
 }
 
+interface RuntimeDebugCandidateSelectionOptions {
+  preferredTokens?: string[] | null;
+}
+
 export interface RuntimeDebugBridgeAssetCandidate {
   canonicalSourceUrl: string;
   observedUrl: string | null;
@@ -112,9 +117,117 @@ export interface RuntimeDebugBridgeAssetCandidate {
   contexts: string[];
 }
 
-function scoreDebugCandidate(entry: RuntimeResourceMapEntry): number {
+function slugifyRuntimeDebugValue(value: string | null | undefined): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const normalized = value.toLowerCase().replace(/[^a-z0-9]+/g, "");
+  return normalized.length > 0 ? normalized : null;
+}
+
+function normalizeRuntimeDebugTokens(tokens: readonly string[] | null | undefined): string[] {
+  if (!Array.isArray(tokens)) {
+    return [];
+  }
+  const normalized = new Set<string>();
+  for (const token of tokens) {
+    const slug = slugifyRuntimeDebugValue(token);
+    if (slug && slug.length >= 3) {
+      normalized.add(slug);
+    }
+  }
+  return Array.from(normalized);
+}
+
+function buildRuntimeDebugEntryTokenSet(values: Array<string | null | undefined>): Set<string> {
+  const tokens = new Set<string>();
+  const addComparablePathVariants = (value: string) => {
+    const basename = path.basename(value);
+    let current = basename.toLowerCase();
+    for (let index = 0; index < 4; index += 1) {
+      const currentSlug = slugifyRuntimeDebugValue(current);
+      if (currentSlug) {
+        tokens.add(currentSlug);
+      }
+      const withoutFinalExtension = current.replace(/\.[a-z0-9]+$/, "");
+      if (withoutFinalExtension === current) {
+        break;
+      }
+      current = withoutFinalExtension;
+      const extensionStrippedSlug = slugifyRuntimeDebugValue(current);
+      if (extensionStrippedSlug) {
+        tokens.add(extensionStrippedSlug);
+      }
+      const withoutSizeSuffix = current.replace(/(?:[_-]\d+){2,}$/, "");
+      if (withoutSizeSuffix !== current) {
+        current = withoutSizeSuffix;
+        const sizeStrippedSlug = slugifyRuntimeDebugValue(current);
+        if (sizeStrippedSlug) {
+          tokens.add(sizeStrippedSlug);
+        }
+      }
+    }
+  };
+
+  for (const value of values) {
+    if (typeof value !== "string" || value.length === 0) {
+      continue;
+    }
+    const slug = slugifyRuntimeDebugValue(value);
+    if (slug) {
+      tokens.add(slug);
+    }
+    const basename = path.basename(value);
+    const basenameSlug = slugifyRuntimeDebugValue(basename);
+    if (basenameSlug) {
+      tokens.add(basenameSlug);
+    }
+    addComparablePathVariants(value);
+    for (const part of value.split(/[^a-zA-Z0-9]+/g)) {
+      const partSlug = slugifyRuntimeDebugValue(part);
+      if (partSlug) {
+        tokens.add(partSlug);
+      }
+    }
+  }
+  return tokens;
+}
+
+function scorePreferredTokenMatch(
+  entryTokens: Set<string>,
+  entryHaystack: string,
+  preferredTokens: readonly string[]
+): number {
+  let score = 0;
+  for (const token of preferredTokens) {
+    if (entryTokens.has(token)) {
+      score += 900 + token.length;
+      continue;
+    }
+    if (entryHaystack.includes(token)) {
+      score += 450 + token.length;
+      continue;
+    }
+    for (const entryToken of entryTokens) {
+      if (entryToken.includes(token) || token.includes(entryToken)) {
+        score += 180 + Math.min(entryToken.length, token.length);
+        break;
+      }
+    }
+  }
+  return score;
+}
+
+function scoreDebugCandidate(entry: RuntimeResourceMapEntry, preferredTokens: readonly string[] = []): number {
   const relativePath = String(entry.runtimeRelativePath ?? "").toLowerCase();
   let score = Number(entry.hitCount ?? 0);
+  const entryTokenSet = buildRuntimeDebugEntryTokenSet([
+    entry.runtimeRelativePath,
+    entry.localMirrorRepoRelativePath,
+    entry.canonicalSourceUrl,
+    entry.runtimeFilename
+  ]);
+  const entryHaystack = Array.from(entryTokenSet).join(" ");
 
   if (entry.requestSource === "project-local-override") {
     score += 300;
@@ -137,12 +250,25 @@ function scoreDebugCandidate(entry: RuntimeResourceMapEntry): number {
     score += 30;
   }
 
+  if (preferredTokens.length > 0) {
+    score += scorePreferredTokenMatch(entryTokenSet, entryHaystack, preferredTokens);
+  }
+
   return score;
 }
 
-function scoreDebugBridgeAssetCandidate(entry: RuntimeDebugBridgeStatus["assetUseEntries"][number]): number {
+function scoreDebugBridgeAssetCandidate(
+  entry: RuntimeDebugBridgeStatus["assetUseEntries"][number],
+  preferredTokens: readonly string[] = []
+): number {
   const relativePath = String(entry.runtimeRelativePath ?? "").toLowerCase();
   let score = Number(entry.hitCount ?? 0);
+  const entryTokenSet = buildRuntimeDebugEntryTokenSet([
+    entry.runtimeRelativePath,
+    entry.canonicalUrl,
+    entry.observedUrl
+  ]);
+  const entryHaystack = Array.from(entryTokenSet).join(" ");
 
   if (entry.sourceKinds.includes("webgl-draw")) {
     score += 70;
@@ -169,18 +295,26 @@ function scoreDebugBridgeAssetCandidate(entry: RuntimeDebugBridgeStatus["assetUs
     score += 30;
   }
 
+  if (preferredTokens.length > 0) {
+    score += scorePreferredTokenMatch(entryTokenSet, entryHaystack, preferredTokens);
+  }
+
   return score;
 }
 
-export function selectRuntimeDebugCandidate(resourceMap: RuntimeResourceMapStatus | null): RuntimeDebugCandidate | null {
+export function selectRuntimeDebugCandidate(
+  resourceMap: RuntimeResourceMapStatus | null,
+  options: RuntimeDebugCandidateSelectionOptions = {}
+): RuntimeDebugCandidate | null {
   if (!resourceMap) {
     return null;
   }
+  const preferredTokens = normalizeRuntimeDebugTokens(options.preferredTokens);
 
   const candidates = resourceMap.entries
     .filter((entry) => ["png", "jpg", "jpeg", "webp", "svg", "gif"].includes(String(entry.fileType ?? "").toLowerCase()))
     .sort((left, right) => {
-      const scoreDelta = scoreDebugCandidate(right) - scoreDebugCandidate(left);
+      const scoreDelta = scoreDebugCandidate(right, preferredTokens) - scoreDebugCandidate(left, preferredTokens);
       if (scoreDelta !== 0) {
         return scoreDelta;
       }
@@ -203,12 +337,42 @@ export function selectRuntimeDebugCandidate(resourceMap: RuntimeResourceMapStatu
   };
 }
 
+export function preferUpstreamRuntimeDebugCandidate(
+  resourceMap: RuntimeResourceMapStatus | null,
+  candidate: RuntimeDebugCandidate | null
+): RuntimeDebugCandidate | null {
+  if (!resourceMap || !candidate || candidate.requestSource === "upstream-request") {
+    return candidate;
+  }
+
+  const upstreamMatch = resourceMap.entries.find((entry) => (
+    entry.requestSource === "upstream-request"
+    && entry.runtimeRelativePath === candidate.runtimeRelativePath
+    && entry.fileType === candidate.fileType
+  ));
+  if (!upstreamMatch) {
+    return candidate;
+  }
+
+  return {
+    canonicalSourceUrl: upstreamMatch.canonicalSourceUrl,
+    runtimeRelativePath: upstreamMatch.runtimeRelativePath,
+    fileType: upstreamMatch.fileType,
+    requestSource: upstreamMatch.requestSource,
+    hitCount: Math.max(Number(candidate.hitCount ?? 0), Number(upstreamMatch.hitCount ?? 0)),
+    captureMethods: Array.from(new Set([...(candidate.captureMethods ?? []), ...(upstreamMatch.captureMethods ?? [])])),
+    localMirrorRepoRelativePath: candidate.localMirrorRepoRelativePath ?? upstreamMatch.localMirrorRepoRelativePath
+  };
+}
+
 export function selectRuntimeDebugBridgeAssetCandidate(
-  status: RuntimeDebugBridgeStatus | null
+  status: RuntimeDebugBridgeStatus | null,
+  options: RuntimeDebugCandidateSelectionOptions = {}
 ): RuntimeDebugBridgeAssetCandidate | null {
   if (!status?.assetUseEntries?.length) {
     return null;
   }
+  const preferredTokens = normalizeRuntimeDebugTokens(options.preferredTokens);
 
   const candidates = status.assetUseEntries
     .filter((entry) => (
@@ -217,7 +381,7 @@ export function selectRuntimeDebugBridgeAssetCandidate(
       && ["png", "jpg", "jpeg", "webp", "svg", "gif"].includes(String(entry.fileType ?? "").toLowerCase())
     ))
     .sort((left, right) => {
-      const scoreDelta = scoreDebugBridgeAssetCandidate(right) - scoreDebugBridgeAssetCandidate(left);
+      const scoreDelta = scoreDebugBridgeAssetCandidate(right, preferredTokens) - scoreDebugBridgeAssetCandidate(left, preferredTokens);
       if (scoreDelta !== 0) {
         return scoreDelta;
       }

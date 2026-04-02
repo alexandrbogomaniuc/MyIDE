@@ -3160,6 +3160,9 @@ async function openRuntimeDebugHostWindow(options = {}) {
   const profileId = typeof options?.profileId === "string" && options.profileId.trim().length > 0
     ? options.profileId.trim()
     : null;
+  const candidateHintTokens = Array.isArray(options?.candidateHintTokens)
+    ? uniqueStrings(options.candidateHintTokens.filter((value) => typeof value === "string" && value.trim().length > 0))
+    : [];
   const statusPrefix = typeof options?.statusPrefix === "string" && options.statusPrefix.trim().length > 0
     ? options.statusPrefix.trim()
     : null;
@@ -3170,10 +3173,11 @@ async function openRuntimeDebugHostWindow(options = {}) {
   }
 
   const result = await api.openRuntimeDebugHost(
-    proofMode || profileId
+    proofMode || profileId || candidateHintTokens.length > 0
       ? {
           proofMode,
-          profileId
+          profileId,
+          candidateHintTokens
         }
       : undefined
   );
@@ -12936,9 +12940,22 @@ function handleNavigationClick(event) {
       && taskDebugHostButton.dataset.taskReconstructionRuntimeProfileId.length > 0
       ? taskDebugHostButton.dataset.taskReconstructionRuntimeProfileId
       : "autoplay";
+    let candidateHintTokens = [];
+    if (typeof taskDebugHostButton.dataset.taskReconstructionRuntimeHintTokens === "string"
+      && taskDebugHostButton.dataset.taskReconstructionRuntimeHintTokens.length > 0) {
+      try {
+        const parsed = JSON.parse(taskDebugHostButton.dataset.taskReconstructionRuntimeHintTokens);
+        if (Array.isArray(parsed)) {
+          candidateHintTokens = parsed.filter((value) => typeof value === "string" && value.trim().length > 0);
+        }
+      } catch {
+        candidateHintTokens = [];
+      }
+    }
     void openRuntimeDebugHostWindow({
       proofMode: true,
       profileId: runtimeProfileId,
+      candidateHintTokens,
       switchToRuntime: true,
       statusPrefix: `${runtimeLabel} requested the stronger Runtime Debug Host proof path using ${labelizeStatus(runtimeProfileId)}`
     });
@@ -19600,6 +19617,7 @@ function renderInspector() {
                           data-task-reconstruction-open-debug-host="1"
                           data-task-reconstruction-runtime-label="${escapeAttribute(page.pageName)}"
                           data-task-reconstruction-runtime-profile-id="${escapeAttribute(taskSectionContext.task.recommendedRuntimeProfile ?? "autoplay")}"
+                          data-task-reconstruction-runtime-hint-tokens="${escapeAttribute(JSON.stringify(getProjectModificationTaskPageMatchTokens(page)))}"
                           title="Use the dedicated Runtime Debug Host when this page cue has no loaded runtime trace yet"
                         >Use Debug Host</button>
                       ` : ""}
