@@ -1,5 +1,5 @@
 import { app, BrowserWindow, ipcMain, session } from "electron";
-import { existsSync } from "node:fs";
+import { existsSync, promises as fs } from "node:fs";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import path from "node:path";
 import { loadProjectSlice } from "./projectSlice";
@@ -566,36 +566,128 @@ async function primeRuntimeProjectCachesFromWorkspace(): Promise<string[]> {
   return projectIds;
 }
 
-function getRuntimeHarvestCandidateEntries(status: LocalRuntimeMirrorStatus | null | undefined) {
-  if (!status?.entries?.length) {
-    return [];
+type RuntimeHarvestCandidateKind = LocalRuntimeMirrorStatus["entries"][number]["kind"];
+
+interface RuntimeHarvestCandidate {
+  sourceUrl: string;
+  kind: RuntimeHarvestCandidateKind;
+  preferAssetRoute: boolean;
+}
+
+function inferRuntimeHarvestCandidateKind(
+  sourceUrl: string,
+  fileType: string | null = null
+): RuntimeHarvestCandidateKind | null {
+  const normalizedSourceUrl = String(sourceUrl ?? "").toLowerCase();
+  const normalizedFileType = String(fileType ?? "").toLowerCase();
+
+  if (normalizedSourceUrl.startsWith("https://translations.bgaming-network.com/")) {
+    return "translation-payload";
+  }
+  if (normalizedSourceUrl.includes("/wrapper.js") || normalizedSourceUrl.includes("/lobby-bundle.js") || normalizedSourceUrl.includes("/replays.js")) {
+    return "support-script";
+  }
+  if (normalizedSourceUrl.includes("/loader.js")) {
+    return "runtime-loader";
+  }
+  if (normalizedSourceUrl.includes("/bundle.js")) {
+    return "runtime-bundle";
+  }
+  if (
+    ["json", "atlas", "plist", "xml", "fnt", "skel"].includes(normalizedFileType)
+    || /\.(json|atlas|plist|xml|fnt|skel)(?:$|[?#])/i.test(sourceUrl)
+  ) {
+    return "runtime-metadata";
+  }
+  if (
+    ["png", "webp", "jpg", "jpeg", "svg", "gif"].includes(normalizedFileType)
+    || /\.(png|webp|jpg|jpeg|svg|gif)(?:$|[?#])/i.test(sourceUrl)
+  ) {
+    return "static-image";
+  }
+  if (normalizedSourceUrl.endsWith(".js") || /\.js(?:$|[?#])/i.test(sourceUrl)) {
+    return "launch-script";
   }
 
-  const allowedKinds = new Set([
-    "launch-script",
-    "runtime-loader",
-    "runtime-bundle",
-    "static-image",
-    "support-script",
-    "runtime-metadata",
-    "translation-payload"
-  ]);
+  return null;
+}
 
-  return status.entries
-    .filter((entry) => (
-      entry?.fileExists !== false
-      && typeof entry?.sourceUrl === "string"
-      && entry.sourceUrl.length > 0
-      && allowedKinds.has(entry.kind)
-    ))
-    .slice(0, 8);
+function resolveRuntimeHarvestLocalMirrorAbsolutePath(entry: {
+  localMirrorAbsolutePath?: string | null;
+  localMirrorRepoRelativePath?: string | null;
+}): string | null {
+  const absolutePath = typeof entry.localMirrorAbsolutePath === "string" && entry.localMirrorAbsolutePath.length > 0
+    ? entry.localMirrorAbsolutePath
+    : null;
+  if (absolutePath && existsSync(absolutePath)) {
+    return absolutePath;
+  }
+
+  const repoRelativePath = typeof entry.localMirrorRepoRelativePath === "string" && entry.localMirrorRepoRelativePath.length > 0
+    ? entry.localMirrorRepoRelativePath
+    : null;
+  if (!repoRelativePath) {
+    return null;
+  }
+
+  const fallbackAbsolutePath = path.resolve(__dirname, "../../..", repoRelativePath);
+  return existsSync(fallbackAbsolutePath) ? fallbackAbsolutePath : null;
+}
+
+function getRuntimeHarvestCandidateEntries(
+  status: LocalRuntimeMirrorStatus | null | undefined,
+  resourceMap: Awaited<ReturnType<typeof loadRuntimeResourceMapStatus>> | null | undefined
+): RuntimeHarvestCandidate[] {
+  const candidates = new Map<string, RuntimeHarvestCandidate>();
+
+  for (const entry of status?.entries ?? []) {
+    if (
+      entry?.fileExists === false
+      || typeof entry?.sourceUrl !== "string"
+      || entry.sourceUrl.length === 0
+      || !inferRuntimeHarvestCandidateKind(entry.sourceUrl, entry.fileType)
+    ) {
+      continue;
+    }
+
+    candidates.set(entry.sourceUrl, {
+      sourceUrl: entry.sourceUrl,
+      kind: entry.kind,
+      preferAssetRoute: entry.kind === "static-image"
+    });
+  }
+
+  for (const entry of resourceMap?.entries ?? []) {
+    if (typeof entry?.canonicalSourceUrl !== "string" || entry.canonicalSourceUrl.length === 0) {
+      continue;
+    }
+    if (candidates.has(entry.canonicalSourceUrl)) {
+      continue;
+    }
+    if (!resolveRuntimeHarvestLocalMirrorAbsolutePath(entry)) {
+      continue;
+    }
+
+    const kind = inferRuntimeHarvestCandidateKind(entry.canonicalSourceUrl, entry.fileType);
+    if (!kind) {
+      continue;
+    }
+
+    candidates.set(entry.canonicalSourceUrl, {
+      sourceUrl: entry.canonicalSourceUrl,
+      kind,
+      preferAssetRoute: false
+    });
+  }
+
+  return Array.from(candidates.values()).slice(0, 8);
 }
 
 function getRuntimeHarvestRequestUrl(
   projectId: string,
-  entry: { kind: string; sourceUrl: string }
+  entry: RuntimeHarvestCandidate
 ): string {
-  if (entry.kind === "static-image") {
+  if (entry.preferAssetRoute && entry.kind === "static-image") {
     const relativePath = getLocalRuntimeMirrorRelativePath(entry.sourceUrl);
     if (relativePath && !relativePath.includes("?")) {
       return buildLocalRuntimeMirrorAssetUrl(projectId, relativePath);
@@ -622,13 +714,13 @@ async function harvestRuntimeRequestEvidence(projectId: string): Promise<{
   await ensureRuntimeProjectCaches(projectId);
 
   const runtimeMirrorStatus = getRuntimeLocalMirrorStatus(projectId);
-  const candidates = getRuntimeHarvestCandidateEntries(runtimeMirrorStatus);
+  const resourceMap = await loadRuntimeResourceMapStatus(projectId);
+  const candidates = getRuntimeHarvestCandidateEntries(runtimeMirrorStatus, resourceMap);
   if (candidates.length === 0) {
-    const resourceMap = await loadRuntimeResourceMapStatus(projectId);
     return {
       projectId,
       status: "blocked",
-      blocker: runtimeMirrorStatus?.blocker ?? "No bounded local-mirror runtime source candidates are indexed for this project yet.",
+      blocker: runtimeMirrorStatus?.blocker ?? "No bounded grounded runtime source candidates are indexed for this project yet.",
       attemptedSourceCount: 0,
       harvestedEntryCount: 0,
       overrideEntryCount: 0,
@@ -670,8 +762,8 @@ async function harvestRuntimeRequestEvidence(projectId: string): Promise<{
     setRuntimeRequestStage(previousStage);
   }
 
-  const resourceMap = await loadRuntimeResourceMapStatus(projectId);
-  const harvestedEntries = resourceMap.entries.filter((entry) => (
+  const refreshedResourceMap = await loadRuntimeResourceMapStatus(projectId);
+  const harvestedEntries = refreshedResourceMap.entries.filter((entry) => (
     Number(entry.stageHitCounts["selected-project-harvest"] ?? 0) > 0
   ));
   const overrideEntries = harvestedEntries.filter((entry) => entry.requestSource === "project-local-override");
@@ -691,7 +783,29 @@ async function harvestRuntimeRequestEvidence(projectId: string): Promise<{
       .filter((value, index, items) => items.indexOf(value) === index),
     failedSourceUrls,
     topSourceUrl: harvestedEntries[0]?.canonicalSourceUrl ?? harvestedSourceUrls[0] ?? null,
-    resourceMapEntryCount: resourceMap.entryCount
+    resourceMapEntryCount: refreshedResourceMap.entryCount
+  };
+}
+
+async function readRuntimeHarvestFallbackFile(
+  projectId: string,
+  sourceUrl: string
+): Promise<{ absolutePath: string; fileType: string; content: Uint8Array } | null> {
+  const resourceMap = await loadRuntimeResourceMapStatus(projectId);
+  const matchingEntry = resourceMap.entries.find((entry) => entry.canonicalSourceUrl === sourceUrl);
+  if (!matchingEntry) {
+    return null;
+  }
+
+  const absolutePath = resolveRuntimeHarvestLocalMirrorAbsolutePath(matchingEntry);
+  if (!absolutePath) {
+    return null;
+  }
+
+  return {
+    absolutePath,
+    fileType: matchingEntry.fileType ?? (path.extname(absolutePath).replace(/^\./, "").toLowerCase() || "bin"),
+    content: new Uint8Array(await fs.readFile(absolutePath))
   };
 }
 
@@ -1821,6 +1935,40 @@ async function handleRuntimeMirrorRequest(request: IncomingMessage, response: Se
 
     const mirrorFile = await readLocalRuntimeMirrorFile(projectId, sourceUrl);
     if (!mirrorFile) {
+      const fallbackFile = await readRuntimeHarvestFallbackFile(projectId, sourceUrl);
+      if (fallbackFile) {
+        const overrideAbsolutePath = getRuntimeOverrideAbsolutePath(sourceUrl, projectId);
+        if (overrideAbsolutePath) {
+          recordRuntimeOverrideHit(sourceUrl);
+          recordRuntimeResourceHit(projectId, parsedUrl.toString(), sourceUrl, "project-local-override", {
+            localMirrorAbsolutePath: fallbackFile.absolutePath,
+            overrideAbsolutePath,
+            fileType: fallbackFile.fileType,
+            resourceType: "fetch"
+          });
+          sendRuntimeMirrorResponse(response, 200, {
+            "content-type": getRuntimeMirrorContentType(fallbackFile.fileType),
+            "cache-control": "no-store",
+            "x-myide-runtime-source": "project-local-override",
+            "x-myide-runtime-local-path": overrideAbsolutePath
+          }, new Uint8Array(await fs.readFile(overrideAbsolutePath)));
+          return;
+        }
+
+        recordRuntimeResourceHit(projectId, parsedUrl.toString(), sourceUrl, "local-mirror-proxy", {
+          localMirrorAbsolutePath: fallbackFile.absolutePath,
+          fileType: fallbackFile.fileType,
+          resourceType: "fetch"
+        });
+        sendRuntimeMirrorResponse(response, 200, {
+          "content-type": getRuntimeMirrorContentType(fallbackFile.fileType),
+          "cache-control": "no-store",
+          "x-myide-runtime-source": "local-mirror-fallback",
+          "x-myide-runtime-local-path": fallbackFile.absolutePath
+        }, fallbackFile.content);
+        return;
+      }
+
       try {
         const upstreamFallback = await fetchRuntimeUpstreamFallbackUrl(sourceUrl);
         recordRuntimeResourceHit(projectId, parsedUrl.toString(), upstreamFallback.sourceUrl, "upstream-request", {

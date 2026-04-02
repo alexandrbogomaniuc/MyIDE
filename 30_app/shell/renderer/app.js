@@ -994,24 +994,81 @@ function canUseRuntimeDebugHostForSelectedProject() {
 }
 
 function getSelectedProjectRuntimeHarvestCandidateCount() {
-  return (getRuntimeMirrorStatus()?.entries ?? []).filter((entry) => (
-    entry?.fileExists !== false
-    && [
-      "launch-script",
-      "runtime-loader",
-      "runtime-bundle",
-      "static-image",
-      "support-script",
-      "runtime-metadata",
-      "translation-payload"
-    ].includes(entry.kind)
-  )).length;
+  const candidates = new Set();
+  const supportedKinds = new Set([
+    "launch-script",
+    "runtime-loader",
+    "runtime-bundle",
+    "static-image",
+    "support-script",
+    "runtime-metadata",
+    "translation-payload"
+  ]);
+
+  (getRuntimeMirrorStatus()?.entries ?? []).forEach((entry) => {
+    if (
+      entry?.fileExists !== false
+      && typeof entry?.sourceUrl === "string"
+      && entry.sourceUrl.length > 0
+      && supportedKinds.has(entry.kind)
+    ) {
+      candidates.add(entry.sourceUrl);
+    }
+  });
+
+  getRuntimeResourceMapEntries().forEach((entry) => {
+    const sourceUrl = typeof entry?.canonicalSourceUrl === "string" ? entry.canonicalSourceUrl : "";
+    if (!sourceUrl || candidates.has(sourceUrl) || !entry?.localMirrorRepoRelativePath) {
+      return;
+    }
+
+    if (inferRuntimeHarvestCandidateKind(sourceUrl, entry.fileType)) {
+      candidates.add(sourceUrl);
+    }
+  });
+
+  return candidates.size;
 }
 
 function canHarvestSelectedProjectRuntimeRequestEvidence() {
   return state.selectedProjectId !== "project_001"
     && getSelectedProjectRuntimeHarvestCandidateCount() > 0
     && !canUseRuntimeDebugHostForSelectedProject();
+}
+
+function inferRuntimeHarvestCandidateKind(sourceUrl, fileType = null) {
+  const normalizedSourceUrl = String(sourceUrl ?? "").toLowerCase();
+  const normalizedFileType = String(fileType ?? "").toLowerCase();
+
+  if (normalizedSourceUrl.startsWith("https://translations.bgaming-network.com/")) {
+    return "translation-payload";
+  }
+  if (normalizedSourceUrl.includes("/wrapper.js") || normalizedSourceUrl.includes("/lobby-bundle.js") || normalizedSourceUrl.includes("/replays.js")) {
+    return "support-script";
+  }
+  if (normalizedSourceUrl.includes("/loader.js")) {
+    return "runtime-loader";
+  }
+  if (normalizedSourceUrl.includes("/bundle.js")) {
+    return "runtime-bundle";
+  }
+  if (
+    ["json", "atlas", "plist", "xml", "fnt", "skel"].includes(normalizedFileType)
+    || /\.(json|atlas|plist|xml|fnt|skel)(?:$|[?#])/i.test(sourceUrl)
+  ) {
+    return "runtime-metadata";
+  }
+  if (
+    ["png", "webp", "jpg", "jpeg", "svg", "gif"].includes(normalizedFileType)
+    || /\.(png|webp|jpg|jpeg|svg|gif)(?:$|[?#])/i.test(sourceUrl)
+  ) {
+    return "static-image";
+  }
+  if (normalizedSourceUrl.endsWith(".js") || /\.js(?:$|[?#])/i.test(sourceUrl)) {
+    return "launch-script";
+  }
+
+  return null;
 }
 
 function getRuntimeDebugHostUnavailableMessage() {
@@ -3181,7 +3238,7 @@ async function harvestRuntimeRequestEvidenceForCurrentProject() {
   }
 
   if (!canHarvestSelectedProjectRuntimeRequestEvidence()) {
-    setPreviewStatus(getRuntimeLaunchInfo()?.blocker ?? "This project does not yet have grounded local-mirror runtime sources to harvest.");
+    setPreviewStatus(getRuntimeLaunchInfo()?.blocker ?? "This project does not yet have any grounded runtime workbench sources to harvest.");
     return null;
   }
 
@@ -3191,7 +3248,7 @@ async function harvestRuntimeRequestEvidenceForCurrentProject() {
     projectId,
     status: "pending"
   };
-  setPreviewStatus(`Harvesting grounded local-mirror runtime sources for ${projectId} into request-backed workbench entries...`);
+  setPreviewStatus(`Harvesting grounded runtime workbench sources for ${projectId} into request-backed workbench entries...`);
 
   try {
     const result = await api.harvestRuntimeRequestEvidence(projectId);
@@ -3216,7 +3273,7 @@ async function harvestRuntimeRequestEvidenceForCurrentProject() {
 
     renderAll();
     setPreviewStatus(harvestedEntryCount > 0
-      ? `Harvested ${harvestedEntryCount} request-backed runtime source${harvestedEntryCount === 1 ? "" : "s"} from ${attemptedSourceCount} grounded local-mirror candidate${attemptedSourceCount === 1 ? "" : "s"} for ${projectId}${overrideEntryCount > 0 ? `, including ${overrideEntryCount} override-backed hit${overrideEntryCount === 1 ? "" : "s"}` : ""}. Embedded launch stays blocked while the runtime workbench refreshes on those harvested traces.`
+      ? `Harvested ${harvestedEntryCount} request-backed runtime source${harvestedEntryCount === 1 ? "" : "s"} from ${attemptedSourceCount} grounded runtime candidate${attemptedSourceCount === 1 ? "" : "s"} for ${projectId}${overrideEntryCount > 0 ? `, including ${overrideEntryCount} override-backed hit${overrideEntryCount === 1 ? "" : "s"}` : ""}. Embedded launch stays blocked while the runtime workbench refreshes on those harvested traces.`
       : String(result?.blocker ?? "The bounded selected-project runtime harvest did not record any grounded requests."));
     return result ?? null;
   } catch (error) {
@@ -6778,12 +6835,12 @@ async function runLiveRuntimeSelectedProjectHarvestSmoke() {
 
     const preHarvestTaskRuntimeEntry = getRuntimeWorkbenchEntryForModificationTask(matchedTask);
     if (!preHarvestTaskRuntimeEntry?.sourceUrl) {
-      throw new Error(`Task ${matchedTask.taskId} did not resolve to a grounded local-mirror entry before harvest.`);
+      throw new Error(`Task ${matchedTask.taskId} did not resolve to a grounded runtime workbench entry before harvest.`);
     }
 
     baseResult.preHarvestRuntimeWorkbenchEntryKind = preHarvestTaskRuntimeEntry.kind ?? null;
-    if (preHarvestTaskRuntimeEntry.kind !== "local-mirror-manifest") {
-      throw new Error(`Selected-project runtime harvest smoke expected a local-mirror entry before harvest, received ${preHarvestTaskRuntimeEntry.kind ?? "none"}.`);
+    if (!["local-mirror-manifest", "resource-map"].includes(preHarvestTaskRuntimeEntry.kind ?? "")) {
+      throw new Error(`Selected-project runtime harvest smoke expected a grounded runtime workbench entry before harvest, received ${preHarvestTaskRuntimeEntry.kind ?? "none"}.`);
     }
     if (preHarvestTaskRuntimeEntry.sourceUrl !== runtimeSourceUrl) {
       throw new Error(`Selected-project runtime harvest smoke expected pre-harvest source ${runtimeSourceUrl}, received ${preHarvestTaskRuntimeEntry.sourceUrl}.`);
@@ -21493,13 +21550,13 @@ function renderRuntimeWorkbenchAssetList() {
       ? debugHostAvailable
         ? "Open Debug Host to populate the official runtime workbench. The embedded path has not recorded any usable runtime source entries in this session yet."
         : harvestAvailable
-          ? "This selected project does not yet have any request-backed runtime workbench items. Use Harvest Request-backed Sources to refresh grounded local-mirror traces without pretending embedded launch is ready."
+          ? "This selected project does not yet have any request-backed runtime workbench items. Use Harvest Request-backed Sources to refresh grounded runtime traces without pretending embedded launch is ready."
           : "This selected project does not yet have any grounded runtime workbench items. Stay in Compose or seed grounded runtime evidence before expecting a live runtime reopen path."
     : embeddedRequestBackedImages.length === 0
       ? debugHostAvailable
         ? "No request-backed static image is available from the weaker embedded runtime path yet. The dedicated Runtime Debug Host result is ranked first and should be treated as the official daily runtime path."
         : harvestAvailable
-          ? "The current selected project still has no request-backed static image candidate, but Harvest Request-backed Sources can refresh grounded local-mirror runtime traces, including static assets, while Debug Host stays unavailable here."
+          ? "The current selected project still has no request-backed static image candidate, but Harvest Request-backed Sources can refresh grounded runtime traces, including static assets, while Debug Host stays unavailable here."
           : "The current selected project still has no request-backed static image candidate. Use the grounded runtime workbench evidence that exists here without pretending Debug Host is available for this project."
       : debugHostAvailable
         ? "Request-backed runtime items are ranked with the strongest debug-host/static candidates first so you can jump quickly into source, evidence, compose, and override actions."
@@ -21604,7 +21661,7 @@ function renderRuntimeWorkbench() {
     : runtimeLaunch?.entryUrl
       ? "The runtime workbench is the truthful selected-project surface here. Embedded launch is indexed, but the dedicated Runtime Debug Host still remains validated only for project_001."
       : harvestAvailable
-        ? "The runtime workbench is the truthful selected-project surface here. Harvest grounded local-mirror sources to refresh request-backed traces, then keep using donor/evidence jumps and bounded overrides without pretending embedded launch or Debug Host are available for this project yet."
+        ? "The runtime workbench is the truthful selected-project surface here. Harvest grounded runtime sources to refresh request-backed traces, then keep using donor/evidence jumps and bounded overrides without pretending embedded launch or Debug Host are available for this project yet."
         : "The runtime workbench is the truthful selected-project surface here. Use request-backed traces, donor/evidence jumps, and bounded overrides without pretending embedded launch or Debug Host are available for this project yet.";
   const runtimeDebugHostCardTitle = debugHostAvailable
     ? (debugHostResult?.status === "pass"
@@ -22305,7 +22362,7 @@ function renderAll() {
         ? `Active runtime override: ${runtimeOverrideCandidate.activeOverride.runtimeRelativePath} -> ${runtimeOverrideCandidate.activeOverride.donorAssetId}. Reload Runtime Mode after changing it.`
         : null)
       ?? (canHarvestSelectedProjectRuntimeRequestEvidence()
-        ? "Harvest grounded local-mirror runtime sources to refresh request-backed workbench traces for this selected project while embedded launch stays blocked."
+        ? "Harvest grounded runtime sources to refresh request-backed workbench traces for this selected project while embedded launch stays blocked."
         : null)
       ?? runtimeLaunch?.blocker
       ?? "Launch the donor runtime, inspect a grounded source, and create a project-local static override when the trace is eligible.";
