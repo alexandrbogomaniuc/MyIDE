@@ -11146,14 +11146,6 @@ function getProjectModificationTaskLeadSceneMemberForPage(page) {
 
 function getProjectModificationTaskRuntimeMatchForPage(task, page) {
   const pageProofEntry = getProjectModificationTaskPageRuntimeProofEntry(task?.taskId, page?.pageName);
-  if (pageProofEntry?.entry) {
-    return {
-      entry: pageProofEntry.entry,
-      matchKind: "page-proof",
-      matchScore: 240
-    };
-  }
-
   const pageSourceBasename = getPathBasename(page?.selectedLocalPath);
   const matchedAssetId = page?.matchedTaskKitAsset?.assetId ?? null;
   const pageTokens = getProjectModificationTaskPageMatchTokens(page);
@@ -11161,6 +11153,12 @@ function getProjectModificationTaskRuntimeMatchForPage(task, page) {
   let bestEntry = null;
   let bestScore = Number.NEGATIVE_INFINITY;
   let bestKind = null;
+
+  if (pageProofEntry?.entry?.kind === "page-runtime-proof") {
+    bestEntry = pageProofEntry.entry;
+    bestKind = "page-proof";
+    bestScore = 240;
+  }
 
   for (const entry of workbenchEntries) {
     const entryBasenames = uniqueStrings([
