@@ -6409,6 +6409,7 @@ async function runLiveRuntimeSelectedProjectReopenSmoke() {
     runtimeModeSelected: false,
     taskRuntimeOpenUsesPersistedPageProof: false,
     taskRuntimeOpenUsesRequestBackedWorkbenchEntry: false,
+    taskRuntimeOpenUsesLocalMirrorWorkbenchEntry: false,
     runtimeDebugHostActionVisible: false,
     runtimeSourceDebugHostActionVisible: false,
     runtimeStatusHeading: null,
@@ -6494,8 +6495,8 @@ async function runLiveRuntimeSelectedProjectReopenSmoke() {
     baseResult.runtimeWorkbenchEntryKind = taskRuntimeEntry.kind ?? null;
     baseResult.runtimeWorkbenchEntryRequestSource = taskRuntimeEntry.requestSource ?? null;
 
-    if (taskRuntimeEntry.kind !== "resource-map") {
-      throw new Error(`Task ${matchedTask.taskId} resolved to ${taskRuntimeEntry.kind ?? "unknown"} instead of a request-backed resource-map entry.`);
+    if (taskRuntimeEntry.kind === "page-runtime-proof") {
+      throw new Error(`Task ${matchedTask.taskId} still resolved to a page-proof entry instead of broader grounded runtime evidence.`);
     }
 
     openProjectModificationTask(matchedTask.taskId, "runtime");
@@ -6510,6 +6511,8 @@ async function runLiveRuntimeSelectedProjectReopenSmoke() {
     baseResult.runtimeModeSelected = state.workbenchMode === "runtime";
     baseResult.taskRuntimeOpenUsesRequestBackedWorkbenchEntry = getRuntimeWorkbenchSourceUrl() === taskRuntimeEntry.sourceUrl
       && taskRuntimeEntry.kind === "resource-map";
+    baseResult.taskRuntimeOpenUsesLocalMirrorWorkbenchEntry = getRuntimeWorkbenchSourceUrl() === taskRuntimeEntry.sourceUrl
+      && taskRuntimeEntry.kind === "local-mirror-manifest";
     baseResult.embeddedRuntimeLaunched = Boolean(state.runtimeUi.launched);
     baseResult.runtimeDebugHostActionVisible = Boolean(document.querySelector('button[data-runtime-action="open-debug-host"]:not([hidden])'));
     baseResult.runtimeSourceDebugHostActionVisible = Boolean(document.querySelector('button[data-runtime-source-action="open-debug-host"]'));
@@ -12396,6 +12399,25 @@ function getRuntimeWorkbenchEntries() {
         : debugHost.overrideBlocked ?? "Dedicated Runtime Debug Host has not proved an override hit for this source yet."
     }));
   }
+
+  (getRuntimeMirrorStatus()?.entries ?? [])
+    .filter((entry) => entry?.kind === "static-image" && typeof entry.sourceUrl === "string" && entry.sourceUrl.length > 0)
+    .forEach((entry) => {
+      pushEntry(createRuntimeWorkbenchEntry({
+        kind: "local-mirror-manifest",
+        sourceUrl: entry.sourceUrl,
+        relativePath: getRuntimeResourceRelativePath(entry.sourceUrl),
+        fileType: entry.fileType,
+        requestBacked: false,
+        requestSource: "local-mirror-manifest",
+        requestCategory: "static-asset",
+        hitCount: 0,
+        localMirrorRepoRelativePath: entry.repoRelativePath,
+        statusLabel: "Local mirror manifest entry",
+        requestSummary: `${entry.kind} · grounded local file`,
+        note: `Grounded local mirror entry at ${entry.repoRelativePath}. This source is available from the selected project's local runtime mirror even when the current cycle has not re-requested it yet.`
+      }));
+    });
 
   getRuntimeResourceMapEntries().forEach((entry) => {
     pushEntry(createRuntimeWorkbenchEntry({
