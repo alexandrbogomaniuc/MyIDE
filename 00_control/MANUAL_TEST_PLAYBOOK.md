@@ -2,6 +2,16 @@
 
 Use this when testing the current local MyIDE build by hand.
 
+## Stage Check
+Before deep runtime or compose testing, confirm the shell now makes the current stage explicit:
+
+1. Investigation
+2. Modification / Compose / Runtime
+3. Math / Config
+4. GS Export
+
+For this build, Investigation should expose static scan state, runtime scan state, scenario coverage, blocked families, next profile guidance, and stage handoff readiness.
+
 ## Before You Start
 1. This test edits reconstructed internal scene data under `40_projects/project_001/internal`; raw donor files under `10_donors/` stay read-only even when a donor image is imported.
 2. Preferred launchers:

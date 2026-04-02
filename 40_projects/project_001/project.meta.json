@@ -36,43 +36,23 @@
     "notes": "Internal replay slice plus the bounded editor loop are verified, including preset-based placeholder creation, snap-assisted drag/nudge, viewport alignment aids for supported placeholder-backed objects, layer reassignment, bounded placeholder width/height edits, layer-local ordering controls, read-only order-position cues, previous/next selection within the current layer, quick session-only layer isolation, session-only viewport zoom/pan/reset/fit controls with transformed-view-safe drag math, duplicate/delete, undo/redo, save/reload, deterministic replay sync, explicit desktop bridge health diagnostics, deterministic Electron bridge smoke, live Electron project load proof, one bounded live-shell inspector edit/save/reload proof, one bounded live-shell canvas drag/save/reload proof for an existing object, one bounded live-shell create->drag->save->reload proof for a newly created placeholder object, one bounded live-shell create->duplicate/delete->save->reload proof for a newly created placeholder object, one bounded live-shell create->reorder->save->reload proof for a newly created placeholder object, one bounded live-shell create->layer-reassign->save->reload proof for a newly created placeholder object, one bounded live-shell create->resize->save->reload proof for a newly created placeholder object, one bounded live-shell create->align->save->reload proof for a newly created placeholder object, and one bounded live-shell create->drag->undo->redo->save->reload proof for a newly created placeholder object in project_001; live restart and free-spins capture gaps remain."
   },
   "lifecycle": {
-    "currentStage": "internalReplay",
+    "currentStage": "modificationComposeRuntime",
     "stages": {
-      "donorEvidence": {
-        "status": "verified",
-        "notes": "Official Mystery Garden evidence pack exists and is indexed."
+      "investigation": {
+        "status": "ready-for-review",
+        "notes": "Static donor scan, bounded scenario capture, and coverage truth now exist for the Mystery Garden proving ground, but some families still need deeper source work."
       },
-      "donorReport": {
-        "status": "verified",
-        "notes": "Evidence-backed donor report and maps exist."
+      "modificationComposeRuntime": {
+        "status": "in-progress",
+        "notes": "Validated replay, runtime-first shell, compose mode, donor palette, and reconstruction handoff work are active in project_001."
       },
-      "importMapping": {
-        "status": "verified",
-        "notes": "Mystery Garden importer manifest and mapping path exist."
-      },
-      "internalReplay": {
-        "status": "verified",
-        "notes": "Validated internal replay slice exists in project_001, now with a bounded editable shell workflow that can create preset placeholders, resize, move, align to the viewport, edit, reorder within a layer, read order position, step to previous/next siblings inside the current layer, isolate a single layer for focused edits, zoom/pan/reset/fit the viewport session-only, duplicate, delete, save, reload, sync, load through a proven Electron preload bridge, and prove one bounded live-shell inspector edit/save/reload loop, one bounded existing-object canvas drag/save/reload loop, one bounded create->drag->save->reload loop for a new placeholder object, one bounded create->duplicate/delete->save->reload loop for a new placeholder object, one bounded create->reorder->save->reload loop for a new placeholder object, one bounded create->layer-reassign->save->reload loop for a new placeholder object, one bounded create->resize->save->reload loop for a new placeholder object, one bounded create->align->save->reload loop for a new placeholder object, and one bounded create->drag->undo->redo->save->reload loop for a new placeholder object through the real renderer action path."
-      },
-      "targetConcept": {
-        "status": "planned",
-        "notes": "A resulting game concept exists only as a future path."
-      },
-      "targetBuild": {
+      "mathConfig": {
         "status": "deferred",
-        "notes": "No resulting game build is started yet."
+        "notes": "Math and configuration changes stay intentionally separate until the reconstruction/runtime backbone is steadier."
       },
-      "integration": {
+      "gsExport": {
         "status": "deferred",
-        "notes": "Production adapter work is not started yet."
-      },
-      "qa": {
-        "status": "planned",
-        "notes": "Workspace and replay verification exist; broader QA remains future work."
-      },
-      "releasePrep": {
-        "status": "deferred",
-        "notes": "Release preparation is not started yet."
+        "notes": "GS export remains a later stage after investigation and modification are ready enough to hand off."
       }
     }
   },

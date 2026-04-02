@@ -1,7 +1,15 @@
 # MyIDE Status
 
+## Lifecycle Backbone
+- Active backbone: `IDE-LIFECYCLE-A`.
+- One project now maps to one explicit lifecycle: `investigation`, `modificationComposeRuntime`, `mathConfig`, `gsExport`.
+- Investigation is now a first-class IDE mode with static donor scan, bounded runtime/scenario capture, scenario coverage, blocked-family reporting, next-profile guidance, and stage handoff readiness.
+- The current product distinction is explicit:
+  - Lane A: ready for reconstruction / modification
+  - Lane B: still blocked on source material
+
 ## Current Phase
-- Active scope: PHASE 5T live shell create -> drag -> undo -> redo -> save -> reload proof on top of the existing slot-first implementation slice.
+- Active scope: keep the validated runtime/composer/editor slices healthy while the lifecycle backbone becomes explicit and reusable.
 - Current milestone: keep `project_001` as the validated bounded internal scene editor slice with preset-based placeholder creation -> resize/move/edit -> snap-assisted layout -> viewport alignment aids -> layer reassignment -> layer-local ordering -> order-position cues -> previous/next layer navigation -> quick session-only isolation -> session-only viewport zoom/pan/reset/fit -> duplicate/delete -> undo/redo -> save/reload -> deterministic replay sync -> preload bridge health proof -> live Electron shell project load proof -> live Electron shell inspector edit/save/reload proof -> live Electron shell existing-object canvas drag/save/reload proof -> live Electron shell create -> drag -> save -> reload proof for a newly created placeholder object -> live Electron shell create -> duplicate/delete -> save -> reload proof for a newly created placeholder object -> live Electron shell create -> reorder -> save -> reload proof for a newly created placeholder object -> live Electron shell create -> layer reassignment -> save -> reload proof for a newly created placeholder object -> live Electron shell create -> resize -> save -> reload proof for a newly created placeholder object -> live Electron shell create -> align -> save -> reload proof for a newly created placeholder object -> live Electron shell create -> drag -> undo -> redo -> save -> reload proof for a newly created placeholder object.
 - GS-VABS-A adds a separate VABS strategy/scaffold/validation module on top of that baseline. The editor of record remains the existing internal scene/object workflow.
 

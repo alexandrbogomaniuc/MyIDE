@@ -2,6 +2,24 @@
 
 Electron desktop shell for MyIDE.
 
+## Lifecycle Direction
+
+The shell now carries the explicit project backbone:
+
+1. Investigation
+2. Modification / Compose / Runtime
+3. Math / Config
+4. GS Export
+
+The new `Investigation` panel surfaces:
+- static donor scan state
+- bounded runtime scan state
+- scenario coverage
+- blocked families/events
+- next capture profile
+- next operator action
+- stage handoff readiness
+
 ## Preferred Launchers
 - `./run/start-workbench.sh`
   - Normal daily launcher for the main MyIDE shell.
@@ -18,6 +36,7 @@ Electron desktop shell for MyIDE.
 - Create a new project scaffold from the shell through a bounded local IPC bridge.
 - The shell new-project flow can now take an optional donor launch URL, scaffold a shared donor pack under `10_donors/<donorId>/`, capture the donor launch HTML in sanitized form, write a bounded discovered URL inventory, harvest bounded recursive static assets into the local-only donor pack, and generate both a donor-package manifest plus a donor-package graph before any replay/import claims are made.
 - The shell now also reads a first-class donor scan summary for the selected donor/project and surfaces scan state, runtime candidate count, atlas metadata count, bundle-map status, mirror status, blocker highlights, and the next operator action in the donor/project read-only workflow.
+- The shell now also reads a first-class investigation status file for the selected donor/project and surfaces a visible Investigation Mode board instead of burying static/dynamic scan truth inside donor-only summaries.
 - The shell donor scan summary now also surfaces the top ranked next capture targets, so operators can copy the current missing runtime target set directly from the app instead of opening harvest files by hand, including whether a target already has grounded alternate capture hints.
 - The shell donor scan summary now also surfaces the current request-backed alternate count from donor scan, so operators can tell whether live runtime harvest has already produced any grounded static-root alternates before running guided capture again.
 - The shell donor scan summary now also surfaces bundle image-variant status plus logical entry/suffix counts when the donor bundles expose a structured `images:{...}` table, so the operator can see that the runtime already carries grounded image-variant metadata even when final optimized asset URLs are still unknown.

@@ -31,6 +31,7 @@
             </div>
             <div id="workflow-panelbar" class="mode-bar workflow-panelbar" role="tablist" aria-label="Workflow side panel">
               <button type="button" data-workflow-panel="runtime" aria-selected="true">Runtime</button>
+              <button type="button" data-workflow-panel="investigation" aria-selected="false">Investigation</button>
               <button type="button" data-workflow-panel="donor" aria-selected="false">Donor</button>
               <button type="button" data-workflow-panel="compose" aria-selected="false">Compose</button>
               <button type="button" data-workflow-panel="vabs" aria-selected="false">VABS</button>
@@ -58,6 +59,15 @@
             </div>
             <p class="context-hint">This panel now also shows the first-class donor scan summary for the selected donor/project: runtime candidates, atlas/frame metadata, bundle asset-map status, mirror viability, blocker summary, and the next operator step. Supported local donor images can still be dragged from here into empty canvas space to create on the chosen target layer, or dropped directly onto an editable scene object to replace it while keeping its layout. Raw donor files still stay read-only.</p>
             <div id="evidence-browser" class="browser-stack" aria-live="polite"></div>
+          </article>
+
+          <article id="panel-investigation" class="panel" hidden>
+            <div class="panel-head">
+              <h2>Investigation Mode</h2>
+              <span>Static scan + bounded runtime coverage</span>
+            </div>
+            <p class="context-hint">Investigation is now a first-class IDE stage. Use it to separate reconstruction-ready families from source-blocked families, run bounded scenario profiles, and see the next honest operator action before switching into modification or compose work.</p>
+            <div id="investigation-browser" class="browser-stack" aria-live="polite"></div>
           </article>
 
           <article id="panel-compose" class="panel">

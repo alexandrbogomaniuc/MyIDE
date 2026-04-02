@@ -930,6 +930,51 @@ export interface DonorScanStatus {
   }>;
 }
 
+export interface InvestigationStatusSummary {
+  donorId: string;
+  donorName: string;
+  currentStage: string;
+  lifecycleLane: string;
+  staticScanState: string;
+  runtimeScanState: string;
+  scenarioCatalogPath: string | null;
+  scenarioCoveragePath: string | null;
+  scenarioCaptureLogPath: string | null;
+  nextScenarioTargetsPath: string | null;
+  scenarioBlockerSummaryPath: string | null;
+  eventStreamPath: string | null;
+  investigationStatusPath: string;
+  scenarioCount: number;
+  readyForReconstructionCount: number;
+  blockedScenarioCount: number;
+  countsByState: Record<string, number>;
+  nextCaptureProfile: string | null;
+  nextOperatorAction: string;
+  nextManualAction: string | null;
+  modificationReadiness: string;
+  recommendedStage: string;
+  readyScenarioNames: string[];
+  blockedScenarioNames: string[];
+  topScenarioCoverage: Array<{
+    scenarioId: string;
+    displayName: string;
+    state: string;
+    lane: string;
+    nextProfile: string | null;
+    nextOperatorAction: string;
+    blockerClasses: string[];
+    matchedFamilyNames: string[];
+  }>;
+  topScenarioTargets: Array<{
+    scenarioId: string;
+    displayName: string;
+    state: string;
+    lane: string;
+    nextProfile: string | null;
+    nextOperatorAction: string;
+  }>;
+}
+
 export interface ProjectSliceBundle {
   workspace: WorkspaceSliceBundle;
   selectedProjectId: string;
@@ -954,6 +999,7 @@ export interface ProjectSliceBundle {
   runtimeResourceMap: RuntimeResourceMapStatus | null;
   runtimeOverrides: RuntimeAssetOverrideStatus | null;
   donorScan: DonorScanStatus | null;
+  investigation: InvestigationStatusSummary | null;
 }
 
 const workspaceRoot = path.resolve(__dirname, "../../..");
@@ -2980,6 +3026,97 @@ function getObjectArray(value: JsonValue | undefined): JsonObject[] {
   return value.filter((item): item is JsonObject => Boolean(item) && typeof item === "object" && !Array.isArray(item));
 }
 
+async function loadInvestigationStatus(selectedProject: WorkspaceProjectSummary | null): Promise<InvestigationStatusSummary | null> {
+  const donorId = selectedProject?.donor?.donorId;
+  if (!donorId) {
+    return null;
+  }
+
+  const investigationStatusPath = `10_donors/${donorId}/evidence/local_only/harvest/investigation-status.json`;
+  const scenarioCoveragePath = `10_donors/${donorId}/evidence/local_only/harvest/scenario-coverage.json`;
+  const nextScenarioTargetsPath = `10_donors/${donorId}/evidence/local_only/harvest/next-scenario-targets.json`;
+  const [investigationStatusFile, scenarioCoverageFile, nextScenarioTargetsFile] = await Promise.all([
+    readOptionalJsonFile(path.join(workspaceRoot, investigationStatusPath)) as Promise<JsonObject | null>,
+    readOptionalJsonFile(path.join(workspaceRoot, scenarioCoveragePath)) as Promise<JsonObject | null>,
+    readOptionalJsonFile(path.join(workspaceRoot, nextScenarioTargetsPath)) as Promise<JsonObject | null>
+  ]);
+
+  if (!investigationStatusFile) {
+    return null;
+  }
+
+  const topScenarioCoverage = getObjectArray(scenarioCoverageFile?.scenarios)
+    .map((scenario) => ({
+      scenarioId: typeof scenario.scenarioId === "string" ? scenario.scenarioId : "",
+      displayName: typeof scenario.displayName === "string" ? scenario.displayName : "",
+      state: typeof scenario.state === "string" ? scenario.state : "unknown",
+      lane: typeof scenario.lane === "string" ? scenario.lane : "unknown",
+      nextProfile: typeof scenario.nextProfile === "string" ? scenario.nextProfile : null,
+      nextOperatorAction: typeof scenario.nextOperatorAction === "string" ? scenario.nextOperatorAction : "Review the investigation status.",
+      blockerClasses: Array.isArray(scenario.blockerClasses)
+        ? scenario.blockerClasses.filter((entry): entry is string => typeof entry === "string" && entry.length > 0)
+        : [],
+      matchedFamilyNames: Array.isArray(scenario.matchedFamilyNames)
+        ? scenario.matchedFamilyNames.filter((entry): entry is string => typeof entry === "string" && entry.length > 0)
+        : []
+    }))
+    .filter((scenario) => scenario.scenarioId.length > 0)
+    .slice(0, 8);
+
+  const topScenarioTargets = getObjectArray(nextScenarioTargetsFile?.targets)
+    .map((target) => ({
+      scenarioId: typeof target.scenarioId === "string" ? target.scenarioId : "",
+      displayName: typeof target.displayName === "string" ? target.displayName : "",
+      state: typeof target.state === "string" ? target.state : "unknown",
+      lane: typeof target.lane === "string" ? target.lane : "unknown",
+      nextProfile: typeof target.nextProfile === "string" ? target.nextProfile : null,
+      nextOperatorAction: typeof target.nextOperatorAction === "string" ? target.nextOperatorAction : "Review the investigation targets."
+    }))
+    .filter((target) => target.scenarioId.length > 0)
+    .slice(0, 6);
+
+  const stageHandoff = investigationStatusFile.stageHandoff && typeof investigationStatusFile.stageHandoff === "object" && !Array.isArray(investigationStatusFile.stageHandoff)
+    ? investigationStatusFile.stageHandoff as JsonObject
+    : {};
+
+  return {
+    donorId,
+    donorName: typeof investigationStatusFile.donorName === "string" ? investigationStatusFile.donorName : selectedProject?.donor?.donorName ?? donorId,
+    currentStage: typeof investigationStatusFile.currentStage === "string" ? investigationStatusFile.currentStage : "investigation",
+    lifecycleLane: typeof investigationStatusFile.lifecycleLane === "string" ? investigationStatusFile.lifecycleLane : "unknown",
+    staticScanState: typeof investigationStatusFile.staticScanState === "string" ? investigationStatusFile.staticScanState : "unknown",
+    runtimeScanState: typeof investigationStatusFile.runtimeScanState === "string" ? investigationStatusFile.runtimeScanState : "unknown",
+    scenarioCatalogPath: typeof investigationStatusFile.scenarioCatalogPath === "string" ? investigationStatusFile.scenarioCatalogPath : null,
+    scenarioCoveragePath: typeof investigationStatusFile.scenarioCoveragePath === "string" ? investigationStatusFile.scenarioCoveragePath : null,
+    scenarioCaptureLogPath: typeof investigationStatusFile.scenarioCaptureLogPath === "string" ? investigationStatusFile.scenarioCaptureLogPath : null,
+    nextScenarioTargetsPath: typeof investigationStatusFile.nextScenarioTargetsPath === "string" ? investigationStatusFile.nextScenarioTargetsPath : null,
+    scenarioBlockerSummaryPath: typeof investigationStatusFile.scenarioBlockerSummaryPath === "string" ? investigationStatusFile.scenarioBlockerSummaryPath : null,
+    eventStreamPath: typeof investigationStatusFile.eventStreamPath === "string" ? investigationStatusFile.eventStreamPath : null,
+    investigationStatusPath,
+    scenarioCount: typeof investigationStatusFile.scenarioCount === "number" ? investigationStatusFile.scenarioCount : 0,
+    readyForReconstructionCount: typeof investigationStatusFile.readyForReconstructionCount === "number" ? investigationStatusFile.readyForReconstructionCount : 0,
+    blockedScenarioCount: typeof investigationStatusFile.blockedScenarioCount === "number" ? investigationStatusFile.blockedScenarioCount : 0,
+    countsByState: investigationStatusFile.countsByState && typeof investigationStatusFile.countsByState === "object" && !Array.isArray(investigationStatusFile.countsByState)
+      ? Object.fromEntries(
+          Object.entries(investigationStatusFile.countsByState).filter(([, value]) => typeof value === "number")
+        ) as Record<string, number>
+      : {},
+    nextCaptureProfile: typeof investigationStatusFile.nextCaptureProfile === "string" ? investigationStatusFile.nextCaptureProfile : null,
+    nextOperatorAction: typeof investigationStatusFile.nextOperatorAction === "string" ? investigationStatusFile.nextOperatorAction : "Review the investigation status.",
+    nextManualAction: typeof investigationStatusFile.nextManualAction === "string" ? investigationStatusFile.nextManualAction : null,
+    modificationReadiness: typeof stageHandoff.modificationReadiness === "string" ? stageHandoff.modificationReadiness : "unknown",
+    recommendedStage: typeof stageHandoff.recommendedStage === "string" ? stageHandoff.recommendedStage : "investigation",
+    readyScenarioNames: Array.isArray(investigationStatusFile.readyScenarioIds)
+      ? investigationStatusFile.readyScenarioIds.filter((entry): entry is string => typeof entry === "string" && entry.length > 0)
+      : [],
+    blockedScenarioNames: Array.isArray(investigationStatusFile.blockedScenarioNames)
+      ? investigationStatusFile.blockedScenarioNames.filter((entry): entry is string => typeof entry === "string" && entry.length > 0)
+      : [],
+    topScenarioCoverage,
+    topScenarioTargets
+  };
+}
+
 function assertPreviewAssetsStayInternal(project: JsonObject): void {
   const assets = getObjectArray(project.assets);
 
@@ -3033,6 +3170,7 @@ export async function loadProjectSlice(requestedProjectId?: string): Promise<Pro
   const evidenceCatalog = await loadDonorEvidenceCatalog(importArtifact);
   const donorAssetCatalog = await loadDonorAssetCatalog(selectedProject, selectedProjectId);
   const donorScan = await loadDonorScanStatus(selectedProject);
+  const investigation = await loadInvestigationStatus(selectedProject);
   const runtimeMirror = selectedProjectId === "project_001"
     ? await buildLocalRuntimeMirrorStatus(selectedProjectId)
     : null;
@@ -3079,6 +3217,7 @@ export async function loadProjectSlice(requestedProjectId?: string): Promise<Pro
     runtimeMirror,
     runtimeResourceMap,
     runtimeOverrides,
-    donorScan
+    donorScan,
+    investigation
   };
 }

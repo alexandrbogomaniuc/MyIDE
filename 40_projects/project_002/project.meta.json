@@ -13,43 +13,23 @@
     "notes": "Scaffold only. No validation has been run for this project yet."
   },
   "lifecycle": {
-    "currentStage": "donorEvidence",
+    "currentStage": "investigation",
     "stages": {
-      "donorEvidence": {
+      "investigation": {
         "status": "planned",
-        "notes": "No evidence capture has started for this scaffold."
+        "notes": "No static donor scan or bounded runtime/scenario capture has started for this scaffold."
       },
-      "donorReport": {
+      "modificationComposeRuntime": {
         "status": "planned",
-        "notes": "No donor report exists yet."
+        "notes": "Modification stays blocked until investigation proves enough grounded source material."
       },
-      "importMapping": {
-        "status": "planned",
-        "notes": "No import mapping exists yet."
-      },
-      "internalReplay": {
-        "status": "planned",
-        "notes": "No internal replay slice exists yet."
-      },
-      "targetConcept": {
-        "status": "planned",
-        "notes": "No resulting game concept has been assigned yet."
-      },
-      "targetBuild": {
+      "mathConfig": {
         "status": "deferred",
-        "notes": "Build work is not started for this scaffold."
+        "notes": "Math/config work stays deferred until the project is investigation-backed and modification-ready."
       },
-      "integration": {
+      "gsExport": {
         "status": "deferred",
-        "notes": "Production integration is not started for this scaffold."
-      },
-      "qa": {
-        "status": "deferred",
-        "notes": "QA is not started until the scaffold becomes evidence-backed."
-      },
-      "releasePrep": {
-        "status": "deferred",
-        "notes": "Release preparation is not started for this scaffold."
+        "notes": "GS export stays deferred until the project proves real investigation and modification readiness."
       }
     }
   },

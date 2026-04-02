@@ -13,43 +13,23 @@
     "notes": "Template metadata only; no validation has been performed yet."
   },
   "lifecycle": {
-    "currentStage": "donorEvidence",
+    "currentStage": "investigation",
     "stages": {
-      "donorEvidence": {
+      "investigation": {
         "status": "planned",
-        "notes": "Capture donor evidence before validation."
+        "notes": "Run static donor scan plus bounded runtime/scenario capture before claiming reconstruction readiness."
       },
-      "donorReport": {
+      "modificationComposeRuntime": {
         "status": "planned",
-        "notes": "Write the donor report after evidence capture."
+        "notes": "Move here only when investigation proves enough grounded source material to modify the project cleanly."
       },
-      "importMapping": {
-        "status": "planned",
-        "notes": "Map donor findings into internal project data."
-      },
-      "internalReplay": {
-        "status": "planned",
-        "notes": "Build an internal replay slice when import mapping exists."
-      },
-      "targetConcept": {
-        "status": "planned",
-        "notes": "Define the resulting game direction."
-      },
-      "targetBuild": {
+      "mathConfig": {
         "status": "deferred",
-        "notes": "Implementation is deferred for a fresh template."
+        "notes": "Keep math/config changes separate from visual/runtime reconstruction."
       },
-      "integration": {
+      "gsExport": {
         "status": "deferred",
-        "notes": "Production integration is deferred."
-      },
-      "qa": {
-        "status": "deferred",
-        "notes": "QA is deferred until replay or build work exists."
-      },
-      "releasePrep": {
-        "status": "deferred",
-        "notes": "Release preparation is deferred."
+        "notes": "GS export is deferred until investigation and modification are honestly ready."
       }
     }
   },

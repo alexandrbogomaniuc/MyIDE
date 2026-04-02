@@ -45,6 +45,13 @@ async function main(): Promise<void> {
     paths.familyReconstructionMapsPath,
     paths.familyReconstructionSectionsPath,
     paths.familyReconstructionSectionBundlesPath,
+    paths.scenarioCatalogPath,
+    paths.scenarioCoveragePath,
+    paths.scenarioCaptureLogPath,
+    paths.nextScenarioTargetsPath,
+    paths.scenarioBlockerSummaryPath,
+    paths.investigationEventsPath,
+    paths.investigationStatusPath,
     paths.blockerSummaryPath,
     paths.scanSummaryPath
   ];
@@ -206,8 +213,79 @@ async function main(): Promise<void> {
   assert.ok(typeof scanSummary.nextCaptureTargetCount === "number", "scan summary should record next capture target count");
   assert.ok(typeof scanSummary.nextOperatorAction === "string" && scanSummary.nextOperatorAction.length > 0, "scan summary should record the next operator action");
 
+  const scenarioCatalog = await readJsonFile<{
+    catalogCount?: number;
+    scenarios?: Array<{ scenarioId?: string; staticDiscoveryState?: string }>;
+  }>(paths.scenarioCatalogPath);
+  assert.ok(typeof scenarioCatalog.catalogCount === "number", "scenario catalog should record scenario counts");
+  assert.ok(Array.isArray(scenarioCatalog.scenarios), "scenario catalog should include scenario rows");
+
+  const scenarioCoverage = await readJsonFile<{
+    scenarioCount?: number;
+    readyForReconstructionCount?: number;
+    blockedScenarioCount?: number;
+    countsByState?: Record<string, number>;
+    scenarios?: Array<{ scenarioId?: string; state?: string; nextOperatorAction?: string }>;
+  }>(paths.scenarioCoveragePath);
+  assert.ok(typeof scenarioCoverage.scenarioCount === "number", "scenario coverage should record scenario counts");
+  assert.ok(typeof scenarioCoverage.readyForReconstructionCount === "number", "scenario coverage should record reconstruction-ready counts");
+  assert.ok(typeof scenarioCoverage.blockedScenarioCount === "number", "scenario coverage should record blocked scenario counts");
+  assert.ok(typeof scenarioCoverage.countsByState === "object" && scenarioCoverage.countsByState !== null, "scenario coverage should record counts by state");
+  assert.ok(Array.isArray(scenarioCoverage.scenarios), "scenario coverage should include scenario rows");
+
+  const scenarioCaptureLog = await readJsonFile<{
+    runCount?: number;
+    observedScenarioIds?: string[];
+    recentRuns?: Array<{ profileId?: string; runtimeLaunchSignal?: string }>;
+  }>(paths.scenarioCaptureLogPath);
+  assert.ok(typeof scenarioCaptureLog.runCount === "number", "scenario capture log should record run counts");
+  assert.ok(Array.isArray(scenarioCaptureLog.observedScenarioIds), "scenario capture log should record observed scenario ids");
+  assert.ok(Array.isArray(scenarioCaptureLog.recentRuns), "scenario capture log should record recent runs");
+
+  const investigationStatus = await readJsonFile<{
+    currentStage?: string;
+    lifecycleLane?: string;
+    staticScanState?: string;
+    runtimeScanState?: string;
+    scenarioCount?: number;
+    readyForReconstructionCount?: number;
+    blockedScenarioCount?: number;
+    nextCaptureProfile?: string | null;
+    nextOperatorAction?: string;
+    stageHandoff?: { modificationReadiness?: string; recommendedStage?: string };
+    agentLoop?: { nextOperatorAction?: string };
+  }>(paths.investigationStatusPath);
+  assert.equal(investigationStatus.currentStage, "investigation", "investigation status should use the investigation stage");
+  assert.ok(typeof investigationStatus.lifecycleLane === "string", "investigation status should record the lifecycle lane");
+  assert.ok(typeof investigationStatus.staticScanState === "string", "investigation status should record static scan state");
+  assert.ok(typeof investigationStatus.runtimeScanState === "string", "investigation status should record runtime scan state");
+  assert.ok(typeof investigationStatus.scenarioCount === "number", "investigation status should record scenario counts");
+  assert.ok(typeof investigationStatus.readyForReconstructionCount === "number", "investigation status should record reconstruction-ready counts");
+  assert.ok(typeof investigationStatus.blockedScenarioCount === "number", "investigation status should record blocked counts");
+  assert.ok(
+    typeof investigationStatus.nextOperatorAction === "string" && investigationStatus.nextOperatorAction.length > 0,
+    "investigation status should record the next operator action"
+  );
+  assert.ok(
+    typeof investigationStatus.stageHandoff?.modificationReadiness === "string",
+    "investigation status should record stage handoff readiness"
+  );
+  assert.ok(
+    typeof investigationStatus.stageHandoff?.recommendedStage === "string",
+    "investigation status should record the recommended next stage"
+  );
+  assert.ok(
+    typeof investigationStatus.agentLoop?.nextOperatorAction === "string" && investigationStatus.agentLoop.nextOperatorAction.length > 0,
+    "investigation status should record the agent loop next operator action"
+  );
+
   const blockerSummary = await readOptionalTextFile(paths.blockerSummaryPath);
   assert.ok(blockerSummary && blockerSummary.includes("Next operator step"), "blocker summary should explain the next operator step");
+  const scenarioBlockerSummary = await readOptionalTextFile(paths.scenarioBlockerSummaryPath);
+  assert.ok(
+    scenarioBlockerSummary && scenarioBlockerSummary.includes("Lane A") && scenarioBlockerSummary.includes("Lane B"),
+    "scenario blocker summary should explain the two investigation lanes"
+  );
   const hasSectionReconstructionProfiles = await fileExists(paths.sectionReconstructionProfilesPath);
   let sectionReconstructionProfilesCount: number | null = null;
   let topSectionReconstructionKeys: string[] = [];

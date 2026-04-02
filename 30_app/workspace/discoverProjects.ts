@@ -20,15 +20,10 @@ export interface DerivedProjectRegistry {
 
 const ignoredProjectFolders = new Set(["templates"]);
 const lifecycleStageIds = [
-  "donorEvidence",
-  "donorReport",
-  "importMapping",
-  "internalReplay",
-  "targetConcept",
-  "targetBuild",
-  "integration",
-  "qa",
-  "releasePrep"
+  "investigation",
+  "modificationComposeRuntime",
+  "mathConfig",
+  "gsExport"
 ] as const;
 const allowedGameFamilies = new Set(["slot", "card", "dice", "crash", "other"]);
 const allowedImplementationScopes = new Set(["slot-first", "universal-architecture", "reference-only"]);

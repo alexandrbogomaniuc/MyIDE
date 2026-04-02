@@ -1,5 +1,11 @@
 # MyIDE TODO
 
+## Lifecycle Backbone Next
+- [ ] Prove the first final texture reconstruction step on top of the new investigation -> modification backbone instead of adding more donor-scan micro-stages.
+- [ ] Strengthen runtime scenario observation when grounded hooks exist so dynamic capture is less conservative.
+- [ ] Add a cleaner operator move from Investigation into Modification / Compose / Runtime.
+- [ ] Keep Math / Config and GS Export intentionally scaffold-level until reconstruction/runtime readiness is stronger.
+
 ## Current Tester Blockers
 - [ ] Widen the new donor import slice beyond `project_001` local static images to additional projects and donor formats without weakening the current bounded save/reload flow.
 - [ ] Remove the remaining automated donor drag/drop bridge dependency so the Electron smoke can prove both imports through pure synthetic drag/drop without the bounded drop-handler bridge.

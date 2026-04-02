@@ -35,6 +35,7 @@ import { summarizeSectionSkinTextureFitReviewBundleProfiles } from "./summarizeS
 import { summarizeSectionSkinTextureFitDecisionBundleProfiles } from "./summarizeSectionSkinTextureFitDecisionBundleProfiles";
 import { summarizeSectionSkinTextureFitApprovalBundleProfiles } from "./summarizeSectionSkinTextureFitApprovalBundleProfiles";
 import { summarizeSectionSkinTextureFitApplyBundleProfiles } from "./summarizeSectionSkinTextureFitApplyBundleProfiles";
+import { refreshInvestigationArtifacts } from "./writeCoverageReport";
 import {
   type CaptureRunFile,
   type DiscoveredDonorUrl,
@@ -1109,6 +1110,10 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
     nextOperatorAction: blockerSummary.nextOperatorAction
   };
   await writeJsonFile(paths.scanSummaryPath, scanSummary);
+  await refreshInvestigationArtifacts({
+    donorId: options.donorId,
+    donorName: options.donorName
+  });
 
   return {
     status,

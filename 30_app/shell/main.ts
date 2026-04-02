@@ -44,6 +44,7 @@ import {
 } from "../runtime/runtimeDebugHost";
 import { captureNextTargets } from "../../tools/donor-scan/captureNextTargets";
 import { runFamilyAction } from "../../tools/donor-scan/runFamilyAction";
+import { runScenarioScan } from "../../tools/donor-scan/runScenarioScan";
 import { runSectionAction } from "../../tools/donor-scan/runSectionAction";
 
 const isBridgeSmokeMode = process.env.MYIDE_BRIDGE_SMOKE === "1";
@@ -2121,6 +2122,14 @@ ipcMain.handle("myide:run-donor-scan-family-action", async (_event, donorId: str
     donorId,
     family,
     limit: typeof limit === "number" ? limit : undefined
+  });
+});
+ipcMain.handle("myide:run-donor-scan-scenario", async (_event, donorId: string, profileId: string, minutes?: number, donorName?: string) => {
+  return runScenarioScan({
+    donorId,
+    donorName: typeof donorName === "string" && donorName.length > 0 ? donorName : donorId,
+    profileId,
+    minutesRequested: typeof minutes === "number" && Number.isFinite(minutes) && minutes > 0 ? minutes : 5
   });
 });
 ipcMain.handle("myide:run-donor-scan-section-action", async (_event, donorId: string, sectionKey: string) => {

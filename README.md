@@ -2,8 +2,19 @@
 
 MyIDE is a universal local-first IDE for multiple game projects over time, with a desktop web UI for collecting donor evidence, reconstructing each project into a clean internal model, replaying that model locally, and preparing a project-specific target or resulting game path.
 
+## Lifecycle Backbone
+
+The target workflow is now explicit:
+
+1. Investigation
+2. Modification / Compose / Runtime
+3. Math / Config
+4. GS Export
+
+Investigation is now a first-class IDE stage. It combines static donor scan, bounded runtime/scenario capture, scenario coverage, blocked-family reporting, next-profile guidance, and stage handoff readiness.
+
 ## Current Phase
-- Current milestone: PHASE 5T unified runtime -> donor -> compose workflow slice on top of the folder-based multi-project workspace.
+- Current milestone: IDE-LIFECYCLE-A lifecycle backbone on top of the existing runtime-first shell, donor scan, and compose/runtime proving slices.
 - Active validated donor slice: `donor_001_mystery_garden`.
 - Proven replay scope: one bounded Mystery Garden slice driven only by internal project data under `40_projects/project_001`.
 - Runtime-first donor workflow now exists for `project_001`: Runtime Mode launches the strongest grounded Mystery Garden donor runtime surface inside the shell and keeps the live runtime surface as the main viewport in that mode, while Compose Mode keeps the bounded internal compositor available as the secondary workflow.
@@ -125,9 +136,13 @@ Public publication rules are defined in [`00_control/PUBLIC_REPO_POLICY.md`](./0
 - `npm run manual:reset:project_001`
 - `npm run donor:intake:url -- --donor-id donor_003_example --donor-name "Example Donor" --url "https://demo.example.com/play/Game/FUN?server=demo"`
 - `npm run donor-scan:url -- --donor-id donor_001_mystery_garden --donor-name "Mystery Garden"`
+- `npm run donor-scan:static -- --donor-id donor_001_mystery_garden --donor-name "Mystery Garden"`
+- `npm run donor-scan:scenario -- --donor-id donor_001_mystery_garden --profile default-bet --minutes 5`
+- `npm run donor-scan:coverage -- --donor-id donor_001_mystery_garden`
 - `npm run donor-scan:run-family-action -- --donor-id donor_001_mystery_garden --family big_win --limit 10`
 - `npm run donor-scan:run-section-action -- --donor-id donor_001_mystery_garden --section big_win/BW`
 - `npm run donor-scan:verify -- --donor-id donor_001_mystery_garden`
+- `npm run smoke:donor-scan-investigation`
 - `npm run runtime:mirror:project_001`
 - `npm run runtime:harvest:project_001`
 - `npm run runtime:harvest:smoke:project_001`

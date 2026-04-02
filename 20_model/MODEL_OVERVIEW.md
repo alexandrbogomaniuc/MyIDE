@@ -12,7 +12,7 @@ The internal model is the editable source of truth for reconstructed games insid
 - Each project is expected to carry donor linkage, internal model data, target/resulting game metadata, verification history, and phase/status context.
 - Project folders under `40_projects/` are the authoritative source of project existence.
 - `registry.json` is a derived cache generated from discovered project folders, not the sole source of truth.
-- Each project now carries an explicit lifecycle stage model across donorEvidence, donorReport, importMapping, internalReplay, targetConcept, targetBuild, integration, qa, and releasePrep.
+- Each project now carries an explicit four-stage lifecycle backbone across investigation, modification/compose/runtime, math/config, and GS export.
 - Shell-created project scaffolds and manually added valid project folders use the same `project.meta.json` contract and the same discovery path.
 
 ## Draft Model Shape

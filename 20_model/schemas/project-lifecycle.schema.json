@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://myide.local/schemas/project-lifecycle.schema.json",
+  "title": "MyIDE Project Lifecycle Backbone",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["currentStage", "stages"],
+  "properties": {
+    "currentStage": {
+      "type": "string",
+      "enum": ["investigation", "modificationComposeRuntime", "mathConfig", "gsExport"]
+    },
+    "stages": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["investigation", "modificationComposeRuntime", "mathConfig", "gsExport"],
+      "properties": {
+        "investigation": {
+          "$ref": "#/$defs/stage"
+        },
+        "modificationComposeRuntime": {
+          "$ref": "#/$defs/stage"
+        },
+        "mathConfig": {
+          "$ref": "#/$defs/stage"
+        },
+        "gsExport": {
+          "$ref": "#/$defs/stage"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "stage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["planned", "in-progress", "blocked", "ready-for-review", "verified", "deferred"]
+        },
+        "notes": {
+          "type": "string"
+        },
+        "entryCriteria": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "exitCriteria": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

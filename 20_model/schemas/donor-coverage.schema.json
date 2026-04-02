@@ -1,0 +1,144 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://myide.local/schemas/donor-coverage.schema.json",
+  "title": "MyIDE Donor Investigation Coverage",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "donorId",
+    "donorName",
+    "generatedAt",
+    "scenarioCount",
+    "countsByState",
+    "readyForReconstructionCount",
+    "blockedScenarioCount",
+    "scenarios"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "string"
+    },
+    "donorId": {
+      "type": "string"
+    },
+    "donorName": {
+      "type": "string"
+    },
+    "generatedAt": {
+      "type": "string"
+    },
+    "scenarioCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "countsByState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "not-discovered",
+        "discovered-in-static-scan",
+        "observed-in-runtime",
+        "source-material-sufficient",
+        "reconstruction-ready",
+        "blocked"
+      ],
+      "properties": {
+        "not-discovered": { "type": "integer", "minimum": 0 },
+        "discovered-in-static-scan": { "type": "integer", "minimum": 0 },
+        "observed-in-runtime": { "type": "integer", "minimum": 0 },
+        "source-material-sufficient": { "type": "integer", "minimum": 0 },
+        "reconstruction-ready": { "type": "integer", "minimum": 0 },
+        "blocked": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "readyForReconstructionCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "blockedScenarioCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "scenarios": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "scenarioId",
+          "displayName",
+          "state",
+          "lane",
+          "matchedFamilyNames",
+          "blockerClasses",
+          "nextProfile",
+          "nextOperatorAction",
+          "observedInRuntime",
+          "discoveredInStaticScan",
+          "sourceMaterialSufficient",
+          "reconstructionReady",
+          "recommendedProfiles",
+          "notes"
+        ],
+        "properties": {
+          "scenarioId": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "not-discovered",
+              "discovered-in-static-scan",
+              "observed-in-runtime",
+              "source-material-sufficient",
+              "reconstruction-ready",
+              "blocked"
+            ]
+          },
+          "lane": {
+            "type": "string",
+            "enum": ["ready-for-reconstruction", "still-blocked-on-source-material"]
+          },
+          "matchedFamilyNames": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "blockerClasses": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "nextProfile": {
+            "type": ["string", "null"]
+          },
+          "nextOperatorAction": {
+            "type": "string"
+          },
+          "observedInRuntime": {
+            "type": "boolean"
+          },
+          "discoveredInStaticScan": {
+            "type": "boolean"
+          },
+          "sourceMaterialSufficient": {
+            "type": "boolean"
+          },
+          "reconstructionReady": {
+            "type": "boolean"
+          },
+          "recommendedProfiles": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "notes": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}

@@ -603,7 +603,7 @@ button:disabled {
 
 .workflow-panelbar {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 8px;
   margin-bottom: 14px;
 }
@@ -622,6 +622,30 @@ button:disabled {
   width: 100%;
   justify-content: center;
   padding-inline: 0.8rem;
+}
+
+.investigation-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.investigation-list {
+  display: grid;
+  gap: 10px;
+}
+
+.investigation-row {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid rgba(179, 209, 186, 0.12);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.investigation-row strong code,
+.investigation-row small code {
+  word-break: break-word;
 }
 
 .mode-bar button[data-tone="active"] {

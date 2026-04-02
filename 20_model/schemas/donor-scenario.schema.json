@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://myide.local/schemas/donor-scenario.schema.json",
+  "title": "MyIDE Donor Scenario Catalog",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "donorId", "donorName", "generatedAt", "catalogCount", "scenarios"],
+  "properties": {
+    "schemaVersion": {
+      "type": "string"
+    },
+    "donorId": {
+      "type": "string"
+    },
+    "donorName": {
+      "type": "string"
+    },
+    "generatedAt": {
+      "type": "string"
+    },
+    "catalogCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "scenarios": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "scenarioId",
+          "displayName",
+          "category",
+          "order",
+          "staticDiscoveryState",
+          "matchedFamilyNames",
+          "blockerClasses",
+          "recommendedProfiles",
+          "notes",
+          "captureFamilyCount",
+          "blockerFamilyCount",
+          "sourceMaterialSignalCount",
+          "reconstructionReadySignalCount"
+        ],
+        "properties": {
+          "scenarioId": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string",
+            "enum": ["entry", "base-game", "bonus", "celebration", "ui", "effect"]
+          },
+          "order": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "staticDiscoveryState": {
+            "type": "string",
+            "enum": ["not-discovered", "discovered-in-static-scan"]
+          },
+          "matchedFamilyNames": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "blockerClasses": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "recommendedProfiles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "captureFamilyCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "blockerFamilyCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "sourceMaterialSignalCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "reconstructionReadySignalCount": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    }
+  }
+}

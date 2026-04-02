@@ -3,15 +3,10 @@ import path from "node:path";
 import { discoverAndWriteRegistry, isJsonObject, type JsonObject, type JsonValue } from "../workspace/discoverProjects";
 
 type LifecycleStageId =
-  | "donorEvidence"
-  | "donorReport"
-  | "importMapping"
-  | "internalReplay"
-  | "targetConcept"
-  | "targetBuild"
-  | "integration"
-  | "qa"
-  | "releasePrep";
+  | "investigation"
+  | "modificationComposeRuntime"
+  | "mathConfig"
+  | "gsExport";
 
 interface WorkspaceLifecycleStage {
   status: string;
@@ -171,43 +166,23 @@ function normalizeLifecycle(entry: JsonObject): WorkspaceLifecycleSummary {
   const stages = getObject(lifecycle.stages);
 
   return {
-    currentStage: asString(lifecycle.currentStage, "donorEvidence") as LifecycleStageId,
+    currentStage: asString(lifecycle.currentStage, "investigation") as LifecycleStageId,
     stages: {
-      donorEvidence: {
-        status: asString(getObject(stages.donorEvidence).status, "planned"),
-        notes: asOptionalString(getObject(stages.donorEvidence).notes)
+      investigation: {
+        status: asString(getObject(stages.investigation).status, "planned"),
+        notes: asOptionalString(getObject(stages.investigation).notes)
       },
-      donorReport: {
-        status: asString(getObject(stages.donorReport).status, "planned"),
-        notes: asOptionalString(getObject(stages.donorReport).notes)
+      modificationComposeRuntime: {
+        status: asString(getObject(stages.modificationComposeRuntime).status, "planned"),
+        notes: asOptionalString(getObject(stages.modificationComposeRuntime).notes)
       },
-      importMapping: {
-        status: asString(getObject(stages.importMapping).status, "planned"),
-        notes: asOptionalString(getObject(stages.importMapping).notes)
+      mathConfig: {
+        status: asString(getObject(stages.mathConfig).status, "deferred"),
+        notes: asOptionalString(getObject(stages.mathConfig).notes)
       },
-      internalReplay: {
-        status: asString(getObject(stages.internalReplay).status, "planned"),
-        notes: asOptionalString(getObject(stages.internalReplay).notes)
-      },
-      targetConcept: {
-        status: asString(getObject(stages.targetConcept).status, "planned"),
-        notes: asOptionalString(getObject(stages.targetConcept).notes)
-      },
-      targetBuild: {
-        status: asString(getObject(stages.targetBuild).status, "deferred"),
-        notes: asOptionalString(getObject(stages.targetBuild).notes)
-      },
-      integration: {
-        status: asString(getObject(stages.integration).status, "deferred"),
-        notes: asOptionalString(getObject(stages.integration).notes)
-      },
-      qa: {
-        status: asString(getObject(stages.qa).status, "deferred"),
-        notes: asOptionalString(getObject(stages.qa).notes)
-      },
-      releasePrep: {
-        status: asString(getObject(stages.releasePrep).status, "deferred"),
-        notes: asOptionalString(getObject(stages.releasePrep).notes)
+      gsExport: {
+        status: asString(getObject(stages.gsExport).status, "deferred"),
+        notes: asOptionalString(getObject(stages.gsExport).notes)
       }
     }
   };
@@ -269,43 +244,23 @@ function buildFallbackProject(project: JsonObject): WorkspaceProjectSummary {
     verificationStatus: "verified-replay-slice",
     verificationChecks: ["import:mystery-garden", "validate:project_001", "assert:replay"],
     lifecycle: {
-      currentStage: "internalReplay",
+      currentStage: "modificationComposeRuntime",
       stages: {
-        donorEvidence: {
+        investigation: {
           status: "verified",
-          notes: "Mystery Garden evidence pack exists and is indexed."
+          notes: "Static donor scan, bounded scenario coverage, and grounded donor evidence exist for the proving slice."
         },
-        donorReport: {
-          status: "verified",
-          notes: "Evidence-backed donor report exists."
+        modificationComposeRuntime: {
+          status: "in-progress",
+          notes: "Validated replay, compose, and runtime work are active for the current proving slice."
         },
-        importMapping: {
-          status: "verified",
-          notes: "Importer manifest and mapping exist."
-        },
-        internalReplay: {
-          status: "verified",
-          notes: "Validated internal replay slice exists."
-        },
-        targetConcept: {
-          status: "planned",
-          notes: "Future resulting game direction is not validated yet."
-        },
-        targetBuild: {
+        mathConfig: {
           status: "deferred",
-          notes: "Resulting game build work is deferred."
+          notes: "Math/config work stays separate until investigation and modification are steadier."
         },
-        integration: {
+        gsExport: {
           status: "deferred",
-          notes: "Production integration remains deferred."
-        },
-        qa: {
-          status: "planned",
-          notes: "Broader QA remains a later phase."
-        },
-        releasePrep: {
-          status: "deferred",
-          notes: "Release preparation is not started."
+          notes: "GS export is intentionally deferred until the earlier stages are genuinely ready."
         }
       }
     },

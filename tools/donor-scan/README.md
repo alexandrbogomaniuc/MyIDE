@@ -2,6 +2,22 @@
 
 Reusable donor-scan tooling for future games.
 
+## Lifecycle Role
+
+Donor scan now serves Stage 1 `Investigation` directly.
+
+It combines:
+- static donor scan
+- bounded runtime/scenario capture
+- scenario catalog generation
+- scenario coverage classification
+- structured investigation events
+- next-action guidance
+
+The key product distinction is explicit:
+- Lane A: ready for reconstruction / modification
+- Lane B: still blocked on source material
+
 ## Purpose
 
 The donor-scan subsystem takes either:
@@ -26,6 +42,12 @@ and answers early:
   - Run donor intake first, then donor scan.
 - `npm run donor-scan:url -- --donor-id donor_XXX --donor-name "NAME"`
   - Re-scan an already-harvested donor package without requiring a fresh donor URL.
+- `npm run donor-scan:static -- --donor-id donor_XXX --donor-name "NAME"`
+  - Refresh the static donor-scan artifacts for a donor that already has local harvest data.
+- `npm run donor-scan:scenario -- --donor-id donor_XXX --profile default-bet --minutes 5`
+  - Run one bounded investigation profile, refresh the scenario capture log and event stream, and update stage handoff guidance.
+- `npm run donor-scan:coverage -- --donor-id donor_XXX`
+  - Refresh the scenario catalog, scenario coverage, next scenario targets, blocker summary, event stream, and investigation status without starting another bounded profile.
 - `npm run donor-scan:verify -- --donor-id donor_XXX`
   - Verify the machine-readable donor-scan outputs exist and are internally coherent enough for operator use.
 - `npm run donor-scan:capture-next -- --donor-id donor_XXX --limit 5`
@@ -56,6 +78,13 @@ Key files:
 - `bundle-asset-map.json`
 - `atlas-manifests.json`
 - `next-capture-targets.json`
+- `scenario-catalog.json`
+- `scenario-coverage.json`
+- `scenario-capture-log.json`
+- `next-scenario-targets.json`
+- `scenario-blocker-summary.md`
+- `investigation-events.jsonl`
+- `investigation-status.json`
 - `capture-target-families.json`
 - `capture-blocker-families.json`
 - `capture-family-source-profiles.json`

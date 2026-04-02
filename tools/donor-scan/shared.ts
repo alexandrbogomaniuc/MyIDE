@@ -206,6 +206,13 @@ export interface DonorScanPaths {
   sectionSkinTextureFitApprovalBundleProfilesPath: string;
   sectionSkinTextureFitApplyBundlesRoot: string;
   sectionSkinTextureFitApplyBundleProfilesPath: string;
+  scenarioCatalogPath: string;
+  scenarioCoveragePath: string;
+  scenarioCaptureLogPath: string;
+  nextScenarioTargetsPath: string;
+  scenarioBlockerSummaryPath: string;
+  investigationEventsPath: string;
+  investigationStatusPath: string;
   captureRunPath: string;
   blockerSummaryPath: string;
   scanSummaryPath: string;
@@ -3843,6 +3850,13 @@ export function buildDonorScanPaths(donorId: string): DonorScanPaths {
     sectionSkinTextureFitApprovalBundleProfilesPath: path.join(harvestRoot, "section-skin-texture-fit-approval-bundle-profiles.json"),
     sectionSkinTextureFitApplyBundlesRoot: path.join(harvestRoot, "section-skin-texture-fit-apply-bundles"),
     sectionSkinTextureFitApplyBundleProfilesPath: path.join(harvestRoot, "section-skin-texture-fit-apply-bundle-profiles.json"),
+    scenarioCatalogPath: path.join(harvestRoot, "scenario-catalog.json"),
+    scenarioCoveragePath: path.join(harvestRoot, "scenario-coverage.json"),
+    scenarioCaptureLogPath: path.join(harvestRoot, "scenario-capture-log.json"),
+    nextScenarioTargetsPath: path.join(harvestRoot, "next-scenario-targets.json"),
+    scenarioBlockerSummaryPath: path.join(harvestRoot, "scenario-blocker-summary.md"),
+    investigationEventsPath: path.join(harvestRoot, "investigation-events.jsonl"),
+    investigationStatusPath: path.join(harvestRoot, "investigation-status.json"),
     captureRunPath: path.join(harvestRoot, "next-capture-run.json"),
     blockerSummaryPath: path.join(harvestRoot, "blocker-summary.md"),
     scanSummaryPath: path.join(harvestRoot, "scan-summary.json")

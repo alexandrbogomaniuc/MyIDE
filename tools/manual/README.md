@@ -1,6 +1,8 @@
 # Manual QA Tooling
 
 Manual QA helpers are for local testing against the current tracked `project_001` baseline.
+The product backbone is now explicit: `Investigation -> Modification / Compose / Runtime -> Math / Config -> GS Export`.
+For this build, testers should treat the `Investigation` panel as the truth surface for static scan state, bounded runtime capture state, scenario coverage, blocked families, next profile guidance, and stage handoff readiness before diving into compose/runtime edits.
 The current shell is now runtime-first for `project_001`: Runtime Mode launches the strongest grounded Mystery Garden donor runtime source inside the shell, keeps the live runtime surface front and center, and exposes bounded runtime launch/reload/inspect controls plus one bounded project-local static image override path when the runtime trace proves an eligible source URL. Compose Mode still edits reconstructed internal scene data under `40_projects/project_001/internal`; it also keeps the stronger bounded donor composition slice for `project_001`, where supported local donor images appear in the in-app donor asset palette, can be filtered by type, can target an explicit layer, can be dropped into empty canvas space to create donor-linked internal scene objects, can be dropped directly over an editable object to replace it, can be multi-selected with a bounded marquee/additive workflow, can be aligned/distributed with nearby composition controls, and give selected donor-backed images a small bottom-right resize handle.
 The shell now includes a workflow hub and left-side context rail so Runtime, Donor, Compose, VABS, and Project setup behave like one flow instead of one long stack of unrelated panels.
 Raw donor files remain read-only evidence, and on a typical window size the **Donor Assets & Evidence** panel sits in the left column below Project Browser, so testers may need to scroll the left column to reach it.
@@ -19,7 +21,8 @@ The shell now shows a read-only VABS status panel for the selected project, but 
    - `./run/start-workbench-clean.sh` for a clean `project_001` baseline
    - `./run/open-runtime-debug-host.sh` for runtime-only investigation
 3. Open `project_001` in Project Browser when the shell appears.
-4. In Runtime Mode, use `Launch Runtime`, `Reload Runtime`, `Click To Start`, `Spin / Trigger`, and `Pick / Inspect` as the first donor workflow path.
+4. Open the `Investigation` panel first and confirm static scan state, runtime scan state, blocked families, next profile, and stage handoff readiness look coherent.
+5. In Runtime Mode, use `Launch Runtime`, `Reload Runtime`, `Click To Start`, `Spin / Trigger`, and `Pick / Inspect` as the first donor workflow path.
 5. After a runtime pick, use the runtime bridge buttons to focus donor asset, donor evidence, or related compose context when those are grounded.
 6. If the runtime trace says the current source is override-eligible, use `Create Override`, let Runtime Mode reload, and confirm either:
    - the active override card shows a runtime hit, or

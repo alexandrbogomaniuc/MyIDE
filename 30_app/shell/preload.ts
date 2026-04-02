@@ -157,6 +157,7 @@ contextBridge.exposeInMainWorld("myideApi", {
   openRuntimeDebugHost: (): Promise<unknown> => ipcRenderer.invoke("myide:open-runtime-debug-host"),
   runDonorScanCapture: (donorId: string, limit?: number, family?: string, mode?: string): Promise<unknown> => ipcRenderer.invoke("myide:run-donor-scan-capture", donorId, limit, family, mode),
   runDonorScanFamilyAction: (donorId: string, family: string, limit?: number): Promise<unknown> => ipcRenderer.invoke("myide:run-donor-scan-family-action", donorId, family, limit),
+  runDonorScenarioProfile: (donorId: string, profileId: string, minutes?: number, donorName?: string): Promise<unknown> => ipcRenderer.invoke("myide:run-donor-scan-scenario", donorId, profileId, minutes, donorName),
   runDonorScanSectionAction: (donorId: string, sectionKey: string): Promise<unknown> => ipcRenderer.invoke("myide:run-donor-scan-section-action", donorId, sectionKey),
   getRuntimeOverrideStatus: (projectId: string): Promise<unknown> => ipcRenderer.invoke("myide:get-runtime-override-status", projectId),
   createRuntimeOverride: (projectId: string, runtimeSourceUrl: string, donorAssetId: string): Promise<unknown> => ipcRenderer.invoke("myide:create-runtime-override", projectId, runtimeSourceUrl, donorAssetId),

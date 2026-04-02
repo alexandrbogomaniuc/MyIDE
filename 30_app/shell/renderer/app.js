@@ -89,15 +89,18 @@ const state = {
 };
 
 const lifecycleStageOrder = [
-  "donorEvidence",
-  "donorReport",
-  "importMapping",
-  "internalReplay",
-  "targetConcept",
-  "targetBuild",
-  "integration",
-  "qa",
-  "releasePrep"
+  "investigation",
+  "modificationComposeRuntime",
+  "mathConfig",
+  "gsExport"
+];
+
+const investigationProfiles = [
+  { profileId: "default-bet", label: "Default Bet", minutes: 5 },
+  { profileId: "max-bet", label: "Max Bet", minutes: 10 },
+  { profileId: "autoplay", label: "Autoplay", minutes: 10 },
+  { profileId: "buy-feature", label: "Buy Feature", minutes: 5 },
+  { profileId: "manual-operator-assist", label: "Manual Assist", minutes: 10 }
 ];
 
 const objectSizePresets = {
@@ -138,8 +141,10 @@ const elements = {
   workflowPanelbar: document.getElementById("workflow-panelbar"),
   projectBrowser: document.getElementById("project-browser"),
   evidenceBrowser: document.getElementById("evidence-browser"),
+  investigationBrowser: document.getElementById("investigation-browser"),
   sceneExplorer: document.getElementById("scene-explorer"),
   workflowVabsPanel: document.getElementById("workflow-vabs-panel"),
+  panelInvestigation: document.getElementById("panel-investigation"),
   panelDonor: document.getElementById("panel-donor"),
   panelCompose: document.getElementById("panel-compose"),
   panelVabs: document.getElementById("panel-vabs"),
@@ -1103,7 +1108,7 @@ function getWorkbenchModeLabel(mode = state.workbenchMode) {
 
 function normalizeWorkflowPanel(panel) {
   const value = String(panel ?? "").trim().toLowerCase();
-  if (["runtime", "donor", "compose", "vabs", "project"].includes(value)) {
+  if (["runtime", "investigation", "donor", "compose", "vabs", "project"].includes(value)) {
     return value;
   }
 
@@ -1117,6 +1122,7 @@ function getActiveWorkflowPanel() {
 function getWorkflowPanelLabel(panel = getActiveWorkflowPanel()) {
   const labels = {
     runtime: "Runtime",
+    investigation: "Investigation",
     donor: "Donor Assets / Evidence",
     compose: "Compose",
     vabs: "VABS",
@@ -1201,6 +1207,9 @@ function renderWorkflowPanels() {
 
   if (elements.panelDonor) {
     elements.panelDonor.hidden = activePanel !== "donor";
+  }
+  if (elements.panelInvestigation) {
+    elements.panelInvestigation.hidden = activePanel !== "investigation";
   }
   if (elements.panelCompose) {
     elements.panelCompose.hidden = activePanel !== "compose";
@@ -3235,6 +3244,48 @@ async function runDonorScanFamilyAction(family, limit = 10) {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     setPreviewStatus(`Family ${familyLabel}: donor family action failed: ${message}`);
+  }
+}
+
+function getInvestigationProfileDefinition(profileId) {
+  return investigationProfiles.find((profile) => profile.profileId === profileId) ?? null;
+}
+
+async function runDonorScenarioProfile(profileId, minutes = null) {
+  const api = window.myideApi;
+  const selectedProject = getSelectedProject();
+  const donorId = typeof selectedProject?.donor?.donorId === "string" ? selectedProject.donor.donorId : "";
+  const donorName = typeof selectedProject?.donor?.donorName === "string" ? selectedProject.donor.donorName : donorId;
+  const profile = getInvestigationProfileDefinition(profileId);
+  const requestedMinutes = Number.isFinite(minutes) && minutes > 0
+    ? minutes
+    : profile?.minutes ?? 5;
+  if (!api || typeof api.runDonorScenarioProfile !== "function" || !donorId || !profileId) {
+    setPreviewStatus("Bounded investigation profiles are not available in this renderer session.");
+    return;
+  }
+
+  setPreviewStatus(`Running investigation profile ${profile?.label ?? profileId} for ${requestedMinutes} minute${requestedMinutes === 1 ? "" : "s"}...`);
+  try {
+    const result = await api.runDonorScenarioProfile(donorId, profileId, requestedMinutes, donorName);
+    await reloadWorkspace(false, state.selectedProjectId);
+    const runtimeScanState = typeof result?.runtimeScanState === "string" ? result.runtimeScanState : "unknown";
+    const lifecycleLane = typeof result?.lifecycleLane === "string" ? result.lifecycleLane : "unknown";
+    const readyForReconstructionCount = Number(result?.readyForReconstructionCount ?? 0);
+    const blockedScenarioCount = Number(result?.blockedScenarioCount ?? 0);
+    const nextProfile = typeof result?.nextProfile === "string" ? result.nextProfile : null;
+    const nextOperatorAction = typeof result?.nextOperatorAction === "string"
+      ? result.nextOperatorAction
+      : "Review the refreshed investigation board.";
+    setPreviewStatus(
+      `Investigation profile ${profile?.label ?? profileId} completed. Runtime scan is ${runtimeScanState}; lane ${lifecycleLane}; `
+      + `${readyForReconstructionCount} ready scenario${readyForReconstructionCount === 1 ? "" : "s"}; `
+      + `${blockedScenarioCount} blocked scenario${blockedScenarioCount === 1 ? "" : "s"}; `
+      + `next profile ${nextProfile ?? "none"}. ${nextOperatorAction}`
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    setPreviewStatus(`Investigation profile ${profile?.label ?? profileId} failed: ${message}`);
   }
 }
 
@@ -11773,6 +11824,15 @@ function handleNavigationClick(event) {
       void runDonorScanFamilyAction(family, Number.isFinite(limit) ? limit : 10);
       return true;
     }
+    if (donorScanActionButton.dataset.donorScanAction === "run-scenario-profile") {
+      const profileId = typeof donorScanActionButton.dataset.donorScanProfile === "string"
+        && donorScanActionButton.dataset.donorScanProfile.trim().length > 0
+        ? donorScanActionButton.dataset.donorScanProfile.trim()
+        : "";
+      const minutes = Number.parseInt(donorScanActionButton.dataset.donorScanMinutes ?? "0", 10);
+      void runDonorScenarioProfile(profileId, Number.isFinite(minutes) && minutes > 0 ? minutes : null);
+      return true;
+    }
     if (donorScanActionButton.dataset.donorScanAction === "run-section-action") {
       const sectionKey = typeof donorScanActionButton.dataset.donorScanSectionKey === "string"
         && donorScanActionButton.dataset.donorScanSectionKey.trim().length > 0
@@ -14075,8 +14135,14 @@ async function reloadWorkspace(isInitialLoad, requestedProjectId = null) {
   resetSceneSectionIsolation();
   resetEditorHistory();
   state.workbenchMode = getRuntimeLaunchInfo()?.entryUrl ? "runtime" : "scene";
+  const investigation = state.bundle?.investigation ?? null;
+  const shouldDefaultToInvestigation = investigation?.modificationReadiness === "investigation-only";
   state.workflowUi = {
-    activePanel: state.workbenchMode === "runtime" ? "runtime" : "compose"
+    activePanel: shouldDefaultToInvestigation
+      ? "investigation"
+      : state.workbenchMode === "runtime"
+        ? "runtime"
+        : "compose"
   };
   reconcileSelectedObject();
   ensureSyncStatusForSelectedProject();
@@ -15267,6 +15333,160 @@ function renderSceneExplorer() {
     ${sectionIsolationBanner}
     ${isolationBanner}
     ${layerMarkup}
+  `;
+}
+
+function renderInvestigationPanel() {
+  if (!elements.investigationBrowser) {
+    return;
+  }
+
+  const selectedProject = getSelectedProject();
+  const investigation = state.bundle?.investigation ?? null;
+  if (!selectedProject) {
+    elements.investigationBrowser.innerHTML = `<div class="tree-row"><strong>No Project</strong><span>Select a project to review investigation coverage.</span></div>`;
+    return;
+  }
+
+  if (!investigation) {
+    elements.investigationBrowser.innerHTML = `
+      <div class="tree-row">
+        <strong>Investigation Not Started</strong>
+        <span>No investigation-status artifact exists yet for ${escapeHtml(selectedProject.donor.donorName)}.</span>
+        <div class="evidence-actions">
+          ${investigationProfiles.map((profile) => `
+            <button
+              type="button"
+              class="copy-button"
+              data-donor-scan-action="run-scenario-profile"
+              data-donor-scan-profile="${escapeAttribute(profile.profileId)}"
+              data-donor-scan-minutes="${escapeAttribute(String(profile.minutes))}"
+            >Run ${escapeHtml(profile.label)}</button>
+          `).join("")}
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  const counts = investigation.countsByState ?? {};
+  const coverageRows = Array.isArray(investigation.topScenarioCoverage) ? investigation.topScenarioCoverage : [];
+  const nextTargets = Array.isArray(investigation.topScenarioTargets) ? investigation.topScenarioTargets : [];
+  const recommendedProfile = investigation.nextCaptureProfile
+    ? getInvestigationProfileDefinition(investigation.nextCaptureProfile)
+    : null;
+  const canMoveToModification = investigation.modificationReadiness !== "investigation-only";
+
+  elements.investigationBrowser.innerHTML = `
+    <div class="investigation-grid">
+      <div class="detail-grid">
+        <div class="detail-card">
+          <span>Current Stage</span>
+          <strong>${escapeHtml(labelizeStage(investigation.currentStage))}</strong>
+          <small>${escapeHtml(labelizeStatus(investigation.lifecycleLane))}</small>
+        </div>
+        <div class="detail-card">
+          <span>Static Scan</span>
+          <strong>${escapeHtml(investigation.staticScanState)}</strong>
+          <small>${investigation.scenarioCatalogPath ? `<code>${escapeHtml(investigation.scenarioCatalogPath)}</code>` : "No scenario catalog path yet."}</small>
+        </div>
+        <div class="detail-card">
+          <span>Runtime Scan</span>
+          <strong>${escapeHtml(investigation.runtimeScanState)}</strong>
+          <small>${investigation.scenarioCaptureLogPath ? `<code>${escapeHtml(investigation.scenarioCaptureLogPath)}</code>` : "No scenario capture log yet."}</small>
+        </div>
+        <div class="detail-card">
+          <span>Stage Handoff</span>
+          <strong>${escapeHtml(labelizeStatus(investigation.modificationReadiness))}</strong>
+          <small>Recommended stage: ${escapeHtml(labelizeStage(investigation.recommendedStage))}</small>
+        </div>
+      </div>
+
+      <div class="tree-row">
+        <strong>Coverage Board</strong>
+        <span>Bounded scenario coverage separates reconstruction-ready families from families still blocked on source material.</span>
+        <div class="chip-row">
+          <span>${escapeHtml(String(investigation.scenarioCount))} scenario families</span>
+          <span>${escapeHtml(String(investigation.readyForReconstructionCount))} ready for reconstruction</span>
+          <span>${escapeHtml(String(investigation.blockedScenarioCount))} blocked</span>
+          <span>${escapeHtml(String(counts["observed-in-runtime"] ?? 0))} observed in runtime</span>
+          <span>${escapeHtml(String(counts["discovered-in-static-scan"] ?? 0))} discovered in static scan</span>
+          <span>${escapeHtml(String(counts["source-material-sufficient"] ?? 0))} source-material sufficient</span>
+          <span>${escapeHtml(String(counts["reconstruction-ready"] ?? 0))} reconstruction ready</span>
+        </div>
+      </div>
+
+      <div class="tree-row">
+        <strong>Next Operator Action</strong>
+        <span>${escapeHtml(investigation.nextOperatorAction)}</span>
+        <div class="evidence-actions">
+          ${recommendedProfile ? `
+            <button
+              type="button"
+              class="copy-button"
+              data-donor-scan-action="run-scenario-profile"
+              data-donor-scan-profile="${escapeAttribute(recommendedProfile.profileId)}"
+              data-donor-scan-minutes="${escapeAttribute(String(recommendedProfile.minutes))}"
+            >Run Recommended Profile</button>
+          ` : ""}
+          ${investigationProfiles.map((profile) => `
+            <button
+              type="button"
+              class="copy-button"
+              data-donor-scan-action="run-scenario-profile"
+              data-donor-scan-profile="${escapeAttribute(profile.profileId)}"
+              data-donor-scan-minutes="${escapeAttribute(String(profile.minutes))}"
+            >${escapeHtml(profile.label)}</button>
+          `).join("")}
+          <button
+            type="button"
+            class="copy-button"
+            data-switch-workflow-panel="donor"
+            data-switch-status="Donor panel is active again so you can review donor scan evidence, capture targets, and blocked families."
+          >Open Donor Panel</button>
+          ${canMoveToModification ? `
+            <button
+              type="button"
+              class="copy-button"
+              data-switch-workbench-mode="scene"
+              data-switch-workflow-panel="compose"
+              data-switch-status="Compose Mode is active because Investigation shows at least partial readiness for reconstruction."
+            >Open Modification / Compose</button>
+          ` : ""}
+        </div>
+        <small>${investigation.nextManualAction ? escapeHtml(investigation.nextManualAction) : "No manual-only action is currently leading the queue."}</small>
+      </div>
+
+      <div class="tree-row">
+        <strong>Top Scenario Coverage</strong>
+        <span>These rows are the current honest scenario states, not screenshot guesses.</span>
+        <div class="investigation-list">
+          ${coverageRows.length > 0 ? coverageRows.map((scenario) => `
+            <div class="investigation-row">
+              <strong>${escapeHtml(scenario.displayName)} <code>${escapeHtml(scenario.state)}</code></strong>
+              <small>lane · ${escapeHtml(labelizeStatus(scenario.lane))}${scenario.nextProfile ? ` · next profile ${escapeHtml(scenario.nextProfile)}` : ""}</small>
+              <small>${escapeHtml(scenario.nextOperatorAction)}</small>
+              <small>${scenario.blockerClasses.length > 0 ? `blockers · ${escapeHtml(scenario.blockerClasses.join(", "))}` : "blockers · none currently leading"}</small>
+              <small>${scenario.matchedFamilyNames.length > 0 ? `matched families · ${escapeHtml(scenario.matchedFamilyNames.join(", "))}` : "matched families · none yet"}</small>
+            </div>
+          `).join("") : `<div class="investigation-row"><strong>No coverage rows</strong><small>Run a static scan or a bounded scenario profile to populate the board.</small></div>`}
+        </div>
+      </div>
+
+      <div class="tree-row">
+        <strong>Next Scenario Targets</strong>
+        <span>These are the next bounded investigation targets, in order.</span>
+        <div class="investigation-list">
+          ${nextTargets.length > 0 ? nextTargets.map((scenario) => `
+            <div class="investigation-row">
+              <strong>${escapeHtml(scenario.displayName)} <code>${escapeHtml(scenario.state)}</code></strong>
+              <small>lane · ${escapeHtml(labelizeStatus(scenario.lane))}${scenario.nextProfile ? ` · next profile ${escapeHtml(scenario.nextProfile)}` : ""}</small>
+              <small>${escapeHtml(scenario.nextOperatorAction)}</small>
+            </div>
+          `).join("") : `<div class="investigation-row"><strong>No queued targets</strong><small>The current investigation state does not expose a next target yet.</small></div>`}
+        </div>
+      </div>
+    </div>
   `;
 }
 
@@ -18472,6 +18692,7 @@ function renderAll() {
   renderWorkflowPanels();
   renderOnboardingCard();
   renderProjectBrowser();
+  renderInvestigationPanel();
   renderEvidenceBrowser();
   renderSceneExplorer();
   renderWorkflowVabsPanel();

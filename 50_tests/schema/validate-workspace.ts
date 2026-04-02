@@ -10,6 +10,9 @@ import { buildDerivedRegistry, discoverProjectMetas, isJsonObject, readJsonObjec
 type JsonValue = null | boolean | number | string | JsonObject | JsonValue[];
 type JsonObject = { [key: string]: JsonValue };
 
+const lifecycleStageIds = ["investigation", "modificationComposeRuntime", "mathConfig", "gsExport"] as const;
+const lifecycleStatuses = ["planned", "in-progress", "blocked", "ready-for-review", "verified", "deferred"] as const;
+
 function resolveWorkspaceRoot(): string {
   const candidates = [process.cwd(), __dirname, path.resolve(__dirname, ".."), path.resolve(__dirname, "../..")];
 
@@ -89,15 +92,15 @@ function assertLifecycle(meta: JsonObject, label: string): void {
   const currentStage = getString(lifecycle.currentStage, `${label}.lifecycle.currentStage`);
 
   assert(
-    ["donorEvidence", "donorReport", "importMapping", "internalReplay", "targetConcept", "targetBuild", "integration", "qa", "releasePrep"].includes(currentStage),
+    lifecycleStageIds.includes(currentStage as typeof lifecycleStageIds[number]),
     `${label}.lifecycle.currentStage must be a known stage`
   );
 
-  for (const stageId of ["donorEvidence", "donorReport", "importMapping", "internalReplay", "targetConcept", "targetBuild", "integration", "qa", "releasePrep"]) {
+  for (const stageId of lifecycleStageIds) {
     const stage = getObject(stages[stageId], `${label}.lifecycle.stages.${stageId}`);
     const status = getString(stage.status, `${label}.lifecycle.stages.${stageId}.status`);
     assert(
-      ["planned", "in-progress", "blocked", "ready-for-review", "verified", "deferred"].includes(status),
+      lifecycleStatuses.includes(status as typeof lifecycleStatuses[number]),
       `${label}.lifecycle.stages.${stageId}.status must use the controlled vocabulary`
     );
   }
@@ -245,11 +248,17 @@ async function main(): Promise<void> {
 
   const project001Meta = discoveredProjects.find((project) => getString(project.projectId, "project.projectId") === "project_001");
   assert(project001Meta, "folder discovery must include project_001 metadata");
-  assert(getString(getObject(project001Meta.lifecycle, "project_001.lifecycle").currentStage, "project_001.lifecycle.currentStage") === "internalReplay", "project_001 must remain the internal replay slice");
+  assert(
+    getString(getObject(project001Meta.lifecycle, "project_001.lifecycle").currentStage, "project_001.lifecycle.currentStage") === "modificationComposeRuntime",
+    "project_001 must remain the proven modification/compose/runtime slice"
+  );
 
   assertProjectPaths(project002Meta, "40_projects/project_002", "40_projects/project_002/project.meta.json");
   assertLifecycle(project002Meta, "40_projects/project_002/project.meta.json");
-  assert(getString(getObject(project002Meta.lifecycle, "project_002.lifecycle").currentStage, "project_002.lifecycle.currentStage") === "donorEvidence", "project_002 must remain a donor-evidence-stage scaffold");
+  assert(
+    getString(getObject(project002Meta.lifecycle, "project_002.lifecycle").currentStage, "project_002.lifecycle.currentStage") === "investigation",
+    "project_002 must remain an investigation-stage scaffold"
+  );
 
   const sceneLayerIds = Array.isArray(project001InternalScene.layerIds) ? project001InternalScene.layerIds : [];
   const sceneObjectIds = Array.isArray(project001InternalScene.objectIds) ? project001InternalScene.objectIds : [];

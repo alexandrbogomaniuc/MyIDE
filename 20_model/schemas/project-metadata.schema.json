@@ -80,51 +80,7 @@
       }
     },
     "lifecycle": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["currentStage", "stages"],
-      "properties": {
-        "currentStage": {
-          "type": "string",
-          "enum": [
-            "donorEvidence",
-            "donorReport",
-            "importMapping",
-            "internalReplay",
-            "targetConcept",
-            "targetBuild",
-            "integration",
-            "qa",
-            "releasePrep"
-          ]
-        },
-        "stages": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "donorEvidence",
-            "donorReport",
-            "importMapping",
-            "internalReplay",
-            "targetConcept",
-            "targetBuild",
-            "integration",
-            "qa",
-            "releasePrep"
-          ],
-          "properties": {
-            "donorEvidence": { "$ref": "#/$defs/lifecycleStage" },
-            "donorReport": { "$ref": "#/$defs/lifecycleStage" },
-            "importMapping": { "$ref": "#/$defs/lifecycleStage" },
-            "internalReplay": { "$ref": "#/$defs/lifecycleStage" },
-            "targetConcept": { "$ref": "#/$defs/lifecycleStage" },
-            "targetBuild": { "$ref": "#/$defs/lifecycleStage" },
-            "integration": { "$ref": "#/$defs/lifecycleStage" },
-            "qa": { "$ref": "#/$defs/lifecycleStage" },
-            "releasePrep": { "$ref": "#/$defs/lifecycleStage" }
-          }
-        }
-      }
+      "$ref": "https://myide.local/schemas/project-lifecycle.schema.json"
     },
     "paths": {
       "type": "object",

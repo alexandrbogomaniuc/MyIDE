@@ -7,15 +7,10 @@ type JsonValue = null | boolean | number | string | JsonObject | JsonValue[];
 type JsonObject = { [key: string]: JsonValue };
 
 const lifecycleStageIds = [
-  "donorEvidence",
-  "donorReport",
-  "importMapping",
-  "internalReplay",
-  "targetConcept",
-  "targetBuild",
-  "integration",
-  "qa",
-  "releasePrep"
+  "investigation",
+  "modificationComposeRuntime",
+  "mathConfig",
+  "gsExport"
 ] as const;
 const lifecycleStageStatusValues = ["planned", "in-progress", "blocked", "ready-for-review", "verified", "deferred"] as const;
 const gameFamilyValues = ["slot", "card", "dice", "crash", "other"] as const;
@@ -278,43 +273,23 @@ function normalizeLifecycleStatus(value: unknown, fallback: LifecycleStageStatus
 
 function buildDefaultLifecycle(projectName: string): ProjectLifecycle {
   return {
-    currentStage: "donorEvidence",
+    currentStage: "investigation",
     stages: {
-      donorEvidence: {
+      investigation: {
         status: "planned",
-        notes: `Capture donor evidence for ${projectName} before any importer or replay work is claimed.`
+        notes: `Run static donor scan plus bounded runtime/scenario capture for ${projectName} before claiming reconstruction readiness.`
       },
-      donorReport: {
+      modificationComposeRuntime: {
         status: "planned",
-        notes: "Write evidence-backed donor reports after capture is complete."
+        notes: "Switch here only when investigation proves enough grounded source material to modify, compose, and test without editing raw donor files."
       },
-      importMapping: {
-        status: "planned",
-        notes: "Map donor findings into the clean internal project model."
-      },
-      internalReplay: {
-        status: "planned",
-        notes: "Build or validate the internal replay slice only after import mapping exists."
-      },
-      targetConcept: {
-        status: "planned",
-        notes: "Define the resulting game direction once the donor-backed slice is understood."
-      },
-      targetBuild: {
+      mathConfig: {
         status: "deferred",
-        notes: "Do not start target implementation until the project is evidence-backed."
+        notes: "Keep RTP, bets, feature parameters, and other configuration work separate from reconstruction."
       },
-      integration: {
+      gsExport: {
         status: "deferred",
-        notes: "Production integration remains deferred until a later phase."
-      },
-      qa: {
-        status: "deferred",
-        notes: "QA becomes active only after internal replay or target build exists."
-      },
-      releasePrep: {
-        status: "deferred",
-        notes: "Release preparation remains deferred for new scaffolds."
+        notes: "GS export and migration stay deferred until investigation and modification are honestly ready."
       }
     }
   };
@@ -330,41 +305,25 @@ function normalizeLifecycle(value: unknown, projectName: string): ProjectLifecyc
       ? optionalString(lifecycle.currentStage) as LifecycleStageId
       : defaults.currentStage,
     stages: {
-      donorEvidence: {
-        status: normalizeLifecycleStatus(getObject(lifecycleStages.donorEvidence).status, defaults.stages.donorEvidence.status),
-        notes: optionalString(getObject(lifecycleStages.donorEvidence).notes) ?? defaults.stages.donorEvidence.notes
+      investigation: {
+        status: normalizeLifecycleStatus(getObject(lifecycleStages.investigation).status, defaults.stages.investigation.status),
+        notes: optionalString(getObject(lifecycleStages.investigation).notes) ?? defaults.stages.investigation.notes
       },
-      donorReport: {
-        status: normalizeLifecycleStatus(getObject(lifecycleStages.donorReport).status, defaults.stages.donorReport.status),
-        notes: optionalString(getObject(lifecycleStages.donorReport).notes) ?? defaults.stages.donorReport.notes
+      modificationComposeRuntime: {
+        status: normalizeLifecycleStatus(
+          getObject(lifecycleStages.modificationComposeRuntime).status,
+          defaults.stages.modificationComposeRuntime.status
+        ),
+        notes: optionalString(getObject(lifecycleStages.modificationComposeRuntime).notes)
+          ?? defaults.stages.modificationComposeRuntime.notes
       },
-      importMapping: {
-        status: normalizeLifecycleStatus(getObject(lifecycleStages.importMapping).status, defaults.stages.importMapping.status),
-        notes: optionalString(getObject(lifecycleStages.importMapping).notes) ?? defaults.stages.importMapping.notes
+      mathConfig: {
+        status: normalizeLifecycleStatus(getObject(lifecycleStages.mathConfig).status, defaults.stages.mathConfig.status),
+        notes: optionalString(getObject(lifecycleStages.mathConfig).notes) ?? defaults.stages.mathConfig.notes
       },
-      internalReplay: {
-        status: normalizeLifecycleStatus(getObject(lifecycleStages.internalReplay).status, defaults.stages.internalReplay.status),
-        notes: optionalString(getObject(lifecycleStages.internalReplay).notes) ?? defaults.stages.internalReplay.notes
-      },
-      targetConcept: {
-        status: normalizeLifecycleStatus(getObject(lifecycleStages.targetConcept).status, defaults.stages.targetConcept.status),
-        notes: optionalString(getObject(lifecycleStages.targetConcept).notes) ?? defaults.stages.targetConcept.notes
-      },
-      targetBuild: {
-        status: normalizeLifecycleStatus(getObject(lifecycleStages.targetBuild).status, defaults.stages.targetBuild.status),
-        notes: optionalString(getObject(lifecycleStages.targetBuild).notes) ?? defaults.stages.targetBuild.notes
-      },
-      integration: {
-        status: normalizeLifecycleStatus(getObject(lifecycleStages.integration).status, defaults.stages.integration.status),
-        notes: optionalString(getObject(lifecycleStages.integration).notes) ?? defaults.stages.integration.notes
-      },
-      qa: {
-        status: normalizeLifecycleStatus(getObject(lifecycleStages.qa).status, defaults.stages.qa.status),
-        notes: optionalString(getObject(lifecycleStages.qa).notes) ?? defaults.stages.qa.notes
-      },
-      releasePrep: {
-        status: normalizeLifecycleStatus(getObject(lifecycleStages.releasePrep).status, defaults.stages.releasePrep.status),
-        notes: optionalString(getObject(lifecycleStages.releasePrep).notes) ?? defaults.stages.releasePrep.notes
+      gsExport: {
+        status: normalizeLifecycleStatus(getObject(lifecycleStages.gsExport).status, defaults.stages.gsExport.status),
+        notes: optionalString(getObject(lifecycleStages.gsExport).notes) ?? defaults.stages.gsExport.notes
       }
     }
   };
@@ -732,10 +691,10 @@ export function buildProjectMetaFromInput(input: ShellCreateProjectInput): Proje
             : "Review the donor intake report and convert first-pass URL discovery into evidence-backed donor capture work.")
           : "Replace scaffold metadata with evidence-backed donor, import, and replay details."],
       assumptions: [
-        "This project remains unvalidated until donor evidence and internal replay exist."
+        "This project remains unvalidated until investigation evidence is grounded and a modification/runtime handoff exists."
       ],
       unresolvedQuestions: [
-        "Which donor evidence pack and internal replay slice will validate this project first."
+        "Which investigation capture set should make this project ready for modification or reconstruction first."
       ]
     }
   };
