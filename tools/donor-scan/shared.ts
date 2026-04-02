@@ -151,6 +151,7 @@ export interface DonorScanPaths {
   familyActionWorksetsRoot: string;
   familyReconstructionBundlesRoot: string;
   familyReconstructionProfilesPath: string;
+  familyReconstructionMapsPath: string;
   captureRunPath: string;
   blockerSummaryPath: string;
   scanSummaryPath: string;
@@ -349,6 +350,8 @@ export interface DonorScanResult {
   topFamilyActionNames: string[];
   familyReconstructionProfileCount: number;
   topFamilyReconstructionProfileNames: string[];
+  familyReconstructionMapCount: number;
+  topFamilyReconstructionMapNames: string[];
   rawPayloadBlockedCaptureTargetCount: number;
   rawPayloadBlockedFamilyCount: number;
   rawPayloadBlockedFamilyNames: string[];
@@ -693,6 +696,52 @@ export interface FamilyReconstructionProfilesFile {
   families: FamilyReconstructionProfileRecord[];
 }
 
+export type FamilyReconstructionAttachmentMatchType =
+  | "path-exact"
+  | "attachment-exact"
+  | "slot-exact"
+  | "unmapped";
+
+export interface FamilyReconstructionAttachmentRecord {
+  skinName: string;
+  slotName: string;
+  attachmentName: string;
+  attachmentPath: string | null;
+  matchType: FamilyReconstructionAttachmentMatchType;
+  regionName: string | null;
+  pageName: string | null;
+}
+
+export interface FamilyReconstructionMapRecord {
+  familyName: string;
+  profileState: FamilyReconstructionProfileState;
+  readiness: FamilyReconstructionReadiness;
+  atlasPageCount: number;
+  atlasRegionCount: number;
+  spineSkinCount: number;
+  spineSlotCount: number;
+  spineAttachmentCount: number;
+  mappedAttachmentCount: number;
+  unmappedAttachmentCount: number;
+  mappedByMatchType: Record<Exclude<FamilyReconstructionAttachmentMatchType, "unmapped">, number>;
+  animationNames: string[];
+  sampleMappedAttachments: FamilyReconstructionAttachmentRecord[];
+  sampleUnmappedAttachments: FamilyReconstructionAttachmentRecord[];
+  sampleLocalSourcePath: string | null;
+  reconstructionBundlePath: string;
+  nextReconstructionStep: string;
+  attachments: FamilyReconstructionAttachmentRecord[];
+}
+
+export interface FamilyReconstructionMapsFile {
+  schemaVersion: string;
+  donorId: string;
+  donorName: string;
+  generatedAt: string;
+  familyCount: number;
+  families: FamilyReconstructionMapRecord[];
+}
+
 export interface FamilyActionRunFile {
   schemaVersion: string;
   donorId: string;
@@ -777,6 +826,7 @@ export function buildDonorScanPaths(donorId: string): DonorScanPaths {
     familyActionWorksetsRoot: path.join(harvestRoot, "family-action-worksets"),
     familyReconstructionBundlesRoot: path.join(harvestRoot, "family-reconstruction-bundles"),
     familyReconstructionProfilesPath: path.join(harvestRoot, "family-reconstruction-profiles.json"),
+    familyReconstructionMapsPath: path.join(harvestRoot, "family-reconstruction-maps.json"),
     captureRunPath: path.join(harvestRoot, "next-capture-run.json"),
     blockerSummaryPath: path.join(harvestRoot, "blocker-summary.md"),
     scanSummaryPath: path.join(harvestRoot, "scan-summary.json")

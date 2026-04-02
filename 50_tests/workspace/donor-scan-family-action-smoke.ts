@@ -190,6 +190,27 @@ async function main(): Promise<void> {
     assert.ok(typeof uiProfile?.profileState === "string" && uiProfile.profileState.length > 0, "reconstruction profile should summarize local reconstruction state");
     assert.ok(typeof uiProfile?.sampleLocalSourcePath === "string" && uiProfile.sampleLocalSourcePath.length > 0, "reconstruction profile should expose a sample local source path");
 
+    const reconstructionMapsPath = path.join(donorRoot, "evidence", "local_only", "harvest", "family-reconstruction-maps.json");
+    const reconstructionMaps = JSON.parse(await fs.readFile(reconstructionMapsPath, "utf8")) as {
+      familyCount?: number;
+      families?: Array<{
+        familyName?: string;
+        mappedAttachmentCount?: number;
+        spineAttachmentCount?: number;
+        reconstructionBundlePath?: string;
+        sampleLocalSourcePath?: string | null;
+      }>;
+    };
+    assert.ok((reconstructionMaps.familyCount ?? 0) >= 1, "reconstruction map summary should count prepared families");
+    const uiMap = Array.isArray(reconstructionMaps.families)
+      ? reconstructionMaps.families.find((family) => family?.familyName === "ui")
+      : null;
+    assert.ok(uiMap, "reconstruction map summary should include the prepared family");
+    assert.ok(typeof uiMap?.mappedAttachmentCount === "number", "reconstruction map should record attachment coverage");
+    assert.ok(typeof uiMap?.spineAttachmentCount === "number", "reconstruction map should record spine attachment counts");
+    assert.equal(uiMap?.reconstructionBundlePath, familyActionRun.reconstructionBundlePath ?? null, "reconstruction map should point at the reconstruction bundle");
+    assert.ok(typeof uiMap?.sampleLocalSourcePath === "string" && uiMap.sampleLocalSourcePath.length > 0, "reconstruction map should expose a sample local source path");
+
     console.log("PASS donor-scan:family-action");
     console.log(`Donor: ${donorId}`);
     console.log(`Prepared workset: ${familyActionRun.worksetPath}`);

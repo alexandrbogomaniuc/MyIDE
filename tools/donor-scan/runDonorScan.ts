@@ -11,6 +11,7 @@ import { summarizeCaptureBlockerFamilies } from "./summarizeCaptureBlockerFamili
 import { summarizeCaptureFamilySourceProfiles } from "./summarizeCaptureFamilySourceProfiles";
 import { summarizeCaptureFamilyActions } from "./summarizeCaptureFamilyActions";
 import { summarizeFamilyReconstructionProfiles } from "./summarizeFamilyReconstructionProfiles";
+import { summarizeFamilyReconstructionMaps } from "./summarizeFamilyReconstructionMaps";
 import {
   type CaptureRunFile,
   type DiscoveredDonorUrl,
@@ -428,6 +429,8 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
       topFamilyActionNames: [],
       familyReconstructionProfileCount: 0,
       topFamilyReconstructionProfileNames: [],
+      familyReconstructionMapCount: 0,
+      topFamilyReconstructionMapNames: [],
       nextCaptureTargetCount: 0,
       rawPayloadBlockedCaptureTargetCount: 0,
       rawPayloadBlockedFamilyCount: 0,
@@ -471,6 +474,8 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
       topFamilyActionNames: [],
       familyReconstructionProfileCount: 0,
       topFamilyReconstructionProfileNames: [],
+      familyReconstructionMapCount: 0,
+      topFamilyReconstructionMapNames: [],
       nextCaptureTargetCount: 0,
       rawPayloadBlockedCaptureTargetCount: 0,
       rawPayloadBlockedFamilyCount: 0,
@@ -580,6 +585,12 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
     bundlesRoot: paths.familyReconstructionBundlesRoot
   });
   await writeJsonFile(paths.familyReconstructionProfilesPath, familyReconstructionProfiles);
+  const familyReconstructionMaps = await summarizeFamilyReconstructionMaps({
+    donorId: options.donorId,
+    donorName: options.donorName,
+    familyReconstructionProfiles
+  });
+  await writeJsonFile(paths.familyReconstructionMapsPath, familyReconstructionMaps);
   const prioritizedFamilySourceProfiles = captureFamilySourceProfiles.families.filter((family) =>
     family.blockedTargetCount > 0
     || family.atlasManifestKinds.length > 0
@@ -600,6 +611,11 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
     family.profileState !== "needs-manual-source-review"
     || family.exactLocalSourceCount > 0
     || family.localSourceCount > 0
+  );
+  const prioritizedFamilyReconstructionMaps = familyReconstructionMaps.families.filter((family) =>
+    family.mappedAttachmentCount > 0
+    || family.spineAttachmentCount > 0
+    || family.atlasRegionCount > 0
   );
   const rawPayloadBlockedFamilies = captureBlockerFamilies.families
     .filter((family) => family.blockerClass === "raw-payload-blocked");
@@ -666,6 +682,10 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
       .map((family) => family.familyName),
     familyReconstructionProfileCount: familyReconstructionProfiles.familyCount,
     topFamilyReconstructionProfileNames: prioritizedFamilyReconstructionProfiles
+      .slice(0, 8)
+      .map((family) => family.familyName),
+    familyReconstructionMapCount: familyReconstructionMaps.familyCount,
+    topFamilyReconstructionMapNames: prioritizedFamilyReconstructionMaps
       .slice(0, 8)
       .map((family) => family.familyName),
     rawPayloadBlockedCaptureTargetCount: nextCaptureTargets.targets.filter((target) => target.blockerClass === "raw-payload-blocked").length,
@@ -736,6 +756,10 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
       .map((family) => family.familyName),
     familyReconstructionProfileCount: familyReconstructionProfiles.familyCount,
     topFamilyReconstructionProfileNames: prioritizedFamilyReconstructionProfiles
+      .slice(0, 8)
+      .map((family) => family.familyName),
+    familyReconstructionMapCount: familyReconstructionMaps.familyCount,
+    topFamilyReconstructionMapNames: prioritizedFamilyReconstructionMaps
       .slice(0, 8)
       .map((family) => family.familyName),
     rawPayloadBlockedCaptureTargetCount: nextCaptureTargets.targets.filter((target) => target.blockerClass === "raw-payload-blocked").length,
