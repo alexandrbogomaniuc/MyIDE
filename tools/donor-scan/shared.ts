@@ -198,6 +198,8 @@ export interface DonorScanPaths {
   sectionSkinTextureCanvasBundleProfilesPath: string;
   sectionSkinTextureSourceFitBundlesRoot: string;
   sectionSkinTextureSourceFitBundleProfilesPath: string;
+  sectionSkinTextureFitReviewBundlesRoot: string;
+  sectionSkinTextureFitReviewBundleProfilesPath: string;
   captureRunPath: string;
   blockerSummaryPath: string;
   scanSummaryPath: string;
@@ -2995,6 +2997,164 @@ export interface SectionSkinTextureSourceFitBundleProfilesFile {
   sections: SectionSkinTextureSourceFitBundleProfileRecord[];
 }
 
+export type SectionSkinTextureFitReviewState =
+  | "ready-with-exact-fit-transforms"
+  | "ready-with-uniform-fit-transforms"
+  | "ready-for-fit-transform-review"
+  | "needs-source-dimension-review"
+  | "needs-atlas-page-size-review"
+  | "needs-page-lock-resolution";
+
+export type SectionSkinTextureFitReviewPageState =
+  | "exact-fit-transform"
+  | "uniform-fit-transform"
+  | "needs-fit-transform-review"
+  | "missing-source-dimensions"
+  | "missing-atlas-page-size"
+  | "needs-page-lock-resolution";
+
+export type SectionSkinTextureFitTransformMode = "exact" | "contain" | "cover" | "stretch";
+
+export interface SectionSkinTextureFitTransformOptionRecord {
+  mode: SectionSkinTextureFitTransformMode;
+  aspectPreserving: boolean;
+  scaleX: number | null;
+  scaleY: number | null;
+  uniformScale: number | null;
+  outputWidth: number | null;
+  outputHeight: number | null;
+  offsetX: number | null;
+  offsetY: number | null;
+  paddingX: number | null;
+  paddingY: number | null;
+  cropX: number | null;
+  cropY: number | null;
+  distortionDelta: number | null;
+}
+
+export interface SectionSkinTextureFitReviewPageRecord {
+  orderIndex: number;
+  pageName: string;
+  pageState: SectionSkinTextureFitReviewPageState;
+  sourcePageState: SectionSkinTextureSourceFitPageState;
+  canvasWidth: number | null;
+  canvasHeight: number | null;
+  sourceWidth: number | null;
+  sourceHeight: number | null;
+  canvasAspectRatio: number | null;
+  sourceAspectRatio: number | null;
+  aspectRatioDelta: number | null;
+  selectedLocalPath: string | null;
+  selectedCandidateRank: number | null;
+  selectedCandidateScore: number | null;
+  selectedCandidateReasons: string[];
+  selectedCandidateMatchedTokens: string[];
+  atlasPageLocalPath: string | null;
+  drawOperationCount: number;
+  readyDrawOperationCount: number;
+  blockedDrawOperationCount: number;
+  scaleX: number | null;
+  scaleY: number | null;
+  scaleDelta: number | null;
+  slotNames: string[];
+  regionNames: string[];
+  exactTransform: SectionSkinTextureFitTransformOptionRecord | null;
+  containTransform: SectionSkinTextureFitTransformOptionRecord | null;
+  coverTransform: SectionSkinTextureFitTransformOptionRecord | null;
+  stretchTransform: SectionSkinTextureFitTransformOptionRecord | null;
+  nextFitReviewStep: string;
+}
+
+export interface SectionSkinTextureFitReviewBundleFile {
+  schemaVersion: string;
+  donorId: string;
+  donorName: string;
+  generatedAt: string;
+  familyName: string;
+  sectionKey: string;
+  skinName: string;
+  textureFitReviewState: SectionSkinTextureFitReviewState;
+  textureSourceFitState: SectionSkinTextureSourceFitState;
+  textureCanvasState: SectionSkinTextureCanvasState;
+  textureRenderState: SectionSkinTextureRenderState;
+  textureAssemblyState: SectionSkinTextureAssemblyState;
+  textureLockState: SectionSkinTextureLockState;
+  pageLockApplyState: SectionSkinPageLockApplyState;
+  pageLockApprovalState: SectionSkinPageLockApprovalState;
+  textureReconstructionState: SectionSkinTextureReconstructionState;
+  textureSourceState: SectionSkinTextureSourceState;
+  matchState: SectionSkinPageMatchState;
+  reviewState: SectionSkinMaterialReviewState;
+  materialState: SectionSkinMaterialState;
+  renderState: SectionSkinRenderPlanState;
+  blueprintState: SectionSkinBlueprintState;
+  reconstructionState: SectionReconstructionBundleState;
+  pageCount: number;
+  pageSizeCount: number;
+  sourceDimensionCount: number;
+  missingPageSizeCount: number;
+  missingSourceDimensionCount: number;
+  exactPageLockCount: number;
+  appliedPageLockCount: number;
+  unresolvedPageLockCount: number;
+  exactPageFitCount: number;
+  uniformScalePageFitCount: number;
+  nonUniformScalePageFitCount: number;
+  reviewReadyPageCount: number;
+  blockedPageCount: number;
+  uniqueSelectedLocalPathCount: number;
+  drawOperationCount: number;
+  readyDrawOperationCount: number;
+  blockedDrawOperationCount: number;
+  topFitReviewLocalPath: string | null;
+  largestScaleDelta: number | null;
+  sampleLocalSourcePath: string | null;
+  atlasSourcePath: string | null;
+  textureSourceFitBundlePath: string;
+  nextTextureFitReviewStep: string;
+  pages: SectionSkinTextureFitReviewPageRecord[];
+}
+
+export interface SectionSkinTextureFitReviewBundleProfileRecord {
+  familyName: string;
+  sectionKey: string;
+  skinName: string;
+  textureFitReviewState: SectionSkinTextureFitReviewState;
+  textureSourceFitState: SectionSkinTextureSourceFitState;
+  pageCount: number;
+  pageSizeCount: number;
+  sourceDimensionCount: number;
+  missingPageSizeCount: number;
+  missingSourceDimensionCount: number;
+  exactPageLockCount: number;
+  appliedPageLockCount: number;
+  unresolvedPageLockCount: number;
+  exactPageFitCount: number;
+  uniformScalePageFitCount: number;
+  nonUniformScalePageFitCount: number;
+  reviewReadyPageCount: number;
+  blockedPageCount: number;
+  uniqueSelectedLocalPathCount: number;
+  drawOperationCount: number;
+  readyDrawOperationCount: number;
+  blockedDrawOperationCount: number;
+  largestScaleDelta: number | null;
+  topFitReviewLocalPath: string | null;
+  sampleLocalSourcePath: string | null;
+  atlasSourcePath: string | null;
+  textureFitReviewBundlePath: string;
+  nextTextureFitReviewStep: string;
+}
+
+export interface SectionSkinTextureFitReviewBundleProfilesFile {
+  schemaVersion: string;
+  donorId: string;
+  donorName: string;
+  generatedAt: string;
+  sectionCount: number;
+  sections: SectionSkinTextureFitReviewBundleProfileRecord[];
+}
+
 export interface SectionActionRunFile {
   schemaVersion: string;
   donorId: string;
@@ -3027,6 +3187,7 @@ export interface SectionActionRunFile {
   skinTextureRenderBundlePath: string | null;
   skinTextureCanvasBundlePath: string | null;
   skinTextureSourceFitBundlePath: string | null;
+  skinTextureFitReviewBundlePath: string | null;
   exactLocalSourceCount: number;
   attachmentCount: number;
   mappedAttachmentCount: number;
@@ -3165,6 +3326,8 @@ export function buildDonorScanPaths(donorId: string): DonorScanPaths {
     sectionSkinTextureCanvasBundleProfilesPath: path.join(harvestRoot, "section-skin-texture-canvas-bundle-profiles.json"),
     sectionSkinTextureSourceFitBundlesRoot: path.join(harvestRoot, "section-skin-texture-source-fit-bundles"),
     sectionSkinTextureSourceFitBundleProfilesPath: path.join(harvestRoot, "section-skin-texture-source-fit-bundle-profiles.json"),
+    sectionSkinTextureFitReviewBundlesRoot: path.join(harvestRoot, "section-skin-texture-fit-review-bundles"),
+    sectionSkinTextureFitReviewBundleProfilesPath: path.join(harvestRoot, "section-skin-texture-fit-review-bundle-profiles.json"),
     captureRunPath: path.join(harvestRoot, "next-capture-run.json"),
     blockerSummaryPath: path.join(harvestRoot, "blocker-summary.md"),
     scanSummaryPath: path.join(harvestRoot, "scan-summary.json")
