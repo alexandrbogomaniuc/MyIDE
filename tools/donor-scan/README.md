@@ -37,7 +37,7 @@ and answers early:
 - `npm run donor-scan:run-family-action -- --donor-id donor_XXX --family big_win --limit 10`
   - Execute the current family action from `capture-family-actions.json`. Capture-oriented families reuse the existing donor-scan capture runner; evidence/reconstruction families prepare grounded worksets, and `use-local-sources` families now also emit reconstruction-ready family bundles instead of stopping at an advisory note.
 - `npm run donor-scan:run-section-action -- --donor-id donor_XXX --section big_win/BW`
-  - Prepare one grounded reconstruction section workset directly from `family-reconstruction-section-bundles.json` when a specific section is already ready to leave the family queue. That same action now also emits a normalized section reconstruction bundle, a section skin blueprint, a section skin render plan, a section skin material plan, a section skin material review bundle, a section skin page-match bundle, a section skin page-lock bundle, a section skin page-lock audit bundle, a section skin page-lock resolution bundle, a section skin texture input bundle, a section skin texture-source plan, a section skin texture reconstruction bundle, and refreshes the donor-wide section reconstruction/blueprint/render-plan/material-plan/material-review/page-match/page-lock/page-lock-audit/page-lock-resolution/texture-input/texture-source/texture-reconstruction profiles.
+  - Prepare one grounded reconstruction section workset directly from `family-reconstruction-section-bundles.json` when a specific section is already ready to leave the family queue. That same action now also emits a normalized section reconstruction bundle, a section skin blueprint, a section skin render plan, a section skin material plan, a section skin material review bundle, a section skin page-match bundle, a section skin page-lock bundle, a section skin page-lock audit bundle, a section skin page-lock resolution bundle, a section skin page-lock decision bundle, a section skin texture input bundle, a section skin texture-source plan, a section skin texture reconstruction bundle, and refreshes the donor-wide section reconstruction/blueprint/render-plan/material-plan/material-review/page-match/page-lock/page-lock-audit/page-lock-resolution/page-lock-decision/texture-input/texture-source/texture-reconstruction profiles.
 
 ## Outputs
 
@@ -85,6 +85,10 @@ Key files:
 - `section-skin-page-lock-bundle-profiles.json`
 - `section-skin-page-lock-audit-bundles/<family>--<section>.json`
 - `section-skin-page-lock-audit-bundle-profiles.json`
+- `section-skin-page-lock-resolution-bundles/<family>--<section>.json`
+- `section-skin-page-lock-resolution-bundle-profiles.json`
+- `section-skin-page-lock-decision-bundles/<family>--<section>.json`
+- `section-skin-page-lock-decision-bundle-profiles.json`
 - `section-skin-texture-input-bundles/<family>--<section>.json`
 - `section-skin-texture-input-bundle-profiles.json`
 - `section-skin-texture-source-plans/<family>--<section>.json`
@@ -164,6 +168,8 @@ That same section action now also writes `section-skin-page-lock-bundles/<family
 That same section action now also writes `section-skin-page-lock-audit-bundles/<family>--<section>.json`, which audits whether those page-image assignments are actually unique or whether multiple atlas pages still reuse the same local source. `section-skin-page-lock-audit-bundle-profiles.json` is the compact donor-wide summary of those states. When the state is `has-page-lock-conflicts`, the next step is duplicate-source review before final texture reconstruction.
 
 That same section action now also writes `section-skin-page-lock-resolution-bundles/<family>--<section>.json`, which takes those duplicate-source audit rows plus the grounded material-review candidates and computes the best deterministic unique page-image proposal donor scan can make without inventing new evidence. `section-skin-page-lock-resolution-bundle-profiles.json` is the compact donor-wide summary of those states. When the state is `ready-with-unique-proposed-page-locks`, donor scan has found one unique local image proposal per atlas page, but an operator still needs to review and lock it.
+
+That same section action now also writes `section-skin-page-lock-decision-bundles/<family>--<section>.json`, which joins those unique resolved page-image proposals back to the grounded candidate score/reason trail so operators can review one explicit decision row per atlas page before locking it. `section-skin-page-lock-decision-bundle-profiles.json` is the compact donor-wide summary of those states. When the state is `ready-for-lock-review`, donor scan has already resolved duplicate-source conflicts and the remaining step is operator approval of the selected unique page-image assignments.
 
 That same section action now also writes `section-skin-texture-input-bundles/<family>--<section>.json`, which joins the page-lock surface and the downstream texture reconstruction records into one lock-aware texture input bundle per section. `section-skin-texture-input-bundle-profiles.json` is the compact donor-wide summary of those states. When the state is `ready-with-proposed-page-locks`, the bundle is usable for downstream prep but the page-image locks are still provisional until they are confirmed.
 

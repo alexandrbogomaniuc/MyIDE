@@ -157,6 +157,7 @@ async function main(): Promise<void> {
   assert.ok(result.skinPageLockBundlePath, "section action should write a skin page lock bundle");
   assert.ok(result.skinPageLockAuditBundlePath, "section action should write a skin page lock audit bundle");
   assert.ok(result.skinPageLockResolutionBundlePath, "section action should write a skin page lock resolution bundle");
+  assert.ok(result.skinPageLockDecisionBundlePath, "section action should write a skin page lock decision bundle");
   assert.ok(result.skinTextureInputBundlePath, "section action should write a skin texture input bundle");
   assert.ok(result.skinTextureSourcePlanPath, "section action should write a skin texture source plan");
   assert.ok(result.skinTextureReconstructionBundlePath, "section action should write a skin texture reconstruction bundle");
@@ -177,6 +178,7 @@ async function main(): Promise<void> {
     skinPageLockBundlePath?: string | null;
     skinPageLockAuditBundlePath?: string | null;
     skinPageLockResolutionBundlePath?: string | null;
+    skinPageLockDecisionBundlePath?: string | null;
     skinTextureInputBundlePath?: string | null;
     skinTextureSourcePlanPath?: string | null;
     skinTextureReconstructionBundlePath?: string | null;
@@ -194,6 +196,7 @@ async function main(): Promise<void> {
   assert.ok(sectionActionRun.skinPageLockBundlePath, "section action run should point at the prepared skin page lock bundle");
   assert.ok(sectionActionRun.skinPageLockAuditBundlePath, "section action run should point at the prepared skin page lock audit bundle");
   assert.ok(sectionActionRun.skinPageLockResolutionBundlePath, "section action run should point at the prepared skin page lock resolution bundle");
+  assert.ok(sectionActionRun.skinPageLockDecisionBundlePath, "section action run should point at the prepared skin page lock decision bundle");
   assert.ok(sectionActionRun.skinTextureInputBundlePath, "section action run should point at the prepared skin texture input bundle");
   assert.ok(sectionActionRun.skinTextureSourcePlanPath, "section action run should point at the prepared skin texture source plan");
   assert.ok(sectionActionRun.skinTextureReconstructionBundlePath, "section action run should point at the prepared skin texture reconstruction bundle");
@@ -569,6 +572,70 @@ async function main(): Promise<void> {
   assert.equal(pageLockResolutionProfile?.resolvedConflictPageCount, 1, "section skin page lock resolution bundle profiles should preserve resolved conflict counts");
   assert.equal(pageLockResolutionProfile?.unresolvedConflictPageCount, 1, "section skin page lock resolution bundle profiles should preserve unresolved conflict counts");
   assert.equal(pageLockResolutionProfile?.uniqueResolvedLocalPathCount, 1, "section skin page lock resolution bundle profiles should preserve unique resolved local source counts");
+
+  const skinPageLockDecisionBundlePath = result.skinPageLockDecisionBundlePath ?? "";
+  const resolvedSkinPageLockDecisionBundlePath = path.isAbsolute(skinPageLockDecisionBundlePath)
+    ? skinPageLockDecisionBundlePath
+    : path.join(workspaceRoot, skinPageLockDecisionBundlePath);
+  const skinPageLockDecisionBundle = JSON.parse(await fs.readFile(resolvedSkinPageLockDecisionBundlePath, "utf8")) as {
+    sectionKey?: string;
+    pageLockDecisionState?: string;
+    pageCount?: number;
+    exactPageLockCount?: number;
+    reviewReadyPageCount?: number;
+    unresolvedPageLockCount?: number;
+    resolvedConflictPageCount?: number;
+    uniqueResolvedLocalPathCount?: number;
+    topDecisionLocalPath?: string | null;
+    pages?: Array<{
+      pageName?: string;
+      pageState?: string;
+      selectedLocalPath?: string | null;
+      selectedCandidateScore?: number | null;
+      selectedCandidateReasons?: string[];
+      alternativeCandidateCount?: number;
+    }>;
+  };
+  assert.equal(skinPageLockDecisionBundle.sectionKey, "big_win/BW", "section skin page lock decision bundle should preserve section key");
+  assert.equal(skinPageLockDecisionBundle.pageLockDecisionState, "has-unresolved-page-lock-conflicts", "section skin page lock decision bundle should stay blocked when at least one conflicting page still lacks a unique grounded local source");
+  assert.equal(skinPageLockDecisionBundle.pageCount, 2, "section skin page lock decision bundle should preserve page counts");
+  assert.equal(skinPageLockDecisionBundle.exactPageLockCount, 0, "section skin page lock decision bundle should preserve missing exact page locks");
+  assert.equal(skinPageLockDecisionBundle.reviewReadyPageCount, 1, "section skin page lock decision bundle should expose only the uniquely resolved page as review-ready in the smoke fixture");
+  assert.equal(skinPageLockDecisionBundle.unresolvedPageLockCount, 1, "section skin page lock decision bundle should preserve unresolved page-lock counts");
+  assert.equal(skinPageLockDecisionBundle.resolvedConflictPageCount, 1, "section skin page lock decision bundle should preserve resolved conflict counts");
+  assert.equal(skinPageLockDecisionBundle.uniqueResolvedLocalPathCount, 1, "section skin page lock decision bundle should preserve unique resolved local source counts");
+  assert.ok(typeof skinPageLockDecisionBundle.topDecisionLocalPath === "string" && skinPageLockDecisionBundle.topDecisionLocalPath.length > 0, "section skin page lock decision bundle should expose a top decision local source preview");
+  assert.ok(Array.isArray(skinPageLockDecisionBundle.pages) && skinPageLockDecisionBundle.pages.length === 2, "section skin page lock decision bundle should expose per-page decision rows");
+  assert.ok(skinPageLockDecisionBundle.pages?.some((page) => page.pageState === "ready-for-lock-review"), "section skin page lock decision bundle should expose a review-ready page when a unique grounded local source was found");
+  assert.ok(skinPageLockDecisionBundle.pages?.some((page) => page.pageState === "unresolved-page-lock-conflict"), "section skin page lock decision bundle should preserve unresolved page-lock conflicts");
+  const reviewReadyDecisionPage = skinPageLockDecisionBundle.pages?.find((page) => page.pageState === "ready-for-lock-review");
+  assert.ok(typeof reviewReadyDecisionPage?.selectedLocalPath === "string" && reviewReadyDecisionPage.selectedLocalPath.length > 0, "section skin page lock decision bundle should preserve the selected local path for the review-ready page");
+  assert.ok((reviewReadyDecisionPage?.selectedCandidateScore ?? 0) > 0, "section skin page lock decision bundle should preserve the selected candidate score");
+  assert.ok(Array.isArray(reviewReadyDecisionPage?.selectedCandidateReasons) && (reviewReadyDecisionPage?.selectedCandidateReasons?.length ?? 0) >= 1, "section skin page lock decision bundle should preserve the selected candidate reasons");
+  assert.ok((reviewReadyDecisionPage?.alternativeCandidateCount ?? 0) >= 0, "section skin page lock decision bundle should preserve alternative candidate counts");
+
+  const skinPageLockDecisionBundleProfilesPath = path.join(donorRoot, "section-skin-page-lock-decision-bundle-profiles.json");
+  const skinPageLockDecisionBundleProfiles = JSON.parse(await fs.readFile(skinPageLockDecisionBundleProfilesPath, "utf8")) as {
+    sectionCount?: number;
+    sections?: Array<{
+      sectionKey?: string;
+      pageLockDecisionState?: string;
+      reviewReadyPageCount?: number;
+      unresolvedPageLockCount?: number;
+      resolvedConflictPageCount?: number;
+      uniqueResolvedLocalPathCount?: number;
+    }>;
+  };
+  assert.ok((skinPageLockDecisionBundleProfiles.sectionCount ?? 0) >= 1, "section skin page lock decision bundle profiles should record prepared sections");
+  const pageLockDecisionProfile = Array.isArray(skinPageLockDecisionBundleProfiles.sections)
+    ? skinPageLockDecisionBundleProfiles.sections.find((section) => section?.sectionKey === "big_win/BW")
+    : null;
+  assert.ok(pageLockDecisionProfile, "section skin page lock decision bundle profiles should include the prepared section");
+  assert.equal(pageLockDecisionProfile?.pageLockDecisionState, "has-unresolved-page-lock-conflicts", "section skin page lock decision bundle profiles should preserve decision state");
+  assert.equal(pageLockDecisionProfile?.reviewReadyPageCount, 1, "section skin page lock decision bundle profiles should preserve review-ready page counts");
+  assert.equal(pageLockDecisionProfile?.unresolvedPageLockCount, 1, "section skin page lock decision bundle profiles should preserve unresolved page-lock counts");
+  assert.equal(pageLockDecisionProfile?.resolvedConflictPageCount, 1, "section skin page lock decision bundle profiles should preserve resolved conflict counts");
+  assert.equal(pageLockDecisionProfile?.uniqueResolvedLocalPathCount, 1, "section skin page lock decision bundle profiles should preserve unique resolved local source counts");
 
   const skinTextureInputBundlePath = result.skinTextureInputBundlePath ?? "";
   const resolvedSkinTextureInputBundlePath = path.isAbsolute(skinTextureInputBundlePath)

@@ -174,6 +174,8 @@ export interface DonorScanPaths {
   sectionSkinPageLockAuditBundleProfilesPath: string;
   sectionSkinPageLockResolutionBundlesRoot: string;
   sectionSkinPageLockResolutionBundleProfilesPath: string;
+  sectionSkinPageLockDecisionBundlesRoot: string;
+  sectionSkinPageLockDecisionBundleProfilesPath: string;
   sectionSkinTextureInputBundlesRoot: string;
   sectionSkinTextureInputBundleProfilesPath: string;
   sectionSkinTextureSourcePlansRoot: string;
@@ -1661,6 +1663,97 @@ export interface SectionSkinPageLockResolutionBundleProfilesFile {
   sections: SectionSkinPageLockResolutionBundleProfileRecord[];
 }
 
+export type SectionSkinPageLockDecisionState =
+  | "ready-with-exact-page-locks"
+  | "ready-for-lock-review"
+  | "has-unresolved-page-lock-conflicts";
+
+export type SectionSkinPageLockDecisionPageState =
+  | "exact-page-lock"
+  | "ready-for-lock-review"
+  | "unresolved-page-lock-conflict";
+
+export interface SectionSkinPageLockDecisionPageRecord {
+  orderIndex: number;
+  pageName: string;
+  pageState: SectionSkinPageLockDecisionPageState;
+  sourcePageState: SectionSkinPageLockResolutionPageState;
+  layerCount: number;
+  slotNames: string[];
+  selectedLocalPath: string | null;
+  selectedCandidateRank: number | null;
+  selectedCandidateScore: number | null;
+  selectedCandidateReasons: string[];
+  selectedCandidateMatchedTokens: string[];
+  alternativeCandidateCount: number;
+  alternativeCandidatePreview: string[];
+  duplicateSourcePageCount: number;
+  duplicateSourcePageNames: string[];
+}
+
+export interface SectionSkinPageLockDecisionBundleFile {
+  schemaVersion: string;
+  donorId: string;
+  donorName: string;
+  generatedAt: string;
+  familyName: string;
+  sectionKey: string;
+  skinName: string;
+  pageLockDecisionState: SectionSkinPageLockDecisionState;
+  pageLockResolutionState: SectionSkinPageLockResolutionState;
+  pageLockAuditState: SectionSkinPageLockAuditState;
+  pageLockState: SectionSkinPageLockState;
+  textureInputState: SectionSkinTextureInputState;
+  textureReconstructionState: SectionSkinTextureReconstructionState;
+  textureSourceState: SectionSkinTextureSourceState;
+  matchState: SectionSkinPageMatchState;
+  reviewState: SectionSkinMaterialReviewState;
+  materialState: SectionSkinMaterialState;
+  renderState: SectionSkinRenderPlanState;
+  blueprintState: SectionSkinBlueprintState;
+  reconstructionState: SectionReconstructionBundleState;
+  pageCount: number;
+  exactPageLockCount: number;
+  reviewReadyPageCount: number;
+  unresolvedPageLockCount: number;
+  resolvedConflictPageCount: number;
+  uniqueResolvedLocalPathCount: number;
+  topDecisionLocalPath: string | null;
+  sampleLocalSourcePath: string | null;
+  atlasSourcePath: string | null;
+  pageLockResolutionBundlePath: string;
+  materialReviewBundlePath: string;
+  nextPageLockDecisionStep: string;
+  pages: SectionSkinPageLockDecisionPageRecord[];
+}
+
+export interface SectionSkinPageLockDecisionBundleProfileRecord {
+  familyName: string;
+  sectionKey: string;
+  skinName: string;
+  pageLockDecisionState: SectionSkinPageLockDecisionState;
+  pageCount: number;
+  exactPageLockCount: number;
+  reviewReadyPageCount: number;
+  unresolvedPageLockCount: number;
+  resolvedConflictPageCount: number;
+  uniqueResolvedLocalPathCount: number;
+  topDecisionLocalPath: string | null;
+  sampleLocalSourcePath: string | null;
+  atlasSourcePath: string | null;
+  pageLockDecisionBundlePath: string;
+  nextPageLockDecisionStep: string;
+}
+
+export interface SectionSkinPageLockDecisionBundleProfilesFile {
+  schemaVersion: string;
+  donorId: string;
+  donorName: string;
+  generatedAt: string;
+  sectionCount: number;
+  sections: SectionSkinPageLockDecisionBundleProfileRecord[];
+}
+
 export type SectionSkinTextureInputState =
   | "ready-with-exact-page-locks"
   | "ready-with-proposed-page-locks"
@@ -1964,6 +2057,7 @@ export interface SectionActionRunFile {
   skinPageLockBundlePath: string | null;
   skinPageLockAuditBundlePath: string | null;
   skinPageLockResolutionBundlePath: string | null;
+  skinPageLockDecisionBundlePath: string | null;
   skinTextureInputBundlePath: string | null;
   skinTextureSourcePlanPath: string | null;
   skinTextureReconstructionBundlePath: string | null;
@@ -2081,6 +2175,8 @@ export function buildDonorScanPaths(donorId: string): DonorScanPaths {
     sectionSkinPageLockAuditBundleProfilesPath: path.join(harvestRoot, "section-skin-page-lock-audit-bundle-profiles.json"),
     sectionSkinPageLockResolutionBundlesRoot: path.join(harvestRoot, "section-skin-page-lock-resolution-bundles"),
     sectionSkinPageLockResolutionBundleProfilesPath: path.join(harvestRoot, "section-skin-page-lock-resolution-bundle-profiles.json"),
+    sectionSkinPageLockDecisionBundlesRoot: path.join(harvestRoot, "section-skin-page-lock-decision-bundles"),
+    sectionSkinPageLockDecisionBundleProfilesPath: path.join(harvestRoot, "section-skin-page-lock-decision-bundle-profiles.json"),
     sectionSkinTextureInputBundlesRoot: path.join(harvestRoot, "section-skin-texture-input-bundles"),
     sectionSkinTextureInputBundleProfilesPath: path.join(harvestRoot, "section-skin-texture-input-bundle-profiles.json"),
     sectionSkinTextureSourcePlansRoot: path.join(harvestRoot, "section-skin-texture-source-plans"),

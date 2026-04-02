@@ -19,6 +19,7 @@ import { summarizeSectionSkinPageMatchBundleProfiles } from "./summarizeSectionS
 import { summarizeSectionSkinPageLockBundleProfiles } from "./summarizeSectionSkinPageLockBundleProfiles";
 import { summarizeSectionSkinPageLockAuditBundleProfiles } from "./summarizeSectionSkinPageLockAuditBundleProfiles";
 import { summarizeSectionSkinPageLockResolutionBundleProfiles } from "./summarizeSectionSkinPageLockResolutionBundleProfiles";
+import { summarizeSectionSkinPageLockDecisionBundleProfiles } from "./summarizeSectionSkinPageLockDecisionBundleProfiles";
 import { summarizeSectionSkinTextureInputBundleProfiles } from "./summarizeSectionSkinTextureInputBundleProfiles";
 import { summarizeSectionSkinTextureSourcePlanProfiles } from "./summarizeSectionSkinTextureSourcePlanProfiles";
 import { summarizeSectionSkinTextureReconstructionBundleProfiles } from "./summarizeSectionSkinTextureReconstructionBundleProfiles";
@@ -742,6 +743,17 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
     || section.resolvedConflictPageCount > 0
     || section.exactPageLockCount > 0
   );
+  const sectionSkinPageLockDecisionBundleProfiles = await summarizeSectionSkinPageLockDecisionBundleProfiles({
+    donorId: options.donorId,
+    donorName: options.donorName,
+    pageLockDecisionBundlesRoot: paths.sectionSkinPageLockDecisionBundlesRoot
+  });
+  await writeJsonFile(paths.sectionSkinPageLockDecisionBundleProfilesPath, sectionSkinPageLockDecisionBundleProfiles);
+  const prioritizedSectionSkinPageLockDecisionBundleProfiles = sectionSkinPageLockDecisionBundleProfiles.sections.filter((section) =>
+    section.unresolvedPageLockCount > 0
+    || section.reviewReadyPageCount > 0
+    || section.exactPageLockCount > 0
+  );
   const rawPayloadBlockedFamilies = captureBlockerFamilies.families
     .filter((family) => family.blockerClass === "raw-payload-blocked");
 
@@ -847,6 +859,10 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
       .map((section) => section.sectionKey),
     sectionSkinPageLockResolutionBundleCount: sectionSkinPageLockResolutionBundleProfiles.sectionCount,
     topSectionSkinPageLockResolutionBundleKeys: prioritizedSectionSkinPageLockResolutionBundleProfiles
+      .slice(0, 8)
+      .map((section) => section.sectionKey),
+    sectionSkinPageLockDecisionBundleCount: sectionSkinPageLockDecisionBundleProfiles.sectionCount,
+    topSectionSkinPageLockDecisionBundleKeys: prioritizedSectionSkinPageLockDecisionBundleProfiles
       .slice(0, 8)
       .map((section) => section.sectionKey),
     sectionSkinTextureInputBundleCount: sectionSkinTextureInputBundleProfiles.sectionCount,
