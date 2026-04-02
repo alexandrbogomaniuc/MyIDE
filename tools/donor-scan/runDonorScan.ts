@@ -17,6 +17,7 @@ import { summarizeFamilyReconstructionSectionBundles } from "./summarizeFamilyRe
 import { summarizeSectionSkinMaterialReviewBundleProfiles } from "./summarizeSectionSkinMaterialReviewBundleProfiles";
 import { summarizeSectionSkinPageMatchBundleProfiles } from "./summarizeSectionSkinPageMatchBundleProfiles";
 import { summarizeSectionSkinTextureSourcePlanProfiles } from "./summarizeSectionSkinTextureSourcePlanProfiles";
+import { summarizeSectionSkinTextureReconstructionBundleProfiles } from "./summarizeSectionSkinTextureReconstructionBundleProfiles";
 import {
   type CaptureRunFile,
   type DiscoveredDonorUrl,
@@ -682,6 +683,17 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
     section.proposedPageSourceCount > 0
     || section.exactPageSourceCount > 0
   );
+  const sectionSkinTextureReconstructionBundleProfiles = await summarizeSectionSkinTextureReconstructionBundleProfiles({
+    donorId: options.donorId,
+    donorName: options.donorName,
+    textureReconstructionBundlesRoot: paths.sectionSkinTextureReconstructionBundlesRoot
+  });
+  await writeJsonFile(paths.sectionSkinTextureReconstructionBundleProfilesPath, sectionSkinTextureReconstructionBundleProfiles);
+  const prioritizedSectionSkinTextureReconstructionBundleProfiles = sectionSkinTextureReconstructionBundleProfiles.sections.filter((section) =>
+    section.reconstructableLayerCount > 0
+    || section.exactPageSourceCount > 0
+    || section.proposedPageSourceCount > 0
+  );
   const rawPayloadBlockedFamilies = captureBlockerFamilies.families
     .filter((family) => family.blockerClass === "raw-payload-blocked");
 
@@ -771,6 +783,10 @@ export async function runDonorScan(options: RunDonorScanOptions): Promise<DonorS
       .map((section) => section.sectionKey),
     sectionSkinTextureSourcePlanCount: sectionSkinTextureSourcePlanProfiles.sectionCount,
     topSectionSkinTextureSourcePlanKeys: prioritizedSectionSkinTextureSourcePlanProfiles
+      .slice(0, 8)
+      .map((section) => section.sectionKey),
+    sectionSkinTextureReconstructionBundleCount: sectionSkinTextureReconstructionBundleProfiles.sectionCount,
+    topSectionSkinTextureReconstructionBundleKeys: prioritizedSectionSkinTextureReconstructionBundleProfiles
       .slice(0, 8)
       .map((section) => section.sectionKey),
     rawPayloadBlockedCaptureTargetCount: nextCaptureTargets.targets.filter((target) => target.blockerClass === "raw-payload-blocked").length,

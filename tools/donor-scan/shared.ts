@@ -170,6 +170,8 @@ export interface DonorScanPaths {
   sectionSkinPageMatchBundleProfilesPath: string;
   sectionSkinTextureSourcePlansRoot: string;
   sectionSkinTextureSourcePlanProfilesPath: string;
+  sectionSkinTextureReconstructionBundlesRoot: string;
+  sectionSkinTextureReconstructionBundleProfilesPath: string;
   captureRunPath: string;
   blockerSummaryPath: string;
   scanSummaryPath: string;
@@ -1455,6 +1457,105 @@ export interface SectionSkinTextureSourcePlanProfilesFile {
   sections: SectionSkinTextureSourcePlanProfileRecord[];
 }
 
+export type SectionSkinTextureReconstructionState =
+  | "ready-with-exact-page-sources"
+  | "ready-with-proposed-page-sources"
+  | "needs-page-source-lock";
+
+export type SectionSkinTextureReconstructionLayerState =
+  | "ready-with-exact-page-source"
+  | "ready-with-proposed-page-source"
+  | "missing-page-source"
+  | "missing-atlas-geometry";
+
+export interface SectionSkinTextureReconstructionPageRecord {
+  orderIndex: number;
+  pageName: string;
+  sourceSelection: SectionSkinTextureSourceSelection;
+  layerCount: number;
+  slotNames: string[];
+  sourceLocalPath: string | null;
+}
+
+export interface SectionSkinTextureReconstructionLayerRecord {
+  orderIndex: number;
+  slotName: string;
+  attachmentName: string | null;
+  attachmentPath: string | null;
+  pageName: string | null;
+  regionName: string | null;
+  layerState: SectionSkinTextureReconstructionLayerState;
+  sourceSelection: SectionSkinTextureSourceSelection;
+  sourceLocalPath: string | null;
+  rotated: boolean;
+  bounds: SectionSkinRenderBounds | null;
+  offsets: SectionSkinRenderOffsets | null;
+}
+
+export interface SectionSkinTextureReconstructionBundleFile {
+  schemaVersion: string;
+  donorId: string;
+  donorName: string;
+  generatedAt: string;
+  familyName: string;
+  sectionKey: string;
+  skinName: string;
+  textureReconstructionState: SectionSkinTextureReconstructionState;
+  textureSourceState: SectionSkinTextureSourceState;
+  matchState: SectionSkinPageMatchState;
+  reviewState: SectionSkinMaterialReviewState;
+  materialState: SectionSkinMaterialState;
+  renderState: SectionSkinRenderPlanState;
+  blueprintState: SectionSkinBlueprintState;
+  reconstructionState: SectionReconstructionBundleState;
+  pageCount: number;
+  exactPageSourceCount: number;
+  proposedPageSourceCount: number;
+  missingPageSourceCount: number;
+  layerCount: number;
+  reconstructableLayerCount: number;
+  blockedLayerCount: number;
+  topTextureSourceLocalPath: string | null;
+  sampleLocalSourcePath: string | null;
+  atlasSourcePath: string | null;
+  textureSourcePlanPath: string;
+  pageMatchBundlePath: string;
+  materialReviewBundlePath: string;
+  materialPlanPath: string;
+  renderPlanPath: string;
+  nextTextureReconstructionStep: string;
+  pages: SectionSkinTextureReconstructionPageRecord[];
+  layers: SectionSkinTextureReconstructionLayerRecord[];
+}
+
+export interface SectionSkinTextureReconstructionBundleProfileRecord {
+  familyName: string;
+  sectionKey: string;
+  skinName: string;
+  textureReconstructionState: SectionSkinTextureReconstructionState;
+  pageCount: number;
+  exactPageSourceCount: number;
+  proposedPageSourceCount: number;
+  missingPageSourceCount: number;
+  layerCount: number;
+  reconstructableLayerCount: number;
+  blockedLayerCount: number;
+  topTextureSourceLocalPath: string | null;
+  sampleLocalSourcePath: string | null;
+  atlasSourcePath: string | null;
+  textureReconstructionBundlePath: string;
+  nextTextureReconstructionStep: string;
+}
+
+export interface SectionSkinTextureReconstructionBundleProfilesFile {
+  schemaVersion: string;
+  donorId: string;
+  donorName: string;
+  generatedAt: string;
+  sectionCount: number;
+  sections: SectionSkinTextureReconstructionBundleProfileRecord[];
+}
+
 export interface SectionActionRunFile {
   schemaVersion: string;
   donorId: string;
@@ -1473,6 +1574,7 @@ export interface SectionActionRunFile {
   skinMaterialReviewBundlePath: string | null;
   skinPageMatchBundlePath: string | null;
   skinTextureSourcePlanPath: string | null;
+  skinTextureReconstructionBundlePath: string | null;
   exactLocalSourceCount: number;
   attachmentCount: number;
   mappedAttachmentCount: number;
@@ -1583,6 +1685,8 @@ export function buildDonorScanPaths(donorId: string): DonorScanPaths {
     sectionSkinPageMatchBundleProfilesPath: path.join(harvestRoot, "section-skin-page-match-bundle-profiles.json"),
     sectionSkinTextureSourcePlansRoot: path.join(harvestRoot, "section-skin-texture-source-plans"),
     sectionSkinTextureSourcePlanProfilesPath: path.join(harvestRoot, "section-skin-texture-source-plan-profiles.json"),
+    sectionSkinTextureReconstructionBundlesRoot: path.join(harvestRoot, "section-skin-texture-reconstruction-bundles"),
+    sectionSkinTextureReconstructionBundleProfilesPath: path.join(harvestRoot, "section-skin-texture-reconstruction-bundle-profiles.json"),
     captureRunPath: path.join(harvestRoot, "next-capture-run.json"),
     blockerSummaryPath: path.join(harvestRoot, "blocker-summary.md"),
     scanSummaryPath: path.join(harvestRoot, "scan-summary.json")

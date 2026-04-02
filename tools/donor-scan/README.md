@@ -37,7 +37,7 @@ and answers early:
 - `npm run donor-scan:run-family-action -- --donor-id donor_XXX --family big_win --limit 10`
   - Execute the current family action from `capture-family-actions.json`. Capture-oriented families reuse the existing donor-scan capture runner; evidence/reconstruction families prepare grounded worksets, and `use-local-sources` families now also emit reconstruction-ready family bundles instead of stopping at an advisory note.
 - `npm run donor-scan:run-section-action -- --donor-id donor_XXX --section big_win/BW`
-  - Prepare one grounded reconstruction section workset directly from `family-reconstruction-section-bundles.json` when a specific section is already ready to leave the family queue. That same action now also emits a normalized section reconstruction bundle, a section skin blueprint, a section skin render plan, a section skin material plan, a section skin material review bundle, a section skin page-match bundle, a section skin texture-source plan, and refreshes the donor-wide section reconstruction/blueprint/render-plan/material-plan/material-review/page-match/texture-source profiles.
+  - Prepare one grounded reconstruction section workset directly from `family-reconstruction-section-bundles.json` when a specific section is already ready to leave the family queue. That same action now also emits a normalized section reconstruction bundle, a section skin blueprint, a section skin render plan, a section skin material plan, a section skin material review bundle, a section skin page-match bundle, a section skin texture-source plan, a section skin texture reconstruction bundle, and refreshes the donor-wide section reconstruction/blueprint/render-plan/material-plan/material-review/page-match/texture-source/texture-reconstruction profiles.
 
 ## Outputs
 
@@ -83,6 +83,8 @@ Key files:
 - `section-skin-page-match-bundle-profiles.json`
 - `section-skin-texture-source-plans/<family>--<section>.json`
 - `section-skin-texture-source-plan-profiles.json`
+- `section-skin-texture-reconstruction-bundles/<family>--<section>.json`
+- `section-skin-texture-reconstruction-bundle-profiles.json`
 - `next-capture-run.json`
 - `package-graph.json`
 - `blocker-summary.md`
@@ -152,6 +154,8 @@ That same section action now also writes `section-skin-material-review-bundles/<
 That same section action now also writes `section-skin-page-match-bundles/<family>--<section>.json`, which turns those reviewed pages into proposed atlas page-image matches that can be locked before deeper texture reconstruction. `section-skin-page-match-bundle-profiles.json` is the compact donor-wide summary of those proposed-match section states.
 
 That same section action now also writes `section-skin-texture-source-plans/<family>--<section>.json`, which packages exact or proposed atlas page-image assignments into one downstream texture-source input per section. `section-skin-texture-source-plan-profiles.json` is the compact donor-wide summary of those texture-source states. When the state is `ready-with-proposed-page-sources`, the plan is usable for downstream prep but the page-image matches are still provisional until they are locked.
+
+That same section action now also writes `section-skin-texture-reconstruction-bundles/<family>--<section>.json`, which joins the texture-source plan back to atlas geometry and per-layer render records so downstream reconstruction work can consume one structured section bundle instead of rejoining those artifacts manually. `section-skin-texture-reconstruction-bundle-profiles.json` is the compact donor-wide summary of those states. When the state is `ready-with-proposed-page-sources`, the bundle is usable for provisional downstream reconstruction but the page-image matches are still not locked.
 
 `donor-scan:capture-family-sources` is the next step after that dossier. It does not invent new URLs. Instead, it turns the grounded family evidence back into a family-specific source-material queue, prioritizes optimized variant-backed and bundle-backed family assets before raw atlas-page retries, and refreshes donor scan after the run.
 

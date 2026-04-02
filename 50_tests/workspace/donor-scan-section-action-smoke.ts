@@ -155,6 +155,7 @@ async function main(): Promise<void> {
   assert.ok(result.skinMaterialReviewBundlePath, "section action should write a skin material review bundle");
   assert.ok(result.skinPageMatchBundlePath, "section action should write a skin page match bundle");
   assert.ok(result.skinTextureSourcePlanPath, "section action should write a skin texture source plan");
+  assert.ok(result.skinTextureReconstructionBundlePath, "section action should write a skin texture reconstruction bundle");
   assert.equal(result.mappedAttachmentCount, 4, "section action should preserve mapped attachment counts");
   assert.equal(result.exactLocalSourceCount, 2, "section action should preserve exact local source counts");
 
@@ -170,6 +171,7 @@ async function main(): Promise<void> {
     skinMaterialReviewBundlePath?: string | null;
     skinPageMatchBundlePath?: string | null;
     skinTextureSourcePlanPath?: string | null;
+    skinTextureReconstructionBundlePath?: string | null;
     mappedAttachmentCount?: number;
   };
   assert.equal(sectionActionRun.sectionKey, "big_win/BW", "section action run should preserve section key");
@@ -182,6 +184,7 @@ async function main(): Promise<void> {
   assert.ok(sectionActionRun.skinMaterialReviewBundlePath, "section action run should point at the prepared skin material review bundle");
   assert.ok(sectionActionRun.skinPageMatchBundlePath, "section action run should point at the prepared skin page match bundle");
   assert.ok(sectionActionRun.skinTextureSourcePlanPath, "section action run should point at the prepared skin texture source plan");
+  assert.ok(sectionActionRun.skinTextureReconstructionBundlePath, "section action run should point at the prepared skin texture reconstruction bundle");
   assert.equal(sectionActionRun.mappedAttachmentCount, 4, "section action run should persist mapped attachment counts");
 
   const worksetPath = result.worksetPath ?? "";
@@ -444,6 +447,49 @@ async function main(): Promise<void> {
   assert.equal(textureSourceProfile?.textureSourceState, "ready-with-proposed-page-sources", "section skin texture source plan profiles should preserve texture-source readiness");
   assert.equal(textureSourceProfile?.proposedPageSourceCount, 2, "section skin texture source plan profiles should preserve proposed page-source counts");
   assert.equal(textureSourceProfile?.missingPageSourceCount, 0, "section skin texture source plan profiles should preserve missing page-source counts");
+
+  const skinTextureReconstructionBundlePath = result.skinTextureReconstructionBundlePath ?? "";
+  const resolvedSkinTextureReconstructionBundlePath = path.isAbsolute(skinTextureReconstructionBundlePath)
+    ? skinTextureReconstructionBundlePath
+    : path.join(workspaceRoot, skinTextureReconstructionBundlePath);
+  const skinTextureReconstructionBundle = JSON.parse(await fs.readFile(resolvedSkinTextureReconstructionBundlePath, "utf8")) as {
+    sectionKey?: string;
+    textureReconstructionState?: string;
+    pageCount?: number;
+    exactPageSourceCount?: number;
+    proposedPageSourceCount?: number;
+    missingPageSourceCount?: number;
+    layerCount?: number;
+    reconstructableLayerCount?: number;
+    blockedLayerCount?: number;
+    layers?: Array<{ slotName?: string; layerState?: string; sourceSelection?: string; sourceLocalPath?: string | null; bounds?: { width?: number } | null }>;
+  };
+  assert.equal(skinTextureReconstructionBundle.sectionKey, "big_win/BW", "section skin texture reconstruction bundle should preserve section key");
+  assert.equal(skinTextureReconstructionBundle.textureReconstructionState, "ready-with-proposed-page-sources", "section skin texture reconstruction bundle should stay honest when page sources are still proposed");
+  assert.equal(skinTextureReconstructionBundle.pageCount, 2, "section skin texture reconstruction bundle should preserve page counts");
+  assert.equal(skinTextureReconstructionBundle.proposedPageSourceCount, 2, "section skin texture reconstruction bundle should preserve proposed page-source counts");
+  assert.equal(skinTextureReconstructionBundle.missingPageSourceCount, 0, "section skin texture reconstruction bundle should avoid false missing page sources");
+  assert.equal(skinTextureReconstructionBundle.layerCount, 4, "section skin texture reconstruction bundle should preserve layer counts");
+  assert.equal(skinTextureReconstructionBundle.reconstructableLayerCount, 4, "section skin texture reconstruction bundle should mark all layers reconstructable in the smoke fixture");
+  assert.equal(skinTextureReconstructionBundle.blockedLayerCount, 0, "section skin texture reconstruction bundle should avoid false blocked layers");
+  assert.ok(Array.isArray(skinTextureReconstructionBundle.layers) && skinTextureReconstructionBundle.layers.length === 4, "section skin texture reconstruction bundle should expose layer reconstruction rows");
+  assert.equal(skinTextureReconstructionBundle.layers?.[0]?.layerState, "ready-with-proposed-page-source", "section skin texture reconstruction bundle should translate proposed page sources into reconstructable layer states");
+  assert.equal(skinTextureReconstructionBundle.layers?.[0]?.sourceSelection, "proposed-page-match", "section skin texture reconstruction bundle should preserve source selections");
+  assert.ok((skinTextureReconstructionBundle.layers?.[0]?.bounds?.width ?? 0) > 0, "section skin texture reconstruction bundle should preserve atlas bounds");
+
+  const skinTextureReconstructionBundleProfilesPath = path.join(donorRoot, "section-skin-texture-reconstruction-bundle-profiles.json");
+  const skinTextureReconstructionBundleProfiles = JSON.parse(await fs.readFile(skinTextureReconstructionBundleProfilesPath, "utf8")) as {
+    sectionCount?: number;
+    sections?: Array<{ sectionKey?: string; textureReconstructionState?: string; textureReconstructionBundlePath?: string; reconstructableLayerCount?: number; blockedLayerCount?: number }>;
+  };
+  assert.ok((skinTextureReconstructionBundleProfiles.sectionCount ?? 0) >= 1, "section skin texture reconstruction bundle profiles should record prepared sections");
+  const textureReconstructionProfile = Array.isArray(skinTextureReconstructionBundleProfiles.sections)
+    ? skinTextureReconstructionBundleProfiles.sections.find((section) => section?.sectionKey === "big_win/BW")
+    : null;
+  assert.ok(textureReconstructionProfile, "section skin texture reconstruction bundle profiles should include the prepared section");
+  assert.equal(textureReconstructionProfile?.textureReconstructionState, "ready-with-proposed-page-sources", "section skin texture reconstruction bundle profiles should preserve texture reconstruction readiness");
+  assert.equal(textureReconstructionProfile?.reconstructableLayerCount, 4, "section skin texture reconstruction bundle profiles should preserve reconstructable layer counts");
+  assert.equal(textureReconstructionProfile?.blockedLayerCount, 0, "section skin texture reconstruction bundle profiles should preserve blocked layer counts");
 
   console.log("PASS donor-scan:section-action");
   console.log(`Donor: ${donorId}`);
