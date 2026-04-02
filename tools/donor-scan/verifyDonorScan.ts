@@ -102,6 +102,8 @@ async function main(): Promise<void> {
     topSectionSkinPageLockReviewBundleKeys?: string[];
     sectionSkinPageLockApprovalBundleCount?: number;
     topSectionSkinPageLockApprovalBundleKeys?: string[];
+    sectionSkinPageLockApplyBundleCount?: number;
+    topSectionSkinPageLockApplyBundleKeys?: string[];
     sectionSkinTextureInputBundleCount?: number;
     topSectionSkinTextureInputBundleKeys?: string[];
     rawPayloadBlockedCaptureTargetCount?: number;
@@ -161,6 +163,8 @@ async function main(): Promise<void> {
   assert.ok(Array.isArray(scanSummary.topSectionSkinPageLockReviewBundleKeys), "scan summary should record section skin page lock review bundle keys");
   assert.ok(typeof scanSummary.sectionSkinPageLockApprovalBundleCount === "number", "scan summary should record section skin page lock approval bundle counts");
   assert.ok(Array.isArray(scanSummary.topSectionSkinPageLockApprovalBundleKeys), "scan summary should record section skin page lock approval bundle keys");
+  assert.ok(typeof scanSummary.sectionSkinPageLockApplyBundleCount === "number", "scan summary should record section skin page lock apply bundle counts");
+  assert.ok(Array.isArray(scanSummary.topSectionSkinPageLockApplyBundleKeys), "scan summary should record section skin page lock apply bundle keys");
   assert.ok(typeof scanSummary.sectionSkinTextureInputBundleCount === "number", "scan summary should record section skin texture input bundle counts");
   assert.ok(Array.isArray(scanSummary.topSectionSkinTextureInputBundleKeys), "scan summary should record top section skin texture input bundle keys");
   assert.ok(typeof scanSummary.nextCaptureTargetCount === "number", "scan summary should record next capture target count");
@@ -423,6 +427,23 @@ async function main(): Promise<void> {
           .slice(0, 6)
       : [];
   }
+  const hasSectionSkinPageLockApplyBundleProfiles = await fileExists(paths.sectionSkinPageLockApplyBundleProfilesPath);
+  let sectionSkinPageLockApplyBundleProfilesCount: number | null = null;
+  let topSectionSkinPageLockApplyBundleKeys: string[] = [];
+  if (hasSectionSkinPageLockApplyBundleProfiles) {
+    const sectionSkinPageLockApplyBundleProfiles = await readJsonFile<{
+      sectionCount?: number;
+      sections?: Array<{ sectionKey?: string }>;
+    }>(paths.sectionSkinPageLockApplyBundleProfilesPath);
+    assert.ok(typeof sectionSkinPageLockApplyBundleProfiles.sectionCount === "number", "section skin page lock apply bundle profiles should record section counts");
+    sectionSkinPageLockApplyBundleProfilesCount = sectionSkinPageLockApplyBundleProfiles.sectionCount ?? 0;
+    topSectionSkinPageLockApplyBundleKeys = Array.isArray(sectionSkinPageLockApplyBundleProfiles.sections)
+      ? sectionSkinPageLockApplyBundleProfiles.sections
+          .map((section) => typeof section?.sectionKey === "string" ? section.sectionKey : "")
+          .filter((value) => value.length > 0)
+          .slice(0, 6)
+      : [];
+  }
 
   console.log("PASS donor-scan:verify");
   console.log(`Donor: ${donorId}`);
@@ -481,6 +502,9 @@ async function main(): Promise<void> {
   }
   if (sectionSkinPageLockApprovalBundleProfilesCount !== null) {
     console.log(`Section skin page lock approval bundle profiles: ${sectionSkinPageLockApprovalBundleProfilesCount} (${topSectionSkinPageLockApprovalBundleKeys.join(", ")})`);
+  }
+  if (sectionSkinPageLockApplyBundleProfilesCount !== null) {
+    console.log(`Section skin page lock apply bundle profiles: ${sectionSkinPageLockApplyBundleProfilesCount} (${topSectionSkinPageLockApplyBundleKeys.join(", ")})`);
   }
   if (sectionSkinTextureInputBundleProfilesCount !== null) {
     console.log(`Section skin texture input bundle profiles: ${sectionSkinTextureInputBundleProfilesCount} (${topSectionSkinTextureInputBundleKeys.join(", ")})`);
