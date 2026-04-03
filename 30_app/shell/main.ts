@@ -12,6 +12,7 @@ import {
   buildRuntimeAssetOverrideStatus,
   clearRuntimeAssetOverride,
   createRuntimeAssetOverride,
+  describeRuntimeOverrideDonorSource,
   loadPreferredRuntimeOverrideDonorAsset,
   type RuntimeAssetOverrideHitInfo
 } from "../workspace/donorOverride";
@@ -1181,6 +1182,9 @@ async function runRuntimeDebugHost(options: RuntimeDebugHostOptions = {}): Promi
         candidateCaptureMethods: initialCandidate?.captureMethods ?? [],
         localMirrorSourcePath: initialCandidate?.localMirrorRepoRelativePath ?? null,
         overrideDonorAssetId: null,
+        overrideDonorSourceKind: null,
+        overrideDonorSourceLabel: null,
+        overrideDonorSourceNote: null,
         overrideCreated: false,
         overrideCleared: false,
         overrideHitCountAfterReload: 0,
@@ -1219,6 +1223,7 @@ async function runRuntimeDebugHost(options: RuntimeDebugHostOptions = {}): Promi
       projectId,
       candidate?.fileType ?? bridgeAssetCandidate?.fileType ?? null
     );
+    const overrideDonorSource = describeRuntimeOverrideDonorSource(donorAsset);
 
     let overrideCreated = false;
     let overrideCleared = false;
@@ -1302,6 +1307,9 @@ async function runRuntimeDebugHost(options: RuntimeDebugHostOptions = {}): Promi
       candidateCaptureMethods: candidate?.captureMethods ?? [],
       localMirrorSourcePath: candidate?.localMirrorRepoRelativePath ?? null,
       overrideDonorAssetId: donorAsset?.assetId ?? null,
+      overrideDonorSourceKind: overrideDonorSource?.kind ?? null,
+      overrideDonorSourceLabel: overrideDonorSource?.label ?? null,
+      overrideDonorSourceNote: overrideDonorSource?.note ?? null,
       candidateHintTokens,
       proofProfileId: proofSequence.profileId,
       proofSpinCountAttempted: proofSequence.spinCountAttempted,

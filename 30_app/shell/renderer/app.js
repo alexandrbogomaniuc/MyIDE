@@ -1089,6 +1089,40 @@ function getRuntimeDebugHostUnavailableMessage() {
   return "The dedicated Runtime Debug Host needs a grounded runtime launch URL before it can reopen the live runtime on this selected project.";
 }
 
+function getRuntimeDebugHostOverrideDonorSourceKind(result) {
+  const explicitKind = typeof result?.overrideDonorSourceKind === "string"
+    ? result.overrideDonorSourceKind.trim()
+    : "";
+  if (explicitKind) {
+    return explicitKind;
+  }
+
+  const donorAssetId = typeof result?.overrideDonorAssetId === "string"
+    ? result.overrideDonorAssetId.trim()
+    : "";
+  if (!donorAssetId) {
+    return null;
+  }
+
+  return donorAssetId.startsWith("donor.asset.task-")
+    ? "modification-task-kit"
+    : "indexed-donor-images";
+}
+
+function getRuntimeDebugHostOverrideDonorSourceNote(result) {
+  const explicitNote = typeof result?.overrideDonorSourceNote === "string"
+    ? result.overrideDonorSourceNote.trim()
+    : "";
+  if (explicitNote) {
+    return explicitNote;
+  }
+
+  const donorSourceKind = getRuntimeDebugHostOverrideDonorSourceKind(result);
+  return donorSourceKind
+    ? `Override proof used ${donorSourceKind} for this selected project.`
+    : null;
+}
+
 function getRuntimeOverrideStatus() {
   const overrideStatus = state.runtimeUi.overrideStatus ?? state.bundle?.runtimeOverrides;
   return overrideStatus && typeof overrideStatus === "object" ? overrideStatus : null;
@@ -3534,6 +3568,7 @@ async function openRuntimeDebugHostWindow(options = {}) {
   const hitCount = Number(result?.overrideHitCountAfterReload ?? 0);
   const error = typeof result?.error === "string" ? result.error : null;
   const overrideBlocked = typeof result?.overrideBlocked === "string" ? result.overrideBlocked : null;
+  const overrideDonorSourceKind = getRuntimeDebugHostOverrideDonorSourceKind(result);
   const prefix = statusPrefix ? `${statusPrefix}. ` : "";
 
   if (error) {
@@ -3542,12 +3577,12 @@ async function openRuntimeDebugHostWindow(options = {}) {
   }
 
   if (hitCount > 0) {
-    setPreviewStatus(`${prefix}Opened Runtime Debug Host on ${runtimeSourceLabel}. Candidate ${candidatePath} recorded ${hitCount} override hit${hitCount === 1 ? "" : "s"} after reload.`);
+    setPreviewStatus(`${prefix}Opened Runtime Debug Host on ${runtimeSourceLabel}. Candidate ${candidatePath} recorded ${hitCount} override hit${hitCount === 1 ? "" : "s"} after reload${overrideDonorSourceKind ? ` using ${overrideDonorSourceKind}` : ""}.`);
     return result ?? null;
   }
 
   if (overrideBlocked) {
-    setPreviewStatus(`${prefix}Opened Runtime Debug Host on ${runtimeSourceLabel}. Candidate ${candidatePath} stayed grounded, but override proof remains blocked: ${overrideBlocked}`);
+    setPreviewStatus(`${prefix}Opened Runtime Debug Host on ${runtimeSourceLabel}. Candidate ${candidatePath} stayed grounded${overrideDonorSourceKind ? ` after trying ${overrideDonorSourceKind}` : ""}, but override proof remains blocked: ${overrideBlocked}`);
     return result ?? null;
   }
 
@@ -13267,8 +13302,8 @@ function getRuntimeWorkbenchEntries() {
       statusLabel: debugHost.status === "pass" ? "Debug Host proved override hit" : "Debug Host candidate",
       requestSummary: `${debugHost.candidateRequestSource ?? "request source unknown"} · ${debugHost.candidateHitCount ?? 0} hit${Number(debugHost.candidateHitCount ?? 0) === 1 ? "" : "s"}`,
       note: debugHost.status === "pass"
-        ? `Dedicated Runtime Debug Host recorded ${debugHost.overrideHitCountAfterReload ?? 0} override hit${Number(debugHost.overrideHitCountAfterReload ?? 0) === 1 ? "" : "s"} after reload for this request-backed static image.`
-        : debugHost.overrideBlocked ?? "Dedicated Runtime Debug Host has not proved an override hit for this source yet."
+        ? `Dedicated Runtime Debug Host recorded ${debugHost.overrideHitCountAfterReload ?? 0} override hit${Number(debugHost.overrideHitCountAfterReload ?? 0) === 1 ? "" : "s"} after reload for this request-backed static image${getRuntimeDebugHostOverrideDonorSourceKind(debugHost) ? ` using ${getRuntimeDebugHostOverrideDonorSourceKind(debugHost)}` : ""}.`
+        : `${debugHost.overrideBlocked ?? "Dedicated Runtime Debug Host has not proved an override hit for this source yet."}${getRuntimeDebugHostOverrideDonorSourceNote(debugHost) ? ` ${getRuntimeDebugHostOverrideDonorSourceNote(debugHost)}` : ""}`
     }));
   }
 
@@ -21954,6 +21989,7 @@ function renderRuntimeWorkbench() {
     activeWorkbenchSurfaceTitle
   } = getActiveRuntimeWorkbenchSurface();
   const debugHostResult = state.runtimeUi.debugHost;
+  const debugHostDonorSourceKind = getRuntimeDebugHostOverrideDonorSourceKind(debugHostResult);
   const debugHostAvailable = canUseRuntimeDebugHostForSelectedProject();
   const debugHostOfficial = debugHostAvailable && isOfficialRuntimeDebugHostProject();
   const harvestAvailable = canHarvestSelectedProjectRuntimeRequestEvidence();
@@ -21962,8 +21998,8 @@ function renderRuntimeWorkbench() {
   const runtimeCalloutMessage = debugHostAvailable
     ? (debugHostResult?.status === "pass"
         ? (debugHostOfficial
-            ? `Use Debug Host is now the practical runtime workflow for project_001. The latest run proved ${debugHostResult.candidateRuntimeRelativePath ?? debugHostResult.candidateRuntimeSourceUrl ?? "the current request-backed image"} with ${debugHostResult.overrideHitCountAfterReload ?? 0} override hit${Number(debugHostResult.overrideHitCountAfterReload ?? 0) === 1 ? "" : "s"} after reload.`
-            : `Use Debug Host when this selected project needs the stronger grounded runtime proof path. The latest run proved ${debugHostResult.candidateRuntimeRelativePath ?? debugHostResult.candidateRuntimeSourceUrl ?? "the current request-backed image"}${Number(debugHostResult.overrideHitCountAfterReload ?? 0) > 0 ? ` with ${debugHostResult.overrideHitCountAfterReload ?? 0} override hit${Number(debugHostResult.overrideHitCountAfterReload ?? 0) === 1 ? "" : "s"} after reload` : " and kept the live candidate grounded even though bounded override proof remained blocked"}.`)
+            ? `Use Debug Host is now the practical runtime workflow for project_001. The latest run proved ${debugHostResult.candidateRuntimeRelativePath ?? debugHostResult.candidateRuntimeSourceUrl ?? "the current request-backed image"} with ${debugHostResult.overrideHitCountAfterReload ?? 0} override hit${Number(debugHostResult.overrideHitCountAfterReload ?? 0) === 1 ? "" : "s"} after reload${debugHostDonorSourceKind ? ` using ${debugHostDonorSourceKind}` : ""}.`
+            : `Use Debug Host when this selected project needs the stronger grounded runtime proof path. The latest run proved ${debugHostResult.candidateRuntimeRelativePath ?? debugHostResult.candidateRuntimeSourceUrl ?? "the current request-backed image"}${Number(debugHostResult.overrideHitCountAfterReload ?? 0) > 0 ? ` with ${debugHostResult.overrideHitCountAfterReload ?? 0} override hit${Number(debugHostResult.overrideHitCountAfterReload ?? 0) === 1 ? "" : "s"} after reload${debugHostDonorSourceKind ? ` using ${debugHostDonorSourceKind}` : ""}` : ` and kept the live candidate grounded${debugHostDonorSourceKind ? ` after trying ${debugHostDonorSourceKind}` : ""} even though bounded override proof remained blocked`}.`)
         : (debugHostOfficial
             ? "Use Debug Host to run the official runtime trace and override-proof cycle. The integrated embedded runtime remains available, but it is secondary until it exposes stronger asset truth."
             : "Use Debug Host to run the stronger grounded runtime trace for this selected project. The integrated embedded runtime remains available, but it is secondary until it exposes stronger asset truth."))
@@ -21980,7 +22016,7 @@ function renderRuntimeWorkbench() {
   const runtimeDebugHostCardBody = debugHostAvailable
     ? (debugHostResult
         ? debugHostResult.error
-          ?? `${debugHostResult.candidateRuntimeRelativePath ?? debugHostResult.candidateRuntimeSourceUrl ?? "No request-backed candidate"} · ${debugHostResult.candidateRequestSource ?? "request source unknown"}`
+          ?? `${debugHostResult.candidateRuntimeRelativePath ?? debugHostResult.candidateRuntimeSourceUrl ?? "No request-backed candidate"} · ${debugHostResult.candidateRequestSource ?? "request source unknown"}${debugHostDonorSourceKind ? ` · ${debugHostDonorSourceKind}` : ""}`
         : "The dedicated Runtime Debug Host uses the same local mirror, but it is the path that currently proves request-backed static image work.")
     : getRuntimeDebugHostUnavailableMessage();
   const launchButtonMarkup = `<button type="button" class="copy-button" data-runtime-action="launch" ${runtimeLaunch.entryUrl ? "" : "disabled"}>Launch Embedded Runtime</button>`;
@@ -22200,6 +22236,7 @@ function renderRuntimeInspector() {
   ));
   const debugHostAvailable = canUseRuntimeDebugHostForSelectedProject();
   const debugHostOfficial = debugHostAvailable && isOfficialRuntimeDebugHostProject();
+  const debugHostDonorSourceKind = getRuntimeDebugHostOverrideDonorSourceKind(state.runtimeUi.debugHost);
   const inspectorTitle = activeWorkbenchEntry?.relativePath
     ?? (lastPick?.targetTag
       ? `Picked ${lastPick.targetTag}`
@@ -22213,8 +22250,8 @@ function renderRuntimeInspector() {
         <span>${escapeHtml(debugHostAvailable
           ? (state.runtimeUi.debugHost?.status === "pass"
               ? (debugHostOfficial
-                  ? `Debug Host already proved ${state.runtimeUi.debugHost.candidateRuntimeRelativePath ?? state.runtimeUi.debugHost.candidateRuntimeSourceUrl ?? "the current request-backed candidate"} with ${state.runtimeUi.debugHost.overrideHitCountAfterReload ?? 0} override hit${Number(state.runtimeUi.debugHost.overrideHitCountAfterReload ?? 0) === 1 ? "" : "s"} after reload.`
-                  : `Debug Host already proved ${state.runtimeUi.debugHost.candidateRuntimeRelativePath ?? state.runtimeUi.debugHost.candidateRuntimeSourceUrl ?? "the current request-backed candidate"} for this selected project${Number(state.runtimeUi.debugHost.overrideHitCountAfterReload ?? 0) > 0 ? ` with ${state.runtimeUi.debugHost.overrideHitCountAfterReload ?? 0} override hit${Number(state.runtimeUi.debugHost.overrideHitCountAfterReload ?? 0) === 1 ? "" : "s"} after reload` : " while bounded override proof remained blocked"}.`)
+                  ? `Debug Host already proved ${state.runtimeUi.debugHost.candidateRuntimeRelativePath ?? state.runtimeUi.debugHost.candidateRuntimeSourceUrl ?? "the current request-backed candidate"} with ${state.runtimeUi.debugHost.overrideHitCountAfterReload ?? 0} override hit${Number(state.runtimeUi.debugHost.overrideHitCountAfterReload ?? 0) === 1 ? "" : "s"} after reload${debugHostDonorSourceKind ? ` using ${debugHostDonorSourceKind}` : ""}.`
+                  : `Debug Host already proved ${state.runtimeUi.debugHost.candidateRuntimeRelativePath ?? state.runtimeUi.debugHost.candidateRuntimeSourceUrl ?? "the current request-backed candidate"} for this selected project${Number(state.runtimeUi.debugHost.overrideHitCountAfterReload ?? 0) > 0 ? ` with ${state.runtimeUi.debugHost.overrideHitCountAfterReload ?? 0} override hit${Number(state.runtimeUi.debugHost.overrideHitCountAfterReload ?? 0) === 1 ? "" : "s"} after reload${debugHostDonorSourceKind ? ` using ${debugHostDonorSourceKind}` : ""}` : ` while bounded override proof remained blocked${debugHostDonorSourceKind ? ` after trying ${debugHostDonorSourceKind}` : ""}`}.`)
               : "Use Debug Host first when you need trustworthy runtime asset selection or override proof. The embedded runtime trace below remains secondary until it exposes stronger asset truth.")
           : runtimeLaunch?.entryUrl
             ? "This selected project can launch the grounded embedded runtime through its local mirror, but the runtime workbench still stays primary for truthful source selection and bounded overrides until Debug Host can reopen the live runtime here."

@@ -25,6 +25,9 @@ interface RuntimeDebugSmokePayload {
   candidateHitCount?: number;
   localMirrorSourcePath?: string | null;
   overrideDonorAssetId?: string | null;
+  overrideDonorSourceKind?: string | null;
+  overrideDonorSourceLabel?: string | null;
+  overrideDonorSourceNote?: string | null;
   overrideCreated?: boolean;
   overrideCleared?: boolean;
   overrideHitCountAfterReload?: number;
@@ -396,6 +399,9 @@ async function main(): Promise<void> {
     assert.ok(typeof payload.candidateRuntimeSourceUrl === "string" && payload.candidateRuntimeSourceUrl.length > 0, "Selected-project runtime debug smoke should capture a request-backed runtime candidate.");
     assert.equal(payload.allowMissingDonorAsset, false, "Selected-project runtime debug smoke should require a real project-local donor asset proof.");
     assert.ok(typeof payload.overrideDonorAssetId === "string" && payload.overrideDonorAssetId.length > 0, "Selected-project runtime debug smoke should resolve a project-local donor asset.");
+    assert.equal(payload.overrideDonorSourceKind, "modification-task-kit", "Selected-project runtime debug smoke should label task-kit donor proof explicitly.");
+    assert.equal(payload.overrideDonorSourceLabel, "modification-task-kit", "Selected-project runtime debug smoke should surface the task-kit donor source label.");
+    assert.match(String(payload.overrideDonorSourceNote ?? ""), /modification-task-kit/i, "Selected-project runtime debug smoke should explain that override proof used modification-task-kit.");
     assert.equal(payload.overrideCreated, true, "Selected-project runtime debug smoke should create a project-local override.");
     assert.equal(payload.overrideCleared, true, "Selected-project runtime debug smoke should clear the temporary override after reload.");
     assert.ok(Number(payload.overrideHitCountAfterReload ?? 0) > 0, "Selected-project runtime debug smoke should prove an override hit after reload.");

@@ -28,6 +28,9 @@ interface RuntimeDebugSmokePayload {
   candidateHitCount?: number;
   localMirrorSourcePath?: string | null;
   overrideDonorAssetId?: string | null;
+  overrideDonorSourceKind?: string | null;
+  overrideDonorSourceLabel?: string | null;
+  overrideDonorSourceNote?: string | null;
   overrideCreated?: boolean;
   overrideCleared?: boolean;
   overrideHitCountAfterReload?: number;
@@ -368,6 +371,9 @@ async function main(): Promise<void> {
     assert.ok(Number(payload.staticImageEntryCount ?? 0) > 0, "Selected-project debug donor-index smoke should capture at least one static-image candidate.");
     assert.ok(typeof payload.candidateRuntimeSourceUrl === "string" && payload.candidateRuntimeSourceUrl.length > 0, "Selected-project debug donor-index smoke should capture a request-backed runtime candidate.");
     assert.equal(payload.overrideDonorAssetId, expectedDonorAssetId, "Selected-project debug donor-index smoke should use the indexed donor asset, not a task-kit asset.");
+    assert.equal(payload.overrideDonorSourceKind, "indexed-donor-images", "Selected-project debug donor-index smoke should label indexed donor proof explicitly.");
+    assert.equal(payload.overrideDonorSourceLabel, "indexed-donor-images", "Selected-project debug donor-index smoke should surface the donor-index source label.");
+    assert.match(String(payload.overrideDonorSourceNote ?? ""), /indexed-donor-images/i, "Selected-project debug donor-index smoke should explain that override proof used indexed donor images.");
     assert.ok(!String(payload.overrideDonorAssetId ?? "").startsWith("donor.asset.task-"), "Selected-project debug donor-index smoke should not fall back to modification-task donor assets.");
     assert.equal(payload.overrideCreated, true, "Selected-project debug donor-index smoke should create a project-local override.");
     assert.equal(payload.overrideCleared, true, "Selected-project debug donor-index smoke should clear the temporary override after reload.");

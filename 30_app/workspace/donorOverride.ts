@@ -58,6 +58,12 @@ export interface CreateRuntimeAssetOverrideInput {
   donorAssetId: string;
 }
 
+export interface RuntimeOverrideDonorSourceDescriptor {
+  kind: "indexed-donor-images" | "modification-task-kit";
+  label: string;
+  note: string;
+}
+
 interface RuntimeSourceInfo {
   runtimeSourceUrl: string;
   runtimeRelativePath: string;
@@ -409,6 +415,31 @@ export async function loadPreferredRuntimeOverrideDonorAsset(
     return indexedAsset;
   }
   return selectPreferredDonorAsset(await loadModificationTaskKitAssets(projectId), preferredFileType);
+}
+
+export function describeRuntimeOverrideDonorSource(
+  donorAsset: Pick<IndexedDonorAsset, "assetId" | "sourceCategory"> | null | undefined
+): RuntimeOverrideDonorSourceDescriptor | null {
+  if (!donorAsset) {
+    return null;
+  }
+
+  if (
+    donorAsset.assetId.startsWith("donor.asset.task-")
+    || donorAsset.sourceCategory === "modification task kit"
+  ) {
+    return {
+      kind: "modification-task-kit",
+      label: "modification-task-kit",
+      note: "Override proof used modification-task-kit for this selected project."
+    };
+  }
+
+  return {
+    kind: "indexed-donor-images",
+    label: "indexed-donor-images",
+    note: "Override proof used indexed-donor-images for this selected project."
+  };
 }
 
 function buildOverrideFileName(sourceInfo: RuntimeSourceInfo, donorAsset: IndexedDonorAsset): string {
