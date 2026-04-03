@@ -1884,15 +1884,13 @@ async function loadPackageGraphAssets(
 
 async function loadDonorAssetCatalog(selectedProject: WorkspaceProjectSummary | null, selectedProjectId: string): Promise<DonorAssetCatalog | null> {
   let index: DonorAssetIndex | null = null;
-  if (selectedProjectId === "project_001") {
+  try {
     index = await readProjectDonorAssetIndex(selectedProjectId);
     if (!index) {
-      try {
-        index = await buildProjectDonorAssetIndex(selectedProjectId);
-      } catch {
-        index = null;
-      }
+      index = await buildProjectDonorAssetIndex(selectedProjectId);
     }
+  } catch {
+    index = null;
   }
   const localIndexExists = Boolean(index);
   const indexedAssets = index ? index.assets.map((asset) => {

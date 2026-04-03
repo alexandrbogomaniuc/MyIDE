@@ -47,6 +47,8 @@ interface ProjectDonorAssetConfig {
 }
 
 type CsvRecord = Record<string, string>;
+type JsonValue = null | boolean | number | string | JsonObject | JsonValue[];
+type JsonObject = { [key: string]: JsonValue };
 
 const workspaceRoot = path.resolve(__dirname, "../../..");
 const supportedExtensions = new Set<SupportedDonorAssetType>(["png", "webp", "jpg", "jpeg", "svg"]);
@@ -55,20 +57,93 @@ export function getDonorAssetWorkspaceRoot(): string {
   return workspaceRoot;
 }
 
-export function getProjectDonorAssetConfig(projectId: string): ProjectDonorAssetConfig {
-  if (projectId !== "project_001") {
-    throw new Error(`Donor asset indexing is currently scoped to project_001 only. Received: ${projectId}`);
+function isJsonObject(value: unknown): value is JsonObject {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function getNonEmptyString(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
+function assertSafeProjectId(projectId: string): void {
+  if (typeof projectId !== "string" || !/^[A-Za-z0-9._-]+$/.test(projectId)) {
+    throw new Error(`Donor asset indexing requires a safe project id. Received: ${String(projectId)}`);
+  }
+}
+
+function resolveWorkspaceScopedPath(requestedPath: string, label: string): string {
+  const absolutePath = path.resolve(workspaceRoot, requestedPath);
+  const relativePath = path.relative(workspaceRoot, absolutePath);
+  if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
+    throw new Error(`${label} must stay inside the workspace. Received: ${requestedPath}`);
   }
 
+  return absolutePath;
+}
+
+function buildLegacyProject001DonorAssetConfig(): ProjectDonorAssetConfig {
   const donorEvidenceRoot = path.join(workspaceRoot, "10_donors", "donor_001_mystery_garden", "evidence");
   return {
-    projectId,
+    projectId: "project_001",
     donorId: "donor_001_mystery_garden",
     donorName: "Mystery Garden",
     donorEvidenceRoot,
     hashesCsvPath: path.join(donorEvidenceRoot, "HASHES.csv"),
     indexPath: path.join(workspaceRoot, "40_projects", "project_001", "donor-assets", "local-index.json")
   };
+}
+
+async function readProjectDonorAssetConfigFromMetadata(projectId: string): Promise<ProjectDonorAssetConfig | null> {
+  assertSafeProjectId(projectId);
+  const metaPath = path.join(workspaceRoot, "40_projects", projectId, "project.meta.json");
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(await fs.readFile(metaPath, "utf8")) as unknown;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException | undefined)?.code === "ENOENT") {
+      return null;
+    }
+    throw error;
+  }
+
+  if (!isJsonObject(parsed)) {
+    throw new Error(`Project donor asset metadata must be a JSON object: ${path.relative(workspaceRoot, metaPath).replace(/\\/g, "/")}`);
+  }
+
+  const donor = isJsonObject(parsed.donor) ? parsed.donor : null;
+  const keyPaths = isJsonObject(parsed.paths) ? parsed.paths : null;
+  const donorId = getNonEmptyString(donor?.donorId);
+  const donorName = getNonEmptyString(donor?.donorName);
+  const donorEvidenceRootRelative = getNonEmptyString(donor?.evidenceRoot) ?? getNonEmptyString(keyPaths?.evidenceRoot);
+  if (!donorId || !donorName || !donorEvidenceRootRelative) {
+    return null;
+  }
+
+  const donorEvidenceRoot = resolveWorkspaceScopedPath(donorEvidenceRootRelative, `Project donor evidence root for ${projectId}`);
+  return {
+    projectId,
+    donorId,
+    donorName,
+    donorEvidenceRoot,
+    hashesCsvPath: path.join(donorEvidenceRoot, "HASHES.csv"),
+    indexPath: path.join(workspaceRoot, "40_projects", projectId, "donor-assets", "local-index.json")
+  };
+}
+
+export async function getProjectDonorAssetConfig(projectId: string): Promise<ProjectDonorAssetConfig> {
+  const metadataConfig = await readProjectDonorAssetConfigFromMetadata(projectId);
+  if (metadataConfig) {
+    return metadataConfig;
+  }
+
+  if (projectId === "project_001") {
+    return buildLegacyProject001DonorAssetConfig();
+  }
+
+  throw new Error(
+    `Donor asset indexing needs donor metadata for ${projectId}. Add donor.donorId, donor.donorName, and donor.evidenceRoot to project.meta.json.`
+  );
 }
 
 function parseCsvLine(line: string): string[] {
@@ -246,8 +321,7 @@ async function buildIndexedAsset(config: ProjectDonorAssetConfig, record: CsvRec
   };
 }
 
-export async function buildProjectDonorAssetIndex(projectId: string): Promise<DonorAssetIndex> {
-  const config = getProjectDonorAssetConfig(projectId);
+async function buildProjectDonorAssetIndexFromConfig(config: ProjectDonorAssetConfig): Promise<DonorAssetIndex> {
   const records = await readCsvRecords(config.hashesCsvPath);
   const assets = (await Promise.all(records.map((record) => buildIndexedAsset(config, record))))
     .filter((asset): asset is IndexedDonorAsset => Boolean(asset))
@@ -267,16 +341,21 @@ export async function buildProjectDonorAssetIndex(projectId: string): Promise<Do
   };
 }
 
+export async function buildProjectDonorAssetIndex(projectId: string): Promise<DonorAssetIndex> {
+  const config = await getProjectDonorAssetConfig(projectId);
+  return buildProjectDonorAssetIndexFromConfig(config);
+}
+
 export async function writeProjectDonorAssetIndex(projectId: string): Promise<DonorAssetIndex> {
-  const config = getProjectDonorAssetConfig(projectId);
-  const index = await buildProjectDonorAssetIndex(projectId);
+  const config = await getProjectDonorAssetConfig(projectId);
+  const index = await buildProjectDonorAssetIndexFromConfig(config);
   await fs.mkdir(path.dirname(config.indexPath), { recursive: true });
   await fs.writeFile(config.indexPath, `${JSON.stringify(index, null, 2)}\n`, "utf8");
   return index;
 }
 
 export async function readProjectDonorAssetIndex(projectId: string): Promise<DonorAssetIndex | null> {
-  const config = getProjectDonorAssetConfig(projectId);
+  const config = await getProjectDonorAssetConfig(projectId);
   try {
     const raw = await fs.readFile(config.indexPath, "utf8");
     return JSON.parse(raw) as DonorAssetIndex;
