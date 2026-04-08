@@ -13,9 +13,13 @@ For the current build, Investigation is the important new truth surface. Use it 
 ## New Donor URL Quick Start
 Use this when you have a brand-new donor guest-mode URL. The full walkthrough is in `00_control/NEW_DONOR_QUICK_START.md`.
 
-1. Launch the IDE and open the **Project** panel.
-2. In **New Project**, fill in the donor fields and paste the guest-mode URL into **Donor Launch URL**.
+1. Launch the IDE and use the top-bar **New Project** or Workflow Hub **Start New Project** CTA to open the **Project** panel.
+2. In **New Project**, fill **New Game Name**, **New Game ID**, optional **RTP** / **Default Bet**, and paste the guest-mode URL into **Donor Launch URL**.
 3. Click **Create Project**, then switch to **Investigation**.
+4. If you created the project without a launch URL, run `npm run donor:intake:url -- --donor-id donor_XXX --donor-name "Donor Name" --url "<guest url>"` before running coverage.
+5. Follow the **Next Profile** + **Next Operator Action** guidance and run `npm run donor-scan:coverage -- --donor-id donor_XXX`.
+6. Run `npm run donor-scan:scenario -- --donor-id donor_XXX --profile default-bet --minutes 5`.
+7. Promote ready families and prepare the modification board before switching to Compose / Runtime work.
 4. Run `npm run donor-scan:coverage -- --donor-id donor_XXX`.
 5. Run `npm run donor-scan:scenario -- --donor-id donor_XXX --profile default-bet --minutes 5`.
 6. Promote ready families and prepare the modification board before switching to Compose / Runtime work.

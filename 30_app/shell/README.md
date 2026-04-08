@@ -12,7 +12,8 @@ The shell now carries the explicit project backbone:
 4. GS Export
 
 ## New Donor URL Starting Point
-For a brand-new donor guest URL, the starting point is the **New Project** form in the shell `Project` panel. The step-by-step guide lives in `00_control/NEW_DONOR_QUICK_START.md`.
+For a brand-new donor guest URL, use the top-bar **New Project** or Workflow Hub **Start New Project** CTA to open the **New Project** form in the shell `Project` panel. The step-by-step guide lives in `00_control/NEW_DONOR_QUICK_START.md`.
+The form accepts **New Game Name**, **New Game ID**, and optional **RTP** / **Default Bet** (stored as notes), plus the **Donor Launch URL**.
 
 The new `Investigation` panel surfaces:
 - static donor scan state
@@ -26,8 +27,8 @@ The new `Investigation` panel surfaces:
 - stage handoff readiness
 
 The operational workflow is now:
-1. Run a bounded self-investigation profile when one is available.
-2. Follow the explicit operator-assist action when the bounded pass stops helping.
+1. Run the **Next Profile** shown in Investigation when one is available.
+2. Follow the **Next Operator Action** when the bounded pass stops helping.
 3. Promote ready families/sections into Modification explicitly instead of treating readiness as an implied state change.
 4. Prepare the project modification board so promoted donor items resolve into explicit compose/runtime tasks with the strongest grounded artifact per task.
 5. Start a prepared task from the board so the shell switches into Compose or Runtime with the strongest grounded runtime source it can match for that task.
