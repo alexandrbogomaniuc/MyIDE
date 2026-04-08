@@ -15038,6 +15038,9 @@ function handleNavigationClick(event) {
     if (workflowPanelButton.dataset.scrollTarget) {
       const scrollTarget = document.getElementById(workflowPanelButton.dataset.scrollTarget);
       scrollTarget?.scrollIntoView({ behavior: "smooth", block: "start" });
+    } else if (workflowPanelButton.dataset.workflowPanel) {
+      const defaultTarget = document.getElementById(`panel-${workflowPanelButton.dataset.workflowPanel}`);
+      defaultTarget?.scrollIntoView({ behavior: "smooth", block: "start" });
     }
     if (workflowPanelButton.dataset.focusTarget) {
       const focusTarget = document.getElementById(workflowPanelButton.dataset.focusTarget);
