@@ -40,14 +40,16 @@ Use this when you have a brand-new donor guest-mode URL. The full walkthrough is
 17. Save the imported task, let the workspace sync, and reopen it after both workspace reload and a fresh app relaunch: the same page card should still expose the direct **Open Page Runtime** link, and task-level **Open Runtime** should still land on the proved page-scoped runtime source without another Debug Host pass.
 
 ## 1. Launch The Current Build
-1. Finder double-click daily start: `./run/Start-MyIDE-Workbench.command`.
-2. Finder double-click clean demo/test start: `./run/Start-MyIDE-Workbench-Clean.command`.
-3. Finder double-click runtime-only debug start: `./run/Open-Runtime-Debug-Host.command`.
-4. Finder double-click safe runtime refresh: `./run/Refresh-Runtime-Assets.command`.
-5. Terminal equivalents:
-   - `./run/start-workbench.sh`
+1. Finder daily start: `./run/Start-MyIDE.command`.
+2. Terminal daily start: `./run/start-myide.sh`.
+3. Optional clean demo/test start:
+   - `./run/Start-MyIDE-Workbench-Clean.command`
    - `./run/start-workbench-clean.sh`
+4. Optional runtime-only debug start:
+   - `./run/Open-Runtime-Debug-Host.command`
    - `./run/open-runtime-debug-host.sh`
+5. Optional safe runtime refresh:
+   - `./run/Refresh-Runtime-Assets.command`
    - `./run/refresh-runtime-assets.sh`
 6. If you still need the raw commands, the scripts wrap these existing repo commands:
    - `manual:prepare:project_001`
@@ -61,7 +63,7 @@ Use this when you have a brand-new donor guest-mode URL. The full walkthrough is
    - If another MyIDE session is already using `127.0.0.1:38901`, run the smoke/debug command with `MYIDE_RUNTIME_LOCAL_MIRROR_PORT=<free-port>` so the bounded local mirror can start on a second port.
 
 Recommended rule:
-- If you are unsure, double-click `./run/Start-MyIDE-Workbench.command`.
+- If you are unsure, double-click `./run/Start-MyIDE.command`.
 - Use the clean launcher only when you intentionally want a clean `project_001` baseline.
 
 ## 2. Open The Validated Project

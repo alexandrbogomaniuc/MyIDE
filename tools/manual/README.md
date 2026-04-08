@@ -18,8 +18,8 @@ The shell now shows a read-only VABS status panel for the selected project, but 
 
 ## Recommended Tester Flow
 1. Run `npm run manual:status` for a quick LOCAL vs PUBLIC vs HANDOFF check.
-2. Use one of the launch scripts under [run/README.md](/Users/alexb/Documents/Dev/MyIDE/run/README.md):
-   - `./run/start-workbench.sh` for normal day-to-day use
+2. Use the universal launcher under [run/README.md](/Users/alexb/Documents/Dev/MyIDE/run/README.md):
+   - `./run/start-myide.sh` for normal day-to-day use
    - `./run/start-workbench-clean.sh` for a clean `project_001` baseline
    - `./run/open-runtime-debug-host.sh` for runtime-only investigation
 3. Open `project_001` in Project Browser when the shell appears.

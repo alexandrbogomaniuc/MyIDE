@@ -281,21 +281,15 @@ Public publication rules are defined in [`00_control/PUBLIC_REPO_POLICY.md`](./0
 ## Quick Start Scripts
 If you just want to launch the app without memorizing raw `npm` commands, use the scripts in [run/README.md](/Users/alexb/Documents/Dev/MyIDE/run/README.md).
 
-- Double-click from Finder:
-  - `./run/Start-MyIDE-Workbench.command`
-  - `./run/Start-MyIDE-Workbench-Clean.command`
-  - `./run/Open-Runtime-Debug-Host.command`
-  - `./run/Refresh-Runtime-Assets.command`
-- `./run/start-workbench.sh`
-  - Normal daily entry point. Refresh donor assets, refresh the safe runtime mirror view, then open MyIDE.
-- `./run/start-workbench-clean.sh`
-  - Clean demo/test entry point. Reset `project_001` to the tracked baseline, refresh assets/runtime data, then open MyIDE.
-- `./run/open-runtime-debug-host.sh`
-  - Open the official Runtime Debug Host directly for `project_001`. Use this first when runtime work matters.
-- `./run/refresh-runtime-assets.sh`
-  - Refresh the safe local runtime mirror/request view without opening the app.
+- Daily entry point:
+  - `./run/Start-MyIDE.command` (Finder)
+  - `./run/start-myide.sh` (Terminal)
+- Optional advanced tools:
+  - `./run/Start-MyIDE-Workbench-Clean.command` and `./run/start-workbench-clean.sh` for clean baselines.
+  - `./run/Open-Runtime-Debug-Host.command` and `./run/open-runtime-debug-host.sh` for the dedicated Runtime Debug Host.
+  - `./run/Refresh-Runtime-Assets.command` and `./run/refresh-runtime-assets.sh` for runtime refresh only.
 
-If you are unsure which one to use, double-click `./run/Start-MyIDE-Workbench.command`.
+If you are unsure which one to use, double-click `./run/Start-MyIDE.command`.
 
 ## GS VABS Module
 - [`00_control/VABS_MODULE_STRATEGY.md`](./00_control/VABS_MODULE_STRATEGY.md) explains how GS VABS fits into MyIDE as an additional module.

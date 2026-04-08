@@ -3,7 +3,7 @@
 Use this when you have a brand-new donor guest-mode URL and want to start a fresh donor-to-release cycle.
 
 ## Step-by-step
-1. Launch the IDE with `./run/start-workbench.sh` (or `./run/start-workbench-clean.sh` for a clean session).
+1. Launch the IDE with `./run/start-myide.sh` (or `./run/Start-MyIDE.command` from Finder).
 2. In the left rail, open the `Project` panel and find **New Project**.
 3. Fill in **Display Name** with the project you are starting.
 4. Fill in **Slug** (the folder name under `40_projects/`).

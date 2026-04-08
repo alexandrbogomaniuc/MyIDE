@@ -14,16 +14,17 @@ For this build, Investigation should expose static scan state, runtime scan stat
 
 ## Before You Start
 1. This test edits reconstructed internal scene data under `40_projects/project_001/internal`; raw donor files under `10_donors/` stay read-only even when a donor image is imported.
-2. Preferred launchers:
-   - normal session: `./run/start-workbench.sh`
+2. Preferred launcher (use one):
+   - normal session: `./run/start-myide.sh` or `./run/Start-MyIDE.command`
+3. Optional advanced launchers:
    - clean test session: `./run/start-workbench-clean.sh`
    - runtime-only debug session: `./run/open-runtime-debug-host.sh`
    - safe runtime refresh only: `./run/refresh-runtime-assets.sh`
-3. If you only need a quick context check, run `npm run manual:status`.
-4. Test the LOCAL build on this machine, not the public GitHub snapshot.
-5. If you do not want the full prepare flow, `npm run manual:reset:project_001` still restores only the `project_001` baseline.
-6. GS VABS validation is a separate delivery lane; it does not replace the current shell manual QA flow.
-7. New donor onboarding for this slice is: run `npm run manual:status`, then `npm run manual:prepare:project_001`, then `Open Debug Host` for runtime proof, then `Open Compose` for donor-backed edits.
+4. If you only need a quick context check, run `npm run manual:status`.
+5. Test the LOCAL build on this machine, not the public GitHub snapshot.
+6. If you do not want the full prepare flow, `npm run manual:reset:project_001` still restores only the `project_001` baseline.
+7. GS VABS validation is a separate delivery lane; it does not replace the current shell manual QA flow.
+8. New donor onboarding for this slice is: run `npm run manual:status`, then `npm run manual:prepare:project_001`, then `Open Debug Host` for runtime proof, then `Open Compose` for donor-backed edits.
 
 ## New Donor URL Onboarding
 For a brand-new donor guest URL, follow `00_control/NEW_DONOR_QUICK_START.md` through **Create Project** and **Investigation** before running the rest of this playbook. The first-time expectation is that the shell makes the donor URL the explicit starting point and points the operator directly at Investigation and the scan commands.
