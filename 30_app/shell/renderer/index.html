@@ -14,11 +14,14 @@
           <h1>MyIDE</h1>
           <p class="lede">Current build: the dedicated Runtime Debug Host is the official runtime work mode for the validated <code>project_001</code> Mystery Garden slice. Use it for the strongest local runtime trace, request-backed asset selection, and bounded override proof; use the embedded Runtime surface as secondary context and Compose as the bounded donor-backed compositor.</p>
         </div>
-        <div class="chips" aria-label="Project constraints">
-          <span>MULTI PROJECT</span>
-          <span>SLOT FIRST</span>
-          <span>SINGLE USER</span>
-          <span>LOCAL SAVE</span>
+        <div class="topbar-actions">
+          <button type="button" class="primary-cta" data-workflow-panel="project" data-scroll-target="panel-new-project">New Project</button>
+          <div class="chips" aria-label="Project constraints">
+            <span>MULTI PROJECT</span>
+            <span>SLOT FIRST</span>
+            <span>SINGLE USER</span>
+            <span>LOCAL SAVE</span>
+          </div>
         </div>
       </header>
 
@@ -28,6 +31,9 @@
             <div class="panel-head">
               <h2>Workflow Hub</h2>
               <span>Runtime-first project flow</span>
+            </div>
+            <div class="workflow-primary">
+              <button type="button" class="primary-cta" data-workflow-panel="project" data-scroll-target="panel-new-project">Start New Project</button>
             </div>
             <div id="workflow-panelbar" class="mode-bar workflow-panelbar" role="tablist" aria-label="Workflow side panel">
               <button type="button" data-workflow-panel="runtime" aria-selected="true">Runtime</button>
@@ -105,12 +111,12 @@
             </div>
             <form id="new-project-form" class="project-form">
               <label class="form-field">
-                <span>Display Name</span>
-                <input id="field-display-name" name="displayName" type="text" placeholder="Example Project" required />
+                <span>New Game Name (required)</span>
+                <input id="field-display-name" name="displayName" type="text" placeholder="Example Game" required />
               </label>
               <label class="form-field">
-                <span>Slug</span>
-                <input id="field-slug" name="slug" type="text" placeholder="example-project" required />
+                <span>New Game ID (required)</span>
+                <input id="field-slug" name="slug" type="text" placeholder="example-game" required />
               </label>
               <label class="form-field">
                 <span>Game Family</span>
@@ -123,7 +129,7 @@
                 </select>
               </label>
               <label class="form-field">
-                <span>Donor Reference / ID</span>
+                <span>Donor ID (required)</span>
                 <input id="field-donor-reference" name="donorReference" type="text" placeholder="donor_003_example" required />
               </label>
               <label class="form-field">
@@ -132,8 +138,16 @@
                 <small class="form-help has-tooltip" data-tooltip="Captures the launch HTML, performs a bounded recursive harvest, and writes a donor scan summary under 10_donors/<donorId>/evidence/local_only/harvest/.">Paste the guest-mode donor URL here.</small>
               </label>
               <label class="form-field">
-                <span>Target / Resulting Game</span>
+                <span>Target Game Name (required)</span>
                 <input id="field-target-display-name" name="targetDisplayName" type="text" placeholder="Example Resulting Game" required />
+              </label>
+              <label class="form-field">
+                <span>RTP (optional)</span>
+                <input id="field-rtp" name="rtp" type="text" placeholder="96.2" />
+              </label>
+              <label class="form-field">
+                <span>Default Bet (optional)</span>
+                <input id="field-default-bet" name="defaultBet" type="text" placeholder="1.00" />
               </label>
               <label class="form-field">
                 <span>Notes</span>

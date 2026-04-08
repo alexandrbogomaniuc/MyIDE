@@ -5,15 +5,16 @@ Use this when you have a brand-new donor guest-mode URL and want to start a fres
 ## Step-by-step
 1. Launch the IDE with `./run/start-myide.sh` (or `./run/Start-MyIDE.command` from Finder).
 2. In the left rail, open the `Project` panel and find **New Project**.
-3. Fill in **Display Name** with the project you are starting.
-4. Fill in **Slug** (the folder name under `40_projects/`).
+3. Fill in **New Game Name** with the project you are starting.
+4. Fill in **New Game ID** (the folder name under `40_projects/`).
 5. Choose **Game Family** (slot, card, dice, crash, other).
-6. Fill in **Donor Reference / ID** (example `donor_003_example`).
+6. Fill in **Donor ID** (example `donor_003_example`).
 7. Paste the guest-mode URL into **Donor Launch URL** (this is the starting point).
-8. Fill in **Target / Resulting Game** with the name of the game you are building.
-9. Click **Create Project**. This scaffolds `40_projects/<slug>` and `10_donors/<donorId>` and captures donor launch evidence.
-10. Switch to **Investigation** and run the first scan. Command: `npm run donor-scan:coverage -- --donor-id donor_003_example`.
-11. Run one bounded scenario profile. Command: `npm run donor-scan:scenario -- --donor-id donor_003_example --profile default-bet --minutes 5`.
+8. Fill in **Target Game Name** with the name of the game you are building.
+9. Optional: add **RTP** or **Default Bet** if you want them saved into Notes.
+10. Click **Create Project**. This scaffolds `40_projects/<slug>` and `10_donors/<donorId>` and captures donor launch evidence.
+11. Switch to **Investigation** and run the first scan. Command: `npm run donor-scan:coverage -- --donor-id donor_003_example`.
+12. Run one bounded scenario profile. Command: `npm run donor-scan:scenario -- --donor-id donor_003_example --profile default-bet --minutes 5`.
 
 ## What to do next
 1. Review the Investigation panel for coverage, blocked families, and the next profile or operator action.

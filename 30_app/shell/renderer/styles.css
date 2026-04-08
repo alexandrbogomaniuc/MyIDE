@@ -59,6 +59,29 @@ select {
   background: linear-gradient(180deg, rgba(10, 16, 24, 0.94), rgba(8, 13, 19, 0.92));
 }
 
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.primary-cta {
+  padding: 0.55rem 1.1rem;
+  border-radius: 999px;
+  border: 1px solid rgba(230, 191, 100, 0.5);
+  background: linear-gradient(135deg, rgba(230, 191, 100, 0.22), rgba(230, 191, 100, 0.05));
+  color: var(--text);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 0.74rem;
+}
+
+.primary-cta:hover {
+  border-color: rgba(230, 191, 100, 0.8);
+}
+
 .bottombar {
   border-top: 1px solid var(--line);
   border-bottom: 0;
@@ -298,6 +321,11 @@ button:disabled {
   background: rgba(255, 255, 255, 0.04);
   display: grid;
   gap: 8px;
+}
+
+.workflow-primary {
+  display: flex;
+  justify-content: flex-start;
 }
 
 .form-callout strong {

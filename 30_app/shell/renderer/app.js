@@ -225,6 +225,8 @@ const elements = {
   fieldDonorReference: document.getElementById("field-donor-reference"),
   fieldDonorLaunchUrl: document.getElementById("field-donor-launch-url"),
   fieldTargetDisplayName: document.getElementById("field-target-display-name"),
+  fieldRtp: document.getElementById("field-rtp"),
+  fieldDefaultBet: document.getElementById("field-default-bet"),
   fieldNotes: document.getElementById("field-notes")
 };
 
@@ -14928,6 +14930,10 @@ function handleNavigationClick(event) {
   if (workflowPanelButton instanceof HTMLElement && workflowPanelButton.dataset.workflowPanel) {
     event.preventDefault();
     setWorkflowPanel(workflowPanelButton.dataset.workflowPanel);
+    if (workflowPanelButton.dataset.scrollTarget) {
+      const scrollTarget = document.getElementById(workflowPanelButton.dataset.scrollTarget);
+      scrollTarget?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
     return true;
   }
 
@@ -17532,7 +17538,14 @@ async function handleCreateProject(event) {
   const donorLaunchUrl = elements.fieldDonorLaunchUrl?.value?.trim() ?? "";
   const harvestDonorAssets = Boolean(donorLaunchUrl);
   const targetDisplayName = elements.fieldTargetDisplayName?.value?.trim() ?? "";
+  const rtp = elements.fieldRtp?.value?.trim() ?? "";
+  const defaultBet = elements.fieldDefaultBet?.value?.trim() ?? "";
   const notes = elements.fieldNotes?.value?.trim() ?? "";
+  const noteExtras = [
+    rtp ? `RTP: ${rtp}` : null,
+    defaultBet ? `Default bet: ${defaultBet}` : null
+  ].filter(Boolean);
+  const enrichedNotes = [notes, ...noteExtras].filter(Boolean).join("\n");
 
   if (!displayName || !slug || !donorReference || !targetDisplayName) {
     setCreateProjectStatus("Display name, slug, donor reference, and target display name are required.", true);
@@ -17561,7 +17574,7 @@ async function handleCreateProject(event) {
       donorLaunchUrl,
       harvestDonorAssets,
       targetDisplayName,
-      notes
+      notes: enrichedNotes
     });
 
     if (elements.newProjectForm instanceof HTMLFormElement) {
