@@ -1465,7 +1465,17 @@ function setWorkflowPanel(panel, options = {}) {
   renderAll();
 
   if (!options.silent) {
-    setPreviewStatus(`${getWorkflowPanelLabel(nextPanel)} panel is active in the left workflow rail.`);
+    if (nextPanel === "investigation") {
+      setPreviewStatus("Investigation is active. Run donor-scan:coverage, then a scenario profile, and review the next operator action.");
+    } else {
+      setPreviewStatus(`${getWorkflowPanelLabel(nextPanel)} panel is active in the left workflow rail.`);
+    }
+  }
+
+  if (nextPanel === "investigation" && elements.panelInvestigation) {
+    requestAnimationFrame(() => {
+      elements.panelInvestigation?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
   }
 }
 
@@ -10155,6 +10165,13 @@ function bindActions() {
       setPreviewStatus("Find Project is active. Type to filter the Project Browser list.");
     }
   });
+  document.addEventListener("keydown", (event) => {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
+      event.preventDefault();
+      void handleSaveEditor();
+      setPreviewStatus("Saved current project changes.");
+    }
+  });
   elements.workflowPanelbar?.addEventListener("click", (event) => {
     handleNavigationClick(event);
   });
@@ -15029,6 +15046,13 @@ function handleNavigationClick(event) {
     } else {
       return true;
     }
+  }
+
+  const actionButton = target.closest("[data-action]");
+  if (actionButton instanceof HTMLElement && actionButton.dataset.action === "save") {
+    event.preventDefault();
+    void handleSaveEditor();
+    return true;
   }
 
   const workflowPanelButton = target.closest("[data-workflow-panel]");
