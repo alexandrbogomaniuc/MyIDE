@@ -17999,7 +17999,7 @@ function renderOnboardingCard() {
     ?? getInvestigationProfileDefinition(starterProfileId);
   const starterMinutes = starterProfile?.minutes ?? starterProfile?.defaultMinutes ?? 4;
   const coverageCommand = `npm run donor-scan:coverage -- --donor-id ${shellEscapeArg(donorId)} --donor-name ${donorNameArg}`;
-  const scenarioCommand = `npm run donor-scan:scenario -- --donor-id ${shellEscapeArg(donorId)} --donor-name ${donorNameArg} --profile ${normalizedStarterProfileId} --minutes ${starterMinutes}`;
+  const scenarioCommand = `npm run donor-scan:scenario -- --donor-id ${shellEscapeArg(donorId)} --donor-name ${donorNameArg} --profile ${shellEscapeArg(normalizedStarterProfileId)} --minutes ${starterMinutes}`;
   const promotionCommand = `npm run donor-scan:promote -- --donor-id ${shellEscapeArg(donorId)} --donor-name ${donorNameArg}`;
 
   elements.onboardingCard.innerHTML = `
