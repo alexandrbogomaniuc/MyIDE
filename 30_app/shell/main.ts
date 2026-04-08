@@ -63,6 +63,7 @@ import { runSectionAction } from "../../tools/donor-scan/runSectionAction";
 import { getScenarioProfile } from "../../tools/donor-scan/scenarioProfiles";
 
 const isBridgeSmokeMode = process.env.MYIDE_BRIDGE_SMOKE === "1";
+const isWizardMode = process.env.MYIDE_WIZARD_MODE === "1";
 const isRuntimeDebugSmokeMode = process.env.MYIDE_RUNTIME_DEBUG_SMOKE === "1";
 const isRuntimeDebugHostMode = process.env.MYIDE_RUNTIME_DEBUG_HOST === "1" || isRuntimeDebugSmokeMode;
 const isLivePersistSmokeMode = process.env.MYIDE_LIVE_PERSIST_SMOKE === "1";
@@ -3364,6 +3365,10 @@ ipcMain.handle("myide:renderer-ready", async () => {
   bridgeHealthState.lastRendererReadyAt = new Date().toISOString();
   return getBridgeHealthSnapshot();
 });
+
+ipcMain.handle("myide:get-launch-flags", async () => ({
+  wizardMode: isWizardMode
+}));
 
 ipcMain.on("myide:bridge-smoke-result", (_event, payload: BridgeSmokePayload) => {
   if (typeof activeBridgeSmokeReporter === "function") {

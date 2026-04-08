@@ -12,6 +12,10 @@ Use one launcher for daily work:
   - Finder-friendly double-click launcher for normal daily work.
 - `./run/start-myide.sh`
   - Terminal-friendly universal launcher.
+- `./run/Start-MyIDE-Wizard.command`
+  - Finder-friendly launcher for Wizard Mode (focused New Project onboarding).
+- `./run/start-myide-wizard.sh` (add `--prep` to refresh donor assets + runtime mirror)
+  - Terminal-friendly Wizard Mode launcher.
 
 ## Advanced Tools (Optional)
 Use these only when you need a clean baseline or a dedicated debug window:
@@ -30,6 +34,7 @@ Use these only when you need a clean baseline or a dedicated debug window:
 
 ## Which One To Use
 - Daily work: `./run/Start-MyIDE.command` or `./run/start-myide.sh`
+- New donor wizard: `./run/Start-MyIDE-Wizard.command` or `./run/start-myide-wizard.sh` (use `--prep` when you want a fresh donor index/mirror)
 - Clean demo/test session: `./run/Start-MyIDE-Workbench-Clean.command`
 - Runtime-only investigation: `./run/Open-Runtime-Debug-Host.command`
 - Runtime refresh only: `./run/Refresh-Runtime-Assets.command`

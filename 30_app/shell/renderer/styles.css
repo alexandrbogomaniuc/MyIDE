@@ -157,6 +157,60 @@ select {
   box-shadow: 0 18px 40px rgba(0, 0, 0, 0.25);
 }
 
+.wizard-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(8, 12, 12, 0.78);
+  backdrop-filter: blur(6px);
+  z-index: 1000;
+}
+
+.wizard-card {
+  width: min(560px, 92vw);
+  display: grid;
+  gap: 12px;
+  padding: 24px;
+  border-radius: 22px;
+  border: 1px solid rgba(230, 191, 100, 0.5);
+  background: rgba(18, 26, 24, 0.98);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4);
+}
+
+.wizard-card h2 {
+  margin: 0;
+  font-size: 1.4rem;
+}
+
+.wizard-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.ghost-button {
+  appearance: none;
+  border: 1px solid rgba(179, 209, 186, 0.3);
+  border-radius: 999px;
+  padding: 0.65rem 1.2rem;
+  color: var(--text);
+  background: transparent;
+  cursor: pointer;
+}
+
+body.wizard-mode .panel {
+  opacity: 0.55;
+}
+
+body.wizard-mode #panel-new-project {
+  opacity: 1;
+  border-color: rgba(230, 191, 100, 0.7);
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.4);
+}
+
 .panel-new-project {
   scroll-margin-top: 88px;
 }
@@ -172,9 +226,10 @@ select {
 
 .panel-head {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
-  align-items: baseline;
-  gap: 12px;
+  align-items: flex-start;
+  gap: 6px 12px;
   margin-bottom: 14px;
 }
 
@@ -187,11 +242,15 @@ select {
   font-size: 1rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+  min-width: 0;
 }
 
 .panel-head span {
   color: var(--muted);
   font-size: 0.86rem;
+  flex: 1 1 220px;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .browser-stack,
@@ -344,6 +403,7 @@ button:disabled {
 .workflow-primary {
   display: flex;
   justify-content: flex-start;
+  margin-bottom: 8px;
 }
 
 .workflow-primary .primary-cta {
@@ -715,8 +775,8 @@ button:disabled {
 }
 
 .workflow-panelbar {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   gap: 10px;
   margin-bottom: 14px;
 }
@@ -732,8 +792,6 @@ button:disabled {
 }
 
 .workflow-panelbar button {
-  flex: 1 1 120px;
-  min-width: 120px;
   width: 100%;
   justify-content: center;
   padding: 0.6rem 0.85rem;
@@ -2140,6 +2198,12 @@ button:disabled {
 
   .workflow-panelbar {
     gap: 8px;
+  }
+}
+
+@media (max-width: 620px) {
+  .workflow-panelbar {
+    grid-template-columns: 1fr;
   }
 }
 

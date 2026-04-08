@@ -160,6 +160,7 @@ contextBridge.exposeInMainWorld("myideApi", {
   reportLiveUndoRedoSmokeResult: (payload: unknown): void => {
     ipcRenderer.send("myide:live-undo-redo-smoke-result", payload);
   },
+  getLaunchFlags: (): Promise<{ wizardMode: boolean }> => ipcRenderer.invoke("myide:get-launch-flags"),
   loadProjectSlice: (selectedProjectId?: string): Promise<ProjectSliceBundle> => ipcRenderer.invoke("myide:load-project-slice", selectedProjectId),
   createProject: (input: ShellCreateProjectInput): Promise<ShellCreateProjectResult> => ipcRenderer.invoke("myide:create-project", input),
   getRuntimeResourceMap: (projectId: string): Promise<unknown> => ipcRenderer.invoke("myide:get-runtime-resource-map", projectId),

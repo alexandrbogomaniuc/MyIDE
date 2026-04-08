@@ -89,6 +89,9 @@ const state = {
   sceneSectionIsolation: {
     activeSectionId: null,
     previousSelectedObjectId: null
+  },
+  uiFlags: {
+    wizardMode: false
   }
 };
 
@@ -173,6 +176,7 @@ const runtimeReferenceScreenDefs = [
 const elements = {
   onboardingCard: document.getElementById("onboarding-card"),
   workflowPanelbar: document.getElementById("workflow-panelbar"),
+  wizardOverlay: document.getElementById("wizard-overlay"),
   projectBrowser: document.getElementById("project-browser"),
   evidenceBrowser: document.getElementById("evidence-browser"),
   investigationBrowser: document.getElementById("investigation-browser"),
@@ -828,6 +832,7 @@ async function init() {
   renderBridgeStatus();
 
   try {
+    await loadLaunchFlags();
     await checkDesktopBridge();
     await reloadWorkspace(true);
   } catch (error) {
@@ -10091,6 +10096,9 @@ function bindActions() {
   elements.actionReloadEditor?.addEventListener("click", () => {
     void reloadWorkspace(false, state.selectedProjectId);
   });
+  document.body?.addEventListener("click", (event) => {
+    handleNavigationClick(event);
+  });
   elements.workflowPanelbar?.addEventListener("click", (event) => {
     handleNavigationClick(event);
   });
@@ -14921,9 +14929,22 @@ function handleNavigationClick(event) {
     return true;
   }
 
+  if (event.defaultPrevented) {
+    return false;
+  }
+
   const target = event.target;
   if (!(target instanceof HTMLElement)) {
     return false;
+  }
+
+  const wizardButton = target.closest("[data-wizard-action]");
+  if (wizardButton instanceof HTMLElement && wizardButton.dataset.wizardAction) {
+    event.preventDefault();
+    if (wizardButton.dataset.wizardAction === "dismiss") {
+      dismissWizardMode();
+    }
+    return true;
   }
 
   const workflowPanelButton = target.closest("[data-workflow-panel]");
@@ -23046,6 +23067,44 @@ function renderFatal(message) {
   if (elements.inspector) {
     elements.inspector.innerHTML = `<div class="tree-row"><strong>Inspector</strong><span>${message}</span></div>`;
   }
+}
+
+function dismissWizardMode() {
+  state.uiFlags.wizardMode = false;
+  document.body.classList.remove("wizard-mode");
+  if (elements.wizardOverlay) {
+    elements.wizardOverlay.hidden = true;
+  }
+}
+
+function applyWizardMode() {
+  if (!state.uiFlags.wizardMode) {
+    return;
+  }
+  document.body.classList.add("wizard-mode");
+  if (elements.wizardOverlay) {
+    elements.wizardOverlay.hidden = false;
+  }
+  setWorkflowPanel("project", { force: true, silent: true });
+  if (elements.panelNewProject) {
+    elements.panelNewProject.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+  if (elements.fieldDisplayName instanceof HTMLInputElement) {
+    setTimeout(() => elements.fieldDisplayName?.focus(), 150);
+  }
+}
+
+async function loadLaunchFlags() {
+  if (!window.myideApi || typeof window.myideApi.getLaunchFlags !== "function") {
+    return;
+  }
+  try {
+    const flags = await window.myideApi.getLaunchFlags();
+    state.uiFlags.wizardMode = Boolean(flags?.wizardMode);
+  } catch {
+    state.uiFlags.wizardMode = false;
+  }
+  applyWizardMode();
 }
 
 function escapeAttribute(value) {
