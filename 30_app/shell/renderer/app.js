@@ -10099,6 +10099,32 @@ function bindActions() {
   document.body?.addEventListener("click", (event) => {
     handleNavigationClick(event);
   });
+  if (elements.wizardOverlay) {
+    const wizardButtons = elements.wizardOverlay.querySelectorAll("[data-wizard-action]");
+    wizardButtons.forEach((button) => {
+      button.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (!(button instanceof HTMLElement) || !button.dataset.wizardAction) {
+          return;
+        }
+        if (button.dataset.wizardAction === "dismiss") {
+          dismissWizardMode();
+          return;
+        }
+        if (button.dataset.wizardAction === "go-to-project") {
+          dismissWizardMode();
+          setWorkflowPanel("project", { force: true, silent: true });
+          if (elements.panelNewProject) {
+            elements.panelNewProject.scrollIntoView({ behavior: "smooth", block: "start" });
+          }
+          if (elements.fieldDisplayName instanceof HTMLInputElement) {
+            setTimeout(() => elements.fieldDisplayName?.focus(), 120);
+          }
+        }
+      });
+    });
+  }
   elements.workflowPanelbar?.addEventListener("click", (event) => {
     handleNavigationClick(event);
   });
