@@ -19124,6 +19124,12 @@ function renderProjectSummary() {
   const donorLaunchCommand = donorLaunchStatus === "missing" && selectedProject.donor?.donorId
     ? `npm run donor:intake:url -- --donor-id ${selectedProject.donor.donorId} --donor-name "${donorNameArg}" --url "<launch url>"`
     : null;
+  const donorLaunchShort = donorLaunchStatus === "recorded"
+    ? (donorLaunchHost ? `Recorded · ${donorLaunchHost}` : "Recorded")
+    : "Missing";
+  const donorLaunchTooltip = donorLaunchStatus === "recorded"
+    ? `${donorLaunchUrl ? `Launch URL: ${donorLaunchUrl}` : "Launch URL recorded."}${donorLaunchHost ? ` Host: ${donorLaunchHost}.` : ""}`
+    : `${donorLaunchNextStep}${donorLaunchCommand ? ` Run: ${donorLaunchCommand}` : ""}`;
   const runtimeLaunch = getRuntimeLaunchInfo();
   const donorScan = state.bundle?.donorScan ?? null;
   const investigation = state.bundle?.investigation ?? null;
@@ -19153,10 +19159,8 @@ function renderProjectSummary() {
       </div>
       <div class="detail-card">
         <span>Donor Launch URL</span>
-        <strong>${donorLaunchStatus === "recorded" ? "Recorded" : "Missing"}</strong>
-        <small>${donorLaunchStatus === "recorded"
-          ? `${donorLaunchUrl ? escapeHtml(donorLaunchUrl) : "Launch URL recorded"}${donorLaunchHost ? ` · ${escapeHtml(donorLaunchHost)}` : ""}`
-          : `${escapeHtml(donorLaunchNextStep)}${donorLaunchCommand ? ` Run: <code>${escapeHtml(donorLaunchCommand)}</code>` : ""}`}</small>
+        <strong>${escapeHtml(donorLaunchShort)}</strong>
+        <small class="has-tooltip" data-tooltip="${escapeAttribute(donorLaunchTooltip)}">Hover for details</small>
       </div>
       <div class="detail-card">
         <span>Target / Resulting Game</span>
