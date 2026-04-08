@@ -51,7 +51,8 @@ const state = {
   investigationUi: {
     status: "Ready to run coverage and scenario scans.",
     tone: "default",
-    running: false
+    running: false,
+    history: []
   },
   projectBrowserUi: {
     query: ""
@@ -11119,10 +11120,36 @@ function setPreviewStatus(text) {
   }
 }
 
+function formatInvestigationTimestamp(value = new Date()) {
+  try {
+    return value.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  } catch {
+    return new Date().toISOString().replace("T", " ").replace("Z", "");
+  }
+}
+
+function pushInvestigationHistoryEntry(entry) {
+  const history = Array.isArray(state.investigationUi?.history)
+    ? [...state.investigationUi.history]
+    : [];
+  history.unshift(entry);
+  state.investigationUi = {
+    ...state.investigationUi,
+    history: history.slice(0, 6)
+  };
+}
+
 function setInvestigationStatus(text, options = {}) {
   const nextStatus = typeof text === "string" && text.length > 0 ? text : "Investigation runner is ready.";
   const tone = typeof options.tone === "string" && options.tone.length > 0 ? options.tone : "default";
   const running = typeof options.running === "boolean" ? options.running : Boolean(state.investigationUi?.running);
+  if (options.log !== false) {
+    pushInvestigationHistoryEntry({
+      message: nextStatus,
+      tone,
+      timestamp: formatInvestigationTimestamp()
+    });
+  }
   state.investigationUi = {
     ...state.investigationUi,
     status: nextStatus,
@@ -15281,6 +15308,19 @@ function handleNavigationClick(event) {
     return true;
   }
 
+  const investigationActionButton = target.closest("[data-investigation-action]");
+  if (investigationActionButton instanceof HTMLElement && investigationActionButton.dataset.investigationAction) {
+    event.preventDefault();
+    if (investigationActionButton.dataset.investigationAction === "clear-history") {
+      state.investigationUi = {
+        ...state.investigationUi,
+        history: []
+      };
+      setInvestigationStatus("Investigation history cleared.", { tone: "default", log: false });
+      return true;
+    }
+  }
+
   const donorScanActionButton = target.closest("[data-donor-scan-action]");
   if (donorScanActionButton instanceof HTMLElement && donorScanActionButton.dataset.donorScanAction) {
     if (donorScanActionButton instanceof HTMLButtonElement && donorScanActionButton.disabled) {
@@ -19011,6 +19051,19 @@ function renderInvestigationPanel() {
     ? investigationUi.tone
     : "default";
   const investigationRunning = Boolean(investigationUi.running);
+  const investigationHistory = Array.isArray(investigationUi.history) ? investigationUi.history : [];
+  const investigationHistoryMarkup = investigationHistory.length > 0
+    ? `
+      <div class="investigation-history">
+        ${investigationHistory.map((entry) => `
+          <div class="investigation-history-row" data-tone="${escapeAttribute(entry.tone ?? "default")}">
+            <strong>${escapeHtml(entry.message ?? "Update")}</strong>
+            <small>${escapeHtml(entry.timestamp ?? "")}</small>
+          </div>
+        `).join("")}
+      </div>
+    `
+    : `<div class="investigation-history empty">No investigation actions have run in this session yet.</div>`;
   const investigationStatusMarkup = `
     <div class="tree-row investigation-status-row" data-tone="${escapeAttribute(investigationTone)}">
       <strong>Investigation Runner</strong>
@@ -19018,7 +19071,9 @@ function renderInvestigationPanel() {
       <div class="chip-row">
         <span>${investigationRunning ? "running" : "idle"}</span>
         <span>Actions run inside the IDE and update the Activity Log on the right.</span>
+        <button type="button" class="copy-button subtle" data-investigation-action="clear-history">Clear History</button>
       </div>
+      ${investigationHistoryMarkup}
     </div>
   `;
   if (!selectedProject) {
