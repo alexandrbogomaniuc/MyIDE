@@ -23,6 +23,7 @@ For this build, Investigation should expose static scan state, runtime scan stat
 4. Test the LOCAL build on this machine, not the public GitHub snapshot.
 5. If you do not want the full prepare flow, `npm run manual:reset:project_001` still restores only the `project_001` baseline.
 6. GS VABS validation is a separate delivery lane; it does not replace the current shell manual QA flow.
+7. New donor onboarding for this slice is: run `npm run manual:status`, then `npm run manual:prepare:project_001`, then `Open Debug Host` for runtime proof, then `Open Compose` for donor-backed edits.
 
 ## Core Checklist
 1. App launch
