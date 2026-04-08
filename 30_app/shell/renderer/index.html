@@ -129,7 +129,7 @@
               <label class="form-field">
                 <span>Donor Launch URL (starting point for a new donor)</span>
                 <input id="field-donor-launch-url" name="donorLaunchUrl" type="url" placeholder="https://demo.example.com/play/Game/FUN?server=demo" />
-                <small class="form-help">Paste the guest-mode donor URL here. MyIDE captures the launch HTML, performs a bounded recursive harvest, and writes a donor scan summary under <code>10_donors/&lt;donorId&gt;/evidence/local_only/harvest/</code>.</small>
+                <small class="form-help has-tooltip" data-tooltip="Captures the launch HTML, performs a bounded recursive harvest, and writes a donor scan summary under 10_donors/<donorId>/evidence/local_only/harvest/.">Paste the guest-mode donor URL here.</small>
               </label>
               <label class="form-field">
                 <span>Target / Resulting Game</span>
@@ -141,7 +141,7 @@
               </label>
               <div class="form-actions">
                 <button type="submit">Create Project</button>
-                <p id="create-project-status" class="muted-copy">Creates a project scaffold under <code>40_projects/&lt;slug&gt;</code>, scaffolds the shared donor pack under <code>10_donors/&lt;donorId&gt;</code>, and refreshes the project browser. Next: open <strong>Investigation</strong> and run a scan/coverage profile.</p>
+                <p id="create-project-status" class="muted-copy has-tooltip" data-tooltip="Creates a project scaffold under 40_projects/<slug>, scaffolds the shared donor pack under 10_donors/<donorId>, and refreshes the project browser. Next: open Investigation and run donor-scan:coverage plus a bounded scenario profile.">Creates the project scaffold and points you to Investigation.</p>
               </div>
             </form>
           </article>

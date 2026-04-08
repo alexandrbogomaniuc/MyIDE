@@ -59,7 +59,7 @@ const configuredLocalMirrorPort = (() => {
     ? parsedValue
     : defaultLocalMirrorPort;
 })();
-const localMirrorPort = configuredLocalMirrorPort;
+let localMirrorPort = configuredLocalMirrorPort;
 const donorRuntimeSessionReadme = path.join(
   workspaceRoot,
   "10_donors",
@@ -137,6 +137,11 @@ export function getMirrorLaunchUrl(projectId: string): string {
 
 export function getLocalRuntimeMirrorPort(): number {
   return localMirrorPort;
+}
+
+export function setLocalRuntimeMirrorPort(port: number): void {
+  const normalized = Number.isInteger(port) && port > 0 && port < 65536 ? port : configuredLocalMirrorPort;
+  localMirrorPort = normalized;
 }
 
 export function buildLocalRuntimeMirrorAssetUrl(projectId: string, relativePath: string): string {

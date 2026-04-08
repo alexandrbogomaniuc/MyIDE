@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain, session } from "electron";
 import { existsSync, promises as fs } from "node:fs";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import { createServer as createNetServer } from "node:net";
 import path from "node:path";
 import { loadProjectSlice } from "./projectSlice";
 import { createProjectFromInput, type ShellCreateProjectInput } from "../workspace/createProject";
@@ -26,6 +27,7 @@ import {
   getLocalRuntimeMirrorRelativePath,
   buildLocalRuntimeMirrorStatus,
   getLocalRuntimeMirrorPort,
+  setLocalRuntimeMirrorPort,
   getMirrorLaunchUrl,
   readLocalRuntimeMirrorFile,
   readLocalRuntimeMirrorFileByRelativePath,
@@ -1219,6 +1221,32 @@ async function runRuntimeDebugHost(options: RuntimeDebugHostOptions = {}): Promi
       }));
     }
 
+    if (!candidate) {
+      const mirrorStatus = await buildLocalRuntimeMirrorStatus(projectId);
+      const mirrorStaticEntry = mirrorStatus.entries.find((entry) => (
+        entry.fileExists
+        && entry.kind === "static-image"
+        && ["png", "jpg", "jpeg", "webp", "svg", "gif"].includes(String(entry.fileType ?? "").toLowerCase())
+      ));
+      if (mirrorStaticEntry) {
+        setRuntimeRequestStage("prime");
+        const runtimeRelativePath = getLocalRuntimeMirrorRelativePath(mirrorStaticEntry.sourceUrl);
+        const requestUrl = runtimeRelativePath
+          ? buildLocalRuntimeMirrorAssetUrl(projectId, runtimeRelativePath)
+          : buildLocalRuntimeMirrorProxyUrl(projectId, mirrorStaticEntry.sourceUrl);
+        try {
+          await fetch(requestUrl, { redirect: "manual" });
+        } catch {
+          // best-effort priming for runtime resource map
+        }
+        await delay(1500);
+        resourceMapBeforeOverride = buildRuntimeResourceMapStatus(projectId);
+        candidate = preferUpstreamRuntimeDebugCandidate(resourceMapBeforeOverride, selectRuntimeDebugCandidate(resourceMapBeforeOverride, {
+          preferredTokens: candidateHintTokens
+        }));
+      }
+    }
+
     const donorAsset = await loadPreferredRuntimeOverrideDonorAsset(
       projectId,
       candidate?.fileType ?? bridgeAssetCandidate?.fileType ?? null
@@ -2195,12 +2223,48 @@ async function startRuntimeLocalMirrorServer(): Promise<void> {
     });
   });
 
-  await new Promise<void>((resolve, reject) => {
-    runtimeLocalMirrorServer?.once("error", reject);
-    runtimeLocalMirrorServer?.listen(getLocalRuntimeMirrorPort(), "127.0.0.1", () => {
-      runtimeLocalMirrorServer?.off("error", reject);
-      resolve();
+  const getAvailablePort = () => new Promise<number>((resolve, reject) => {
+    const probe = createNetServer();
+    probe.unref();
+    probe.once("error", reject);
+    probe.listen(0, "127.0.0.1", () => {
+      const address = probe.address();
+      const port = typeof address === "object" && address ? address.port : null;
+      probe.close(() => {
+        if (typeof port === "number") {
+          resolve(port);
+        } else {
+          reject(new Error("Could not allocate an open runtime mirror port."));
+        }
+      });
     });
+  });
+
+  await new Promise<void>((resolve, reject) => {
+    const listenOnPort = (port: number) => {
+      setLocalRuntimeMirrorPort(port);
+      runtimeLocalMirrorServer?.listen(port, "127.0.0.1", () => {
+        runtimeLocalMirrorServer?.removeListener("error", handleError);
+        resolve();
+      });
+    };
+    const handleError = (error: NodeJS.ErrnoException) => {
+      if (error?.code === "EADDRINUSE") {
+        const blockedPort = getLocalRuntimeMirrorPort();
+        console.warn(`MYIDE_RUNTIME_MIRROR_SERVER_IN_USE: Port ${blockedPort} already in use; selecting a free port.`);
+        runtimeLocalMirrorServer?.removeListener("error", handleError);
+        void getAvailablePort()
+          .then((port) => {
+            console.warn(`MYIDE_RUNTIME_MIRROR_SERVER_FALLBACK: Using port ${port} instead of ${blockedPort}.`);
+            listenOnPort(port);
+          })
+          .catch(reject);
+        return;
+      }
+      reject(error);
+    };
+    runtimeLocalMirrorServer?.once("error", handleError);
+    listenOnPort(getLocalRuntimeMirrorPort());
   });
 }
 
