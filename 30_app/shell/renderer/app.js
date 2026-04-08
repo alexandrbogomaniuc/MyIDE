@@ -14968,6 +14968,12 @@ function handleNavigationClick(event) {
   let shouldDismissWizard = false;
   if (wizardButton instanceof HTMLElement && wizardButton.dataset.wizardAction) {
     event.preventDefault();
+    if (wizardButton.dataset.wizardAction === "open") {
+      state.uiFlags.wizardMode = true;
+      applyWizardMode();
+      setPreviewStatus("Wizard mode opened. New Project form is ready.");
+      return true;
+    }
     if (wizardButton.dataset.wizardAction === "dismiss") {
       dismissWizardMode();
       return true;
