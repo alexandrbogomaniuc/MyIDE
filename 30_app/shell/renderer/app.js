@@ -234,8 +234,6 @@ const elements = {
   fieldNotes: document.getElementById("field-notes")
 };
 
-let wizardAutoDismissTimer = null;
-
 document.addEventListener("DOMContentLoaded", () => {
   if (isBridgeSmokeMode()) {
     void runBridgeSmoke();
@@ -23120,10 +23118,6 @@ function renderFatal(message) {
 }
 
 function dismissWizardMode() {
-  if (wizardAutoDismissTimer) {
-    clearTimeout(wizardAutoDismissTimer);
-    wizardAutoDismissTimer = null;
-  }
   state.uiFlags.wizardMode = false;
   document.body.classList.remove("wizard-mode");
   if (elements.wizardOverlay) {
@@ -23137,16 +23131,8 @@ function applyWizardMode() {
   }
   document.body.classList.add("wizard-mode");
   if (elements.wizardOverlay) {
-    elements.wizardOverlay.hidden = false;
+    elements.wizardOverlay.hidden = true;
   }
-  if (wizardAutoDismissTimer) {
-    clearTimeout(wizardAutoDismissTimer);
-  }
-  wizardAutoDismissTimer = setTimeout(() => {
-    if (state.uiFlags.wizardMode) {
-      dismissWizardMode();
-    }
-  }, 350);
   setWorkflowPanel("project", { force: true, silent: true });
   if (elements.panelNewProject) {
     elements.panelNewProject.scrollIntoView({ behavior: "smooth", block: "start" });
