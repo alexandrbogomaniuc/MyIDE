@@ -23146,7 +23146,7 @@ function applyWizardMode() {
     if (state.uiFlags.wizardMode) {
       dismissWizardMode();
     }
-  }, 1500);
+  }, 350);
   setWorkflowPanel("project", { force: true, silent: true });
   if (elements.panelNewProject) {
     elements.panelNewProject.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -23154,6 +23154,7 @@ function applyWizardMode() {
   if (elements.fieldDisplayName instanceof HTMLInputElement) {
     setTimeout(() => elements.fieldDisplayName?.focus(), 150);
   }
+  setPreviewStatus("Wizard opened. The New Project form is ready below.");
 }
 
 async function loadLaunchFlags() {
