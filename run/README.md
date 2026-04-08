@@ -8,14 +8,14 @@ Use these launchers instead of guessing which raw `npm` command to run.
 
 ## Universal Daily Entry Point
 Use one launcher for daily work:
+- `./Start-MyIDE.command`
+  - Finder-friendly universal launcher from the repo root.
 - `./run/Start-MyIDE.command`
-  - Finder-friendly double-click launcher for normal daily work.
+  - Same launcher, but inside the `run/` folder.
 - `./run/start-myide.sh`
   - Terminal-friendly universal launcher.
-- `./run/Start-MyIDE-Wizard.command`
-  - Finder-friendly launcher for Wizard Mode (focused New Project onboarding).
-- `./run/start-myide-wizard.sh` (add `--prep` to refresh donor assets + runtime mirror)
-  - Terminal-friendly Wizard Mode launcher.
+
+Wizard guidance now lives inside the app (use **New Project** in the top bar), so a single launcher is enough.
 
 ## Advanced Tools (Optional)
 Use these only when you need a clean baseline or a dedicated debug window:
@@ -33,8 +33,7 @@ Use these only when you need a clean baseline or a dedicated debug window:
   - Refresh the safe local runtime mirror/request view without opening the app.
 
 ## Which One To Use
-- Daily work: `./run/Start-MyIDE.command` or `./run/start-myide.sh`
-- New donor wizard: `./run/Start-MyIDE-Wizard.command` or `./run/start-myide-wizard.sh` (use `--prep` when you want a fresh donor index/mirror)
+- Daily work: `./Start-MyIDE.command` or `./run/start-myide.sh`
 - Clean demo/test session: `./run/Start-MyIDE-Workbench-Clean.command`
 - Runtime-only investigation: `./run/Open-Runtime-Debug-Host.command`
 - Runtime refresh only: `./run/Refresh-Runtime-Assets.command`

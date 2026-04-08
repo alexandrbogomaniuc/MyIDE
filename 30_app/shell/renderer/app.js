@@ -177,6 +177,7 @@ const elements = {
   onboardingCard: document.getElementById("onboarding-card"),
   workflowPanelbar: document.getElementById("workflow-panelbar"),
   wizardOverlay: document.getElementById("wizard-overlay"),
+  wizardBanner: document.getElementById("wizard-banner"),
   projectBrowser: document.getElementById("project-browser"),
   evidenceBrowser: document.getElementById("evidence-browser"),
   investigationBrowser: document.getElementById("investigation-browser"),
@@ -23123,6 +23124,9 @@ function dismissWizardMode() {
   if (elements.wizardOverlay) {
     elements.wizardOverlay.hidden = true;
   }
+  if (elements.wizardBanner) {
+    elements.wizardBanner.hidden = true;
+  }
 }
 
 function applyWizardMode() {
@@ -23132,6 +23136,9 @@ function applyWizardMode() {
   document.body.classList.add("wizard-mode");
   if (elements.wizardOverlay) {
     elements.wizardOverlay.hidden = true;
+  }
+  if (elements.wizardBanner) {
+    elements.wizardBanner.hidden = false;
   }
   setWorkflowPanel("project", { force: true, silent: true });
   if (elements.panelNewProject) {

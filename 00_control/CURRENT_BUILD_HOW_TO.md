@@ -20,9 +20,6 @@ Use this when you have a brand-new donor guest-mode URL. The full walkthrough is
 5. Follow the **Next Profile** + **Next Operator Action** guidance and run `npm run donor-scan:coverage -- --donor-id donor_XXX`.
 6. Run `npm run donor-scan:scenario -- --donor-id donor_XXX --profile default-bet --minutes 5`.
 7. Promote ready families and prepare the modification board before switching to Compose / Runtime work.
-4. Run `npm run donor-scan:coverage -- --donor-id donor_XXX`.
-5. Run `npm run donor-scan:scenario -- --donor-id donor_XXX --profile default-bet --minutes 5`.
-6. Promote ready families and prepare the modification board before switching to Compose / Runtime work.
 
 ## Investigation Quick Path
 1. Run `npm run donor-scan:url -- --donor-id donor_001_mystery_garden --donor-name "Mystery Garden"` if the donor harvest needs a refresh.
@@ -44,30 +41,31 @@ Use this when you have a brand-new donor guest-mode URL. The full walkthrough is
 17. Save the imported task, let the workspace sync, and reopen it after both workspace reload and a fresh app relaunch: the same page card should still expose the direct **Open Page Runtime** link, and task-level **Open Runtime** should still land on the proved page-scoped runtime source without another Debug Host pass.
 
 ## 1. Launch The Current Build
-1. Finder daily start: `./run/Start-MyIDE.command`.
-2. Terminal daily start: `./run/start-myide.sh`.
-3. Optional clean demo/test start:
+1. Finder daily start: `./Start-MyIDE.command` (repo root).
+2. Finder alternate: `./run/Start-MyIDE.command`.
+3. Terminal daily start: `./run/start-myide.sh`.
+4. Optional clean demo/test start:
    - `./run/Start-MyIDE-Workbench-Clean.command`
    - `./run/start-workbench-clean.sh`
-4. Optional runtime-only debug start:
+5. Optional runtime-only debug start:
    - `./run/Open-Runtime-Debug-Host.command`
    - `./run/open-runtime-debug-host.sh`
-5. Optional safe runtime refresh:
+6. Optional safe runtime refresh:
    - `./run/Refresh-Runtime-Assets.command`
    - `./run/refresh-runtime-assets.sh`
-6. If you still need the raw commands, the scripts wrap these existing repo commands:
+7. If you still need the raw commands, the scripts wrap these existing repo commands:
    - `manual:prepare:project_001`
    - `donor-assets:index:project_001`
    - `runtime:harvest:project_001`
    - `runtime:debug:project_001`
    - `dev`
-7. Runtime debug rule:
+8. Runtime debug rule:
    - `./run/Open-Runtime-Debug-Host.command` and `npm run runtime:debug:project_001` are the interactive runtime window path.
    - `npm run smoke:electron-runtime-debug` is the automated proof harness.
    - If another MyIDE session is already using `127.0.0.1:38901`, run the smoke/debug command with `MYIDE_RUNTIME_LOCAL_MIRROR_PORT=<free-port>` so the bounded local mirror can start on a second port.
 
 Recommended rule:
-- If you are unsure, double-click `./run/Start-MyIDE.command`.
+- If you are unsure, double-click `./Start-MyIDE.command`.
 - Use the clean launcher only when you intentionally want a clean `project_001` baseline.
 
 ## 2. Open The Validated Project

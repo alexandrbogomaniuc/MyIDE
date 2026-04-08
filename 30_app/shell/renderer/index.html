@@ -8,17 +8,6 @@
   </head>
   <body>
     <div class="shell">
-      <div id="wizard-overlay" class="wizard-overlay" hidden>
-        <div class="wizard-card">
-          <p class="eyebrow">Wizard Mode</p>
-          <h2>Start A New Donor Project</h2>
-          <p>Fill the New Project form, then the app will switch you to Investigation and show the exact commands to run next.</p>
-          <div class="wizard-actions">
-            <button type="button" class="primary-cta" data-wizard-action="go-to-project" data-workflow-panel="project" data-scroll-target="panel-new-project">Go To New Project</button>
-            <button type="button" class="ghost-button" data-wizard-action="dismiss">Exit Wizard</button>
-          </div>
-        </div>
-      </div>
       <header class="topbar">
         <div class="brand">
           <p class="eyebrow">Local-first reconstruction studio</p>
@@ -26,8 +15,7 @@
           <p class="lede"><span class="has-tooltip" data-tooltip="Dedicated Runtime Debug Host is the official runtime work mode for the validated project_001 Mystery Garden slice. Use it for the strongest local runtime trace, request-backed asset selection, and bounded override proof. Use the embedded Runtime surface as secondary context and Compose as the bounded donor-backed compositor.">Current build: Runtime Debug Host is the official runtime work mode for validated project_001. Hover for details.</span></p>
         </div>
         <div class="topbar-actions">
-          <button type="button" class="ghost-button" data-wizard-action="open">Open Wizard</button>
-          <button type="button" class="primary-cta" data-workflow-panel="project" data-scroll-target="panel-new-project">New Project</button>
+          <button type="button" class="primary-cta has-tooltip" data-tooltip="Opens the New Project form. Wizard guidance now lives inside the app, so one launcher is enough." data-workflow-panel="project" data-scroll-target="panel-new-project">New Project</button>
           <div class="chips" aria-label="Project constraints">
             <span>MULTI PROJECT</span>
             <span>SLOT FIRST</span>
@@ -46,6 +34,7 @@
             </div>
             <div class="workflow-primary">
               <button type="button" class="primary-cta" data-workflow-panel="project" data-scroll-target="panel-new-project">Start New Project</button>
+              <button type="button" class="secondary-cta" data-workflow-panel="investigation" data-scroll-target="panel-investigation">Start Investigation</button>
             </div>
             <div id="workflow-panelbar" class="mode-bar workflow-panelbar" role="tablist" aria-label="Workflow side panel">
               <button type="button" class="workflow-pill has-tooltip" data-tooltip="Runtime Debug Host + workbench trace. Use this for grounded runtime proof." data-workflow-panel="runtime" aria-selected="true">Runtime</button>
@@ -63,15 +52,18 @@
               <h2>New Project (Start Here)</h2>
               <span>Start with a donor guest URL</span>
             </div>
-            <div class="form-callout">
+            <div id="wizard-banner" class="wizard-banner" hidden>
+              <div>
+                <strong>Wizard Mode</strong>
+                <span>Fill this form to create a donor project. Then open Investigation for the first scan.</span>
+              </div>
+              <button type="button" class="ghost-button" data-wizard-action="dismiss">Exit Wizard</button>
+            </div>
+            <div class="form-callout has-tooltip" data-tooltip="Step 1: Paste the guest-mode donor URL in Donor Launch URL. Step 2: Click Create Project to scaffold 10_donors/donorId and 40_projects/slug. Step 3: Open Investigation and run the first scan/coverage profile.">
               <strong>New Donor URL Quick Start</strong>
-              <ol>
-                <li>Paste the guest-mode donor URL in <strong>Donor Launch URL</strong> below.</li>
-                <li>Click <strong>Create Project</strong> to scaffold the donor pack and project workspace.</li>
-                <li>Open <strong>Investigation</strong> and run the first scan/coverage profile.</li>
-              </ol>
+              <p class="muted-copy">Paste the guest URL, click Create Project, then open Investigation. Hover for details.</p>
               <div class="callout-actions">
-                <button type="button" class="copy-button" data-workflow-panel="investigation">Open Investigation Panel</button>
+                <button type="button" class="copy-button" data-workflow-panel="investigation" data-scroll-target="panel-investigation">Open Investigation Panel</button>
               </div>
             </div>
             <form id="new-project-form" class="project-form">
@@ -120,6 +112,7 @@
               </label>
               <div class="form-actions">
                 <button type="submit">Create Project</button>
+                <button type="button" class="secondary-cta" data-workflow-panel="investigation" data-scroll-target="panel-investigation">Start Investigation</button>
                 <p id="create-project-status" class="muted-copy has-tooltip" data-tooltip="Creates a project scaffold under 40_projects/<slug>, scaffolds the shared donor pack under 10_donors/<donorId>, and refreshes the project browser. Next: open Investigation and run donor-scan:coverage plus a bounded scenario profile.">Creates the project scaffold and points you to Investigation.</p>
               </div>
             </form>
@@ -131,7 +124,7 @@
               <span>Folder-discovered workspace</span>
             </div>
             <div class="browser-toolbar">
-              <p class="muted-copy">Project folders stay authoritative. Open `project_001` to edit the validated internal scene slice; donor captures stay read-only evidence in this build.</p>
+              <p class="muted-copy has-tooltip" data-tooltip="Project folders stay authoritative. Open project_001 to edit the validated internal scene slice; donor captures stay read-only evidence in this build.">Project folders are source of truth. Hover for details.</p>
               <button id="action-rescan" type="button">Rescan Workspace</button>
             </div>
             <div id="project-browser" class="browser-stack" aria-live="polite"></div>
@@ -142,7 +135,7 @@
               <h2>Donor Assets & Evidence</h2>
               <span>Read-only source + bounded import</span>
             </div>
-            <p class="context-hint">This panel now also shows the first-class donor scan summary for the selected donor/project: runtime candidates, atlas/frame metadata, bundle asset-map status, mirror viability, blocker summary, and the next operator step. Supported local donor images can still be dragged from here into empty canvas space to create on the chosen target layer, or dropped directly onto an editable scene object to replace it while keeping its layout. Raw donor files still stay read-only.</p>
+            <p class="context-hint has-tooltip" data-tooltip="Shows donor scan summary (runtime candidates, atlas/frame metadata, bundle asset-map status, mirror viability, blockers, next step). Drag supported local donor images into the canvas to create or replace while keeping layout. Raw donor files remain read-only.">Read-only donor sources with bounded import. Hover for details.</p>
             <div id="evidence-browser" class="browser-stack" aria-live="polite"></div>
           </article>
 
@@ -151,7 +144,7 @@
               <h2>Investigation Mode</h2>
               <span>Static scan + bounded runtime coverage</span>
             </div>
-            <p class="context-hint">Investigation is now a first-class IDE stage. Use it to separate reconstruction-ready families from source-blocked families, run bounded scenario profiles, and see the next honest operator action before switching into modification or compose work.</p>
+            <p class="context-hint has-tooltip" data-tooltip="Separate reconstruction-ready families from source-blocked families, run bounded scenario profiles, and get the next operator step before switching into modification or compose work.">Scan + coverage stage. Hover for details.</p>
             <div id="investigation-browser" class="browser-stack" aria-live="polite"></div>
           </article>
 
@@ -168,7 +161,7 @@
               <h2>VABS Status</h2>
               <span>Read-only project gate</span>
             </div>
-            <p class="context-hint">VABS stays a separate read-only module. Use this panel to see fixture truth, current blocker, and the exact next operator step without changing the runtime or compose workflow.</p>
+            <p class="context-hint has-tooltip" data-tooltip="Read-only VABS module: fixture truth, current blocker, and exact next operator step without changing runtime or compose workflow.">Read-only VABS gate. Hover for details.</p>
             <div id="workflow-vabs-panel" class="browser-stack" aria-live="polite"></div>
           </article>
 
@@ -179,7 +172,7 @@
             <h2>Workbench</h2>
             <span>Official Runtime Workbench for project_001</span>
           </div>
-          <p class="context-hint">Runtime Debug Host is the official daily-use runtime work mode for the validated <code>project_001</code> slice. Start there for request-backed trace, source jumps, and bounded override proof. Embedded Runtime remains secondary for now, and Compose stays the bounded donor-backed edit loop.</p>
+          <p class="context-hint has-tooltip" data-tooltip="Runtime Debug Host is the official daily-use runtime work mode for validated project_001. Start there for request-backed trace, source jumps, and bounded override proof. Embedded Runtime is secondary; Compose is the bounded donor-backed edit loop.">Runtime Debug Host is official. Hover for details.</p>
           <div id="workbench-modebar" class="mode-bar" role="tablist" aria-label="Workbench mode">
             <button type="button" data-workbench-mode="runtime" aria-selected="true">Runtime</button>
             <button type="button" data-workbench-mode="scene" aria-selected="false">Compose</button>
