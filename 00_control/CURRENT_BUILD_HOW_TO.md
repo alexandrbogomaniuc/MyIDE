@@ -10,6 +10,16 @@ Use this when you want to test the current MyIDE build exactly as it works today
 
 For the current build, Investigation is the important new truth surface. Use it to review donor scan state, runtime scan state, scenario coverage, blocked families, next profile, operator-assist guidance, and promotion readiness before switching into compose/runtime work.
 
+## New Donor URL Quick Start
+Use this when you have a brand-new donor guest-mode URL. The full walkthrough is in `00_control/NEW_DONOR_QUICK_START.md`.
+
+1. Launch the IDE and open the **Project** panel.
+2. In **New Project**, fill in the donor fields and paste the guest-mode URL into **Donor Launch URL**.
+3. Click **Create Project**, then switch to **Investigation**.
+4. Run `npm run donor-scan:coverage -- --donor-id donor_XXX`.
+5. Run `npm run donor-scan:scenario -- --donor-id donor_XXX --profile default-bet --minutes 5`.
+6. Promote ready families and prepare the modification board before switching to Compose / Runtime work.
+
 ## Investigation Quick Path
 1. Run `npm run donor-scan:url -- --donor-id donor_001_mystery_garden --donor-name "Mystery Garden"` if the donor harvest needs a refresh.
 2. Run `npm run donor-scan:coverage -- --donor-id donor_001_mystery_garden` to refresh investigation artifacts.

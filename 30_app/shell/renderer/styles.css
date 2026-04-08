@@ -291,6 +291,35 @@ button:disabled {
   gap: 12px;
 }
 
+.form-callout {
+  border: 1px solid rgba(179, 209, 186, 0.2);
+  border-radius: 16px;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.04);
+  display: grid;
+  gap: 8px;
+}
+
+.form-callout strong {
+  font-size: 0.9rem;
+  letter-spacing: 0.02em;
+}
+
+.form-callout ol {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted);
+  display: grid;
+  gap: 6px;
+  font-size: 0.86rem;
+}
+
+.callout-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .form-field {
   display: grid;
   gap: 6px;

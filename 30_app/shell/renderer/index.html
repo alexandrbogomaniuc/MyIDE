@@ -90,7 +90,18 @@
           <article id="panel-new-project" class="panel">
             <div class="panel-head">
               <h2>New Project</h2>
-              <span>Keep onboarding local-first</span>
+              <span>Start with a donor guest URL</span>
+            </div>
+            <div class="form-callout">
+              <strong>New Donor URL Quick Start</strong>
+              <ol>
+                <li>Paste the guest-mode donor URL in <strong>Donor Launch URL</strong> below.</li>
+                <li>Click <strong>Create Project</strong> to scaffold the donor pack and project workspace.</li>
+                <li>Open <strong>Investigation</strong> and run the first scan/coverage profile.</li>
+              </ol>
+              <div class="callout-actions">
+                <button type="button" class="copy-button" data-workflow-panel="investigation">Open Investigation Panel</button>
+              </div>
             </div>
             <form id="new-project-form" class="project-form">
               <label class="form-field">
@@ -116,9 +127,9 @@
                 <input id="field-donor-reference" name="donorReference" type="text" placeholder="donor_003_example" required />
               </label>
               <label class="form-field">
-                <span>Donor Launch URL</span>
+                <span>Donor Launch URL (starting point for a new donor)</span>
                 <input id="field-donor-launch-url" name="donorLaunchUrl" type="url" placeholder="https://demo.example.com/play/Game/FUN?server=demo" />
-                <small class="form-help">Optional but recommended. When present, MyIDE captures the donor launch HTML, performs a bounded recursive harvest, and writes a donor scan summary under <code>10_donors/&lt;donorId&gt;/evidence/local_only/harvest/</code>.</small>
+                <small class="form-help">Paste the guest-mode donor URL here. MyIDE captures the launch HTML, performs a bounded recursive harvest, and writes a donor scan summary under <code>10_donors/&lt;donorId&gt;/evidence/local_only/harvest/</code>.</small>
               </label>
               <label class="form-field">
                 <span>Target / Resulting Game</span>
@@ -130,7 +141,7 @@
               </label>
               <div class="form-actions">
                 <button type="submit">Create Project</button>
-                <p id="create-project-status" class="muted-copy">Creates a project scaffold under <code>40_projects/&lt;slug&gt;</code>, scaffolds the shared donor pack under <code>10_donors/&lt;donorId&gt;</code>, and refreshes the project browser.</p>
+                <p id="create-project-status" class="muted-copy">Creates a project scaffold under <code>40_projects/&lt;slug&gt;</code>, scaffolds the shared donor pack under <code>10_donors/&lt;donorId&gt;</code>, and refreshes the project browser. Next: open <strong>Investigation</strong> and run a scan/coverage profile.</p>
               </div>
             </form>
           </article>

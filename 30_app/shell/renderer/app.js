@@ -10101,6 +10101,9 @@ function bindActions() {
   elements.panelCompose?.addEventListener("click", (event) => {
     handleNavigationClick(event);
   });
+  elements.panelNewProject?.addEventListener("click", (event) => {
+    handleNavigationClick(event);
+  });
   elements.workflowVabsPanel?.addEventListener("click", (event) => {
     handleNavigationClick(event);
   });
@@ -17569,6 +17572,13 @@ async function handleCreateProject(event) {
     }
 
     await reloadWorkspace(false, created.projectId);
+    const createdProject = getWorkspaceProjects().find((entry) => entry.projectId === created.projectId) ?? getSelectedProject();
+    const createdDonorId = createdProject?.donor?.donorId ?? donorReference;
+    const createdDonorName = createdProject?.donor?.donorName ?? donorReference;
+    const createdDonorNameArg = typeof createdDonorName === "string"
+      ? createdDonorName.replace(/\"/g, "\\\"")
+      : "Donor Name";
+    const donorIntakeCommand = `npm run donor:intake:url -- --donor-id ${createdDonorId} --donor-name "${createdDonorNameArg}" --url "<launch url>"`;
     pushLog(`Created project scaffold ${created.projectId} at ${created.projectRoot}.`);
     const donorIntake = created.donorIntake;
     const donorIntakeSummary = donorIntake?.status === "captured"
@@ -17577,9 +17587,10 @@ async function handleCreateProject(event) {
         ? ` Donor intake was blocked: ${donorIntake.error ?? "unknown error"}.`
         : donorLaunchUrl
           ? " Donor intake was skipped unexpectedly."
-          : " Donor pack scaffolded with no launch URL yet.";
-    setCreateProjectStatus(`Created ${created.displayName}. The project is now discoverable in the workspace browser.${donorIntakeSummary}`);
-    setPreviewStatus(`Created ${created.displayName}. Add internal scene files before editing starts.`);
+          : ` Donor pack scaffolded with no launch URL yet. Add a launch URL and run ${donorIntakeCommand} to capture donor runtime evidence.`;
+    setCreateProjectStatus(`Created ${created.displayName}. The project is now discoverable in the workspace browser.${donorIntakeSummary} Next: open Investigation, run donor-scan:coverage, then run a bounded scenario profile.`);
+    setWorkflowPanel("investigation", { force: true, silent: true });
+    setPreviewStatus(`Created ${created.displayName}. Investigation is now active so you can run donor scans, review coverage, and promote ready families.`);
   } catch (error) {
     setCreateProjectStatus(error instanceof Error ? error.message : "Project creation failed.", true);
   }
@@ -19096,6 +19107,23 @@ function renderProjectSummary() {
   const evidenceRefSummary = evidenceRefs.length > 0
     ? `${evidenceRefs.length} indexed evidence refs`
     : "No evidence refs indexed yet.";
+  const projectOnboarding = state.bundle?.projectOnboarding ?? null;
+  const donorLaunchStatus = projectOnboarding?.donorLaunchStatus
+    ?? (selectedProject.donor?.launchUrl ? "recorded" : "missing");
+  const donorLaunchUrl = projectOnboarding?.donorLaunchUrl
+    ?? (typeof selectedProject.donor?.launchUrl === "string" ? selectedProject.donor.launchUrl : null);
+  const donorLaunchHost = projectOnboarding?.donorLaunchHost
+    ?? (typeof selectedProject.donor?.sourceHost === "string" ? selectedProject.donor.sourceHost : null);
+  const donorLaunchNextStep = projectOnboarding?.donorLaunchNextStep
+    ?? (donorLaunchStatus === "missing"
+      ? "Add the donor launch URL and run donor intake to capture runtime evidence and seed the donor scan."
+      : "Launch URL is recorded.");
+  const donorNameArg = typeof selectedProject.donor?.donorName === "string"
+    ? selectedProject.donor.donorName.replace(/"/g, "\\\"")
+    : "Donor Name";
+  const donorLaunchCommand = donorLaunchStatus === "missing" && selectedProject.donor?.donorId
+    ? `npm run donor:intake:url -- --donor-id ${selectedProject.donor.donorId} --donor-name "${donorNameArg}" --url "<launch url>"`
+    : null;
   const runtimeLaunch = getRuntimeLaunchInfo();
   const donorScan = state.bundle?.donorScan ?? null;
   const investigation = state.bundle?.investigation ?? null;
@@ -19122,6 +19150,13 @@ function renderProjectSummary() {
         <span>Donor</span>
         <strong>${selectedProject.donor.donorName}</strong>
         <small>${selectedProject.donor.donorId}</small>
+      </div>
+      <div class="detail-card">
+        <span>Donor Launch URL</span>
+        <strong>${donorLaunchStatus === "recorded" ? "Recorded" : "Missing"}</strong>
+        <small>${donorLaunchStatus === "recorded"
+          ? `${donorLaunchUrl ? escapeHtml(donorLaunchUrl) : "Launch URL recorded"}${donorLaunchHost ? ` · ${escapeHtml(donorLaunchHost)}` : ""}`
+          : `${escapeHtml(donorLaunchNextStep)}${donorLaunchCommand ? ` Run: <code>${escapeHtml(donorLaunchCommand)}</code>` : ""}`}</small>
       </div>
       <div class="detail-card">
         <span>Target / Resulting Game</span>
@@ -22076,7 +22111,10 @@ function renderRuntimeWorkbenchAssetList() {
           </div>
         </div>
         <div class="runtime-workbench-meta">
-          <span><strong>Requested URL</strong> <code>${escapeHtml(entry.latestRequestUrl ?? entry.sourceUrl)}</code></span>
+          <span><strong>Requested URL</strong> <code>${escapeHtml(entry.sourceUrl)}</code></span>
+          ${entry.latestRequestUrl && entry.latestRequestUrl !== entry.sourceUrl
+            ? `<span><strong>Observed request</strong> <code>${escapeHtml(entry.latestRequestUrl)}</code></span>`
+            : ""}
           <span><strong>Local mirror</strong> ${escapeHtml(entry.localMirrorRepoRelativePath ?? "not mirrored locally")}</span>
           <span><strong>Override path</strong> ${escapeHtml(entry.overrideRepoRelativePath ?? "no active override")}</span>
           <span><strong>Source asset</strong> ${escapeHtml(entry.donorAsset?.assetId ?? "not grounded yet")}</span>

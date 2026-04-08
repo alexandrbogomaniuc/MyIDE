@@ -25,6 +25,9 @@ For this build, Investigation should expose static scan state, runtime scan stat
 6. GS VABS validation is a separate delivery lane; it does not replace the current shell manual QA flow.
 7. New donor onboarding for this slice is: run `npm run manual:status`, then `npm run manual:prepare:project_001`, then `Open Debug Host` for runtime proof, then `Open Compose` for donor-backed edits.
 
+## New Donor URL Onboarding
+For a brand-new donor guest URL, follow `00_control/NEW_DONOR_QUICK_START.md` through **Create Project** and **Investigation** before running the rest of this playbook. The first-time expectation is that the shell makes the donor URL the explicit starting point and points the operator directly at Investigation and the scan commands.
+
 ## Core Checklist
 1. App launch
    - Electron opens without a crash and the shell window appears.

@@ -1107,8 +1107,17 @@ export interface ModificationTaskReconstructionPageSummary {
   nextReconstructionStep: string | null;
 }
 
+
+export interface ProjectOnboardingStatus {
+  donorLaunchUrl: string | null;
+  donorLaunchHost: string | null;
+  donorLaunchStatus: "missing" | "recorded";
+  donorLaunchNextStep: string;
+}
+
 export interface ProjectSliceBundle {
   workspace: WorkspaceSliceBundle;
+  projectOnboarding: ProjectOnboardingStatus;
   selectedProjectId: string;
   project: JsonObject;
   importArtifact: JsonObject | null;
@@ -3823,10 +3832,37 @@ async function loadSelectedEditableProject(workspace: WorkspaceSliceBundle, sele
   return loadEditableProjectData(path.join(workspaceRoot, selectedProject.keyPaths.projectRoot));
 }
 
+
+function buildProjectOnboardingStatus(selectedProject: WorkspaceProjectSummary | null): ProjectOnboardingStatus {
+  const donorLaunchUrl = typeof selectedProject?.donor?.launchUrl === "string" ? selectedProject.donor.launchUrl : null;
+  let donorLaunchHost = typeof selectedProject?.donor?.sourceHost === "string" ? selectedProject.donor.sourceHost : null;
+
+  if (!donorLaunchHost && donorLaunchUrl) {
+    try {
+      donorLaunchHost = new URL(donorLaunchUrl).host;
+    } catch {
+      donorLaunchHost = null;
+    }
+  }
+
+  const donorLaunchStatus = donorLaunchUrl ? "recorded" : "missing";
+  const donorLaunchNextStep = donorLaunchUrl
+    ? "Launch URL is recorded. Use the Runtime Debug Host or donor intake report to continue capture."
+    : "Add the donor launch URL and run donor intake to capture runtime evidence and seed the donor scan.";
+
+  return {
+    donorLaunchUrl,
+    donorLaunchHost,
+    donorLaunchStatus,
+    donorLaunchNextStep
+  };
+}
+
 export async function loadProjectSlice(requestedProjectId?: string): Promise<ProjectSliceBundle> {
   const workspace = await loadWorkspaceSlice();
   const selectedProjectId = resolveSelectedProjectId(workspace, requestedProjectId);
   const selectedProject = workspace.projects.find((entry) => entry.projectId === selectedProjectId) ?? null;
+  const projectOnboarding = buildProjectOnboardingStatus(selectedProject);
   const selectedProjectRoot = getProjectRootForSlice(selectedProjectId, selectedProject);
   const selectedImportArtifactPath = getProjectImportArtifactPath(selectedProjectRoot, selectedProject);
   const [projectPath, normalSpinPath, freeSpinsTriggerPath, restartRestorePath, mockedGameStatePath, mockedLastActionPath] = getProjectSlicePaths(selectedProjectRoot);
@@ -3875,6 +3911,7 @@ export async function loadProjectSlice(requestedProjectId?: string): Promise<Pro
 
   return {
     workspace,
+    projectOnboarding,
     selectedProjectId,
     project: replayProject as unknown as JsonObject,
     importArtifact,

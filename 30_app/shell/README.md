@@ -11,6 +11,9 @@ The shell now carries the explicit project backbone:
 3. Math / Config
 4. GS Export
 
+## New Donor URL Starting Point
+For a brand-new donor guest URL, the starting point is the **New Project** form in the shell `Project` panel. The step-by-step guide lives in `00_control/NEW_DONOR_QUICK_START.md`.
+
 The new `Investigation` panel surfaces:
 - static donor scan state
 - bounded runtime scan state

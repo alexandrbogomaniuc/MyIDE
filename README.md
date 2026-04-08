@@ -19,6 +19,13 @@ The operational rule is now:
 
 The IDE now tries bounded self-investigation first, then tells the operator what to do next, and only then promotes ready families/sections into Modification.
 
+## New Donor URL Quick Start
+If you have a brand-new donor guest-mode URL, follow the explicit onboarding steps in `00_control/NEW_DONOR_QUICK_START.md`. The short version:
+1. Launch the IDE and open the **Project** panel.
+2. In **New Project**, paste the guest-mode donor URL into **Donor Launch URL** and click **Create Project**.
+3. Switch to **Investigation** and run `donor-scan:coverage` plus one bounded `donor-scan:scenario`.
+4. Promote ready families, prepare the modification board, then move into Compose / Runtime work.
+
 Once a project modification board exists, the next step is no longer another donor-only report: operators can start a prepared task and let the shell move into Compose or Runtime with the strongest grounded task context it can match.
 
 Prepared tasks can now also expose donor-backed task kits in the donor palette, so ready sections are not limited to a status row. When the grounded section bundle carries local image sources, the shell can show **Show Task Kit** and **Import Task Kit** for that task and reuse the existing grouped donor import flow in Compose.
