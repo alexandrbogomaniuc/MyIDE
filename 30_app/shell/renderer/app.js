@@ -17588,10 +17588,9 @@ async function handleCreateProject(event) {
     const createdProject = getWorkspaceProjects().find((entry) => entry.projectId === created.projectId) ?? getSelectedProject();
     const createdDonorId = createdProject?.donor?.donorId ?? donorReference;
     const createdDonorName = createdProject?.donor?.donorName ?? donorReference;
-    const createdDonorNameArg = typeof createdDonorName === "string"
-      ? createdDonorName.replace(/\"/g, "\\\"")
-      : "Donor Name";
-    const donorIntakeCommand = `npm run donor:intake:url -- --donor-id ${createdDonorId} --donor-name "${createdDonorNameArg}" --url "<launch url>"`;
+    const createdDonorIdArg = shellEscapeArg(createdDonorId || "donor_XXX");
+    const createdDonorNameArg = shellEscapeArg(typeof createdDonorName === "string" ? createdDonorName : "Donor Name");
+    const donorIntakeCommand = `npm run donor:intake:url -- --donor-id ${createdDonorIdArg} --donor-name ${createdDonorNameArg} --url "<launch url>"`;
     pushLog(`Created project scaffold ${created.projectId} at ${created.projectRoot}.`);
     const donorIntake = created.donorIntake;
     const donorIntakeSummary = donorIntake?.status === "captured"
@@ -17942,6 +17941,7 @@ function renderOnboardingCard() {
   const workflowPanel = getActiveWorkflowPanel();
   const workflowBridge = getRuntimeWorkflowBridge();
   const runtimeOverrideCandidate = getRuntimeOverrideCandidate();
+  const investigation = state.bundle?.investigation ?? null;
   const {
     activeWorkbenchEntry,
     activeWorkbenchSurfaceKind,
@@ -17990,6 +17990,17 @@ function renderOnboardingCard() {
       "Use marquee, align, distribute, and donor-backed resize on the current internal scene.",
       "Save, reload, then switch back to Runtime Mode when you want live donor context again."
     ];
+  const donorId = selectedProject?.donor?.donorId ?? "donor_XXX";
+  const donorName = selectedProject?.donor?.donorName ?? "Donor Name";
+  const donorNameArg = shellEscapeArg(donorName);
+  const starterProfileId = investigation?.nextCaptureProfile ?? "default-bet";
+  const normalizedStarterProfileId = normalizeInvestigationProfileId(starterProfileId);
+  const starterProfile = getInvestigationProfileDefinition(normalizedStarterProfileId)
+    ?? getInvestigationProfileDefinition(starterProfileId);
+  const starterMinutes = starterProfile?.minutes ?? starterProfile?.defaultMinutes ?? 4;
+  const coverageCommand = `npm run donor-scan:coverage -- --donor-id ${shellEscapeArg(donorId)} --donor-name ${donorNameArg}`;
+  const scenarioCommand = `npm run donor-scan:scenario -- --donor-id ${shellEscapeArg(donorId)} --donor-name ${donorNameArg} --profile ${normalizedStarterProfileId} --minutes ${starterMinutes}`;
+  const promotionCommand = `npm run donor-scan:promote -- --donor-id ${shellEscapeArg(donorId)} --donor-name ${donorNameArg}`;
 
   elements.onboardingCard.innerHTML = `
     <div class="tree-row scope-summary">
@@ -18032,6 +18043,21 @@ function renderOnboardingCard() {
         <strong>${escapeHtml(runtimeOverrideCandidate.runtimeRelativePath ?? "No grounded static runtime image selected yet")}</strong>
         <small>${escapeHtml(runtimeOverrideCandidate.note)}</small>
       </div>
+    </div>
+    <div class="tree-row">
+      <strong>What to do after you submit</strong>
+      <span>${selectedProject
+        ? "Investigation is now active automatically. Run these commands to populate the first scan and coverage board, then choose the next profile."
+        : "Start a new project to unlock Investigation commands and the donor scan flow."}</span>
+      ${selectedProject ? `
+        <div class="evidence-actions">
+          ${renderCopyButton(coverageCommand, "donor scan coverage", "Copy Coverage Command")}
+          ${renderCopyButton(scenarioCommand, "scenario profile", "Copy Scenario Command")}
+          ${renderCopyButton(promotionCommand, "promotion queue", "Copy Promotion Command")}
+          <button type="button" class="copy-button" data-workflow-panel="investigation">Open Investigation Panel</button>
+        </div>
+        <small>Then review the Coverage Board, promote ready families, and move into Compose or Runtime when the lane is ready.</small>
+      ` : ""}
     </div>
     <div class="tree-row">
       <strong>Runtime → Source Bridge</strong>
@@ -19131,11 +19157,11 @@ function renderProjectSummary() {
     ?? (donorLaunchStatus === "missing"
       ? "Add the donor launch URL and run donor intake to capture runtime evidence and seed the donor scan."
       : "Launch URL is recorded.");
-  const donorNameArg = typeof selectedProject.donor?.donorName === "string"
-    ? selectedProject.donor.donorName.replace(/"/g, "\\\"")
-    : "Donor Name";
+  const donorNameArg = shellEscapeArg(typeof selectedProject.donor?.donorName === "string"
+    ? selectedProject.donor.donorName
+    : "Donor Name");
   const donorLaunchCommand = donorLaunchStatus === "missing" && selectedProject.donor?.donorId
-    ? `npm run donor:intake:url -- --donor-id ${selectedProject.donor.donorId} --donor-name "${donorNameArg}" --url "<launch url>"`
+    ? `npm run donor:intake:url -- --donor-id ${shellEscapeArg(selectedProject.donor.donorId)} --donor-name ${donorNameArg} --url "<launch url>"`
     : null;
   const donorLaunchShort = donorLaunchStatus === "recorded"
     ? (donorLaunchHost ? `Recorded · ${donorLaunchHost}` : "Recorded")
@@ -23035,6 +23061,14 @@ function escapeHtml(value) {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
+}
+
+function shellEscapeArg(value) {
+  const text = String(value ?? "");
+  if (text.length === 0) {
+    return "''";
+  }
+  return `'${text.replace(/'/g, `'\"'\"'`)}'`;
 }
 
 window.render_game_to_text = () => JSON.stringify({

@@ -36,66 +36,19 @@
               <button type="button" class="primary-cta" data-workflow-panel="project" data-scroll-target="panel-new-project">Start New Project</button>
             </div>
             <div id="workflow-panelbar" class="mode-bar workflow-panelbar" role="tablist" aria-label="Workflow side panel">
-              <button type="button" data-workflow-panel="runtime" aria-selected="true">Runtime</button>
-              <button type="button" data-workflow-panel="investigation" aria-selected="false">Investigation</button>
-              <button type="button" data-workflow-panel="donor" aria-selected="false">Donor</button>
-              <button type="button" data-workflow-panel="compose" aria-selected="false">Compose</button>
-              <button type="button" data-workflow-panel="vabs" aria-selected="false">VABS</button>
-              <button type="button" data-workflow-panel="project" aria-selected="false">Project</button>
+              <button type="button" class="workflow-pill has-tooltip" data-tooltip="Runtime Debug Host + workbench trace. Use this for grounded runtime proof." data-workflow-panel="runtime" aria-selected="true">Runtime</button>
+              <button type="button" class="workflow-pill has-tooltip" data-tooltip="Investigation stage: donor scans, scenario coverage, and promotion readiness." data-workflow-panel="investigation" aria-selected="false">Investigation</button>
+              <button type="button" class="workflow-pill has-tooltip" data-tooltip="Read-only donor assets + evidence. Drag from here into Compose." data-workflow-panel="donor" aria-selected="false">Donor</button>
+              <button type="button" class="workflow-pill has-tooltip" data-tooltip="Compose Mode: internal scene editor and bounded replacements." data-workflow-panel="compose" aria-selected="false">Compose</button>
+              <button type="button" class="workflow-pill has-tooltip" data-tooltip="Read-only VABS gate and fixture status." data-workflow-panel="vabs" aria-selected="false">VABS</button>
+              <button type="button" class="workflow-pill has-tooltip" data-tooltip="Workspace browser and New Project setup." data-workflow-panel="project" aria-selected="false">Project</button>
             </div>
             <div id="onboarding-card" class="browser-stack" aria-live="polite"></div>
           </article>
 
-          <article id="panel-project-browser" class="panel">
+          <article id="panel-new-project" class="panel panel-new-project panel-hero">
             <div class="panel-head">
-              <h2>Project Browser</h2>
-              <span>Folder-discovered workspace</span>
-            </div>
-            <div class="browser-toolbar">
-              <p class="muted-copy">Project folders stay authoritative. Open `project_001` to edit the validated internal scene slice; donor captures stay read-only evidence in this build.</p>
-              <button id="action-rescan" type="button">Rescan Workspace</button>
-            </div>
-            <div id="project-browser" class="browser-stack" aria-live="polite"></div>
-          </article>
-
-          <article id="panel-donor" class="panel">
-            <div class="panel-head">
-              <h2>Donor Assets & Evidence</h2>
-              <span>Read-only source + bounded import</span>
-            </div>
-            <p class="context-hint">This panel now also shows the first-class donor scan summary for the selected donor/project: runtime candidates, atlas/frame metadata, bundle asset-map status, mirror viability, blocker summary, and the next operator step. Supported local donor images can still be dragged from here into empty canvas space to create on the chosen target layer, or dropped directly onto an editable scene object to replace it while keeping its layout. Raw donor files still stay read-only.</p>
-            <div id="evidence-browser" class="browser-stack" aria-live="polite"></div>
-          </article>
-
-          <article id="panel-investigation" class="panel" hidden>
-            <div class="panel-head">
-              <h2>Investigation Mode</h2>
-              <span>Static scan + bounded runtime coverage</span>
-            </div>
-            <p class="context-hint">Investigation is now a first-class IDE stage. Use it to separate reconstruction-ready families from source-blocked families, run bounded scenario profiles, and see the next honest operator action before switching into modification or compose work.</p>
-            <div id="investigation-browser" class="browser-stack" aria-live="polite"></div>
-          </article>
-
-          <article id="panel-compose" class="panel">
-            <div class="panel-head">
-              <h2>Compose Explorer</h2>
-              <span>Scene, layer, object list</span>
-            </div>
-            <div id="scene-explorer" class="browser-stack" aria-live="polite"></div>
-          </article>
-
-          <article id="panel-vabs" class="panel">
-            <div class="panel-head">
-              <h2>VABS Status</h2>
-              <span>Read-only project gate</span>
-            </div>
-            <p class="context-hint">VABS stays a separate read-only module. Use this panel to see fixture truth, current blocker, and the exact next operator step without changing the runtime or compose workflow.</p>
-            <div id="workflow-vabs-panel" class="browser-stack" aria-live="polite"></div>
-          </article>
-
-          <article id="panel-new-project" class="panel">
-            <div class="panel-head">
-              <h2>New Project</h2>
+              <h2>New Project (Start Here)</h2>
               <span>Start with a donor guest URL</span>
             </div>
             <div class="form-callout">
@@ -159,6 +112,54 @@
               </div>
             </form>
           </article>
+
+          <article id="panel-project-browser" class="panel">
+            <div class="panel-head">
+              <h2>Project Browser</h2>
+              <span>Folder-discovered workspace</span>
+            </div>
+            <div class="browser-toolbar">
+              <p class="muted-copy">Project folders stay authoritative. Open `project_001` to edit the validated internal scene slice; donor captures stay read-only evidence in this build.</p>
+              <button id="action-rescan" type="button">Rescan Workspace</button>
+            </div>
+            <div id="project-browser" class="browser-stack" aria-live="polite"></div>
+          </article>
+
+          <article id="panel-donor" class="panel">
+            <div class="panel-head">
+              <h2>Donor Assets & Evidence</h2>
+              <span>Read-only source + bounded import</span>
+            </div>
+            <p class="context-hint">This panel now also shows the first-class donor scan summary for the selected donor/project: runtime candidates, atlas/frame metadata, bundle asset-map status, mirror viability, blocker summary, and the next operator step. Supported local donor images can still be dragged from here into empty canvas space to create on the chosen target layer, or dropped directly onto an editable scene object to replace it while keeping its layout. Raw donor files still stay read-only.</p>
+            <div id="evidence-browser" class="browser-stack" aria-live="polite"></div>
+          </article>
+
+          <article id="panel-investigation" class="panel" hidden>
+            <div class="panel-head">
+              <h2>Investigation Mode</h2>
+              <span>Static scan + bounded runtime coverage</span>
+            </div>
+            <p class="context-hint">Investigation is now a first-class IDE stage. Use it to separate reconstruction-ready families from source-blocked families, run bounded scenario profiles, and see the next honest operator action before switching into modification or compose work.</p>
+            <div id="investigation-browser" class="browser-stack" aria-live="polite"></div>
+          </article>
+
+          <article id="panel-compose" class="panel">
+            <div class="panel-head">
+              <h2>Compose Explorer</h2>
+              <span>Scene, layer, object list</span>
+            </div>
+            <div id="scene-explorer" class="browser-stack" aria-live="polite"></div>
+          </article>
+
+          <article id="panel-vabs" class="panel">
+            <div class="panel-head">
+              <h2>VABS Status</h2>
+              <span>Read-only project gate</span>
+            </div>
+            <p class="context-hint">VABS stays a separate read-only module. Use this panel to see fixture truth, current blocker, and the exact next operator step without changing the runtime or compose workflow.</p>
+            <div id="workflow-vabs-panel" class="browser-stack" aria-live="polite"></div>
+          </article>
+
         </section>
 
         <section class="panel editor-panel">
