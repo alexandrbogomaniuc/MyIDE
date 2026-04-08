@@ -193,6 +193,7 @@ const elements = {
   panelCompose: document.getElementById("panel-compose"),
   panelVabs: document.getElementById("panel-vabs"),
   panelNewProject: document.getElementById("panel-new-project"),
+  panelProjectBrowser: document.getElementById("panel-project-browser"),
   projectSummary: document.getElementById("project-summary"),
   editorCanvas: document.getElementById("editor-canvas"),
   previewStatus: document.getElementById("preview-status"),
@@ -10137,6 +10138,23 @@ function bindActions() {
       });
     });
   }
+  document.addEventListener("keydown", (event) => {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "f") {
+      const activeTag = document.activeElement?.tagName?.toLowerCase();
+      if (activeTag === "input" || activeTag === "textarea") {
+        return;
+      }
+      event.preventDefault();
+      setWorkflowPanel("project");
+      if (elements.panelProjectBrowser) {
+        elements.panelProjectBrowser.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+      if (elements.projectSearchInput instanceof HTMLInputElement) {
+        setTimeout(() => elements.projectSearchInput?.focus(), 150);
+      }
+      setPreviewStatus("Find Project is active. Type to filter the Project Browser list.");
+    }
+  });
   elements.workflowPanelbar?.addEventListener("click", (event) => {
     handleNavigationClick(event);
   });
@@ -15020,6 +15038,12 @@ function handleNavigationClick(event) {
     if (workflowPanelButton.dataset.scrollTarget) {
       const scrollTarget = document.getElementById(workflowPanelButton.dataset.scrollTarget);
       scrollTarget?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    if (workflowPanelButton.dataset.focusTarget) {
+      const focusTarget = document.getElementById(workflowPanelButton.dataset.focusTarget);
+      if (focusTarget instanceof HTMLInputElement || focusTarget instanceof HTMLTextAreaElement) {
+        setTimeout(() => focusTarget.focus(), 150);
+      }
     }
     if (shouldDismissWizard) {
       setPreviewStatus("Wizard mode closed. New Project form is ready.");
