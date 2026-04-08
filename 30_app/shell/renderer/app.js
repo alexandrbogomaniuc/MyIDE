@@ -14939,12 +14939,19 @@ function handleNavigationClick(event) {
   }
 
   const wizardButton = target.closest("[data-wizard-action]");
+  let shouldDismissWizard = false;
   if (wizardButton instanceof HTMLElement && wizardButton.dataset.wizardAction) {
     event.preventDefault();
     if (wizardButton.dataset.wizardAction === "dismiss") {
       dismissWizardMode();
+      return true;
     }
-    return true;
+    if (wizardButton.dataset.wizardAction === "go-to-project") {
+      dismissWizardMode();
+      shouldDismissWizard = true;
+    } else {
+      return true;
+    }
   }
 
   const workflowPanelButton = target.closest("[data-workflow-panel]");
@@ -14954,6 +14961,9 @@ function handleNavigationClick(event) {
     if (workflowPanelButton.dataset.scrollTarget) {
       const scrollTarget = document.getElementById(workflowPanelButton.dataset.scrollTarget);
       scrollTarget?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    if (shouldDismissWizard) {
+      setPreviewStatus("Wizard mode closed. New Project form is ready.");
     }
     return true;
   }
