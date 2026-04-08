@@ -274,6 +274,21 @@ body.wizard-mode #panel-new-project {
   margin-bottom: 12px;
 }
 
+.project-search {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-end;
+}
+
+.project-search .form-field {
+  min-width: 220px;
+}
+
+.project-search input {
+  width: min(320px, 100%);
+}
+
 .context-hint {
   margin: 0;
   padding: 0.85rem 1rem;

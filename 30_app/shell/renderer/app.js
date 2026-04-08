@@ -48,6 +48,9 @@ const state = {
   workflowUi: {
     activePanel: "runtime"
   },
+  projectBrowserUi: {
+    query: ""
+  },
   modificationTaskUi: {
     activeTaskId: null,
     pageRuntimeProofs: {}
@@ -179,6 +182,8 @@ const elements = {
   wizardOverlay: document.getElementById("wizard-overlay"),
   wizardBanner: document.getElementById("wizard-banner"),
   projectBrowser: document.getElementById("project-browser"),
+  projectSearchInput: document.getElementById("project-search-input"),
+  projectSearchClear: document.getElementById("project-search-clear"),
   evidenceBrowser: document.getElementById("evidence-browser"),
   investigationBrowser: document.getElementById("investigation-browser"),
   sceneExplorer: document.getElementById("scene-explorer"),
@@ -10287,6 +10292,21 @@ function bindActions() {
       void reloadWorkspace(false, projectId);
     }
   });
+  elements.projectSearchInput?.addEventListener("input", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLInputElement)) {
+      return;
+    }
+    state.projectBrowserUi.query = target.value;
+    renderProjectBrowser();
+  });
+  elements.projectSearchClear?.addEventListener("click", () => {
+    state.projectBrowserUi.query = "";
+    if (elements.projectSearchInput instanceof HTMLInputElement) {
+      elements.projectSearchInput.value = "";
+    }
+    renderProjectBrowser();
+  });
   elements.sceneExplorer?.addEventListener("click", (event) => {
     const target = event.target;
     if (!(target instanceof HTMLElement)) {
@@ -18168,7 +18188,24 @@ function renderProjectBrowser() {
 
   const projects = getWorkspaceProjects();
   const selectedProject = getSelectedProject();
-  const projectCards = projects.map((project) => {
+  const rawQuery = state.projectBrowserUi?.query ?? "";
+  const normalizedQuery = rawQuery.trim().toLowerCase();
+  const filteredProjects = normalizedQuery
+    ? projects.filter((project) => {
+      const tokens = [
+        project.displayName,
+        project.projectId,
+        project.donor?.donorName,
+        project.donor?.donorId,
+        project.targetGame?.displayName,
+        project.keyPaths?.projectRoot
+      ]
+        .filter(Boolean)
+        .map((value) => String(value).toLowerCase());
+      return tokens.some((token) => token.includes(normalizedQuery));
+    })
+    : projects;
+  const projectCards = filteredProjects.map((project) => {
     const isSelected = project.projectId === selectedProject?.projectId;
     const lifecycle = project.lifecycle?.currentStage ? labelizeStage(project.lifecycle.currentStage) : "No lifecycle";
 
@@ -18185,6 +18222,12 @@ function renderProjectBrowser() {
       </button>
     `;
   }).join("");
+  const searchSummary = normalizedQuery
+    ? `<p class="muted-copy">Showing ${filteredProjects.length} of ${projects.length} for “${escapeHtml(rawQuery)}”.</p>`
+    : "";
+  const emptyMessage = normalizedQuery && filteredProjects.length === 0
+    ? `<div class="tree-row"><strong>No matching projects</strong><span>Clear the search to show every project.</span></div>`
+    : "";
 
   const selectedSummary = selectedProject ? `
     <div class="detail-grid">
@@ -18217,7 +18260,9 @@ function renderProjectBrowser() {
       <span>${workspace.description}</span>
       <code>${workspace.registryPath}</code>
     </div>
+    ${searchSummary}
     <div class="project-list">${projectCards}</div>
+    ${emptyMessage}
     ${selectedSummary}
   `;
 }

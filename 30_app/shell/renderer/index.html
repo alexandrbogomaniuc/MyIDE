@@ -124,7 +124,14 @@
               <span>Folder-discovered workspace</span>
             </div>
             <div class="browser-toolbar">
-              <p class="muted-copy has-tooltip" data-tooltip="Project folders stay authoritative. Open project_001 to edit the validated internal scene slice; donor captures stay read-only evidence in this build.">Project folders are source of truth. Hover for details.</p>
+              <p class="muted-copy">Project folders are source of truth. Click a project card below to load it.</p>
+              <div class="project-search">
+                <label class="form-field">
+                  <span>Search Projects</span>
+                  <input id="project-search-input" type="search" placeholder="Search by project name, id, or donor" />
+                </label>
+                <button id="project-search-clear" type="button" class="ghost-button">Clear</button>
+              </div>
               <button id="action-rescan" type="button">Rescan Workspace</button>
             </div>
             <div id="project-browser" class="browser-stack" aria-live="polite"></div>
