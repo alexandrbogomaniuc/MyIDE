@@ -131,6 +131,7 @@ For this build, Investigation should expose static scan state, runtime scan stat
 - For one grounded static Mystery Garden runtime image source, the shell can create a project-local override and clear it again.
 - When the current runtime slice resolves that source through the bounded local mirror, the shell should also show the grounded local mirror file path.
 - Runtime Mode now also shows the current launch/reload resource-map record when one has been captured.
+- Runtime Source Workbench groups the strongest request-backed rows first and makes requested URL, local mirror path, override path, source asset/evidence linkage, and override eligibility easy to scan.
 - If the mirrored candidate still does not record a reload-time hit, the shell should report that blocker plainly instead of inventing success.
 - The official Runtime Debug Host path should now prove one request-backed static image candidate and one bounded override hit after reload.
 - The created object remains editable.
@@ -151,7 +152,7 @@ For this build, Investigation should expose static scan state, runtime scan stat
   - the bounded runtime override slice only works when the current runtime trace exposes a grounded static image URL and the chosen donor asset matches that file type
   - the current local-mirror override path now has a real request map, and no unresolved upstream bootstrap/static dependency remains in the bounded cycle
   - direct local launch inspection proves the mirror can serve local static assets, but the mirrored static override candidate is still only mirror-manifest-backed inside the strongest previously verified embedded Runtime Mode proof, so that part remains partially blocked
-  - the embedded runtime path is still weaker for asset ownership truth than the dedicated Runtime Debug Host path and should be treated as secondary
+  - the embedded runtime path is still weaker for asset ownership truth than the dedicated Runtime Debug Host path and should be treated as secondary/weaker for now
   - the dedicated Runtime Debug Host now proves the first request-backed static image override hit and is the official runtime work mode for this validated slice, but the embedded Runtime Mode surface still does not expose the same asset-level truth
   - pause/resume/step only work when the embedded donor runtime exposes a stable ticker-like hook; otherwise the shell reports that blocker plainly
   - only `project_001` is supported

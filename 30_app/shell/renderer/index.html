@@ -139,37 +139,37 @@
         <section class="panel editor-panel">
           <div class="panel-head">
             <h2>Workbench</h2>
-            <span>Runtime Debug Host official for project_001</span>
+            <span>Official Runtime Workbench for project_001</span>
           </div>
-          <p class="context-hint">Use Debug Host is the primary runtime workflow in this slice. It runs the stronger local-mirror runtime proof path, surfaces the best current request-backed asset truth, and keeps raw donor files read-only. The embedded Runtime surface remains available as secondary context, while Compose keeps the bounded internal compositor, donor import, and save/reload loop available for practical day-to-day work.</p>
+          <p class="context-hint">Runtime Debug Host is the official daily-use runtime work mode for the validated <code>project_001</code> slice. Start there for request-backed trace, source jumps, and bounded override proof. Embedded Runtime remains secondary for now, and Compose stays the bounded donor-backed edit loop.</p>
           <div id="workbench-modebar" class="mode-bar" role="tablist" aria-label="Workbench mode">
             <button type="button" data-workbench-mode="runtime" aria-selected="true">Runtime</button>
             <button type="button" data-workbench-mode="scene" aria-selected="false">Compose</button>
           </div>
           <div id="runtime-toolbar" class="runtime-toolbar">
             <div class="toolbar-group toolbar-group-primary">
-              <span class="toolbar-group-label">Primary</span>
-              <button type="button" data-runtime-action="open-debug-host">Use Debug Host</button>
-              <button type="button" data-runtime-action="launch">Launch Runtime</button>
+              <span class="toolbar-group-label">Official Runtime Workbench</span>
+              <button type="button" data-runtime-action="open-debug-host">Open Debug Host</button>
               <button type="button" data-runtime-action="inspect-toggle">Pick / Inspect</button>
               <button type="button" data-runtime-action="create-override">Create Override</button>
             </div>
-            <details class="toolbar-menu" open>
-              <summary>Embedded Runtime</summary>
+            <details class="toolbar-menu toolbar-menu-secondary">
+              <summary>Secondary Embedded Runtime</summary>
               <div class="toolbar-menu-panel">
+                <button type="button" data-runtime-action="launch">Launch Embedded Runtime</button>
                 <button type="button" data-runtime-action="reload">Reload Runtime</button>
                 <button type="button" data-runtime-action="enter">Click To Start</button>
                 <button type="button" data-runtime-action="spin">Spin / Trigger</button>
               </div>
             </details>
             <details class="toolbar-menu">
-              <summary>Trace &amp; Source</summary>
+              <summary>Source &amp; Trace</summary>
               <div class="toolbar-menu-panel toolbar-menu-panel-wide">
                 <button type="button" data-runtime-action="focus-note">Show Runtime Note</button>
                 <button type="button" data-runtime-action="focus-init">Show Init Response</button>
-                <button type="button" data-runtime-action="focus-asset">Focus Asset</button>
-                <button type="button" data-runtime-action="focus-evidence">Focus Evidence</button>
-                <button type="button" data-runtime-action="focus-scene">Focus Compose Object</button>
+                <button type="button" data-runtime-action="focus-asset">Source Asset</button>
+                <button type="button" data-runtime-action="focus-evidence">Donor Evidence</button>
+                <button type="button" data-runtime-action="focus-scene">Compose Object</button>
               </div>
             </details>
             <details class="toolbar-menu">
@@ -187,7 +187,8 @@
               </div>
             </details>
             <div class="toolbar-group toolbar-group-grow">
-              <span id="runtime-control-note" class="toolbar-hint">Use Debug Host first for trustworthy runtime work. The embedded surface remains available for bounded local context, but it is still weaker for asset-level truth and override proof.</span>
+              <span class="toolbar-group-label">Workbench Flow</span>
+              <span id="runtime-control-note" class="toolbar-hint">Start with Open Debug Host, then use the runtime workbench to jump into source asset, donor evidence, compose object, or override action. Embedded Runtime stays available for bounded local context, but it remains secondary for asset-level truth and override proof.</span>
             </div>
           </div>
           <div id="editor-toolbar" class="editor-toolbar">

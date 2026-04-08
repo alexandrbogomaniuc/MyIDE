@@ -665,6 +665,12 @@ button:disabled {
   background: rgba(255, 255, 255, 0.025);
 }
 
+.runtime-toolbar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  align-items: start;
+}
+
 .onboarding-panel .detail-grid {
   margin-top: 2px;
 }
@@ -684,6 +690,11 @@ button:disabled {
   flex: 1 1 520px;
 }
 
+.runtime-toolbar .toolbar-group-primary,
+.runtime-toolbar .toolbar-group-grow {
+  grid-column: 1 / -1;
+}
+
 .toolbar-group-grow {
   flex: 1 1 240px;
   align-items: flex-start;
@@ -698,6 +709,10 @@ button:disabled {
   position: relative;
   display: inline-grid;
   align-self: flex-start;
+}
+
+.runtime-toolbar .toolbar-menu {
+  width: 100%;
 }
 
 .toolbar-menu > summary {
@@ -733,6 +748,11 @@ button:disabled {
 
 .toolbar-menu[open] > summary::after {
   color: var(--accent);
+}
+
+.toolbar-menu-secondary > summary {
+  border-style: dashed;
+  opacity: 0.88;
 }
 
 .toolbar-menu-panel {
@@ -864,6 +884,34 @@ button:disabled {
   gap: 10px;
 }
 
+.runtime-workbench-groups {
+  display: grid;
+  gap: 14px;
+}
+
+.runtime-workbench-group {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(179, 209, 186, 0.12);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.runtime-workbench-group-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.runtime-workbench-group-copy {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
 .runtime-workbench-entry {
   display: grid;
   gap: 10px;
@@ -930,6 +978,25 @@ button:disabled {
 .runtime-workbench-meta code {
   color: var(--accent);
   word-break: break-all;
+}
+
+.runtime-workbench-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.runtime-workbench-actions-primary {
+  padding-top: 2px;
+}
+
+.runtime-workbench-empty-state {
+  margin: 0;
+}
+
+.runtime-workbench-summary-warning {
+  border-color: rgba(230, 191, 100, 0.34);
+  background: rgba(230, 191, 100, 0.08);
 }
 
 .sync-status-card {

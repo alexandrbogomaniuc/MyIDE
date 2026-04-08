@@ -1089,6 +1089,23 @@ function getRuntimeDebugHostUnavailableMessage() {
   return "The dedicated Runtime Debug Host needs a grounded runtime launch URL before it can reopen the live runtime on this selected project.";
 }
 
+function getRuntimeOverrideDonorSourceKindFromAssetId(donorAssetId) {
+  const normalizedAssetId = typeof donorAssetId === "string"
+    ? donorAssetId.trim()
+    : "";
+  if (!normalizedAssetId) {
+    return null;
+  }
+
+  return normalizedAssetId.startsWith("donor.asset.task-")
+    ? "modification-task-kit"
+    : "indexed-donor-images";
+}
+
+function getRuntimeOverrideDonorSourceKindFromOverrideEntry(overrideEntry) {
+  return getRuntimeOverrideDonorSourceKindFromAssetId(overrideEntry?.donorAssetId ?? null);
+}
+
 function getRuntimeDebugHostOverrideDonorSourceKind(result) {
   const explicitKind = typeof result?.overrideDonorSourceKind === "string"
     ? result.overrideDonorSourceKind.trim()
@@ -1100,13 +1117,7 @@ function getRuntimeDebugHostOverrideDonorSourceKind(result) {
   const donorAssetId = typeof result?.overrideDonorAssetId === "string"
     ? result.overrideDonorAssetId.trim()
     : "";
-  if (!donorAssetId) {
-    return null;
-  }
-
-  return donorAssetId.startsWith("donor.asset.task-")
-    ? "modification-task-kit"
-    : "indexed-donor-images";
+  return getRuntimeOverrideDonorSourceKindFromAssetId(donorAssetId);
 }
 
 function getRuntimeDebugHostOverrideDonorSourceNote(result) {
@@ -7306,11 +7317,19 @@ async function runLiveRuntimeSelectedProjectOverrideSmoke() {
     runtimeWorkbenchEntryKind: null,
     runtimeWorkbenchEntryRequestSource: null,
     taskRuntimeOpenUsesHarvestedRequestWorkbenchEntry: false,
+    focusedWorkbenchGroupTitle: null,
+    focusedWorkbenchRequestedUrlLine: null,
+    focusedWorkbenchSourceAssetLine: null,
+    focusedWorkbenchEligibilityChipLabel: null,
     runtimeOverrideEligible: false,
     runtimeOverrideRequestSource: null,
     runtimeOverrideDonorAssetId: null,
     createOverrideButtonEnabled: false,
     runtimeOverrideCreated: false,
+    overrideStatusCardTitle: null,
+    overrideStatusCardNote: null,
+    activeOverrideCardTitle: null,
+    activeOverrideCardNote: null,
     runtimeOverrideCleared: false,
     runtimeOverrideManifestRepoRelativePath: null,
     runtimeOverrideRepoRelativePath: null,
@@ -7443,6 +7462,35 @@ async function runLiveRuntimeSelectedProjectOverrideSmoke() {
       throw new Error(`Task ${matchedTaskProof.task.taskId} should resolve to a harvested resource-map entry before override creation, received ${taskRuntimeEntry.kind ?? "none"}.`);
     }
 
+    const focusedWorkbenchSummary = await waitForRendererCondition(
+      () => {
+        const focusedRow = elements.inspector?.querySelector(".runtime-workbench-entry.is-focused");
+        const groupTitle = focusedRow?.closest(".runtime-workbench-group")?.querySelector(".runtime-workbench-group-head strong")?.textContent?.trim() ?? null;
+        const metaLines = Array.from(focusedRow?.querySelectorAll(".runtime-workbench-meta span") ?? [])
+          .map((node) => node.textContent?.trim() ?? "")
+          .filter((text) => text.length > 0);
+        const requestedUrlLine = metaLines.find((text) => text.startsWith("Requested URL")) ?? null;
+        const sourceAssetLine = metaLines.find((text) => text.startsWith("Source asset")) ?? null;
+        const chipLines = Array.from(focusedRow?.querySelectorAll(".runtime-workbench-chips span") ?? [])
+          .map((node) => node.textContent?.trim() ?? "")
+          .filter((text) => text.length > 0);
+        const eligibilityChipLabel = chipLines.find((text) => ["override ready", "override active", "bridge blocked", "read-only trace"].includes(text)) ?? null;
+        return groupTitle && requestedUrlLine && sourceAssetLine && eligibilityChipLabel
+          ? {
+            groupTitle,
+            requestedUrlLine,
+            sourceAssetLine,
+            eligibilityChipLabel
+          }
+          : null;
+      },
+      "selected-project runtime override focused workbench summary"
+    );
+    baseResult.focusedWorkbenchGroupTitle = focusedWorkbenchSummary.groupTitle;
+    baseResult.focusedWorkbenchRequestedUrlLine = focusedWorkbenchSummary.requestedUrlLine;
+    baseResult.focusedWorkbenchSourceAssetLine = focusedWorkbenchSummary.sourceAssetLine;
+    baseResult.focusedWorkbenchEligibilityChipLabel = focusedWorkbenchSummary.eligibilityChipLabel;
+
     const runtimeOverrideCandidate = getRuntimeOverrideCandidate();
     baseResult.runtimeOverrideEligible = Boolean(runtimeOverrideCandidate.eligible);
     baseResult.runtimeOverrideRequestSource = runtimeOverrideCandidate.resourceMapEntry?.requestSource ?? null;
@@ -7475,6 +7523,30 @@ async function runLiveRuntimeSelectedProjectOverrideSmoke() {
     baseResult.runtimeOverrideRepoRelativePath = activeOverrideEntry?.overrideRepoRelativePath ?? null;
     baseResult.previewStatusAfterCreate = elements.previewStatus?.textContent?.trim() ?? null;
     baseResult.embeddedRuntimeLaunched = Boolean(state.runtimeUi.launched);
+    const overrideCardSummary = await waitForRendererCondition(
+      () => {
+        const cards = Array.from(elements.inspector?.querySelectorAll(".detail-card") ?? []);
+        const overrideStatusCard = cards.find((card) => card.querySelector("span")?.textContent?.trim() === "Override Status") ?? null;
+        const activeOverrideCard = cards.find((card) => card.querySelector("span")?.textContent?.trim() === "Active Override") ?? null;
+        const overrideStatusCardTitle = overrideStatusCard?.querySelector("strong")?.textContent?.trim() ?? null;
+        const overrideStatusCardNote = overrideStatusCard?.querySelector("small")?.textContent?.trim() ?? null;
+        const activeOverrideCardTitle = activeOverrideCard?.querySelector("strong")?.textContent?.trim() ?? null;
+        const activeOverrideCardNote = activeOverrideCard?.querySelector("small")?.textContent?.trim() ?? null;
+        return overrideStatusCardTitle && overrideStatusCardNote && activeOverrideCardTitle && activeOverrideCardNote
+          ? {
+            overrideStatusCardTitle,
+            overrideStatusCardNote,
+            activeOverrideCardTitle,
+            activeOverrideCardNote
+          }
+          : null;
+      },
+      "selected-project runtime override donor-source cards"
+    );
+    baseResult.overrideStatusCardTitle = overrideCardSummary.overrideStatusCardTitle;
+    baseResult.overrideStatusCardNote = overrideCardSummary.overrideStatusCardNote;
+    baseResult.activeOverrideCardTitle = overrideCardSummary.activeOverrideCardTitle;
+    baseResult.activeOverrideCardNote = overrideCardSummary.activeOverrideCardNote;
 
     if (!baseResult.previewStatusAfterCreate || !baseResult.previewStatusAfterCreate.includes("Embedded launch stays blocked")) {
       throw new Error("Selected-project runtime override create status did not stay honest about blocked embedded launch.");
@@ -13153,6 +13225,7 @@ function createRuntimeWorkbenchEntry(input) {
   return {
     kind: input.kind,
     sourceUrl,
+    latestRequestUrl: input.latestRequestUrl ?? sourceUrl,
     relativePath,
     fileType,
     requestBacked: Boolean(input.requestBacked),
@@ -13270,6 +13343,7 @@ function getRuntimeWorkbenchEntries() {
     pushEntry(createRuntimeWorkbenchEntry({
       kind: "page-runtime-proof",
       sourceUrl: proof.sourceUrl,
+      latestRequestUrl: proof.sourceUrl,
       relativePath: proof.relativePath ?? getRuntimeResourceRelativePath(proof.sourceUrl),
       fileType: getRuntimeResourceFileType(proof.sourceUrl),
       requestBacked: proof.requestBacked !== false,
@@ -13289,6 +13363,7 @@ function getRuntimeWorkbenchEntries() {
     pushEntry(createRuntimeWorkbenchEntry({
       kind: "debug-host-proof",
       sourceUrl: debugHost.candidateRuntimeSourceUrl,
+      latestRequestUrl: debugHost.candidateRuntimeSourceUrl,
       relativePath: debugHost.candidateRuntimeRelativePath ?? getRuntimeResourceRelativePath(debugHost.candidateRuntimeSourceUrl),
       fileType: getRuntimeResourceFileType(debugHost.candidateRuntimeSourceUrl),
       requestBacked: true,
@@ -13319,6 +13394,7 @@ function getRuntimeWorkbenchEntries() {
       pushEntry(createRuntimeWorkbenchEntry({
         kind: "local-mirror-manifest",
         sourceUrl: entry.sourceUrl,
+        latestRequestUrl: buildLocalMirrorObservedUrl(entry.sourceUrl),
         relativePath: getRuntimeResourceRelativePath(entry.sourceUrl),
         fileType: entry.fileType,
         requestBacked: false,
@@ -13336,6 +13412,7 @@ function getRuntimeWorkbenchEntries() {
     pushEntry(createRuntimeWorkbenchEntry({
       kind: "resource-map",
       sourceUrl: entry.canonicalSourceUrl,
+      latestRequestUrl: entry.latestRequestUrl ?? entry.canonicalSourceUrl,
       relativePath: entry.runtimeRelativePath,
       fileType: entry.fileType,
       requestBacked: true,
@@ -17848,7 +17925,7 @@ function renderOnboardingCard() {
   } = getActiveRuntimeWorkbenchSurface(runtimeOverrideCandidate.runtimeSourceUrl);
   const workflowFocusSummary = {
     runtime: runtimeLaunch?.entryUrl
-      ? "Use Debug Host first for trustworthy runtime asset proof, then jump out to donor source or compose context from the same workbench."
+      ? "Open Debug Host first for trustworthy runtime asset proof, then jump out to source asset, donor evidence, or compose context from the same workbench."
       : "Use the runtime workbench to inspect grounded runtime evidence for this project while live launch and Debug Host stay blocked.",
     donor: "Source donor assets, evidence cards, and grounded linked-object context stay together here.",
     compose: "Internal scene composition stays bounded here: select, replace, align, resize, save, reload.",
@@ -17859,7 +17936,7 @@ function renderOnboardingCard() {
   const debugHostOfficial = debugHostAvailable && isOfficialRuntimeDebugHostProject();
   const bridgeActions = [
     debugHostAvailable
-      ? `<button type="button" class="copy-button" data-runtime-action="open-debug-host">Use Debug Host</button>`
+      ? `<button type="button" class="copy-button" data-runtime-action="open-debug-host">Open Debug Host</button>`
       : "",
     workflowBridge.donorAsset
       ? `<button type="button" class="copy-button" data-focus-donor-asset-id="${escapeAttribute(workflowBridge.donorAsset.assetId)}">Focus Asset</button>`
@@ -17875,9 +17952,9 @@ function renderOnboardingCard() {
   const quickSteps = state.workbenchMode === "runtime"
     ? (runtimeLaunch?.entryUrl
         ? [
-          "Use Debug Host first to run the official runtime trace and override-proof cycle on the local mirror.",
-          "From the workbench, jump straight into donor asset, donor evidence, or the related compose object.",
-          "Use the embedded runtime only when you need secondary live context, then save/reload in Compose and re-open Debug Host when you want the strongest confirmation."
+          "Open Debug Host first to run the official runtime trace and override-proof cycle on the local mirror.",
+          "From the workbench, jump straight into source asset, donor evidence, or the related compose object.",
+          "Use the embedded runtime only when you need secondary live context, then save/reload in Compose and reopen Debug Host when you want the strongest confirmation."
         ]
         : [
           "Use the runtime workbench to inspect grounded page proofs, request-backed traces, and linked donor/compose context for this project.",
@@ -21633,7 +21710,7 @@ function renderInspector() {
                           data-task-reconstruction-runtime-profile-id="${escapeAttribute(taskSectionContext.task.recommendedRuntimeProfile ?? "autoplay")}"
                           data-task-reconstruction-runtime-hint-tokens="${escapeAttribute(JSON.stringify(getProjectModificationTaskPageMatchTokens(page)))}"
                           title="Use the dedicated Runtime Debug Host when this page cue has no loaded runtime trace yet"
-                        >Use Debug Host</button>
+                        >Open Debug Host</button>
                       ` : taskSectionContext.task.canOpenRuntime ? `
                         <span class="muted-copy">Debug Host still needs a grounded runtime launch URL here. Keep this task on grounded request-backed runtime entries when they exist.</span>
                       ` : ""}
@@ -21896,7 +21973,49 @@ function renderRuntimeWorkbenchAssetList() {
             : "Request-backed runtime items are ranked with the strongest selected-project debug/static candidates first so you can jump quickly into source, evidence, compose, and override actions.")
         : "Request-backed runtime items are available for this selected project. Use the runtime workbench to reopen grounded traces and bounded overrides while Debug Host stays blocked until launch is grounded.";
 
-  const listMarkup = entries.slice(0, 10).map((entry) => {
+  const groupedEntries = [
+    {
+      key: "debug-host-proof",
+      title: debugHostOfficial ? "Official Debug Host proof" : "Debug Host proof",
+      note: debugHostOfficial
+        ? "Use this group first for daily runtime work. It is the strongest request-backed proof path in the validated slice."
+        : "Use this group first when Debug Host is available for the selected project."
+    },
+    {
+      key: "request-backed-static",
+      title: "Request-backed runtime assets",
+      note: "Use these rows for the practical daily loop: inspect the requested URL, confirm local mirror or override state, then jump to source asset, donor evidence, compose object, or override action."
+    },
+    {
+      key: "request-backed-other",
+      title: "Request-backed runtime dependencies",
+      note: "These rows stay grounded and useful for trace context, but they are usually secondary to static asset work."
+    },
+    {
+      key: "grounded-fallback",
+      title: "Grounded fallback sources",
+      note: "These rows stay read-only and honest when the current session has not re-requested a stronger source yet."
+    }
+  ].map((group) => ({
+    ...group,
+    entries: entries
+      .slice(0, 10)
+      .filter((entry) => {
+        if (group.key === "debug-host-proof") {
+          return entry.kind === "debug-host-proof";
+        }
+        if (group.key === "request-backed-static") {
+          return entry.kind !== "debug-host-proof" && entry.requestBacked && entry.isStaticImage;
+        }
+        if (group.key === "request-backed-other") {
+          return entry.kind !== "debug-host-proof" && entry.requestBacked && !entry.isStaticImage;
+        }
+        return entry.kind !== "debug-host-proof" && !entry.requestBacked;
+      })
+  }));
+
+  const requestBackedStaticGroup = groupedEntries.find((group) => group.key === "request-backed-static");
+  const renderEntry = (entry) => {
     const isFocused = focusedSourceUrl === entry.sourceUrl;
     const rowClasses = [
       "runtime-workbench-entry",
@@ -21904,14 +22023,33 @@ function renderRuntimeWorkbenchAssetList() {
       entry.overrideRepoRelativePath ? "is-override" : "",
       isFocused ? "is-focused" : ""
     ].filter(Boolean).join(" ");
-    const actionButtons = [
-      `<button type="button" class="copy-button" data-runtime-source-url="${escapeAttribute(entry.sourceUrl)}" data-runtime-source-action="select">${isFocused ? "Focused" : "Use Trace"}</button>`,
+    const overrideDonorSourceKind = entry.kind === "debug-host-proof"
+      ? getRuntimeDebugHostOverrideDonorSourceKind(state.runtimeUi.debugHost)
+      : getRuntimeOverrideDonorSourceKindFromOverrideEntry(entry.activeOverride);
+    const eligibilityLabel = entry.activeOverride
+      ? "override active"
+      : entry.isStaticImage && entry.donorAsset
+        ? "override ready"
+        : entry.isStaticImage
+          ? "bridge blocked"
+          : "read-only trace";
+    const bridgeLabel = entry.sceneObject
+      ? "compose linked"
+      : entry.donorAsset
+        ? "asset linked"
+        : entry.evidenceItem
+          ? "evidence linked"
+          : "bridge pending";
+    const primaryActionButtons = [
+      `<button type="button" class="copy-button" data-runtime-source-url="${escapeAttribute(entry.sourceUrl)}" data-runtime-source-action="select">${isFocused ? "Focused Trace" : "Use Trace"}</button>`,
       debugHostAvailable
-        ? `<button type="button" class="copy-button" data-runtime-source-url="${escapeAttribute(entry.sourceUrl)}" data-runtime-source-action="open-debug-host">Use Debug Host</button>`
-        : "",
-      entry.donorAsset ? `<button type="button" class="copy-button" data-focus-donor-asset-id="${escapeAttribute(entry.donorAsset.assetId)}">Asset</button>` : "",
-      entry.evidenceItem ? `<button type="button" class="copy-button" data-focus-donor-evidence-id="${escapeAttribute(entry.evidenceItem.evidenceId)}">Evidence</button>` : "",
-      entry.sceneObject ? `<button type="button" class="copy-button" data-focus-scene-object-id="${escapeAttribute(entry.sceneObject.id)}">Compose</button>` : "",
+        ? `<button type="button" class="copy-button" data-runtime-source-url="${escapeAttribute(entry.sourceUrl)}" data-runtime-source-action="open-debug-host">Open Debug Host</button>`
+        : ""
+    ].filter(Boolean).join("");
+    const bridgeActionButtons = [
+      entry.donorAsset ? `<button type="button" class="copy-button" data-focus-donor-asset-id="${escapeAttribute(entry.donorAsset.assetId)}">Source Asset</button>` : "",
+      entry.evidenceItem ? `<button type="button" class="copy-button" data-focus-donor-evidence-id="${escapeAttribute(entry.evidenceItem.evidenceId)}">Donor Evidence</button>` : "",
+      entry.sceneObject ? `<button type="button" class="copy-button" data-focus-scene-object-id="${escapeAttribute(entry.sceneObject.id)}">Compose Object</button>` : "",
       entry.isStaticImage && entry.donorAsset
         ? `<button type="button" class="copy-button" data-runtime-source-url="${escapeAttribute(entry.sourceUrl)}" data-runtime-source-action="create-override">Create Override</button>`
         : "",
@@ -21930,30 +22068,61 @@ function renderRuntimeWorkbenchAssetList() {
           <div class="chip-row runtime-workbench-chips">
             <span>${escapeHtml(entry.statusLabel || (entry.isStaticImage ? "Static asset" : "Runtime dependency"))}</span>
             <span>${escapeHtml(entry.requestSource ?? entry.kind)}</span>
+            <span>${escapeHtml(bridgeLabel)}</span>
+            <span>${escapeHtml(eligibilityLabel)}</span>
+            ${overrideDonorSourceKind ? `<span>${escapeHtml(overrideDonorSourceKind)}</span>` : ""}
             <span>${entry.hitCount} hit${entry.hitCount === 1 ? "" : "s"}</span>
             ${entry.overrideHitCountAfterReload > 0 ? `<span>${entry.overrideHitCountAfterReload} override hit${entry.overrideHitCountAfterReload === 1 ? "" : "s"}</span>` : ""}
           </div>
         </div>
         <div class="runtime-workbench-meta">
-          <span><strong>URL</strong> <code>${escapeHtml(entry.sourceUrl)}</code></span>
-          <span><strong>Local</strong> ${escapeHtml(entry.localMirrorRepoRelativePath ?? "not mirrored locally")}</span>
-          <span><strong>Override</strong> ${escapeHtml(entry.overrideRepoRelativePath ?? "no active override")}</span>
-          <span><strong>Source bridge</strong> ${escapeHtml(entry.donorAsset?.assetId ?? entry.evidenceItem?.evidenceId ?? entry.sceneObject?.id ?? "not grounded yet")}</span>
+          <span><strong>Requested URL</strong> <code>${escapeHtml(entry.latestRequestUrl ?? entry.sourceUrl)}</code></span>
+          <span><strong>Local mirror</strong> ${escapeHtml(entry.localMirrorRepoRelativePath ?? "not mirrored locally")}</span>
+          <span><strong>Override path</strong> ${escapeHtml(entry.overrideRepoRelativePath ?? "no active override")}</span>
+          <span><strong>Source asset</strong> ${escapeHtml(entry.donorAsset?.assetId ?? "not grounded yet")}</span>
+          <span><strong>Donor evidence</strong> ${escapeHtml(entry.evidenceItem?.evidenceId ?? "not grounded yet")}</span>
+          <span><strong>Compose object</strong> ${escapeHtml(entry.sceneObject?.id ?? "not grounded yet")}</span>
         </div>
-        <div class="evidence-actions">
-          ${actionButtons}
+        <div class="runtime-workbench-actions runtime-workbench-actions-primary">
+          ${primaryActionButtons}
         </div>
+        ${bridgeActionButtons ? `<div class="runtime-workbench-actions">${bridgeActionButtons}</div>` : ""}
       </article>
     `;
-  }).join("");
+  };
+
+  const groupedMarkup = groupedEntries
+    .filter((group) => group.entries.length > 0 || group.key === "request-backed-static")
+    .map((group) => {
+      const emptyMarkup = group.entries.length === 0
+        ? `<div class="tree-row runtime-workbench-empty-state"><strong>${escapeHtml(group.title)}</strong><span>${escapeHtml(group.key === "request-backed-static"
+          ? "No request-backed image items are available yet. Open Debug Host first, or keep using the grounded fallback rows without pretending a stronger asset proof already exists."
+          : `${group.title} has no grounded rows in this session yet.`)}</span></div>`
+        : `<div class="runtime-workbench-list">${group.entries.map(renderEntry).join("")}</div>`;
+      return `
+        <section class="runtime-workbench-group">
+          <div class="runtime-workbench-group-head">
+            <div>
+              <strong>${escapeHtml(group.title)}</strong>
+              <p class="runtime-workbench-group-copy">${escapeHtml(group.note)}</p>
+            </div>
+            <span class="summary-count">${group.entries.length} item${group.entries.length === 1 ? "" : "s"}</span>
+          </div>
+          ${emptyMarkup}
+        </section>
+      `;
+    }).join("");
 
   return `
     <div class="tree-row runtime-workbench-summary">
       <strong>Runtime Source Workbench</strong>
       <span>${escapeHtml(workbenchMessage)}</span>
     </div>
+    ${requestBackedStaticGroup?.entries?.length === 0
+      ? `<div class="tree-row runtime-workbench-summary runtime-workbench-summary-warning"><strong>No request-backed runtime image is active yet</strong><span>Start with the official Debug Host path or keep using grounded fallback rows. The workbench is staying honest about the current trace strength.</span></div>`
+      : ""}
     ${entries.length > 0
-      ? `<div class="runtime-workbench-list">${listMarkup}</div>`
+      ? `<div class="runtime-workbench-groups">${groupedMarkup}</div>`
       : `<div class="tree-row"><strong>No runtime workbench items yet</strong><span>${escapeHtml(workbenchMessage)}</span></div>`}
   `;
 }
@@ -21994,15 +22163,15 @@ function renderRuntimeWorkbench() {
   const debugHostOfficial = debugHostAvailable && isOfficialRuntimeDebugHostProject();
   const harvestAvailable = canHarvestSelectedProjectRuntimeRequestEvidence();
   const hasGroundedMirrorSources = (runtimeMirrorStatus?.entries ?? []).some((entry) => entry?.fileExists !== false);
-  const runtimeCalloutHeading = debugHostOfficial ? "Official daily path" : "Selected-project runtime surface";
+  const runtimeCalloutHeading = debugHostOfficial ? "Official Runtime Workbench" : "Selected-project runtime surface";
   const runtimeCalloutMessage = debugHostAvailable
     ? (debugHostResult?.status === "pass"
         ? (debugHostOfficial
-            ? `Use Debug Host is now the practical runtime workflow for project_001. The latest run proved ${debugHostResult.candidateRuntimeRelativePath ?? debugHostResult.candidateRuntimeSourceUrl ?? "the current request-backed image"} with ${debugHostResult.overrideHitCountAfterReload ?? 0} override hit${Number(debugHostResult.overrideHitCountAfterReload ?? 0) === 1 ? "" : "s"} after reload${debugHostDonorSourceKind ? ` using ${debugHostDonorSourceKind}` : ""}.`
-            : `Use Debug Host when this selected project needs the stronger grounded runtime proof path. The latest run proved ${debugHostResult.candidateRuntimeRelativePath ?? debugHostResult.candidateRuntimeSourceUrl ?? "the current request-backed image"}${Number(debugHostResult.overrideHitCountAfterReload ?? 0) > 0 ? ` with ${debugHostResult.overrideHitCountAfterReload ?? 0} override hit${Number(debugHostResult.overrideHitCountAfterReload ?? 0) === 1 ? "" : "s"} after reload${debugHostDonorSourceKind ? ` using ${debugHostDonorSourceKind}` : ""}` : ` and kept the live candidate grounded${debugHostDonorSourceKind ? ` after trying ${debugHostDonorSourceKind}` : ""} even though bounded override proof remained blocked`}.`)
+            ? `Runtime Debug Host is now the practical runtime workflow for project_001. The latest run proved ${debugHostResult.candidateRuntimeRelativePath ?? debugHostResult.candidateRuntimeSourceUrl ?? "the current request-backed image"} with ${debugHostResult.overrideHitCountAfterReload ?? 0} override hit${Number(debugHostResult.overrideHitCountAfterReload ?? 0) === 1 ? "" : "s"} after reload${debugHostDonorSourceKind ? ` using ${debugHostDonorSourceKind}` : ""}.`
+            : `Open Debug Host when this selected project needs the stronger grounded runtime proof path. The latest run proved ${debugHostResult.candidateRuntimeRelativePath ?? debugHostResult.candidateRuntimeSourceUrl ?? "the current request-backed image"}${Number(debugHostResult.overrideHitCountAfterReload ?? 0) > 0 ? ` with ${debugHostResult.overrideHitCountAfterReload ?? 0} override hit${Number(debugHostResult.overrideHitCountAfterReload ?? 0) === 1 ? "" : "s"} after reload${debugHostDonorSourceKind ? ` using ${debugHostDonorSourceKind}` : ""}` : ` and kept the live candidate grounded${debugHostDonorSourceKind ? ` after trying ${debugHostDonorSourceKind}` : ""} even though bounded override proof remained blocked`}.`)
         : (debugHostOfficial
-            ? "Use Debug Host to run the official runtime trace and override-proof cycle. The integrated embedded runtime remains available, but it is secondary until it exposes stronger asset truth."
-            : "Use Debug Host to run the stronger grounded runtime trace for this selected project. The integrated embedded runtime remains available, but it is secondary until it exposes stronger asset truth."))
+            ? "Open Debug Host to run the official runtime trace and override-proof cycle. The integrated embedded runtime remains available, but it is secondary until it exposes stronger asset truth."
+            : "Open Debug Host to run the stronger grounded runtime trace for this selected project. The integrated embedded runtime remains available, but it is secondary until it exposes stronger asset truth."))
     : runtimeLaunch?.entryUrl
       ? "The runtime workbench is the truthful selected-project surface here. Embedded launch is indexed, but the dedicated Runtime Debug Host still needs a grounded launch URL before it can reopen this project."
       : harvestAvailable
@@ -22098,6 +22267,7 @@ function renderRuntimeWorkbench() {
         <span>${escapeHtml(runtimeLaunch.captureSessionId ?? "runtime session unknown")}</span>
         <span>${escapeHtml(debugHostAvailable ? (runtimeLaunch.runtimeSourceLabel ?? "Blocked") : activeWorkbenchSurfaceKind)}</span>
         <span>${debugHostResult?.status === "pass" ? "debug host proved" : "debug host pending"}</span>
+        ${debugHostDonorSourceKind ? `<span>${escapeHtml(debugHostDonorSourceKind)}</span>` : ""}
         <span>${runtimeLaunch.entryUrl ? "runtime entry ready" : "launch blocked"}</span>
         <span>${state.runtimeUi.inspectEnabled ? "embedded pick armed" : "embedded pick idle"}</span>
         <span>${state.runtimeUi.diagnostics?.pixiVersion ? `Pixi ${escapeHtml(state.runtimeUi.diagnostics.pixiVersion)}` : runtimeLaunch.pixiVersion ? `Pixi ${escapeHtml(runtimeLaunch.pixiVersion)}` : "Pixi version unknown"}</span>
@@ -22107,7 +22277,7 @@ function renderRuntimeWorkbench() {
       <strong>${escapeHtml(runtimeCalloutHeading)}</strong>
       <span>${escapeHtml(runtimeCalloutMessage)}</span>
       <div class="evidence-actions">
-        ${debugHostAvailable ? `<button type="button" class="copy-button" data-runtime-action="open-debug-host">Use Debug Host</button>` : ""}
+        ${debugHostAvailable ? `<button type="button" class="copy-button" data-runtime-action="open-debug-host">Open Debug Host</button>` : ""}
         ${harvestAvailable ? `<button type="button" class="copy-button" data-runtime-action="harvest-request-evidence">Harvest Request-backed Sources</button>` : ""}
         ${launchButtonMarkup}
         <button type="button" class="copy-button" data-switch-workflow-panel="runtime" data-switch-workbench-mode="scene" data-switch-status="Compose Mode is active. The runtime workbench kept the current project context.">Switch To Compose</button>
@@ -22115,7 +22285,7 @@ function renderRuntimeWorkbench() {
     </div>
     <div class="detail-grid runtime-detail-grid">
       <div class="detail-card ${debugHostAvailable ? (debugHostResult?.status === "pass" ? "is-positive" : debugHostResult?.error ? "is-alert" : "") : "is-alert"}">
-        <span>Runtime Debug Host</span>
+        <span>${escapeHtml(debugHostOfficial ? "Official Runtime Debug Host" : "Runtime Debug Host")}</span>
         <strong>${escapeHtml(runtimeDebugHostCardTitle)}</strong>
         <small>${escapeHtml(runtimeDebugHostCardBody)}</small>
       </div>
@@ -22180,7 +22350,7 @@ function renderRuntimeWorkbench() {
         <span>Project-local Overrides</span>
         <strong>${runtimeOverrideStatus?.entryCount ? `${runtimeOverrideStatus.entryCount} active override${runtimeOverrideStatus.entryCount === 1 ? "" : "s"}` : "No active runtime override"}</strong>
         <small>${escapeHtml(runtimeOverrideStatus?.entries?.[0]
-          ? `${runtimeOverrideStatus.entries[0].runtimeRelativePath} -> ${runtimeOverrideStatus.entries[0].donorAssetId} (${runtimeOverrideStatus.entries[0].hitCount} runtime hit${runtimeOverrideStatus.entries[0].hitCount === 1 ? "" : "s"})`
+          ? `${runtimeOverrideStatus.entries[0].runtimeRelativePath} -> ${runtimeOverrideStatus.entries[0].donorAssetId} via ${getRuntimeOverrideDonorSourceKindFromOverrideEntry(runtimeOverrideStatus.entries[0]) ?? "source unknown"} (${runtimeOverrideStatus.entries[0].hitCount} runtime hit${runtimeOverrideStatus.entries[0].hitCount === 1 ? "" : "s"})`
           : "Create a bounded project-local override from the runtime trace when an eligible static image is grounded.")}</small>
       </div>
       <div class="detail-card ${blockerSummary.length > 0 ? "is-alert" : "is-positive"}">
@@ -22252,12 +22422,12 @@ function renderRuntimeInspector() {
               ? (debugHostOfficial
                   ? `Debug Host already proved ${state.runtimeUi.debugHost.candidateRuntimeRelativePath ?? state.runtimeUi.debugHost.candidateRuntimeSourceUrl ?? "the current request-backed candidate"} with ${state.runtimeUi.debugHost.overrideHitCountAfterReload ?? 0} override hit${Number(state.runtimeUi.debugHost.overrideHitCountAfterReload ?? 0) === 1 ? "" : "s"} after reload${debugHostDonorSourceKind ? ` using ${debugHostDonorSourceKind}` : ""}.`
                   : `Debug Host already proved ${state.runtimeUi.debugHost.candidateRuntimeRelativePath ?? state.runtimeUi.debugHost.candidateRuntimeSourceUrl ?? "the current request-backed candidate"} for this selected project${Number(state.runtimeUi.debugHost.overrideHitCountAfterReload ?? 0) > 0 ? ` with ${state.runtimeUi.debugHost.overrideHitCountAfterReload ?? 0} override hit${Number(state.runtimeUi.debugHost.overrideHitCountAfterReload ?? 0) === 1 ? "" : "s"} after reload${debugHostDonorSourceKind ? ` using ${debugHostDonorSourceKind}` : ""}` : ` while bounded override proof remained blocked${debugHostDonorSourceKind ? ` after trying ${debugHostDonorSourceKind}` : ""}`}.`)
-              : "Use Debug Host first when you need trustworthy runtime asset selection or override proof. The embedded runtime trace below remains secondary until it exposes stronger asset truth.")
+              : "Open Debug Host first when you need trustworthy runtime asset selection or override proof. The embedded runtime trace below remains secondary until it exposes stronger asset truth.")
           : runtimeLaunch?.entryUrl
             ? "This selected project can launch the grounded embedded runtime through its local mirror, but the runtime workbench still stays primary for truthful source selection and bounded overrides until Debug Host can reopen the live runtime here."
             : "This selected project should stay on the grounded runtime workbench surface. Grounded reopen and bounded overrides are usable here even while Debug Host stays blocked.")}</span>
         <div class="evidence-actions">
-          ${debugHostAvailable ? `<button type="button" class="copy-button" data-runtime-action="open-debug-host">Use Debug Host</button>` : ""}
+          ${debugHostAvailable ? `<button type="button" class="copy-button" data-runtime-action="open-debug-host">Open Debug Host</button>` : ""}
           ${activeWorkbenchEntry?.donorAsset ? `<button type="button" class="copy-button" data-focus-donor-asset-id="${escapeAttribute(activeWorkbenchEntry.donorAsset.assetId)}">Focus Asset</button>` : ""}
           ${activeWorkbenchEntry?.evidenceItem ? `<button type="button" class="copy-button" data-focus-donor-evidence-id="${escapeAttribute(activeWorkbenchEntry.evidenceItem.evidenceId)}">Focus Evidence</button>` : ""}
           ${activeWorkbenchEntry?.sceneObject ? `<button type="button" class="copy-button" data-focus-scene-object-id="${escapeAttribute(activeWorkbenchEntry.sceneObject.id)}">Focus Compose Object</button>` : ""}
@@ -22286,15 +22456,19 @@ function renderRuntimeInspector() {
         <div class="detail-card ${activeWorkbenchEntry?.overrideRepoRelativePath || state.runtimeUi.debugHost?.overrideHitCountAfterReload > 0 ? "is-positive" : ""}">
           <span>Override Status</span>
           <strong>${escapeHtml(activeWorkbenchEntry?.overrideRepoRelativePath
-            ? activeWorkbenchEntry.overrideRepoRelativePath
+            ? `${activeWorkbenchEntry.overrideRepoRelativePath} · ${getRuntimeOverrideDonorSourceKindFromOverrideEntry(activeWorkbenchEntry.activeOverride) ?? "source unknown"}`
             : state.runtimeUi.debugHost?.overrideHitCountAfterReload > 0
-              ? `${state.runtimeUi.debugHost.overrideHitCountAfterReload} debug-host hit${state.runtimeUi.debugHost.overrideHitCountAfterReload === 1 ? "" : "s"}`
+              ? `${state.runtimeUi.debugHost.overrideHitCountAfterReload} debug-host hit${state.runtimeUi.debugHost.overrideHitCountAfterReload === 1 ? "" : "s"}${getRuntimeDebugHostOverrideDonorSourceKind(state.runtimeUi.debugHost) ? ` · ${getRuntimeDebugHostOverrideDonorSourceKind(state.runtimeUi.debugHost)}` : ""}`
               : "No active override for the selected workbench source")}</strong>
-          <small>${escapeHtml(embeddedRequestBackedImages.length > 0
-            ? "Embedded runtime has request-backed image evidence in this session."
-            : debugHostAvailable
-              ? "Embedded runtime still has no request-backed static image in this session; treat Debug Host as the trustworthy override-proof path."
-              : "Embedded runtime still has no request-backed static image in this session, so keep using the grounded selected-project workbench surface instead of pretending Debug Host is available.")}</small>
+          <small>${escapeHtml(activeWorkbenchEntry?.overrideRepoRelativePath
+            ? `Active override is grounded on ${getRuntimeOverrideDonorSourceKindFromOverrideEntry(activeWorkbenchEntry.activeOverride) ?? "a grounded donor source"} for the selected workbench source.`
+            : state.runtimeUi.debugHost?.overrideHitCountAfterReload > 0
+              ? getRuntimeDebugHostOverrideDonorSourceNote(state.runtimeUi.debugHost) ?? "Debug Host already proved a bounded override hit for this source."
+              : embeddedRequestBackedImages.length > 0
+                ? "Embedded runtime has request-backed image evidence in this session."
+                : debugHostAvailable
+                  ? "Embedded runtime still has no request-backed static image in this session; treat Debug Host as the trustworthy override-proof path."
+                  : "Embedded runtime still has no request-backed static image in this session, so keep using the grounded selected-project workbench surface instead of pretending Debug Host is available.")}</small>
         </div>
         <div class="detail-card ${selectedSceneSectionRuntimeContext?.preferredWorkbenchEntry || selectedSceneSectionRuntimeContext?.preferredReference ? "is-positive" : ""}">
           <span>Selected Scene Section</span>
@@ -22499,9 +22673,11 @@ function renderRuntimeInspector() {
         </div>
         <div class="detail-card">
           <span>Active Override</span>
-          <strong>${escapeHtml(runtimeOverrideCandidate.activeOverride?.donorAssetId ?? "No active override for this runtime source")}</strong>
+          <strong>${escapeHtml(runtimeOverrideCandidate.activeOverride
+            ? `${runtimeOverrideCandidate.activeOverride.donorAssetId} · ${getRuntimeOverrideDonorSourceKindFromOverrideEntry(runtimeOverrideCandidate.activeOverride) ?? "source unknown"}`
+            : "No active override for this runtime source")}</strong>
           <small>${escapeHtml(runtimeOverrideCandidate.activeOverride
-            ? `${runtimeOverrideCandidate.activeOverride.overrideRepoRelativePath} · ${runtimeOverrideCandidate.activeOverride.hitCount} runtime hit${runtimeOverrideCandidate.activeOverride.hitCount === 1 ? "" : "s"}`
+            ? `${runtimeOverrideCandidate.activeOverride.overrideRepoRelativePath} · ${runtimeOverrideCandidate.activeOverride.hitCount} runtime hit${runtimeOverrideCandidate.activeOverride.hitCount === 1 ? "" : "s"} · ${getRuntimeOverrideDonorSourceKindFromOverrideEntry(runtimeOverrideCandidate.activeOverride) ?? "source unknown"}`
             : runtimeOverrideStatus?.entryCount
               ? `${runtimeOverrideStatus.entryCount} project-local runtime override${runtimeOverrideStatus.entryCount === 1 ? "" : "s"} recorded.`
               : "Create a bounded override to redirect one grounded static image request to a project-local file.")}</small>
@@ -22513,14 +22689,14 @@ function renderRuntimeInspector() {
         </div>
       </div>
       <div class="tree-row">
-        <strong>Embedded Runtime Bridge Actions</strong>
+        <strong>Runtime Workbench Bridge Actions</strong>
         <span>${escapeHtml(workflowBridge.donorAsset
-          ? "Jump straight from the current embedded runtime trace into donor asset, donor evidence, or related compose context."
-          : "Jump into the strongest grounded embedded-runtime evidence while the live donor runtime remains partially opaque.")}</span>
+          ? "Jump straight from the current grounded runtime trace into source asset, donor evidence, related compose context, or override action."
+          : "Jump into the strongest grounded runtime evidence while the live donor runtime remains partially opaque.")}</span>
         <div class="evidence-actions">
-          ${workflowBridge.donorAsset ? `<button type="button" class="copy-button" data-focus-donor-asset-id="${escapeAttribute(workflowBridge.donorAsset.assetId)}">Focus Asset</button>` : ""}
-          ${workflowBridge.evidenceItem ? `<button type="button" class="copy-button" data-focus-donor-evidence-id="${escapeAttribute(workflowBridge.evidenceItem.evidenceId)}">Focus Evidence</button>` : ""}
-          ${workflowBridge.sceneObject ? `<button type="button" class="copy-button" data-focus-scene-object-id="${escapeAttribute(workflowBridge.sceneObject.id)}">Focus Scene Object</button>` : ""}
+          ${workflowBridge.donorAsset ? `<button type="button" class="copy-button" data-focus-donor-asset-id="${escapeAttribute(workflowBridge.donorAsset.assetId)}">Source Asset</button>` : ""}
+          ${workflowBridge.evidenceItem ? `<button type="button" class="copy-button" data-focus-donor-evidence-id="${escapeAttribute(workflowBridge.evidenceItem.evidenceId)}">Donor Evidence</button>` : ""}
+          ${workflowBridge.sceneObject ? `<button type="button" class="copy-button" data-focus-scene-object-id="${escapeAttribute(workflowBridge.sceneObject.id)}">Compose Object</button>` : ""}
         </div>
       </div>
       <div class="tree-row">
@@ -22718,7 +22894,7 @@ function renderAll() {
     const runtimeOverrideCandidate = getRuntimeOverrideCandidate();
     elements.runtimeControlNote.textContent = state.runtimeUi.lastCommandStatus?.blocked
       ?? (runtimeOverrideCandidate.activeOverride
-        ? `Active runtime override: ${runtimeOverrideCandidate.activeOverride.runtimeRelativePath} -> ${runtimeOverrideCandidate.activeOverride.donorAssetId}. Reload Runtime Mode after changing it.`
+        ? `Active runtime override: ${runtimeOverrideCandidate.activeOverride.runtimeRelativePath} -> ${runtimeOverrideCandidate.activeOverride.donorAssetId} via ${getRuntimeOverrideDonorSourceKindFromOverrideEntry(runtimeOverrideCandidate.activeOverride) ?? "source unknown"}. Open Debug Host when you want the strongest proof pass after changing it.`
         : null)
       ?? (canHarvestSelectedProjectRuntimeRequestEvidence()
         ? (runtimeLaunch?.entryUrl
@@ -22726,7 +22902,7 @@ function renderAll() {
             : "Harvest grounded runtime sources to refresh request-backed workbench traces for this selected project while embedded launch stays blocked.")
         : null)
       ?? runtimeLaunch?.blocker
-      ?? "Launch the donor runtime, inspect a grounded source, and create a project-local static override when the trace is eligible.";
+      ?? "Open Debug Host first, inspect a grounded source, and create a project-local static override when the trace is eligible.";
   }
   if (elements.actionDuplicate) {
     elements.actionDuplicate.disabled = !canMutateSelectedObject;

@@ -43,12 +43,12 @@ The operational workflow is now:
 18. Those blocked-launch projects can now also use the same grounded runtime surface for bounded project-local override work: when the reopened runtime entry is backed by a grounded task-kit donor asset, **Create Override** and **Clear Override** stay available without pretending that embedded launch or Debug Host resumed for that project.
 
 ## Preferred Launchers
+- `./run/open-runtime-debug-host.sh`
+  - Direct launcher for the official Runtime Debug Host workbench. Use this first when runtime asset tracing, source jumps, or override proof matters.
 - `./run/start-workbench.sh`
   - Normal daily launcher for the main MyIDE shell.
 - `./run/start-workbench-clean.sh`
   - Clean reset + launcher for `project_001` test sessions.
-- `./run/open-runtime-debug-host.sh`
-  - Direct launcher for the official Runtime Debug Host path.
 - `./run/refresh-runtime-assets.sh`
   - Safe runtime mirror/request refresh without opening the full shell.
 - If another MyIDE session already holds the default runtime mirror port, you can run smoke/debug commands with `MYIDE_RUNTIME_LOCAL_MIRROR_PORT=<free-port>` to launch a second bounded local mirror for verification.
@@ -130,9 +130,9 @@ The operational workflow is now:
 - Add a workflow hub plus a left-rail context switcher so Runtime, Donor, Compose, VABS, and Project setup behave like one deliberate flow instead of one long stacked wall of panels.
 - Group runtime controls separately from scene-composition controls, with bounded launch, reload, click-to-start, space-triggered gameplay trigger, and the strongest honest pause/resume/step affordances the embedded runtime exposes.
 - Support a stronger runtime pick/inspect flow that can click the live runtime surface, surface the strongest grounded runtime trace we can prove, jump into the best grounded donor asset, donor evidence, or related compose object context when available, and mark whether the current trace is eligible for the bounded static override slice.
-- The shell now treats a bounded dedicated Runtime Debug Host as the official runtime work mode for `project_001`: it loads the same local mirror in its own BrowserWindow and is the stronger runtime-trace path in the current validated slice.
+- The shell now treats a bounded dedicated Runtime Debug Host as the official daily-use runtime work mode for `project_001`: it loads the same local mirror in its own BrowserWindow and is the stronger runtime-trace path in the current validated slice.
 - The strongest previously verified embedded-runtime result is still explicit: the embedded path reported `frameCount=0`, `accessibleFrameCount=0`, `canvasCount=0`, resource windows stayed at `top`, and no stable display-object or request-backed static image was exposed yet.
-- The dedicated debug-host smoke now proves a request-backed local static image candidate plus a bounded project-local override hit after reload, so this is the path to use for daily runtime work when live runtime asset proof matters.
+- The dedicated debug-host smoke now proves a request-backed local static image candidate plus a bounded project-local override hit after reload, so this is the path to use first for daily runtime work when live runtime asset proof matters. Embedded Runtime remains secondary for now.
 - The local mirror now serves cross-origin-safe headers for mirrored module/runtime assets too, and the dedicated debug-host payload keeps recent console/load diagnostics when that stronger runtime path blocks again.
 - Support one bounded project-local static runtime override slice for `project_001`: create an override from the strongest grounded static Mystery Garden runtime image source we can prove, store it under `40_projects/project_001/overrides/`, reload Runtime Mode without cache, and keep raw donor files untouched.
 - Record a bounded runtime resource map for the current `project_001` launch/reload cycle so the shell can show a practical runtime asset/request workbench with requested runtime URLs, matched local mirror files, active override paths, hit counts, and grounded source jumps for the strongest traced sources.

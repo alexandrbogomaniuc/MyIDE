@@ -161,27 +161,27 @@ Recommended rule:
 ## 3. Runtime Mode Is The Primary Workflow
 1. `project_001` now opens into **Runtime** mode when the grounded donor runtime entry is available.
 2. Use the new **Workflow Hub** in the left column to switch the side context between **Runtime**, **Donor**, **Compose**, **VABS**, and **Project** without hunting through one long stack of panels.
-3. Runtime Mode is the main working surface; **Compose** mode is the bounded secondary workflow.
-4. Use **Launch Runtime** to open the recorded Mystery Garden donor runtime inside the shell.
-4. Use **Launch Runtime** to open the bounded local Mystery Garden runtime mirror inside the shell when it is available on this machine.
-5. Use **Reload Runtime** to refresh the runtime surface.
-6. Use **Click To Start** if the donor runtime needs one bounded pointer click to begin.
-7. Use **Spin / Trigger** if you want the bounded runtime action path that currently sends `Space` to the runtime surface.
-8. Use **Use Debug Host** from the Runtime toolbar as the primary runtime action.
+3. Runtime Debug Host is the official daily-use runtime work mode for `project_001`; **Compose** stays the bounded donor-backed edit workflow.
+4. Start with **Open Debug Host** from the Runtime toolbar.
+5. Use the Runtime Source Workbench to scan the strongest request-backed rows first, then jump into **Source Asset**, **Donor Evidence**, **Compose Object**, or **Create Override** from the same work loop.
+6. Treat **Secondary Embedded Runtime** as bounded local context only. Use it when you need launch/reload/spin visibility, not when you need the strongest asset truth.
+7. Use **Reload Runtime** to refresh the embedded runtime surface.
+8. Use **Click To Start** if the donor runtime needs one bounded pointer click to begin.
+9. Use **Spin / Trigger** if you want the bounded runtime action path that currently sends `Space` to the runtime surface.
 9. If you open a non-validated project that has grounded runtime page proofs, request-backed traces, or grounded local-mirror runtime source entries such as static images or bundles but still has no grounded launch URL, **Open Runtime** can now keep the runtime workbench active on that evidence surface; embedded launch and Debug Host should still stay blocked for that project until it has a grounded runtime entry.
 10. If that blocked-launch selected project only has grounded local-mirror source files and no fresh request-backed entry yet, use **Harvest Request-backed Sources** to upgrade those bounded local files into request-backed runtime workbench traces without pretending embedded launch or Debug Host are available.
 11. The dedicated Runtime Debug Host loads the same local mirror in a separate window and is the current path that can prove a request-backed static image override hit.
 12. If that Runtime Debug Host path blocks again, check its console/load diagnostics first; the current mirror now serves cross-origin-safe headers for mirrored module/runtime assets, which was the concrete blocker behind the last `rsa-plugins.js` failure.
 13. Use **Pick / Inspect** and then click the live runtime surface when you need the strongest grounded runtime trace available inside the shell.
-14. Read the right-hand inspector and runtime asset workbench for picked target, request-backed source priority, runtime/display-object trace when exposed, texture/frame info when exposed, runtime URL, local mirror file path when grounded, the current runtime resource-map record, override eligibility, and supporting evidence refs.
+14. Read the right-hand inspector and runtime asset workbench for picked target, requested URL, local mirror file path, active override path, hit count, donor-source linkage, override eligibility, and supporting evidence refs.
 15. Use the new runtime bridge actions in the inspector or workbench to:
    - focus the strongest grounded donor asset card
    - focus the strongest grounded donor evidence entry
    - focus a related compose object if one already exists for that donor-linked asset
-14. If the picked runtime trace or runtime asset workbench shows **Eligible static image override**, click **Create Override**.
-15. The embedded runtime reloads immediately, and you should reopen or keep using **Use Debug Host** for the strongest override-hit confirmation path.
-15. Use **Clear Override** if you want to restore the original donor runtime asset.
-16. Use **Show Runtime Note** or **Show Init Response** to jump back to the grounded runtime evidence behind the current Runtime Mode slice.
+16. If the picked runtime trace or runtime asset workbench shows **override ready**, click **Create Override**.
+17. The embedded runtime reloads immediately, and you should reopen or keep using **Open Debug Host** for the strongest override-hit confirmation path.
+18. Use **Clear Override** if you want to restore the original donor runtime asset.
+19. Use **Show Runtime Note** or **Show Init Response** to jump back to the grounded runtime evidence behind the current Runtime Mode slice.
 
 ## 4. Where Donor Evidence Appears
 1. In the shell, donor content appears in **Donor Assets & Evidence**.
