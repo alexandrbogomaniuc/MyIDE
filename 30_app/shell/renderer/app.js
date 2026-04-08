@@ -48,6 +48,11 @@ const state = {
   workflowUi: {
     activePanel: "runtime"
   },
+  investigationUi: {
+    status: "Ready to run coverage and scenario scans.",
+    tone: "default",
+    running: false
+  },
   projectBrowserUi: {
     query: ""
   },
@@ -3678,11 +3683,11 @@ async function runDonorScanCoverage() {
   const donorName = typeof selectedProject?.donor?.donorName === "string" ? selectedProject.donor.donorName : "";
   const launchUrl = typeof selectedProject?.donor?.launchUrl === "string" ? selectedProject.donor.launchUrl : "";
   if (!api || typeof api.runDonorScanCoverage !== "function" || !donorId) {
-    setPreviewStatus("Coverage scan is not available in this renderer session.");
+    setInvestigationStatus("Coverage scan is not available in this renderer session.", { tone: "warning" });
     return;
   }
 
-  setPreviewStatus(`Running donor-scan:coverage for ${donorId}...`);
+  setInvestigationStatus(`Running donor-scan:coverage for ${donorId}...`, { tone: "default", running: true });
   try {
     const result = await api.runDonorScanCoverage(donorId, donorName, launchUrl);
     await reloadWorkspace(false, state.selectedProjectId);
@@ -3693,10 +3698,17 @@ async function runDonorScanCoverage() {
     const nextOperatorAction = typeof result?.nextOperatorAction === "string"
       ? result.nextOperatorAction
       : "Open Investigation to review coverage and next operator action.";
-    setPreviewStatus(`Coverage scan ${scanState}. Runtime candidates: ${runtimeCandidates}. Atlas manifests: ${atlasCount}. ${nextOperatorAction}`);
+    setInvestigationStatus(
+      `Coverage scan ${scanState}. Runtime candidates: ${runtimeCandidates}. Atlas manifests: ${atlasCount}. ${nextOperatorAction}`,
+      { tone: scanState === "complete" ? "success" : "default", running: false }
+    );
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    setPreviewStatus(`Coverage scan failed: ${message}`);
+    setInvestigationStatus(`Coverage scan failed: ${message}`, { tone: "danger", running: false });
+  } finally {
+    if (state.investigationUi?.running) {
+      setInvestigationStatus(state.investigationUi.status, { tone: state.investigationUi.tone, running: false, preview: false });
+    }
   }
 }
 
@@ -3790,11 +3802,11 @@ async function runDonorPromotionQueue() {
   const donorId = typeof selectedProject?.donor?.donorId === "string" ? selectedProject.donor.donorId : "";
   const donorName = typeof selectedProject?.donor?.donorName === "string" ? selectedProject.donor.donorName : donorId;
   if (!api || typeof api.runDonorPromotionQueue !== "function" || !donorId) {
-    setPreviewStatus("Investigation promotion is not available in this renderer session.");
+    setInvestigationStatus("Investigation promotion is not available in this renderer session.", { tone: "warning" });
     return;
   }
 
-  setPreviewStatus("Promoting ready investigation families and sections into the modification queue...");
+  setInvestigationStatus("Promoting ready investigation families and sections into the modification queue...", { tone: "default", running: true });
   try {
     const result = await api.runDonorPromotionQueue(donorId, donorName);
     const promotedCount = Number(result?.promotedCount ?? 0);
@@ -3820,13 +3832,18 @@ async function runDonorPromotionQueue() {
       }
     }
     await reloadWorkspace(false, state.selectedProjectId);
-    setPreviewStatus(
+    setInvestigationStatus(
       `Promotion queue updated. Added ${promotedCount} item${promotedCount === 1 ? "" : "s"}; `
       + `${queueItemCount} queued for Modification. ${nextOperatorAction}${handoffMessage}`
+      , { tone: "success", running: false }
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    setPreviewStatus(`Investigation promotion failed: ${message}`);
+    setInvestigationStatus(`Investigation promotion failed: ${message}`, { tone: "danger", running: false });
+  } finally {
+    if (state.investigationUi?.running) {
+      setInvestigationStatus(state.investigationUi.status, { tone: state.investigationUi.tone, running: false, preview: false });
+    }
   }
 }
 
@@ -3835,11 +3852,11 @@ async function prepareProjectModificationBoard() {
   const selectedProject = getSelectedProject();
   const projectId = typeof selectedProject?.projectId === "string" ? selectedProject.projectId : "";
   if (!api || typeof api.prepareProjectModificationHandoff !== "function" || !projectId) {
-    setPreviewStatus("Project modification handoff is not available in this renderer session.");
+    setInvestigationStatus("Project modification handoff is not available in this renderer session.", { tone: "warning" });
     return;
   }
 
-  setPreviewStatus("Preparing the project modification board from the promoted donor queue...");
+  setInvestigationStatus("Preparing the project modification board from the promoted donor queue...", { tone: "default", running: true });
   try {
     const result = await api.prepareProjectModificationHandoff(projectId);
     await reloadWorkspace(false, projectId);
@@ -3848,15 +3865,20 @@ async function prepareProjectModificationBoard() {
     const nextOperatorAction = typeof result?.nextOperatorAction === "string"
       ? result.nextOperatorAction
       : "Open Compose or Runtime and continue from the strongest prepared artifact.";
-    setPreviewStatus(
+    setInvestigationStatus(
       `Modification board prepared for ${projectId}. `
       + `${readyTaskCount} ready task${readyTaskCount === 1 ? "" : "s"}`
       + `${blockedTaskCount > 0 ? `, ${blockedTaskCount} blocked` : ""}. `
       + `${nextOperatorAction}`
+      , { tone: "success", running: false }
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    setPreviewStatus(`Project modification handoff failed: ${message}`);
+    setInvestigationStatus(`Project modification handoff failed: ${message}`, { tone: "danger", running: false });
+  } finally {
+    if (state.investigationUi?.running) {
+      setInvestigationStatus(state.investigationUi.status, { tone: state.investigationUi.tone, running: false, preview: false });
+    }
   }
 }
 
@@ -3871,11 +3893,14 @@ async function runDonorScenarioProfile(profileId, minutes = null) {
     ? minutes
     : profile?.minutes ?? 5;
   if (!api || typeof api.runDonorScenarioProfile !== "function" || !donorId || !normalizedProfileId) {
-    setPreviewStatus("Bounded investigation profiles are not available in this renderer session.");
+    setInvestigationStatus("Bounded investigation profiles are not available in this renderer session.", { tone: "warning" });
     return;
   }
 
-  setPreviewStatus(`Running investigation profile ${profile?.label ?? normalizedProfileId} for ${requestedMinutes} minute${requestedMinutes === 1 ? "" : "s"}...`);
+  setInvestigationStatus(
+    `Running investigation profile ${profile?.label ?? normalizedProfileId} for ${requestedMinutes} minute${requestedMinutes === 1 ? "" : "s"}...`,
+    { tone: "default", running: true }
+  );
   try {
     if (profile?.executionMode === "self-bounded") {
       await runBoundedInvestigationProfile(profile);
@@ -3897,7 +3922,7 @@ async function runDonorScenarioProfile(profileId, minutes = null) {
     const nextOperatorAction = typeof result?.nextOperatorAction === "string"
       ? result.nextOperatorAction
       : "Review the refreshed investigation board.";
-    setPreviewStatus(
+    setInvestigationStatus(
       `Investigation profile ${profile?.label ?? normalizedProfileId} completed. Runtime scan is ${runtimeScanState}; lane ${lifecycleLane}; `
       + `${readyForReconstructionCount} ready scenario${readyForReconstructionCount === 1 ? "" : "s"}; `
       + `${blockedScenarioCount} blocked scenario${blockedScenarioCount === 1 ? "" : "s"}; `
@@ -3905,10 +3930,15 @@ async function runDonorScenarioProfile(profileId, minutes = null) {
       + `${promotionReadyCount} promotion-ready; ${queuedForModificationCount} queued; `
       + `${needsOperatorAssist ? "operator assist needed" : "no manual assist leading"}. `
       + `next profile ${nextProfile ?? "none"}. ${nextOperatorAction}`
+      , { tone: "success", running: false }
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    setPreviewStatus(`Investigation profile ${profile?.label ?? normalizedProfileId} failed: ${message}`);
+    setInvestigationStatus(`Investigation profile ${profile?.label ?? normalizedProfileId} failed: ${message}`, { tone: "danger", running: false });
+  } finally {
+    if (state.investigationUi?.running) {
+      setInvestigationStatus(state.investigationUi.status, { tone: state.investigationUi.tone, running: false, preview: false });
+    }
   }
 }
 
@@ -11086,6 +11116,24 @@ function handleCopyEvent(event) {
 function setPreviewStatus(text) {
   if (elements.previewStatus) {
     elements.previewStatus.textContent = text;
+  }
+}
+
+function setInvestigationStatus(text, options = {}) {
+  const nextStatus = typeof text === "string" && text.length > 0 ? text : "Investigation runner is ready.";
+  const tone = typeof options.tone === "string" && options.tone.length > 0 ? options.tone : "default";
+  const running = typeof options.running === "boolean" ? options.running : Boolean(state.investigationUi?.running);
+  state.investigationUi = {
+    ...state.investigationUi,
+    status: nextStatus,
+    tone,
+    running
+  };
+  if (options.preview !== false) {
+    setPreviewStatus(nextStatus);
+  }
+  if (options.render !== false) {
+    renderAll();
   }
 }
 
@@ -18955,6 +19003,24 @@ function renderInvestigationPanel() {
   const donorScan = state.bundle?.donorScan ?? null;
   const modificationHandoff = getProjectModificationHandoff();
   const runtimeResourceMap = state.bundle?.runtimeResourceMap ?? null;
+  const investigationUi = state.investigationUi ?? {};
+  const investigationStatus = typeof investigationUi.status === "string" && investigationUi.status.length > 0
+    ? investigationUi.status
+    : "Ready to run investigation steps.";
+  const investigationTone = typeof investigationUi.tone === "string" && investigationUi.tone.length > 0
+    ? investigationUi.tone
+    : "default";
+  const investigationRunning = Boolean(investigationUi.running);
+  const investigationStatusMarkup = `
+    <div class="tree-row investigation-status-row" data-tone="${escapeAttribute(investigationTone)}">
+      <strong>Investigation Runner</strong>
+      <span>${escapeHtml(investigationStatus)}</span>
+      <div class="chip-row">
+        <span>${investigationRunning ? "running" : "idle"}</span>
+        <span>Actions run inside the IDE and update the Activity Log on the right.</span>
+      </div>
+    </div>
+  `;
   if (!selectedProject) {
     elements.investigationBrowser.innerHTML = `<div class="tree-row"><strong>No Project</strong><span>Select a project to review investigation coverage.</span></div>`;
     return;
@@ -18962,11 +19028,12 @@ function renderInvestigationPanel() {
 
   if (!investigation) {
     elements.investigationBrowser.innerHTML = `
+      ${investigationStatusMarkup}
       <div class="tree-row">
         <strong>Investigation Not Started</strong>
         <span>No investigation-status artifact exists yet for ${escapeHtml(selectedProject.donor.donorName)}.</span>
         <div class="evidence-actions">
-          <button type="button" class="copy-button" data-donor-scan-action="run-coverage-scan">Run Coverage Scan</button>
+          <button type="button" class="copy-button" data-donor-scan-action="run-coverage-scan" ${investigationRunning ? "disabled" : ""}>Run Coverage Scan</button>
           ${investigationProfiles.map((profile) => `
             <button
               type="button"
@@ -18974,6 +19041,7 @@ function renderInvestigationPanel() {
               data-donor-scan-action="run-scenario-profile"
               data-donor-scan-profile="${escapeAttribute(profile.profileId)}"
               data-donor-scan-minutes="${escapeAttribute(String(profile.minutes))}"
+              ${investigationRunning ? "disabled" : ""}
             >Run ${escapeHtml(profile.label)}</button>
           `).join("")}
         </div>
@@ -19051,11 +19119,13 @@ function renderInvestigationPanel() {
 
   elements.investigationBrowser.innerHTML = `
     <div class="investigation-grid">
+      ${investigationStatusMarkup}
       <div class="tree-row">
         <strong>Run Investigation Steps</strong>
         <span>Start here inside the IDE: Coverage → Scenario → Promote → Prepare Modification.</span>
+        <small>${investigationRunning ? "Investigation actions are running; wait for the status update before starting another step." : "Each action runs locally and updates the Activity Log + this panel."}</small>
         <div class="evidence-actions">
-          <button type="button" class="copy-button" data-donor-scan-action="run-coverage-scan">Run Coverage Scan</button>
+          <button type="button" class="copy-button" data-donor-scan-action="run-coverage-scan" ${investigationRunning ? "disabled" : ""}>Run Coverage Scan</button>
           ${primaryProfile ? `
             <button
               type="button"
@@ -19063,10 +19133,11 @@ function renderInvestigationPanel() {
               data-donor-scan-action="run-scenario-profile"
               data-donor-scan-profile="${escapeAttribute(primaryProfile.profileId)}"
               data-donor-scan-minutes="${escapeAttribute(String(primaryProfile.minutes))}"
+              ${investigationRunning ? "disabled" : ""}
             >Run Scenario (${escapeHtml(primaryProfile.label)})</button>
           ` : ""}
-          <button type="button" class="copy-button" data-donor-scan-action="run-promotion-queue">Promote Ready Families</button>
-          <button type="button" class="copy-button" data-project-modification-action="prepare-handoff">Prepare Modification Board</button>
+          <button type="button" class="copy-button" data-donor-scan-action="run-promotion-queue" ${investigationRunning ? "disabled" : ""}>Promote Ready Families</button>
+          <button type="button" class="copy-button" data-project-modification-action="prepare-handoff" ${investigationRunning ? "disabled" : ""}>Prepare Modification Board</button>
         </div>
       </div>
       <div class="detail-grid">
