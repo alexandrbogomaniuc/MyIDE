@@ -57,6 +57,7 @@ import {
 } from "../runtime/runtimeDebugHost";
 import { captureNextTargets } from "../../tools/donor-scan/captureNextTargets";
 import { runFamilyAction } from "../../tools/donor-scan/runFamilyAction";
+import { runDonorScan } from "../../tools/donor-scan/runDonorScan";
 import { runScenarioScan } from "../../tools/donor-scan/runScenarioScan";
 import { runPromotionQueue } from "../../tools/donor-scan/runPromotionQueue";
 import { runSectionAction } from "../../tools/donor-scan/runSectionAction";
@@ -3555,6 +3556,13 @@ ipcMain.handle("myide:run-donor-scan-family-action", async (_event, donorId: str
     donorId,
     family,
     limit: typeof limit === "number" ? limit : undefined
+  });
+});
+ipcMain.handle("myide:run-donor-scan-coverage", async (_event, donorId: string, donorName?: string, launchUrl?: string) => {
+  return runDonorScan({
+    donorId,
+    donorName: typeof donorName === "string" && donorName.length > 0 ? donorName : donorId,
+    launchUrl: typeof launchUrl === "string" && launchUrl.length > 0 ? launchUrl : undefined
   });
 });
 ipcMain.handle("myide:run-donor-scan-scenario", async (_event, donorId: string, profileId: string, minutes?: number, donorName?: string) => {

@@ -172,6 +172,7 @@ contextBridge.exposeInMainWorld("myideApi", {
   openRuntimeDebugHost: (options?: Record<string, unknown>): Promise<unknown> => ipcRenderer.invoke("myide:open-runtime-debug-host", options ?? null),
   runDonorScanCapture: (donorId: string, limit?: number, family?: string, mode?: string): Promise<unknown> => ipcRenderer.invoke("myide:run-donor-scan-capture", donorId, limit, family, mode),
   runDonorScanFamilyAction: (donorId: string, family: string, limit?: number): Promise<unknown> => ipcRenderer.invoke("myide:run-donor-scan-family-action", donorId, family, limit),
+  runDonorScanCoverage: (donorId: string, donorName?: string, launchUrl?: string): Promise<unknown> => ipcRenderer.invoke("myide:run-donor-scan-coverage", donorId, donorName, launchUrl),
   runDonorScenarioProfile: (donorId: string, profileId: string, minutes?: number, donorName?: string): Promise<unknown> => ipcRenderer.invoke("myide:run-donor-scan-scenario", donorId, profileId, minutes, donorName),
   runDonorPromotionQueue: (donorId: string, donorName?: string): Promise<unknown> => ipcRenderer.invoke("myide:run-donor-scan-promotion", donorId, donorName),
   prepareProjectModificationHandoff: (projectId: string): Promise<unknown> => ipcRenderer.invoke("myide:prepare-project-modification-handoff", projectId),

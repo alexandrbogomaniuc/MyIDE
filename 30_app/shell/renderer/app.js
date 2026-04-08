@@ -3671,6 +3671,35 @@ async function runDonorScanCapture(limit = 5, family = null, mode = "ranked-targ
   }
 }
 
+async function runDonorScanCoverage() {
+  const api = window.myideApi;
+  const selectedProject = getSelectedProject();
+  const donorId = typeof selectedProject?.donor?.donorId === "string" ? selectedProject.donor.donorId : "";
+  const donorName = typeof selectedProject?.donor?.donorName === "string" ? selectedProject.donor.donorName : "";
+  const launchUrl = typeof selectedProject?.donor?.launchUrl === "string" ? selectedProject.donor.launchUrl : "";
+  if (!api || typeof api.runDonorScanCoverage !== "function" || !donorId) {
+    setPreviewStatus("Coverage scan is not available in this renderer session.");
+    return;
+  }
+
+  setPreviewStatus(`Running donor-scan:coverage for ${donorId}...`);
+  try {
+    const result = await api.runDonorScanCoverage(donorId, donorName, launchUrl);
+    await reloadWorkspace(false, state.selectedProjectId);
+
+    const scanState = typeof result?.scanState === "string" ? result.scanState : "unknown";
+    const runtimeCandidates = Number(result?.runtimeCandidateCount ?? 0);
+    const atlasCount = Number(result?.atlasManifestCount ?? 0);
+    const nextOperatorAction = typeof result?.nextOperatorAction === "string"
+      ? result.nextOperatorAction
+      : "Open Investigation to review coverage and next operator action.";
+    setPreviewStatus(`Coverage scan ${scanState}. Runtime candidates: ${runtimeCandidates}. Atlas manifests: ${atlasCount}. ${nextOperatorAction}`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    setPreviewStatus(`Coverage scan failed: ${message}`);
+  }
+}
+
 async function runDonorScanFamilyAction(family, limit = 10) {
   const api = window.myideApi;
   const selectedProject = getSelectedProject();
@@ -15231,6 +15260,10 @@ function handleNavigationClick(event) {
       void runDonorScanFamilyAction(family, Number.isFinite(limit) ? limit : 10);
       return true;
     }
+    if (donorScanActionButton.dataset.donorScanAction === "run-coverage-scan") {
+      void runDonorScanCoverage();
+      return true;
+    }
     if (donorScanActionButton.dataset.donorScanAction === "run-scenario-profile") {
       const profileId = typeof donorScanActionButton.dataset.donorScanProfile === "string"
         && donorScanActionButton.dataset.donorScanProfile.trim().length > 0
@@ -18933,6 +18966,7 @@ function renderInvestigationPanel() {
         <strong>Investigation Not Started</strong>
         <span>No investigation-status artifact exists yet for ${escapeHtml(selectedProject.donor.donorName)}.</span>
         <div class="evidence-actions">
+          <button type="button" class="copy-button" data-donor-scan-action="run-coverage-scan">Run Coverage Scan</button>
           ${investigationProfiles.map((profile) => `
             <button
               type="button"
@@ -18966,6 +19000,7 @@ function renderInvestigationPanel() {
     : null;
   const runtimeCoverage = runtimeResourceMap?.coverage ?? null;
   const blockedRawFamilies = Array.isArray(donorScan?.rawPayloadBlockedFamilyNames) ? donorScan.rawPayloadBlockedFamilyNames : [];
+  const primaryProfile = recommendedProfile ?? getInvestigationProfileDefinition("default-bet");
   const investigationSummaryPayload = {
     projectId: selectedProject.projectId,
     donorId: investigation.donorId,
@@ -19016,6 +19051,24 @@ function renderInvestigationPanel() {
 
   elements.investigationBrowser.innerHTML = `
     <div class="investigation-grid">
+      <div class="tree-row">
+        <strong>Run Investigation Steps</strong>
+        <span>Start here inside the IDE: Coverage → Scenario → Promote → Prepare Modification.</span>
+        <div class="evidence-actions">
+          <button type="button" class="copy-button" data-donor-scan-action="run-coverage-scan">Run Coverage Scan</button>
+          ${primaryProfile ? `
+            <button
+              type="button"
+              class="copy-button"
+              data-donor-scan-action="run-scenario-profile"
+              data-donor-scan-profile="${escapeAttribute(primaryProfile.profileId)}"
+              data-donor-scan-minutes="${escapeAttribute(String(primaryProfile.minutes))}"
+            >Run Scenario (${escapeHtml(primaryProfile.label)})</button>
+          ` : ""}
+          <button type="button" class="copy-button" data-donor-scan-action="run-promotion-queue">Promote Ready Families</button>
+          <button type="button" class="copy-button" data-project-modification-action="prepare-handoff">Prepare Modification Board</button>
+        </div>
+      </div>
       <div class="detail-grid">
         <div class="detail-card">
           <span>Current Stage</span>
