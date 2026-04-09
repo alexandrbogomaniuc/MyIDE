@@ -269,3 +269,42 @@ function resolveWorkspacePath(value: string): string {
 
   return path.resolve(workspaceRoot, trimmed);
 }
+
+export async function updateProjectLaunchUrl(projectId: string, launchUrl: string): Promise<DerivedProjectRegistry> {
+  if (!projectId || !isSafeProjectId(projectId)) {
+    throw new Error("Project id is invalid.");
+  }
+
+  if (!launchUrl || !launchUrl.trim()) {
+    throw new Error("Launch URL is required.");
+  }
+
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(launchUrl);
+  } catch {
+    throw new Error("Launch URL must be a valid absolute URL.");
+  }
+
+  const projects = await discoverProjectMetas();
+  const matching = projects.find((entry) => getString(entry.projectId) === projectId);
+  if (!matching) {
+    throw new Error(`Project ${projectId} was not found in the workspace registry.`);
+  }
+
+  const projectRootValue = isJsonObject(matching.paths) ? getString(matching.paths.projectRoot) : "";
+  const projectRoot = resolveWorkspacePath(projectRootValue || path.join("40_projects", projectId));
+  if (!projectRoot.startsWith(projectsRoot)) {
+    throw new Error("Project path is outside the workspace root.");
+  }
+
+  const metaPath = path.join(projectRoot, "project.meta.json");
+  const meta = await readJsonObject(metaPath);
+  const donor = isJsonObject(meta.donor) ? meta.donor : {};
+  meta.donor = donor;
+  donor.launchUrl = parsedUrl.toString();
+  donor.sourceHost = parsedUrl.host;
+
+  await fs.writeFile(metaPath, `${JSON.stringify(meta, null, 2)}\n`, "utf8");
+  return discoverAndWriteRegistry();
+}

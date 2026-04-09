@@ -10380,6 +10380,17 @@ function bindActions() {
       return;
     }
 
+    const projectActionButton = target.closest("[data-project-action]");
+    if (projectActionButton instanceof HTMLElement) {
+      event.preventDefault();
+      const action = projectActionButton.dataset.projectAction;
+      const projectId = projectActionButton.dataset.projectId;
+      if (action === "set-launch-url" && projectId) {
+        void promptProjectLaunchUrl(projectId);
+      }
+      return;
+    }
+
     const deleteButton = target.closest("[data-project-delete-id]");
     if (deleteButton instanceof HTMLElement) {
       event.preventDefault();
@@ -17866,6 +17877,31 @@ async function deleteProjectById(projectId) {
   }
 }
 
+async function promptProjectLaunchUrl(projectId) {
+  const api = window.myideApi;
+  if (!api || typeof api.updateProjectLaunchUrl !== "function") {
+    setPreviewStatus("Launch URL update is not available in this renderer session.");
+    return;
+  }
+
+  const selectedProject = getSelectedProject();
+  const currentUrl = selectedProject?.projectId === projectId ? selectedProject?.donor?.launchUrl ?? "" : "";
+  const input = window.prompt("Paste the Donor Launch URL for this project:", currentUrl);
+  if (!input || !input.trim()) {
+    return;
+  }
+
+  setPreviewStatus(`Saving launch URL for ${projectId}...`);
+  try {
+    await api.updateProjectLaunchUrl(projectId, input.trim());
+    await reloadWorkspace(false, projectId);
+    setPreviewStatus(`Launch URL saved for ${projectId}. Debug Host is now available if the URL is valid.`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    setPreviewStatus(`Launch URL update failed: ${message}`);
+  }
+}
+
 async function handleCreateProject(event) {
   event?.preventDefault?.();
 
@@ -18502,9 +18538,11 @@ function renderProjectBrowser() {
             <strong>Capture Runtime (Debug Host)</strong>
             <small>${debugHostAvailable
               ? "Opens the Debug Host to capture grounded launch HTML + runtime bundles."
-              : "Needs a grounded launch URL. Create the project with a Donor Launch URL, then reopen."}</small>
+              : "Needs a grounded launch URL. Add it now to enable Debug Host."}</small>
           </div>
-          <button type="button" class="copy-button" data-runtime-action="open-debug-host" ${debugHostAvailable ? "" : "disabled"}>Open Debug Host</button>
+          ${debugHostAvailable
+            ? `<button type="button" class="copy-button" data-runtime-action="open-debug-host">Open Debug Host</button>`
+            : `<button type="button" class="copy-button" data-project-action="set-launch-url" data-project-id="${escapeAttribute(selectedProject.projectId)}">Set Launch URL</button>`}
         </div>
         <div class="next-step">
           <span class="step-index">2</span>
