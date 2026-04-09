@@ -8,6 +8,7 @@ import { createProjectFromInput, type ShellCreateProjectInput } from "../workspa
 import { saveEditableProjectData, type EditableProjectData } from "../workspace/editableProject";
 import { prepareProjectModificationHandoff } from "../workspace/modificationHandoff";
 import { loadWorkspaceSlice } from "./workspaceSlice";
+import { deleteProjectFolder } from "../workspace/discoverProjects";
 import {
   buildRuntimeAssetOverrideRedirectMap,
   buildRuntimeAssetOverrideStatus,
@@ -3428,6 +3429,10 @@ ipcMain.handle("myide:get-launch-flags", async () => ({
 
 ipcMain.handle("myide:get-file-evidence", async (_event, entries: FileEvidenceRequest[]) => {
   return buildFileEvidence(entries);
+});
+
+ipcMain.handle("myide:delete-project", async (_event, projectId: string) => {
+  return deleteProjectFolder(projectId);
 });
 
 ipcMain.on("myide:bridge-smoke-result", (_event, payload: BridgeSmokePayload) => {

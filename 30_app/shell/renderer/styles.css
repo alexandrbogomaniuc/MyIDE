@@ -311,6 +311,8 @@ body.wizard-mode #panel-new-project {
 .layer-toggle,
 .canvas-object,
 .project-card,
+.project-card-button,
+.project-card-delete,
 .object-row {
   appearance: none;
   border: 1px solid rgba(179, 209, 186, 0.18);
@@ -555,6 +557,7 @@ button:disabled {
 }
 
 .project-card,
+.project-card-button,
 .object-row {
   width: 100%;
   text-align: left;
@@ -565,12 +568,14 @@ button:disabled {
 }
 
 .project-card:hover,
+.project-card-button:hover,
 .object-row:hover {
   transform: translateY(-1px);
   border-color: rgba(230, 191, 100, 0.42);
 }
 
 .project-card.is-selected,
+.project-card-shell.is-selected .project-card-button,
 .object-row.is-selected {
   border-color: rgba(230, 191, 100, 0.68);
   background: rgba(230, 191, 100, 0.08);
@@ -616,6 +621,30 @@ button:disabled {
   justify-content: space-between;
   gap: 10px;
   align-items: baseline;
+}
+
+.project-card-shell {
+  display: grid;
+  gap: 8px;
+}
+
+.project-card-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.project-card-delete {
+  width: 100%;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 0.5rem 0.85rem;
+  background: linear-gradient(180deg, rgba(88, 42, 28, 0.96), rgba(52, 25, 16, 0.98));
+  border-color: rgba(232, 138, 93, 0.4);
+  color: #ffd9cc;
+}
+
+.project-card-delete:hover {
+  border-color: rgba(232, 138, 93, 0.7);
 }
 
 .project-card p,

@@ -10380,6 +10380,16 @@ function bindActions() {
       return;
     }
 
+    const deleteButton = target.closest("[data-project-delete-id]");
+    if (deleteButton instanceof HTMLElement) {
+      event.preventDefault();
+      const projectId = deleteButton.dataset.projectDeleteId;
+      if (projectId) {
+        void deleteProjectById(projectId);
+      }
+      return;
+    }
+
     const button = target.closest("[data-project-id]");
     if (!(button instanceof HTMLElement)) {
       return;
@@ -17832,6 +17842,29 @@ async function reloadWorkspace(isInitialLoad, requestedProjectId = null) {
     : `Reloaded ${state.selectedProjectId} editable compose scene from disk.`);
 }
 
+async function deleteProjectById(projectId) {
+  const api = window.myideApi;
+  if (!api || typeof api.deleteProject !== "function") {
+    setPreviewStatus("Delete Project is not available in this renderer session.");
+    return;
+  }
+
+  const confirmed = window.confirm(`Delete project ${projectId}? This removes the folder under 40_projects and cannot be undone.`);
+  if (!confirmed) {
+    return;
+  }
+
+  setPreviewStatus(`Deleting project ${projectId}...`);
+  try {
+    await api.deleteProject(projectId);
+    await reloadWorkspace(false, null);
+    setPreviewStatus(`Deleted project ${projectId}.`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    setPreviewStatus(`Delete project failed: ${message}`);
+  }
+}
+
 async function handleCreateProject(event) {
   event?.preventDefault?.();
 
@@ -18427,18 +18460,26 @@ function renderProjectBrowser() {
   const projectCards = filteredProjects.map((project) => {
     const isSelected = project.projectId === selectedProject?.projectId;
     const lifecycle = project.lifecycle?.currentStage ? labelizeStage(project.lifecycle.currentStage) : "No lifecycle";
+    const deleteDisabled = projects.length <= 1;
 
     return `
-      <button class="project-card ${isSelected ? "is-selected" : ""}" type="button" data-project-id="${project.projectId}">
-        <div class="project-card-head">
-          <strong>${project.displayName}</strong>
-          <span class="status-chip status-${project.status}">${labelizeStatus(project.status)}</span>
+      <div class="project-card-shell ${isSelected ? "is-selected" : ""}">
+        <button class="project-card-button" type="button" data-project-id="${project.projectId}">
+          <div class="project-card-head">
+            <strong>${project.displayName}</strong>
+            <span class="status-chip status-${project.status}">${labelizeStatus(project.status)}</span>
+          </div>
+          <p>${project.donor.donorName} <code>${project.donor.donorId}</code></p>
+          <p>${project.targetGame.displayName}</p>
+          <p>${lifecycle} · ${labelizeStatus(project.verificationStatus)}</p>
+          <p class="project-path"><code>${project.keyPaths.projectRoot}</code></p>
+        </button>
+        <div class="project-card-actions">
+          <button type="button" class="project-card-delete" data-project-delete-id="${project.projectId}" ${deleteDisabled ? "disabled" : ""}>
+            ${deleteDisabled ? "Delete (last project)" : "Delete Project"}
+          </button>
         </div>
-        <p>${project.donor.donorName} <code>${project.donor.donorId}</code></p>
-        <p>${project.targetGame.displayName}</p>
-        <p>${lifecycle} · ${labelizeStatus(project.verificationStatus)}</p>
-        <p class="project-path"><code>${project.keyPaths.projectRoot}</code></p>
-      </button>
+      </div>
     `;
   }).join("");
   const searchSummary = normalizedQuery

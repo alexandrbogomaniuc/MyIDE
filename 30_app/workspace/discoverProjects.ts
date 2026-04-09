@@ -222,3 +222,31 @@ export async function discoverAndWriteRegistry(): Promise<DerivedProjectRegistry
   await writeDerivedRegistry(registry);
   return registry;
 }
+
+function isSafeProjectId(projectId: string): boolean {
+  return /^[a-zA-Z0-9_-]+$/.test(projectId);
+}
+
+export async function deleteProjectFolder(projectId: string): Promise<DerivedProjectRegistry> {
+  if (!projectId || !isSafeProjectId(projectId) || ignoredProjectFolders.has(projectId)) {
+    throw new Error("Project id is invalid or protected.");
+  }
+
+  const projects = await discoverProjectMetas();
+  const matching = projects.find((entry) => getString(entry.projectId) === projectId);
+  if (!matching) {
+    throw new Error(`Project ${projectId} was not found in the workspace registry.`);
+  }
+
+  if (projects.length <= 1) {
+    throw new Error("Cannot delete the last remaining project.");
+  }
+
+  const projectRoot = path.join(projectsRoot, projectId);
+  if (!projectRoot.startsWith(projectsRoot)) {
+    throw new Error("Project path is outside the workspace root.");
+  }
+
+  await fs.rm(projectRoot, { recursive: true, force: true });
+  return discoverAndWriteRegistry();
+}
