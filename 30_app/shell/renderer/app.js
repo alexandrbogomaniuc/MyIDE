@@ -58,7 +58,8 @@ const state = {
     evidenceLoading: false
   },
   projectBrowserUi: {
-    query: ""
+    query: "",
+    launchUrlDraft: ""
   },
   modificationTaskUi: {
     activeTaskId: null,
@@ -10386,7 +10387,8 @@ function bindActions() {
       const action = projectActionButton.dataset.projectAction;
       const projectId = projectActionButton.dataset.projectId;
       if (action === "set-launch-url" && projectId) {
-        void promptProjectLaunchUrl(projectId);
+        const draft = state.projectBrowserUi.launchUrlDraft?.trim();
+        void saveProjectLaunchUrl(projectId, draft);
       }
       return;
     }
@@ -10409,6 +10411,15 @@ function bindActions() {
     const projectId = button.dataset.projectId;
     if (projectId) {
       void reloadWorkspace(false, projectId);
+    }
+  });
+  elements.projectBrowser?.addEventListener("input", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLInputElement)) {
+      return;
+    }
+    if (target.dataset.projectLaunchInput === "1") {
+      state.projectBrowserUi.launchUrlDraft = target.value;
     }
   });
   elements.projectSearchInput?.addEventListener("input", (event) => {
@@ -17877,23 +17888,21 @@ async function deleteProjectById(projectId) {
   }
 }
 
-async function promptProjectLaunchUrl(projectId) {
+async function saveProjectLaunchUrl(projectId, launchUrl) {
   const api = window.myideApi;
   if (!api || typeof api.updateProjectLaunchUrl !== "function") {
     setPreviewStatus("Launch URL update is not available in this renderer session.");
     return;
   }
 
-  const selectedProject = getSelectedProject();
-  const currentUrl = selectedProject?.projectId === projectId ? selectedProject?.donor?.launchUrl ?? "" : "";
-  const input = window.prompt("Paste the Donor Launch URL for this project:", currentUrl);
-  if (!input || !input.trim()) {
+  const trimmed = typeof launchUrl === "string" ? launchUrl.trim() : "";
+  if (!trimmed) {
+    setPreviewStatus("Paste a valid donor launch URL before saving.");
     return;
   }
-
   setPreviewStatus(`Saving launch URL for ${projectId}...`);
   try {
-    await api.updateProjectLaunchUrl(projectId, input.trim());
+    await api.updateProjectLaunchUrl(projectId, trimmed);
     await reloadWorkspace(false, projectId);
     setPreviewStatus(`Launch URL saved for ${projectId}. Debug Host is now available if the URL is valid.`);
   } catch (error) {
@@ -18336,6 +18345,10 @@ function renderOnboardingCard() {
     project: "Project scaffolding and workspace refresh stay separate from the runtime/composer workflow."
   };
   const debugHostAvailable = canUseRuntimeDebugHostForSelectedProject();
+  const selectedLaunchUrl = selectedProject?.donor?.launchUrl ?? "";
+  if (!state.projectBrowserUi.launchUrlDraft && selectedLaunchUrl) {
+    state.projectBrowserUi.launchUrlDraft = selectedLaunchUrl;
+  }
   const debugHostOfficial = debugHostAvailable && isOfficialRuntimeDebugHostProject();
   const bridgeActions = [
     debugHostAvailable
@@ -18542,7 +18555,17 @@ function renderProjectBrowser() {
           </div>
           ${debugHostAvailable
             ? `<button type="button" class="copy-button" data-runtime-action="open-debug-host">Open Debug Host</button>`
-            : `<button type="button" class="copy-button" data-project-action="set-launch-url" data-project-id="${escapeAttribute(selectedProject.projectId)}">Set Launch URL</button>`}
+            : `
+              <div class="launch-url-inline">
+                <input
+                  type="url"
+                  data-project-launch-input="1"
+                  placeholder="Paste donor launch URL"
+                  value="${escapeAttribute(state.projectBrowserUi.launchUrlDraft || "")}"
+                />
+                <button type="button" class="copy-button" data-project-action="set-launch-url" data-project-id="${escapeAttribute(selectedProject.projectId)}">Save Launch URL</button>
+              </div>
+            `}
         </div>
         <div class="next-step">
           <span class="step-index">2</span>

@@ -711,9 +711,9 @@ export async function createProjectFromInput(input: ShellCreateProjectInput, ove
   });
   meta.donor.evidenceRoot = path.relative(workspaceRoot, donorIntake.evidenceRoot).replace(/\\/g, "/");
   meta.donor.intakeReportPath = path.relative(workspaceRoot, donorIntake.reportPath).replace(/\\/g, "/");
-  meta.donor.launchUrl = donorIntake.launchUrl;
+  meta.donor.launchUrl = donorIntake.launchUrl ?? meta.donor.launchUrl;
   meta.donor.resolvedLaunchUrl = donorIntake.resolvedLaunchUrl;
-  meta.donor.sourceHost = donorIntake.sourceHost;
+  meta.donor.sourceHost = donorIntake.sourceHost ?? meta.donor.sourceHost;
   meta.donor.harvestStatus = donorIntake.harvestStatus ?? "unknown";
   meta.donor.harvestManifestPath = donorIntake.harvestManifestPath ? path.relative(workspaceRoot, donorIntake.harvestManifestPath).replace(/\\/g, "/") : undefined;
   meta.donor.harvestedAssetCount = donorIntake.harvestedAssetCount;
