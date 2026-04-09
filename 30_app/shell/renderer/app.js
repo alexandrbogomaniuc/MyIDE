@@ -18490,6 +18490,52 @@ function renderProjectBrowser() {
     ? `<div class="tree-row"><strong>No matching projects</strong><span>Clear the search to show every project.</span></div>`
     : "";
 
+  const debugHostAvailable = canUseRuntimeDebugHostForSelectedProject();
+  const nextStepsMarkup = selectedProject ? `
+    <div class="tree-row project-next-steps">
+      <strong>New Project Next Steps</strong>
+      <span>Follow this order so a first-time user always knows what to do.</span>
+      <div class="next-step-list">
+        <div class="next-step">
+          <span class="step-index">1</span>
+          <div class="step-body">
+            <strong>Capture Runtime (Debug Host)</strong>
+            <small>${debugHostAvailable
+              ? "Opens the Debug Host to capture grounded launch HTML + runtime bundles."
+              : "Needs a grounded launch URL. Create the project with a Donor Launch URL, then reopen."}</small>
+          </div>
+          <button type="button" class="copy-button" data-runtime-action="open-debug-host" ${debugHostAvailable ? "" : "disabled"}>Open Debug Host</button>
+        </div>
+        <div class="next-step">
+          <span class="step-index">2</span>
+          <div class="step-body">
+            <strong>Start Investigation</strong>
+            <small>Runs coverage + scenario scans and tells you what is ready to promote.</small>
+          </div>
+          <button
+            type="button"
+            class="copy-button"
+            data-workflow-panel="investigation"
+            data-scroll-target="panel-investigation"
+          >Go To Investigation</button>
+        </div>
+        <div class="next-step">
+          <span class="step-index">3</span>
+          <div class="step-body">
+            <strong>Compose / Modification</strong>
+            <small>Once investigation is ready, jump to Compose to edit grounded parts.</small>
+          </div>
+          <button
+            type="button"
+            class="copy-button"
+            data-workflow-panel="compose"
+            data-scroll-target="panel-compose"
+          >Go To Compose</button>
+        </div>
+      </div>
+    </div>
+  ` : "";
+
   const selectedSummary = selectedProject ? `
     <div class="detail-grid">
       <div class="detail-card">
@@ -18524,6 +18570,7 @@ function renderProjectBrowser() {
     ${searchSummary}
     <div class="project-list">${projectCards}</div>
     ${emptyMessage}
+    ${nextStepsMarkup}
     ${selectedSummary}
   `;
 }

@@ -633,6 +633,48 @@ button:disabled {
   gap: 8px;
 }
 
+.project-next-steps {
+  margin-top: 14px;
+}
+
+.next-step-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.next-step {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(179, 209, 186, 0.16);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.next-step .step-index {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  color: #f5e3a4;
+  background: rgba(230, 191, 100, 0.12);
+  border: 1px solid rgba(230, 191, 100, 0.4);
+}
+
+.next-step .step-body {
+  display: grid;
+  gap: 4px;
+}
+
+.next-step .step-body small {
+  color: var(--muted);
+}
+
 .project-card-delete {
   width: 100%;
   justify-content: center;
