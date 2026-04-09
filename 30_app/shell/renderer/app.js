@@ -59,7 +59,8 @@ const state = {
   },
   projectBrowserUi: {
     query: "",
-    launchUrlDraft: ""
+    launchUrlDraft: "",
+    launchUrlStatus: null
   },
   modificationTaskUi: {
     activeTaskId: null,
@@ -17892,22 +17893,27 @@ async function saveProjectLaunchUrl(projectId, launchUrl) {
   const api = window.myideApi;
   if (!api || typeof api.updateProjectLaunchUrl !== "function") {
     setPreviewStatus("Launch URL update is not available in this renderer session.");
+    state.projectBrowserUi.launchUrlStatus = { tone: "danger", message: "Launch URL update not available. Please relaunch the IDE." };
     return;
   }
 
   const trimmed = typeof launchUrl === "string" ? launchUrl.trim() : "";
   if (!trimmed) {
     setPreviewStatus("Paste a valid donor launch URL before saving.");
+    state.projectBrowserUi.launchUrlStatus = { tone: "warning", message: "Paste a valid donor launch URL before saving." };
     return;
   }
   setPreviewStatus(`Saving launch URL for ${projectId}...`);
+  state.projectBrowserUi.launchUrlStatus = { tone: "default", message: "Saving launch URL..." };
   try {
     await api.updateProjectLaunchUrl(projectId, trimmed);
     await reloadWorkspace(false, projectId);
     setPreviewStatus(`Launch URL saved for ${projectId}. Debug Host is now available if the URL is valid.`);
+    state.projectBrowserUi.launchUrlStatus = { tone: "success", message: "Launch URL saved. Debug Host should unlock." };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     setPreviewStatus(`Launch URL update failed: ${message}`);
+    state.projectBrowserUi.launchUrlStatus = { tone: "danger", message: `Launch URL update failed: ${message}` };
   }
 }
 
@@ -18349,6 +18355,7 @@ function renderOnboardingCard() {
   if (!state.projectBrowserUi.launchUrlDraft && selectedLaunchUrl) {
     state.projectBrowserUi.launchUrlDraft = selectedLaunchUrl;
   }
+  const launchUrlStatus = state.projectBrowserUi.launchUrlStatus;
   const debugHostOfficial = debugHostAvailable && isOfficialRuntimeDebugHostProject();
   const bridgeActions = [
     debugHostAvailable
@@ -18563,7 +18570,14 @@ function renderProjectBrowser() {
                   placeholder="Paste donor launch URL"
                   value="${escapeAttribute(state.projectBrowserUi.launchUrlDraft || "")}"
                 />
-                <button type="button" class="copy-button" data-project-action="set-launch-url" data-project-id="${escapeAttribute(selectedProject.projectId)}">Save Launch URL</button>
+                <button
+                  type="button"
+                  class="copy-button"
+                  data-project-action="set-launch-url"
+                  data-project-id="${escapeAttribute(selectedProject.projectId)}"
+                  ${state.projectBrowserUi.launchUrlDraft?.trim() ? "" : "disabled"}
+                >Save Launch URL</button>
+                ${launchUrlStatus?.message ? `<small class="launch-url-status" data-tone="${escapeAttribute(launchUrlStatus.tone ?? "default")}">${escapeHtml(launchUrlStatus.message)}</small>` : ""}
               </div>
             `}
         </div>

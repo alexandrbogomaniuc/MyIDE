@@ -691,6 +691,24 @@ button:disabled {
   font-size: 0.78rem;
 }
 
+.launch-url-status {
+  font-size: 0.72rem;
+  color: var(--muted);
+  text-align: right;
+}
+
+.launch-url-status[data-tone="success"] {
+  color: rgba(152, 221, 178, 0.92);
+}
+
+.launch-url-status[data-tone="warning"] {
+  color: rgba(230, 191, 100, 0.92);
+}
+
+.launch-url-status[data-tone="danger"] {
+  color: rgba(232, 138, 93, 0.92);
+}
+
 .project-card-delete {
   width: 100%;
   justify-content: center;
