@@ -18515,6 +18515,11 @@ function renderProjectBrowser() {
 
   const projects = getWorkspaceProjects();
   const selectedProject = getSelectedProject();
+  const selectedLaunchUrl = selectedProject?.donor?.launchUrl ?? "";
+  if (!state.projectBrowserUi.launchUrlDraft && selectedLaunchUrl) {
+    state.projectBrowserUi.launchUrlDraft = selectedLaunchUrl;
+  }
+  const launchUrlStatus = state.projectBrowserUi.launchUrlStatus;
   const rawQuery = state.projectBrowserUi?.query ?? "";
   const normalizedQuery = rawQuery.trim().toLowerCase();
   const filteredProjects = normalizedQuery
