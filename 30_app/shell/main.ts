@@ -190,6 +190,20 @@ interface RuntimeDebugHostOptions {
 
 type RuntimeDebugHostResult = Record<string, unknown>;
 
+type FileEvidenceRequest = {
+  label: string;
+  path: string;
+};
+
+type FileEvidenceResponse = {
+  label: string;
+  path: string;
+  exists: boolean;
+  size: number | null;
+  modifiedAt: string | null;
+  error?: string;
+};
+
 interface LiveDuplicateDeleteSmokePayload {
   status?: string;
   error?: string;
@@ -3344,6 +3358,47 @@ if (shouldDisableHardwareAcceleration) {
 }
 app.setAppUserModelId("dev.myide");
 
+async function buildFileEvidence(entries: FileEvidenceRequest[]): Promise<FileEvidenceResponse[]> {
+  if (!Array.isArray(entries) || entries.length === 0) {
+    return [];
+  }
+
+  return Promise.all(entries.map(async (entry) => {
+    const label = typeof entry?.label === "string" ? entry.label : "Evidence";
+    const targetPath = typeof entry?.path === "string" ? entry.path : "";
+    if (!targetPath) {
+      return {
+        label,
+        path: targetPath,
+        exists: false,
+        size: null,
+        modifiedAt: null,
+        error: "Missing path"
+      };
+    }
+    try {
+      const stats = await fs.stat(targetPath);
+      return {
+        label,
+        path: targetPath,
+        exists: true,
+        size: Number.isFinite(stats.size) ? stats.size : null,
+        modifiedAt: stats.mtime ? stats.mtime.toISOString() : null
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return {
+        label,
+        path: targetPath,
+        exists: false,
+        size: null,
+        modifiedAt: null,
+        error: message
+      };
+    }
+  }));
+}
+
 ipcMain.on("myide:preload-ready", () => {
   bridgeHealthState.preloadExecuted = true;
 });
@@ -3370,6 +3425,10 @@ ipcMain.handle("myide:renderer-ready", async () => {
 ipcMain.handle("myide:get-launch-flags", async () => ({
   wizardMode: isWizardMode
 }));
+
+ipcMain.handle("myide:get-file-evidence", async (_event, entries: FileEvidenceRequest[]) => {
+  return buildFileEvidence(entries);
+});
 
 ipcMain.on("myide:bridge-smoke-result", (_event, payload: BridgeSmokePayload) => {
   if (typeof activeBridgeSmokeReporter === "function") {

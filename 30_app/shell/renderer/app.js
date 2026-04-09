@@ -52,7 +52,10 @@ const state = {
     status: "Ready to run coverage and scenario scans.",
     tone: "default",
     running: false,
-    history: []
+    history: [],
+    evidence: [],
+    evidenceKey: null,
+    evidenceLoading: false
   },
   projectBrowserUi: {
     query: ""
@@ -11139,6 +11142,50 @@ function pushInvestigationHistoryEntry(entry) {
   };
 }
 
+async function loadInvestigationEvidence(paths, evidenceKey) {
+  const api = window.myideApi;
+  if (!api || typeof api.getFileEvidence !== "function") {
+    state.investigationUi = {
+      ...state.investigationUi,
+      evidenceLoading: false,
+      evidenceKey
+    };
+    renderAll();
+    return;
+  }
+
+  state.investigationUi = {
+    ...state.investigationUi,
+    evidenceLoading: true,
+    evidenceKey
+  };
+  try {
+    const results = await api.getFileEvidence(paths);
+    state.investigationUi = {
+      ...state.investigationUi,
+      evidence: Array.isArray(results) ? results : [],
+      evidenceLoading: false,
+      evidenceKey
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    state.investigationUi = {
+      ...state.investigationUi,
+      evidence: [{
+        label: "Investigation evidence lookup failed",
+        path: null,
+        exists: false,
+        size: null,
+        modifiedAt: null,
+        error: message
+      }],
+      evidenceLoading: false,
+      evidenceKey
+    };
+  }
+  renderAll();
+}
+
 function setInvestigationStatus(text, options = {}) {
   const nextStatus = typeof text === "string" && text.length > 0 ? text : "Investigation runner is ready.";
   const tone = typeof options.tone === "string" && options.tone.length > 0 ? options.tone : "default";
@@ -19076,6 +19123,33 @@ function renderInvestigationPanel() {
       ${investigationHistoryMarkup}
     </div>
   `;
+  const evidenceRows = [];
+  if (investigation?.investigationStatusPath) {
+    evidenceRows.push({ label: "Investigation Status", path: investigation.investigationStatusPath });
+  }
+  if (investigation?.scenarioCatalogPath) {
+    evidenceRows.push({ label: "Scenario Catalog", path: investigation.scenarioCatalogPath });
+  }
+  if (investigation?.scenarioCaptureLogPath) {
+    evidenceRows.push({ label: "Scenario Capture Log", path: investigation.scenarioCaptureLogPath });
+  }
+  if (investigation?.scenarioBlockerSummaryPath) {
+    evidenceRows.push({ label: "Scenario Blocker Summary", path: investigation.scenarioBlockerSummaryPath });
+  }
+  if (investigation?.promotion?.readyCandidatesPath) {
+    evidenceRows.push({ label: "Promotion Ready List", path: investigation.promotion.readyCandidatesPath });
+  }
+  if (investigation?.promotion?.modificationQueuePath) {
+    evidenceRows.push({ label: "Modification Queue", path: investigation.promotion.modificationQueuePath });
+  }
+  if (modificationHandoff?.reportPath) {
+    evidenceRows.push({ label: "Modification Handoff Report", path: modificationHandoff.reportPath });
+  }
+  const evidenceKey = JSON.stringify(evidenceRows.map((row) => row.path));
+  if (state.investigationUi?.evidenceKey !== evidenceKey && !state.investigationUi?.evidenceLoading) {
+    const evidencePayload = evidenceRows.map((row) => ({ label: row.label, path: row.path }));
+    void loadInvestigationEvidence(evidencePayload, evidenceKey);
+  }
   if (!selectedProject) {
     elements.investigationBrowser.innerHTML = `<div class="tree-row"><strong>No Project</strong><span>Select a project to review investigation coverage.</span></div>`;
     return;
@@ -19172,6 +19246,37 @@ function renderInvestigationPanel() {
     modificationQueue
   };
 
+  const evidenceEntries = Array.isArray(state.investigationUi?.evidence) ? state.investigationUi.evidence : [];
+  const evidenceLoading = Boolean(state.investigationUi?.evidenceLoading);
+  const evidenceMarkup = evidenceLoading
+    ? `<div class="investigation-evidence loading">Loading evidence metadata...</div>`
+    : evidenceRows.length === 0
+      ? `<div class="investigation-evidence empty">No investigation evidence paths are available yet. Run Coverage or Scenario to generate them.</div>`
+      : `
+        <div class="investigation-evidence">
+          ${evidenceRows.map((row) => {
+            const entry = evidenceEntries.find((item) => item?.path === row.path) ?? null;
+            const exists = Boolean(entry?.exists);
+            const tone = entry?.error ? "danger" : exists ? "success" : "warning";
+            const statusLabel = entry?.error
+              ? "error"
+              : exists
+                ? "present"
+                : "missing";
+            const modifiedAt = typeof entry?.modifiedAt === "string" ? entry.modifiedAt : "unknown";
+            const size = typeof entry?.size === "number" ? `${Math.round(entry.size / 1024)} KB` : "n/a";
+            return `
+              <div class="investigation-evidence-row" data-tone="${tone}">
+                <strong>${escapeHtml(row.label)}</strong>
+                <small>${statusLabel}${entry?.error ? ` · ${escapeHtml(entry.error)}` : ""}</small>
+                <small>${escapeHtml(modifiedAt)} · ${escapeHtml(size)}</small>
+                ${row.path ? renderCopyButton(row.path, `${row.label} path`, "Copy Path") : ""}
+              </div>
+            `;
+          }).join("")}
+        </div>
+      `;
+
   elements.investigationBrowser.innerHTML = `
     <div class="investigation-grid">
       ${investigationStatusMarkup}
@@ -19194,6 +19299,11 @@ function renderInvestigationPanel() {
           <button type="button" class="copy-button" data-donor-scan-action="run-promotion-queue" ${investigationRunning ? "disabled" : ""}>Promote Ready Families</button>
           <button type="button" class="copy-button" data-project-modification-action="prepare-handoff" ${investigationRunning ? "disabled" : ""}>Prepare Modification Board</button>
         </div>
+      </div>
+      <div class="tree-row">
+        <strong>Progress Evidence</strong>
+        <span>These files prove each investigation step produced output.</span>
+        ${evidenceMarkup}
       </div>
       <div class="detail-grid">
         <div class="detail-card">
