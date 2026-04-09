@@ -10393,6 +10393,17 @@ function bindActions() {
         const draft = state.projectBrowserUi.launchUrlDraft?.trim();
         void saveProjectLaunchUrl(projectId, draft);
       }
+      if (action === "refresh-projects") {
+        state.projectBrowserUi.query = "";
+        void reloadWorkspace(false, state.selectedProjectId ?? undefined);
+      }
+      if (action === "clear-search") {
+        state.projectBrowserUi.query = "";
+        if (elements.projectSearchInput instanceof HTMLInputElement) {
+          elements.projectSearchInput.value = "";
+        }
+        renderProjectBrowser();
+      }
       return;
     }
 
@@ -18548,10 +18559,12 @@ function renderProjectBrowser() {
   }).join("");
   const searchSummary = normalizedQuery
     ? `<p class="muted-copy">Showing ${filteredProjects.length} of ${projects.length} for “${escapeHtml(rawQuery)}”.</p>`
-    : "";
+    : `<p class="muted-copy">Showing ${projects.length} project${projects.length === 1 ? "" : "s"}.</p>`;
   const emptyMessage = normalizedQuery && filteredProjects.length === 0
     ? `<div class="tree-row"><strong>No matching projects</strong><span>Clear the search to show every project.</span></div>`
-    : "";
+    : filteredProjects.length === 0
+      ? `<div class="tree-row"><strong>No projects loaded</strong><span>Click Refresh Projects to reload the workspace registry.</span></div>`
+      : "";
 
   const debugHostAvailable = canUseRuntimeDebugHostForSelectedProject();
   const nextStepsMarkup = selectedProject ? `
@@ -18649,6 +18662,10 @@ function renderProjectBrowser() {
       <strong>${workspace.displayName}</strong>
       <span>${workspace.description}</span>
       <code>${workspace.registryPath}</code>
+      <div class="evidence-actions">
+        <button type="button" class="copy-button" data-project-action="refresh-projects">Refresh Projects</button>
+        <button type="button" class="copy-button" data-project-action="clear-search">Clear Search</button>
+      </div>
     </div>
     ${searchSummary}
     <div class="project-list">${projectCards}</div>
