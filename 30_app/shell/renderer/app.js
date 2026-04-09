@@ -1015,7 +1015,9 @@ function canUseRuntimeWorkbenchSurface() {
 }
 
 function canUseRuntimeDebugHostForSelectedProject() {
-  return canUseRuntimeMode();
+  const selectedProject = getSelectedProject();
+  const launchUrl = selectedProject?.donor?.launchUrl ?? "";
+  return Boolean(launchUrl) || canUseRuntimeMode();
 }
 
 function isOfficialRuntimeDebugHostProject() {
@@ -1111,7 +1113,7 @@ function inferRuntimeHarvestCandidateKind(sourceUrl, fileType = null) {
 }
 
 function getRuntimeDebugHostUnavailableMessage() {
-  return "The dedicated Runtime Debug Host needs a grounded runtime launch URL before it can reopen the live runtime on this selected project.";
+  return "The dedicated Runtime Debug Host needs a donor launch URL saved for this project. Save the URL in Project Browser, then try again.";
 }
 
 function getRuntimeOverrideDonorSourceKindFromAssetId(donorAssetId) {
@@ -17894,6 +17896,7 @@ async function saveProjectLaunchUrl(projectId, launchUrl) {
   if (!api || typeof api.updateProjectLaunchUrl !== "function") {
     setPreviewStatus("Launch URL update is not available in this renderer session.");
     state.projectBrowserUi.launchUrlStatus = { tone: "danger", message: "Launch URL update not available. Please relaunch the IDE." };
+    renderProjectBrowser();
     return;
   }
 
@@ -17901,19 +17904,23 @@ async function saveProjectLaunchUrl(projectId, launchUrl) {
   if (!trimmed) {
     setPreviewStatus("Paste a valid donor launch URL before saving.");
     state.projectBrowserUi.launchUrlStatus = { tone: "warning", message: "Paste a valid donor launch URL before saving." };
+    renderProjectBrowser();
     return;
   }
   setPreviewStatus(`Saving launch URL for ${projectId}...`);
   state.projectBrowserUi.launchUrlStatus = { tone: "default", message: "Saving launch URL..." };
+  renderProjectBrowser();
   try {
     await api.updateProjectLaunchUrl(projectId, trimmed);
     await reloadWorkspace(false, projectId);
     setPreviewStatus(`Launch URL saved for ${projectId}. Debug Host is now available if the URL is valid.`);
     state.projectBrowserUi.launchUrlStatus = { tone: "success", message: "Launch URL saved. Debug Host should unlock." };
+    renderProjectBrowser();
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     setPreviewStatus(`Launch URL update failed: ${message}`);
     state.projectBrowserUi.launchUrlStatus = { tone: "danger", message: `Launch URL update failed: ${message}` };
+    renderProjectBrowser();
   }
 }
 
@@ -18559,6 +18566,7 @@ function renderProjectBrowser() {
             <small>${debugHostAvailable
               ? "Opens the Debug Host to capture grounded launch HTML + runtime bundles."
               : "Needs a grounded launch URL. Add it now to enable Debug Host."}</small>
+            ${selectedLaunchUrl ? `<small class="launch-url-current">Saved URL: ${escapeHtml(selectedLaunchUrl)}</small>` : ""}
           </div>
           ${debugHostAvailable
             ? `<button type="button" class="copy-button" data-runtime-action="open-debug-host">Open Debug Host</button>`

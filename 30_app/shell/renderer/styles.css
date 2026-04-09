@@ -709,6 +709,12 @@ button:disabled {
   color: rgba(232, 138, 93, 0.92);
 }
 
+.launch-url-current {
+  color: rgba(197, 219, 205, 0.85);
+  font-size: 0.72rem;
+  word-break: break-all;
+}
+
 .project-card-delete {
   width: 100%;
   justify-content: center;
