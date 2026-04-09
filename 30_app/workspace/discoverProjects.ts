@@ -243,7 +243,7 @@ export async function deleteProjectFolder(projectId: string): Promise<{ registry
   }
 
   const projectRootValue = isJsonObject(matching.paths) ? getString(matching.paths.projectRoot) : "";
-  const projectRoot = projectRootValue ? path.resolve(projectRootValue) : path.join(projectsRoot, projectId);
+  const projectRoot = resolveWorkspacePath(projectRootValue || path.join("40_projects", projectId));
   if (!projectRoot.startsWith(projectsRoot)) {
     throw new Error("Project path is outside the workspace root.");
   }
@@ -251,4 +251,21 @@ export async function deleteProjectFolder(projectId: string): Promise<{ registry
   await fs.rm(projectRoot, { recursive: true, force: true });
   const registry = await discoverAndWriteRegistry();
   return { registry, deletedPath: projectRoot };
+}
+
+function resolveWorkspacePath(value: string): string {
+  if (!value) {
+    return workspaceRoot;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return workspaceRoot;
+  }
+
+  if (path.isAbsolute(trimmed)) {
+    return path.resolve(trimmed);
+  }
+
+  return path.resolve(workspaceRoot, trimmed);
 }
