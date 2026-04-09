@@ -227,7 +227,7 @@ function isSafeProjectId(projectId: string): boolean {
   return /^[a-zA-Z0-9_-]+$/.test(projectId);
 }
 
-export async function deleteProjectFolder(projectId: string): Promise<DerivedProjectRegistry> {
+export async function deleteProjectFolder(projectId: string): Promise<{ registry: DerivedProjectRegistry; deletedPath: string }> {
   if (!projectId || !isSafeProjectId(projectId) || ignoredProjectFolders.has(projectId)) {
     throw new Error("Project id is invalid or protected.");
   }
@@ -242,11 +242,13 @@ export async function deleteProjectFolder(projectId: string): Promise<DerivedPro
     throw new Error("Cannot delete the last remaining project.");
   }
 
-  const projectRoot = path.join(projectsRoot, projectId);
+  const projectRootValue = isJsonObject(matching.paths) ? getString(matching.paths.projectRoot) : "";
+  const projectRoot = projectRootValue ? path.resolve(projectRootValue) : path.join(projectsRoot, projectId);
   if (!projectRoot.startsWith(projectsRoot)) {
     throw new Error("Project path is outside the workspace root.");
   }
 
   await fs.rm(projectRoot, { recursive: true, force: true });
-  return discoverAndWriteRegistry();
+  const registry = await discoverAndWriteRegistry();
+  return { registry, deletedPath: projectRoot };
 }

@@ -17856,9 +17856,10 @@ async function deleteProjectById(projectId) {
 
   setPreviewStatus(`Deleting project ${projectId}...`);
   try {
-    await api.deleteProject(projectId);
+    const result = await api.deleteProject(projectId);
     await reloadWorkspace(false, null);
-    setPreviewStatus(`Deleted project ${projectId}.`);
+    const deletedPath = typeof result?.deletedPath === "string" ? result.deletedPath : null;
+    setPreviewStatus(`Deleted project ${projectId}${deletedPath ? ` at ${deletedPath}` : ""}.`);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     setPreviewStatus(`Delete project failed: ${message}`);
