@@ -3739,11 +3739,15 @@ async function runDonorScanCoverage() {
     const nextOperatorAction = typeof result?.nextOperatorAction === "string"
       ? result.nextOperatorAction
       : "Open Investigation to review coverage and next operator action.";
+    const needsHarvest = runtimeCandidates > 0 && atlasCount === 0;
+    const harvestHint = needsHarvest
+      ? " Open Debug Host, then click Harvest Request-backed Sources to ground the runtime entry, and run Coverage again."
+      : "";
     setInvestigationStatus(
-      `Coverage scan ${scanState}. Runtime candidates: ${runtimeCandidates}. Atlas manifests: ${atlasCount}. ${nextOperatorAction}`,
+      `Coverage scan ${scanState}. Runtime candidates: ${runtimeCandidates}. Atlas manifests: ${atlasCount}. ${nextOperatorAction}${harvestHint}`,
       { tone: scanState === "complete" ? "success" : "default", running: false }
     );
-    pushLog(`Coverage scan complete for ${donorId} (${scanState}).`);
+    pushLog(`Coverage scan complete for ${donorId} (${scanState}).${harvestHint}`);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     setInvestigationStatus(`Coverage scan failed: ${message}`, { tone: "danger", running: false });
@@ -19444,8 +19448,12 @@ function renderInvestigationPanel() {
     ? getInvestigationProfileDefinition(investigation.operatorAssist.suggestedProfile)
     : null;
   const runtimeCoverage = runtimeResourceMap?.coverage ?? null;
+  const runtimeProofCount = Array.isArray(state.bundle?.runtimePageProofs?.entries) ? state.bundle.runtimePageProofs.entries.length : 0;
+  const runtimeEntryCount = Number(runtimeResourceMap?.entryCount ?? 0);
+  const runtimeHarvestCandidates = getSelectedProjectRuntimeHarvestCandidateCount();
   const blockedRawFamilies = Array.isArray(donorScan?.rawPayloadBlockedFamilyNames) ? donorScan.rawPayloadBlockedFamilyNames : [];
   const primaryProfile = recommendedProfile ?? getInvestigationProfileDefinition("default-bet");
+  const harvestAvailable = canHarvestSelectedProjectRuntimeRequestEvidence();
   const investigationSummaryPayload = {
     projectId: selectedProject.projectId,
     donorId: investigation.donorId,
@@ -19529,9 +19537,22 @@ function renderInvestigationPanel() {
     <div class="investigation-grid">
       ${investigationStatusMarkup}
       <div class="tree-row">
+        <strong>Runtime Evidence</strong>
+        <span>${escapeHtml(String(runtimeEntryCount))} runtime request entr${runtimeEntryCount === 1 ? "y" : "ies"} · ${escapeHtml(String(runtimeProofCount))} runtime page proof${runtimeProofCount === 1 ? "" : "s"}</span>
+        <small>${runtimeHarvestCandidates > 0
+          ? `Harvest ready: ${escapeHtml(String(runtimeHarvestCandidates))} request-backed source${runtimeHarvestCandidates === 1 ? "" : "s"} captured in Debug Host. Click Harvest to attach them to the donor scan.`
+          : "No harvest candidates yet. Open Debug Host, play a few rounds, then return here to Harvest Request-backed Sources."}</small>
+        <div class="evidence-actions">
+          <button type="button" class="copy-button" data-runtime-action="open-debug-host">Open Debug Host</button>
+          <button type="button" class="copy-button" data-runtime-action="harvest-request-evidence" ${harvestAvailable ? "" : "disabled"}>Harvest Request-backed Sources</button>
+        </div>
+      </div>
+      <div class="tree-row">
         <strong>Run Investigation Steps</strong>
         <span>Start here inside the IDE: Coverage → Scenario → Promote → Prepare Modification.</span>
-        <small>${investigationRunning ? "Investigation actions are running; wait for the status update before starting another step." : "Each action runs locally and updates the Activity Log + this panel."}</small>
+        <small>${investigationRunning
+          ? "Investigation actions are running; wait for the status update before starting another step."
+          : "Each action runs locally and updates the Activity Log + this panel. If coverage says it needs grounded launch HTML, open Debug Host, Harvest Request-backed Sources, then rerun Coverage."}</small>
         <div class="evidence-actions">
           <button type="button" class="copy-button" data-donor-scan-action="run-coverage-scan" ${investigationRunning ? "disabled" : ""}>Run Coverage Scan</button>
           ${primaryProfile ? `
