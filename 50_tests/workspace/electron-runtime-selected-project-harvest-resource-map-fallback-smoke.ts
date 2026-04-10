@@ -537,7 +537,7 @@ async function main(): Promise<void> {
     assert.equal(payload.overrideProofStaticAssetRequestSource, "project-local-override", "Selected-project harvest resource-map fallback smoke should upgrade the static image to a project-local override hit.");
     assert((payload.overrideProofStaticAssetHitCount ?? 0) >= 2, "Selected-project harvest resource-map fallback smoke should increase the static-image hit count after override proof harvest.");
     assert.equal(payload.runtimeOverrideCleared, true, "Selected-project harvest resource-map fallback smoke did not clear the bounded override.");
-    assert.equal(payload.runtimeDebugHostActionVisible, false, "Selected-project harvest resource-map fallback smoke should not expose the runtime Debug Host action for project_002.");
+    assert.equal(payload.runtimeDebugHostActionVisible, true, "Selected-project harvest resource-map fallback smoke should keep the runtime Debug Host action available for project_002 when grounded runtime evidence exists.");
     assert.equal(payload.runtimeSourceDebugHostActionVisible, false, "Selected-project harvest resource-map fallback smoke should not expose source-level Debug Host actions for project_002.");
     assert.equal(payload.runtimeStatusHeading, "Selected-project runtime surface", "Selected-project harvest resource-map fallback smoke should keep the runtime status heading project-aware.");
     assert.equal(payload.runtimeStatusMentionsOfficialDailyPath, false, "Selected-project harvest resource-map fallback smoke should not claim project_002 is on the official daily runtime path.");

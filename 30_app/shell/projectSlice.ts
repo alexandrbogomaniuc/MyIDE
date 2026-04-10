@@ -1216,6 +1216,16 @@ async function readOptionalJsonFile(filePath: string): Promise<JsonObject | null
       return null;
     }
 
+    if (
+      error instanceof SyntaxError
+      || (error instanceof Error && error.message.endsWith("must be a JSON object."))
+    ) {
+      console.warn(
+        `[projectSlice] Ignoring malformed optional JSON file ${filePath}: ${error.message}`
+      );
+      return null;
+    }
+
     throw error;
   }
 }

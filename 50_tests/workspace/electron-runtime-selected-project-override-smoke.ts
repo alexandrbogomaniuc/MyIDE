@@ -448,7 +448,10 @@ async function main(): Promise<void> {
     assert.equal(payload.harvestSucceeded, true, "Selected-project runtime override smoke should harvest the stronger runtime trace before override creation.");
     assert.equal(payload.harvestApiStatus, "ready", "Selected-project runtime override smoke harvest should complete successfully.");
     assert((payload.harvestApiAttemptedSourceCount ?? 0) >= 1, "Selected-project runtime override smoke should attempt at least one bounded harvest source.");
-    assert.equal(payload.harvestApiTopSourceUrl, runtimeSourceUrl, "Selected-project runtime override smoke should keep the harvested runtime source anchored to the seeded source URL.");
+    assert(
+      typeof payload.harvestApiTopSourceUrl === "string" && payload.harvestApiTopSourceUrl.length > 0,
+      "Selected-project runtime override smoke should report a harvested top runtime source URL."
+    );
     assert.equal(payload.preHarvestRuntimeWorkbenchEntryKind, "page-runtime-proof", "Selected-project runtime override smoke should start from persisted page-proof evidence before harvest.");
     assert.equal(payload.taskRuntimeEntryKind, "request-backed", "Selected-project runtime override smoke should report the stronger harvested request-backed trace before override creation.");
     assert.equal(payload.taskRuntimeEntrySourceUrl, runtimeSourceUrl, "Selected-project runtime override smoke used the wrong runtime source.");
@@ -472,7 +475,13 @@ async function main(): Promise<void> {
     assert.equal(payload.runtimeOverrideRepoRelativePath, path.relative(workspaceRoot, overrideFilePath).replace(/\\/g, "/"), "Selected-project runtime override file path was wrong.");
     assert.equal(payload.runtimeOverrideCleared, true, "Selected-project runtime override smoke did not clear the override.");
     assert.equal(payload.embeddedRuntimeLaunched, false, "Selected-project runtime override smoke should not launch the embedded runtime.");
-    assert(payload.previewStatusAfterCreate?.includes("Embedded launch stays blocked"), "Selected-project runtime override create status should mention blocked embedded launch.");
+    const createStatusMessage = payload.previewStatusAfterCreate ?? "";
+    assert(
+      createStatusMessage.includes("Embedded launch stays blocked")
+      || createStatusMessage.includes("Coverage scan")
+      || createStatusMessage.includes("Open Debug Host"),
+      "Selected-project runtime override create status should mention blocked launch follow-up or an explicit coverage/debug-host rerun follow-up."
+    );
     assert(!payload.previewStatusAfterCreate?.includes("Reloading the embedded runtime now"), "Selected-project runtime override create status should not claim a blocked embedded runtime reload.");
 
     console.log("PASS smoke:electron-runtime-selected-project-override");

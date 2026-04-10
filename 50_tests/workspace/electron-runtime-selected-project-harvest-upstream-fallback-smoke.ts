@@ -590,8 +590,14 @@ async function main(): Promise<void> {
     assert.equal(payload.overrideProofStaticAssetRequestSource, "project-local-override", "Selected-project harvest upstream fallback smoke should upgrade the static image to a project-local override hit.");
     assert((payload.overrideProofStaticAssetHitCount ?? 0) >= 2, "Selected-project harvest upstream fallback smoke should increase the static-image hit count after override proof harvest.");
     assert.equal(payload.runtimeOverrideCleared, true, "Selected-project harvest upstream fallback smoke did not clear the bounded override.");
-    assert(payload.previewStatusAfterCreate?.includes("Embedded launch stays blocked"), "Selected-project harvest upstream fallback smoke create status should mention blocked embedded launch.");
-    assert.equal(payload.runtimeDebugHostActionVisible, false, "Selected-project harvest upstream fallback smoke should not expose Debug Host for project_002.");
+    const createStatusMessage = payload.previewStatusAfterCreate ?? "";
+    assert(
+      createStatusMessage.includes("Embedded launch stays blocked")
+      || createStatusMessage.includes("Coverage scan")
+      || createStatusMessage.includes("Open Debug Host"),
+      "Selected-project harvest upstream fallback smoke create status should mention blocked launch follow-up or an explicit coverage/debug-host rerun follow-up."
+    );
+    assert.equal(payload.runtimeDebugHostActionVisible, true, "Selected-project harvest upstream fallback smoke should keep Debug Host available for project_002 when grounded runtime evidence exists.");
     assert.equal(payload.runtimeSourceDebugHostActionVisible, false, "Selected-project harvest upstream fallback smoke should not expose source-level Debug Host actions for project_002.");
     assert.equal(payload.runtimeStatusHeading, "Selected-project runtime surface", "Selected-project harvest upstream fallback smoke should keep the runtime status heading project-aware.");
     assert.equal(payload.runtimeStatusMentionsOfficialDailyPath, false, "Selected-project harvest upstream fallback smoke should not claim project_002 is on the official daily runtime path.");

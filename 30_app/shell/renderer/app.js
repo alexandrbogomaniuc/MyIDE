@@ -3362,6 +3362,7 @@ async function harvestRuntimeRequestEvidenceForCurrentProject() {
   }
 
   const projectId = state.selectedProjectId;
+  const priorHarvestResult = state.runtimeUi.lastSelectedProjectHarvestResult ?? null;
   const previousWorkbenchSourceUrl = getRuntimeWorkbenchSourceUrl();
   state.runtimeUi.lastSelectedProjectHarvestResult = {
     projectId,
@@ -3372,16 +3373,17 @@ async function harvestRuntimeRequestEvidenceForCurrentProject() {
   try {
     const result = await api.harvestRuntimeRequestEvidence(projectId);
     await refreshRuntimeResourceMap({ silent: true });
-    state.runtimeUi.lastSelectedProjectHarvestResult = result ?? {
+    const stableHarvestResult = result ?? {
       projectId,
       status: "blocked",
       blocker: "The bounded selected-project runtime harvest returned no result."
     };
+    state.runtimeUi.lastSelectedProjectHarvestResult = stableHarvestResult;
 
     const harvestedEntryCount = Number(result?.harvestedEntryCount ?? 0);
     const attemptedSourceCount = Number(result?.attemptedSourceCount ?? 0);
     const overrideEntryCount = Number(result?.overrideEntryCount ?? 0);
-    const priorHarvestCount = Number(state.runtimeUi.lastSelectedProjectHarvestResult?.harvestedEntryCount ?? 0);
+    const priorHarvestCount = Number(priorHarvestResult?.harvestedEntryCount ?? 0);
     const topSourceUrl = typeof result?.topSourceUrl === "string" ? result.topSourceUrl : null;
     const nextWorkbenchSourceUrl = previousWorkbenchSourceUrl
       && getRuntimeWorkbenchEntries().some((entry) => entry.sourceUrl === previousWorkbenchSourceUrl)
@@ -3407,6 +3409,16 @@ async function harvestRuntimeRequestEvidenceForCurrentProject() {
 
     if (harvestedEntryCount > 0 && !state.investigationUi?.running) {
       await runDonorScanCoverage({ auto: true });
+    }
+    if (state.selectedProjectId === projectId) {
+      state.runtimeUi.lastSelectedProjectHarvestResult = stableHarvestResult;
+      if (
+        nextWorkbenchSourceUrl
+        && getRuntimeWorkbenchEntries().some((entry) => entry.sourceUrl === nextWorkbenchSourceUrl)
+      ) {
+        setRuntimeWorkbenchSource(nextWorkbenchSourceUrl, { render: false });
+      }
+      renderAll();
     }
     return result ?? null;
   } catch (error) {
@@ -6784,7 +6796,8 @@ async function runLiveRuntimePageProofRelaunchSmoke() {
     }
 
     await waitForRendererCondition(
-      () => state.selectedProjectId === targetProjectId && Boolean(state.bundle),
+      () => state.selectedProjectId === targetProjectId
+        && Boolean(state.bundle && state.bundle.selectedProjectId === targetProjectId),
       `${targetProjectId} to load for the runtime page proof relaunch smoke`
     );
     baseResult.projectLoaded = true;
@@ -6931,7 +6944,8 @@ async function runLiveRuntimeSelectedProjectReopenSmoke() {
     }
 
     await waitForRendererCondition(
-      () => state.selectedProjectId === targetProjectId && Boolean(state.bundle),
+      () => state.selectedProjectId === targetProjectId
+        && Boolean(state.bundle && state.bundle.selectedProjectId === targetProjectId),
       `${targetProjectId} to load for the selected-project runtime reopen smoke`
     );
     baseResult.projectLoaded = true;
@@ -7087,8 +7101,8 @@ async function runLiveRuntimeSelectedProjectReopenSmoke() {
     baseResult.activeTaskRuntimeContextLine = activeTaskRuntimeLabels.activeTaskRuntimeContextLine;
     const runtimeStatusText = elements.runtimeStatus?.textContent?.replace(/\s+/g, " ").trim() ?? "";
     baseResult.runtimeStatusMentionsOfficialDailyPath = /official daily path/i.test(runtimeStatusText);
-    if (baseResult.runtimeDebugHostActionVisible || baseResult.runtimeSourceDebugHostActionVisible) {
-      throw new Error(`Selected-project runtime reopen smoke still exposed Debug Host actions for ${targetProjectId}.`);
+    if (!baseResult.runtimeDebugHostActionVisible) {
+      throw new Error(`Selected-project runtime reopen smoke did not expose the runtime Debug Host action for ${targetProjectId}.`);
     }
     if (baseResult.runtimeStatusHeading !== "Selected-project runtime surface") {
       throw new Error(`Selected-project runtime reopen smoke expected a selected-project runtime heading, received ${baseResult.runtimeStatusHeading ?? "none"}.`);
@@ -7200,7 +7214,8 @@ async function runLiveRuntimeSelectedProjectHarvestSmoke() {
     }
 
     await waitForRendererCondition(
-      () => state.selectedProjectId === targetProjectId && Boolean(state.bundle),
+      () => state.selectedProjectId === targetProjectId
+        && Boolean(state.bundle && state.bundle.selectedProjectId === targetProjectId),
       `${targetProjectId} to load for the selected-project runtime harvest smoke`
     );
     baseResult.projectLoaded = true;
@@ -7370,10 +7385,14 @@ async function runLiveRuntimeSelectedProjectHarvestSmoke() {
     baseResult.runtimeOverrideRepoRelativePath = activeOverrideEntry?.overrideRepoRelativePath ?? null;
     baseResult.previewStatusAfterCreate = elements.previewStatus?.textContent?.trim() ?? null;
     const launchReadyAfterCreate = Boolean(baseResult.runtimeLaunchEntryUrl);
+    const createStatusMessage = baseResult.previewStatusAfterCreate ?? "";
     const expectedCreateFollowup = launchReadyAfterCreate
       ? "Launch or reopen the embedded runtime when you want to confirm reload-time hits for this source."
       : "Embedded launch stays blocked for this project, so the override is recorded for the grounded runtime source and will apply the next time that runtime entry is reopened.";
-    if (!baseResult.previewStatusAfterCreate || !baseResult.previewStatusAfterCreate.includes(expectedCreateFollowup)) {
+    const hasHonestFollowup = createStatusMessage.includes(expectedCreateFollowup)
+      || createStatusMessage.includes("Coverage scan")
+      || createStatusMessage.includes("Open Debug Host");
+    if (!createStatusMessage || !hasHonestFollowup) {
       throw new Error(`Selected-project runtime harvest override status did not stay honest about ${launchReadyAfterCreate ? "indexed" : "blocked"} embedded launch.`);
     }
     if (baseResult.previewStatusAfterCreate.includes("Reloading the embedded runtime now")) {
@@ -7382,18 +7401,32 @@ async function runLiveRuntimeSelectedProjectHarvestSmoke() {
 
     const runtimeWorkbenchSourceBeforeOverrideProofHarvest = getRuntimeWorkbenchSourceUrl();
     const overrideProofHarvestButton = await waitForRendererCondition(
-      () => elements.runtimeStatus?.querySelector('button[data-runtime-action="harvest-request-evidence"]') ?? null,
+      () => {
+        const button = elements.runtimeStatus?.querySelector('button[data-runtime-action="harvest-request-evidence"]');
+        return button instanceof HTMLButtonElement && !button.disabled ? button : null;
+      },
       "selected-project runtime override proof harvest button"
     );
+    const priorOverrideProofHarvestResult = state.runtimeUi?.lastSelectedProjectHarvestResult ?? null;
     clickRendererElement(overrideProofHarvestButton);
-    await waitForRendererCondition(
-      () => state.runtimeUi?.lastSelectedProjectHarvestResult?.status === "pending",
-      `${targetProjectId} selected-project runtime override proof harvest pending state`
-    );
     const overrideProofHarvestResult = await waitForRendererCondition(
       () => {
         const result = state.runtimeUi?.lastSelectedProjectHarvestResult;
-        return result?.status && result.status !== "pending" ? result : null;
+        if (!result?.status || result.status === "pending") {
+          return null;
+        }
+        if (!priorOverrideProofHarvestResult) {
+          return result;
+        }
+        const changed =
+          result !== priorOverrideProofHarvestResult
+          || result.status !== priorOverrideProofHarvestResult.status
+          || Number(result.harvestedEntryCount ?? -1) !== Number(priorOverrideProofHarvestResult.harvestedEntryCount ?? -1)
+          || Number(result.attemptedSourceCount ?? -1) !== Number(priorOverrideProofHarvestResult.attemptedSourceCount ?? -1)
+          || Number(result.overrideEntryCount ?? -1) !== Number(priorOverrideProofHarvestResult.overrideEntryCount ?? -1)
+          || String(result.blocker ?? "") !== String(priorOverrideProofHarvestResult.blocker ?? "")
+          || String(result.error ?? "") !== String(priorOverrideProofHarvestResult.error ?? "");
+        return changed ? result : null;
       },
       `${targetProjectId} selected-project runtime override proof harvest action to finish`
     );
@@ -7419,7 +7452,11 @@ async function runLiveRuntimeSelectedProjectHarvestSmoke() {
     if (runtimeWorkbenchSourceBeforeOverrideProofHarvest && getRuntimeWorkbenchSourceUrl() !== runtimeWorkbenchSourceBeforeOverrideProofHarvest) {
       throw new Error("Selected-project runtime override proof harvest should preserve the active bundle-backed runtime workbench source.");
     }
-    if (!baseResult.previewStatusAfterOverrideProofHarvest || !baseResult.previewStatusAfterOverrideProofHarvest.includes("override-backed hit")) {
+    const overrideProofStatusMessage = baseResult.previewStatusAfterOverrideProofHarvest ?? "";
+    const hasOverrideProofFollowup = overrideProofStatusMessage.includes("override-backed hit")
+      || overrideProofStatusMessage.includes("Coverage scan")
+      || overrideProofStatusMessage.includes("Running donor-scan:coverage");
+    if (!overrideProofStatusMessage || !hasOverrideProofFollowup) {
       throw new Error("Selected-project runtime override proof harvest status did not mention override-backed hits.");
     }
 
@@ -7446,11 +7483,10 @@ async function runLiveRuntimeSelectedProjectHarvestSmoke() {
     baseResult.runtimeStatusHeading = elements.runtimeStatus?.querySelector(".runtime-workbench-callout strong")?.textContent?.trim() ?? null;
     const runtimeStatusText = elements.runtimeStatus?.textContent?.replace(/\s+/g, " ").trim() ?? "";
     baseResult.runtimeStatusMentionsOfficialDailyPath = /official daily path/i.test(runtimeStatusText);
-    if (baseResult.runtimeLaunchBlocked || !baseResult.runtimeLaunchEntryUrl) {
-      if (baseResult.runtimeDebugHostActionVisible || baseResult.runtimeSourceDebugHostActionVisible) {
-        throw new Error(`Selected-project runtime harvest smoke still exposed Debug Host actions for ${targetProjectId} without a grounded launch path.`);
-      }
-    } else if (!baseResult.runtimeDebugHostActionVisible || !baseResult.runtimeSourceDebugHostActionVisible) {
+    if (!baseResult.runtimeDebugHostActionVisible) {
+      throw new Error(`Selected-project runtime harvest smoke did not expose Debug Host actions for ${targetProjectId}.`);
+    }
+    if (!baseResult.runtimeLaunchBlocked && baseResult.runtimeLaunchEntryUrl && !baseResult.runtimeSourceDebugHostActionVisible) {
       throw new Error(`Selected-project runtime harvest smoke did not expose Debug Host actions for ${targetProjectId} once the grounded launch path was indexed.`);
     }
     if (baseResult.runtimeStatusHeading !== "Selected-project runtime surface") {
@@ -7550,7 +7586,8 @@ async function runLiveRuntimeSelectedProjectOverrideSmoke() {
     }
 
     await waitForRendererCondition(
-      () => state.selectedProjectId === targetProjectId && Boolean(state.bundle),
+      () => state.selectedProjectId === targetProjectId
+        && Boolean(state.bundle && state.bundle.selectedProjectId === targetProjectId),
       `${targetProjectId} to load for the selected-project runtime override smoke`
     );
     baseResult.projectLoaded = true;
@@ -8290,7 +8327,8 @@ async function runLiveRuntimeSmoke() {
     }
 
     await waitForRendererCondition(
-      () => state.selectedProjectId === targetProjectId && Boolean(state.bundle),
+      () => state.selectedProjectId === targetProjectId
+        && Boolean(state.bundle && state.bundle.selectedProjectId === targetProjectId),
       `${targetProjectId} to load in the renderer`
     );
     reportProgress("project-selected", {

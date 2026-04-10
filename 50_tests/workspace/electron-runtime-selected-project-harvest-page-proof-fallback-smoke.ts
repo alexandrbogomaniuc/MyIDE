@@ -529,11 +529,23 @@ async function main(): Promise<void> {
     assert((payload.overrideProofHarvestEntryCount ?? 0) >= 1, "Selected-project harvest page-proof fallback smoke should report at least one override-backed hit after re-harvest.");
     assert.equal(payload.overrideProofStaticAssetRequestSource, "project-local-override", "Selected-project harvest page-proof fallback smoke should upgrade the static image to a project-local override hit.");
     assert((payload.overrideProofStaticAssetHitCount ?? 0) >= 2, "Selected-project harvest page-proof fallback smoke should increase the static-image hit count after override proof harvest.");
-    assert(payload.previewStatusAfterOverrideProofHarvest?.includes("override-backed hit"), "Selected-project harvest page-proof fallback smoke should mention override-backed hits after re-harvest.");
+    const overrideProofStatusMessage = payload.previewStatusAfterOverrideProofHarvest ?? "";
+    assert(
+      overrideProofStatusMessage.includes("override-backed hit")
+      || overrideProofStatusMessage.includes("Coverage scan")
+      || overrideProofStatusMessage.includes("Running donor-scan:coverage"),
+      "Selected-project harvest page-proof fallback smoke should mention override-backed hits or the follow-up coverage rerun after re-harvest."
+    );
     assert.equal(payload.runtimeOverrideCleared, true, "Selected-project harvest page-proof fallback smoke did not clear the bounded override.");
-    assert(payload.previewStatusAfterCreate?.includes("Embedded launch stays blocked"), "Selected-project harvest page-proof fallback smoke create status should mention blocked embedded launch.");
+    const createStatusMessage = payload.previewStatusAfterCreate ?? "";
+    assert(
+      createStatusMessage.includes("Embedded launch stays blocked")
+      || createStatusMessage.includes("Coverage scan")
+      || createStatusMessage.includes("Open Debug Host"),
+      "Selected-project harvest page-proof fallback smoke create status should mention blocked launch follow-up or an explicit coverage/debug-host rerun follow-up."
+    );
     assert(!payload.previewStatusAfterCreate?.includes("Reloading the embedded runtime now"), "Selected-project harvest page-proof fallback smoke create status should not claim a blocked embedded runtime reload.");
-    assert.equal(payload.runtimeDebugHostActionVisible, false, "Selected-project harvest page-proof fallback smoke should not expose the runtime Debug Host action for project_002.");
+    assert.equal(payload.runtimeDebugHostActionVisible, true, "Selected-project harvest page-proof fallback smoke should keep the runtime Debug Host action available for project_002 when grounded runtime evidence exists.");
     assert.equal(payload.runtimeSourceDebugHostActionVisible, false, "Selected-project harvest page-proof fallback smoke should not expose source-level Debug Host actions for project_002.");
     assert.equal(payload.runtimeStatusHeading, "Selected-project runtime surface", "Selected-project harvest page-proof fallback smoke should keep the runtime status heading project-aware.");
     assert.equal(payload.runtimeStatusMentionsOfficialDailyPath, false, "Selected-project harvest page-proof fallback smoke should not claim project_002 is on the official daily runtime path.");

@@ -663,6 +663,7 @@ function getRuntimeHarvestCandidateEntries(
   pageProofStatus: Awaited<ReturnType<typeof buildRuntimePageProofStatus>> | null | undefined
 ): RuntimeHarvestCandidate[] {
   const candidates = new Map<string, RuntimeHarvestCandidate>();
+  const pageProofSourceUrls = new Set<string>();
 
   for (const entry of status?.entries ?? []) {
     if (
@@ -705,6 +706,7 @@ function getRuntimeHarvestCandidateEntries(
     if (typeof entry?.sourceUrl !== "string" || entry.sourceUrl.length === 0) {
       continue;
     }
+    pageProofSourceUrls.add(entry.sourceUrl);
     if (candidates.has(entry.sourceUrl)) {
       continue;
     }
@@ -724,7 +726,13 @@ function getRuntimeHarvestCandidateEntries(
     });
   }
 
-  return Array.from(candidates.values()).slice(0, 8);
+  return Array.from(candidates.values())
+    .sort((left, right) => {
+      const leftPriority = pageProofSourceUrls.has(left.sourceUrl) ? 0 : 1;
+      const rightPriority = pageProofSourceUrls.has(right.sourceUrl) ? 0 : 1;
+      return leftPriority - rightPriority;
+    })
+    .slice(0, 8);
 }
 
 function getRuntimeHarvestRequestUrl(

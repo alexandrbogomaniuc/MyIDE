@@ -20,9 +20,19 @@ const expectedSnapshotRepoRelativePath = `40_projects/${projectId}/runtime/page-
 const smokeTaskId = "smoke:runtime-page-proof-storage";
 const smokePageName = "big_win_1.png";
 const smokeSourceUrl = "https://example.invalid/runtime/big-win-ribbon.png_80_80.webp";
+const malformedOptionalHarvestPath = path.join(
+  workspaceRoot,
+  "10_donors",
+  "donor_002_sugar_merge_up",
+  "evidence",
+  "local_only",
+  "harvest",
+  "section-skin-texture-fit-apply-bundle-profiles.json"
+);
 
 async function main(): Promise<void> {
   let originalSnapshotRaw: string | null = null;
+  let originalMalformedOptionalRaw: string | null = null;
   try {
     originalSnapshotRaw = await fs.readFile(snapshotPath, "utf8");
   } catch (error) {
@@ -30,8 +40,18 @@ async function main(): Promise<void> {
       throw error;
     }
   }
+  try {
+    originalMalformedOptionalRaw = await fs.readFile(malformedOptionalHarvestPath, "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException | undefined)?.code !== "ENOENT") {
+      throw error;
+    }
+  }
 
   try {
+    await fs.mkdir(path.dirname(malformedOptionalHarvestPath), { recursive: true });
+    await fs.writeFile(malformedOptionalHarvestPath, "{", "utf8");
+
     const savedStatus = await saveRuntimePageProof(projectId, {
       taskId: smokeTaskId,
       pageName: smokePageName,
@@ -88,6 +108,12 @@ async function main(): Promise<void> {
       await fs.rm(snapshotPath, { force: true });
     } else {
       await fs.writeFile(snapshotPath, originalSnapshotRaw, "utf8");
+    }
+
+    if (originalMalformedOptionalRaw === null) {
+      await fs.rm(malformedOptionalHarvestPath, { force: true });
+    } else {
+      await fs.writeFile(malformedOptionalHarvestPath, originalMalformedOptionalRaw, "utf8");
     }
   }
 }

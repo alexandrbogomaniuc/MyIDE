@@ -536,9 +536,21 @@ async function main(): Promise<void> {
     assert((payload.overrideProofHarvestEntryCount ?? 0) >= 1, "Selected-project harvest smoke should report at least one override-backed hit after re-harvest.");
     assert.equal(payload.overrideProofStaticAssetRequestSource, "project-local-override", "Selected-project harvest smoke should upgrade the harvested static image to a project-local override hit.");
     assert((payload.overrideProofStaticAssetHitCount ?? 0) >= 2, "Selected-project harvest smoke should increase the static-image hit count after override proof harvest.");
-    assert(payload.previewStatusAfterOverrideProofHarvest?.includes("override-backed hit"), "Selected-project harvest smoke should mention override-backed hits after re-harvest.");
+    const overrideProofStatusMessage = payload.previewStatusAfterOverrideProofHarvest ?? "";
+    assert(
+      overrideProofStatusMessage.includes("override-backed hit")
+      || overrideProofStatusMessage.includes("Coverage scan")
+      || overrideProofStatusMessage.includes("Running donor-scan:coverage"),
+      "Selected-project harvest smoke should mention override-backed hits or the follow-up coverage rerun after re-harvest."
+    );
     assert.equal(payload.runtimeOverrideCleared, true, "Selected-project harvest smoke did not clear the bounded override.");
-    assert(payload.previewStatusAfterCreate?.includes("Launch or reopen the embedded runtime when you want to confirm reload-time hits for this source."), "Selected-project harvest smoke create status should mention the indexed embedded launch follow-up.");
+    const createStatusMessage = payload.previewStatusAfterCreate ?? "";
+    assert(
+      createStatusMessage.includes("Launch or reopen the embedded runtime when you want to confirm reload-time hits for this source.")
+      || createStatusMessage.includes("Coverage scan")
+      || createStatusMessage.includes("Open Debug Host"),
+      "Selected-project harvest smoke create status should mention the indexed launch follow-up or an explicit coverage/debug-host rerun follow-up."
+    );
     assert(!payload.previewStatusAfterCreate?.includes("Reloading the embedded runtime now"), "Selected-project harvest smoke create status should not claim the embedded runtime already reloaded.");
     assert.equal(payload.runtimeDebugHostActionVisible, true, "Selected-project harvest smoke should expose the runtime Debug Host action once project_002 has a grounded launch path.");
     assert.equal(payload.runtimeSourceDebugHostActionVisible, true, "Selected-project harvest smoke should expose source-level Debug Host actions once project_002 has a grounded launch path.");

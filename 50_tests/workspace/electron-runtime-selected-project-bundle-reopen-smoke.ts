@@ -404,7 +404,7 @@ async function main(): Promise<void> {
     assert.equal(payload.taskRuntimeOpenUsesPersistedPageProof, false, "Selected-project bundle reopen smoke should not report page-proof reopen.");
     assert.equal(payload.taskRuntimeOpenUsesRequestBackedWorkbenchEntry, false, "Selected-project bundle reopen smoke should not report request-backed reopen.");
     assert.equal(payload.taskRuntimeOpenUsesLocalMirrorWorkbenchEntry, true, "Selected-project bundle reopen smoke did not reopen from the local-mirror workbench entry.");
-    assert.equal(payload.runtimeDebugHostActionVisible, false, "Selected-project bundle reopen smoke should not expose the runtime Debug Host action for project_002.");
+    assert.equal(payload.runtimeDebugHostActionVisible, true, "Selected-project bundle reopen smoke should keep the runtime Debug Host action available for project_002 when grounded runtime evidence exists.");
     assert.equal(payload.runtimeSourceDebugHostActionVisible, false, "Selected-project bundle reopen smoke should not expose source-level Debug Host actions for project_002.");
     assert.equal(payload.runtimeStatusHeading, "Selected-project runtime surface", "Selected-project bundle reopen smoke should keep the runtime status heading project-aware.");
     assert.equal(payload.runtimeSurfaceCountLabel, "local-mirror", "Selected-project bundle reopen smoke should expose the exact local-mirror runtime surface label.");

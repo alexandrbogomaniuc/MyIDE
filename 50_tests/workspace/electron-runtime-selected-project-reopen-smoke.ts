@@ -426,7 +426,7 @@ async function main(): Promise<void> {
     assert.equal(payload.runtimeModeSelected, true, "Selected-project reopen smoke did not keep the runtime workbench active.");
     assert.equal(payload.taskRuntimeOpenUsesPersistedPageProof, false, "Selected-project reopen smoke should not report page-proof reopen.");
     assert.equal(payload.taskRuntimeOpenUsesRequestBackedWorkbenchEntry, true, "Selected-project reopen smoke did not reopen from the request-backed workbench entry.");
-    assert.equal(payload.runtimeDebugHostActionVisible, false, "Selected-project reopen smoke should not expose the runtime Debug Host action for project_002.");
+    assert.equal(payload.runtimeDebugHostActionVisible, true, "Selected-project reopen smoke should keep the runtime Debug Host action available for project_002 when grounded runtime evidence exists.");
     assert.equal(payload.runtimeSourceDebugHostActionVisible, false, "Selected-project reopen smoke should not expose source-level Debug Host actions for project_002.");
     assert.equal(payload.runtimeStatusHeading, "Selected-project runtime surface", "Selected-project reopen smoke should keep the runtime status heading project-aware.");
     assert.equal(payload.runtimeSurfaceCountLabel, "request-backed", "Selected-project reopen smoke should expose the exact request-backed runtime surface label.");
