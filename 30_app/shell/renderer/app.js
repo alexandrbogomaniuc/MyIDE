@@ -3598,18 +3598,30 @@ async function openRuntimeDebugHostWindow(options = {}) {
       ? "Opening Runtime Debug Host with the saved donor launch URL..."
       : "Opening Runtime Debug Host..."
   );
-  const result = await api.openRuntimeDebugHost(
-    proofMode || profileId || candidateHintTokens.length > 0 || state.selectedProjectId
-      ? {
-          projectId: state.selectedProjectId ?? null,
-          launchUrl: donorLaunchUrl || null,
-          proofMode,
-          profileId,
-          candidateHintTokens,
-          allowMissingDonorAsset: state.selectedProjectId !== "project_001"
-        }
-      : undefined
-  );
+  const projectLabel = state.selectedProjectId ?? "selected project";
+  pushLog(`Opening Debug Host for ${projectLabel}...`);
+  let result;
+  try {
+    result = await api.openRuntimeDebugHost(
+      proofMode || profileId || candidateHintTokens.length > 0 || state.selectedProjectId
+        ? {
+            projectId: state.selectedProjectId ?? null,
+            launchUrl: donorLaunchUrl || null,
+            proofMode,
+            profileId,
+            candidateHintTokens,
+            allowMissingDonorAsset: state.selectedProjectId !== "project_001"
+          }
+        : undefined
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    state.runtimeUi.debugHost = { status: "fail", error: message };
+    renderAll();
+    pushLog(`Debug Host failed: ${message}`);
+    setPreviewStatus(`Debug Host failed to open: ${message}`);
+    return null;
+  }
   state.runtimeUi.debugHost = result ?? null;
   await refreshRuntimeResourceMap({ silent: true });
   if (typeof result?.candidateRuntimeSourceUrl === "string" && result.candidateRuntimeSourceUrl.length > 0) {
@@ -3620,6 +3632,7 @@ async function openRuntimeDebugHostWindow(options = {}) {
     state.workflowUi.activePanel = "runtime";
   }
   renderAll();
+  pushLog(`Debug Host opened for ${projectLabel}.`);
 
   const runtimeSourceLabel = typeof result?.runtimeSourceLabel === "string" ? result.runtimeSourceLabel : "runtime source unknown";
   const candidatePath = result?.candidateRuntimeRelativePath ?? result?.candidateRuntimeSourceUrl ?? "no request-backed static image candidate";
@@ -3705,6 +3718,7 @@ async function runDonorScanCoverage() {
     return;
   }
 
+  pushLog(`Coverage scan started for ${donorId}.`);
   setInvestigationStatus(`Running donor-scan:coverage for ${donorId}...`, { tone: "default", running: true });
   try {
     const result = await api.runDonorScanCoverage(donorId, donorName, launchUrl);
@@ -3720,9 +3734,11 @@ async function runDonorScanCoverage() {
       `Coverage scan ${scanState}. Runtime candidates: ${runtimeCandidates}. Atlas manifests: ${atlasCount}. ${nextOperatorAction}`,
       { tone: scanState === "complete" ? "success" : "default", running: false }
     );
+    pushLog(`Coverage scan complete for ${donorId} (${scanState}).`);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     setInvestigationStatus(`Coverage scan failed: ${message}`, { tone: "danger", running: false });
+    pushLog(`Coverage scan failed for ${donorId}: ${message}`);
   } finally {
     if (state.investigationUi?.running) {
       setInvestigationStatus(state.investigationUi.status, { tone: state.investigationUi.tone, running: false, preview: false });
@@ -3824,6 +3840,7 @@ async function runDonorPromotionQueue() {
     return;
   }
 
+  pushLog(`Promotion queue started for ${donorId}.`);
   setInvestigationStatus("Promoting ready investigation families and sections into the modification queue...", { tone: "default", running: true });
   try {
     const result = await api.runDonorPromotionQueue(donorId, donorName);
@@ -3855,9 +3872,11 @@ async function runDonorPromotionQueue() {
       + `${queueItemCount} queued for Modification. ${nextOperatorAction}${handoffMessage}`
       , { tone: "success", running: false }
     );
+    pushLog(`Promotion queue updated for ${donorId}.`);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     setInvestigationStatus(`Investigation promotion failed: ${message}`, { tone: "danger", running: false });
+    pushLog(`Promotion failed for ${donorId}: ${message}`);
   } finally {
     if (state.investigationUi?.running) {
       setInvestigationStatus(state.investigationUi.status, { tone: state.investigationUi.tone, running: false, preview: false });
@@ -3874,6 +3893,7 @@ async function prepareProjectModificationBoard() {
     return;
   }
 
+  pushLog(`Preparing modification board for ${projectId}...`);
   setInvestigationStatus("Preparing the project modification board from the promoted donor queue...", { tone: "default", running: true });
   try {
     const result = await api.prepareProjectModificationHandoff(projectId);
@@ -3890,9 +3910,11 @@ async function prepareProjectModificationBoard() {
       + `${nextOperatorAction}`
       , { tone: "success", running: false }
     );
+    pushLog(`Modification board prepared for ${projectId}.`);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     setInvestigationStatus(`Project modification handoff failed: ${message}`, { tone: "danger", running: false });
+    pushLog(`Modification board failed for ${projectId}: ${message}`);
   } finally {
     if (state.investigationUi?.running) {
       setInvestigationStatus(state.investigationUi.status, { tone: state.investigationUi.tone, running: false, preview: false });
@@ -3915,6 +3937,7 @@ async function runDonorScenarioProfile(profileId, minutes = null) {
     return;
   }
 
+  pushLog(`Scenario profile ${normalizedProfileId} started for ${donorId}.`);
   setInvestigationStatus(
     `Running investigation profile ${profile?.label ?? normalizedProfileId} for ${requestedMinutes} minute${requestedMinutes === 1 ? "" : "s"}...`,
     { tone: "default", running: true }
@@ -3950,9 +3973,11 @@ async function runDonorScenarioProfile(profileId, minutes = null) {
       + `next profile ${nextProfile ?? "none"}. ${nextOperatorAction}`
       , { tone: "success", running: false }
     );
+    pushLog(`Scenario profile ${normalizedProfileId} completed for ${donorId}.`);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     setInvestigationStatus(`Investigation profile ${profile?.label ?? normalizedProfileId} failed: ${message}`, { tone: "danger", running: false });
+    pushLog(`Scenario profile ${normalizedProfileId} failed for ${donorId}: ${message}`);
   } finally {
     if (state.investigationUi?.running) {
       setInvestigationStatus(state.investigationUi.status, { tone: state.investigationUi.tone, running: false, preview: false });
@@ -17928,6 +17953,7 @@ async function saveProjectLaunchUrl(projectId, launchUrl) {
     renderProjectBrowser();
     return;
   }
+  pushLog(`Saving launch URL for ${projectId}...`);
   setPreviewStatus(`Saving launch URL for ${projectId}...`);
   state.projectBrowserUi.launchUrlStatus = { tone: "default", message: "Saving launch URL..." };
   renderProjectBrowser();
@@ -17937,11 +17963,13 @@ async function saveProjectLaunchUrl(projectId, launchUrl) {
     setPreviewStatus(`Launch URL saved for ${projectId}. Debug Host is now available if the URL is valid.`);
     state.projectBrowserUi.launchUrlStatus = { tone: "success", message: "Launch URL saved. Debug Host should unlock." };
     renderProjectBrowser();
+    pushLog(`Launch URL saved for ${projectId}.`);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     setPreviewStatus(`Launch URL update failed: ${message}`);
     state.projectBrowserUi.launchUrlStatus = { tone: "danger", message: `Launch URL update failed: ${message}` };
     renderProjectBrowser();
+    pushLog(`Launch URL update failed for ${projectId}: ${message}`);
   }
 }
 
