@@ -106,6 +106,14 @@ const state = {
   },
   uiFlags: {
     wizardMode: false
+  },
+  findUi: {
+    open: false,
+    query: "",
+    matchCount: 0,
+    activeMatch: 0,
+    requestId: null,
+    status: "idle"
   }
 };
 
@@ -195,6 +203,12 @@ const elements = {
   projectBrowser: document.getElementById("project-browser"),
   projectSearchInput: document.getElementById("project-search-input"),
   projectSearchClear: document.getElementById("project-search-clear"),
+  findOverlay: document.getElementById("find-overlay"),
+  findInput: document.getElementById("find-input"),
+  findCount: document.getElementById("find-count"),
+  findPrev: document.getElementById("find-prev"),
+  findNext: document.getElementById("find-next"),
+  findClose: document.getElementById("find-close"),
   evidenceBrowser: document.getElementById("evidence-browser"),
   investigationBrowser: document.getElementById("investigation-browser"),
   sceneExplorer: document.getElementById("scene-explorer"),
@@ -846,8 +860,10 @@ async function runBridgeSmoke() {
 
 async function init() {
   bindActions();
+  registerFindInPageListener();
   setupToolbarMenus();
   renderBridgeStatus();
+  renderFindOverlay();
 
   try {
     await loadLaunchFlags();
@@ -10193,6 +10209,108 @@ async function refreshBridgeProjectStatus(projectMessage = null) {
   });
 }
 
+function renderFindOverlay() {
+  if (!elements.findOverlay) {
+    return;
+  }
+  elements.findOverlay.hidden = !state.findUi.open;
+  if (elements.findInput instanceof HTMLInputElement) {
+    elements.findInput.value = state.findUi.query;
+  }
+  if (elements.findCount) {
+    if (!state.findUi.query) {
+      elements.findCount.textContent = "Type to search";
+    } else {
+      const matchCount = Number.isFinite(state.findUi.matchCount) ? state.findUi.matchCount : 0;
+      const activeMatch = Number.isFinite(state.findUi.activeMatch) ? state.findUi.activeMatch : 0;
+      elements.findCount.textContent = `${activeMatch}/${matchCount}`;
+    }
+  }
+}
+
+function openFindOverlay(options = {}) {
+  state.findUi.open = true;
+  renderFindOverlay();
+  if (elements.findInput instanceof HTMLInputElement) {
+    if (options.selectAll !== false) {
+      elements.findInput.select();
+    }
+    elements.findInput.focus();
+  }
+  if (state.findUi.query.trim()) {
+    requestFindInPage({ findNext: false, forward: true });
+  }
+}
+
+function closeFindOverlay() {
+  state.findUi.open = false;
+  state.findUi.status = "idle";
+  renderFindOverlay();
+  if (window.myideApi && typeof window.myideApi.stopFindInPage === "function") {
+    window.myideApi.stopFindInPage("clearSelection");
+  }
+}
+
+function requestFindInPage({ findNext = false, forward = true } = {}) {
+  const query = state.findUi.query.trim();
+  if (!query) {
+    state.findUi.matchCount = 0;
+    state.findUi.activeMatch = 0;
+    renderFindOverlay();
+    if (window.myideApi && typeof window.myideApi.stopFindInPage === "function") {
+      window.myideApi.stopFindInPage("clearSelection");
+    }
+    return;
+  }
+  if (!window.myideApi || typeof window.myideApi.findInPage !== "function") {
+    setPreviewStatus("Find in page is unavailable in this session.");
+    return;
+  }
+  state.findUi.status = "searching";
+  window.myideApi.findInPage(query, { findNext, forward })
+    .then((result) => {
+      if (result && typeof result === "object" && "requestId" in result) {
+        state.findUi.requestId = result.requestId;
+      }
+      if (result && typeof result === "object" && "ok" in result && result.ok === false) {
+        setPreviewStatus(result.error ?? "Find in page failed.");
+      }
+    })
+    .catch(() => {
+      setPreviewStatus("Find in page failed.");
+    });
+}
+
+function handleFindInPageResult(payload) {
+  if (!payload || typeof payload !== "object") {
+    return;
+  }
+  const matchValue = typeof payload.matches === "number"
+    ? payload.matches
+    : typeof payload.matchCount === "number"
+      ? payload.matchCount
+      : null;
+  const activeValue = typeof payload.activeMatchOrdinal === "number"
+    ? payload.activeMatchOrdinal
+    : typeof payload.activeMatch === "number"
+      ? payload.activeMatch
+      : null;
+  if (matchValue != null) {
+    state.findUi.matchCount = Math.max(0, matchValue);
+  }
+  if (activeValue != null) {
+    state.findUi.activeMatch = Math.max(0, activeValue);
+  }
+  state.findUi.status = "ready";
+  renderFindOverlay();
+}
+
+function registerFindInPageListener() {
+  if (window.myideApi && typeof window.myideApi.onFindInPageResult === "function") {
+    window.myideApi.onFindInPageResult(handleFindInPageResult);
+  }
+}
+
 function bindActions() {
   elements.actionRescan?.addEventListener("click", () => {
     void reloadWorkspace(false, state.selectedProjectId);
@@ -10247,13 +10365,53 @@ function bindActions() {
   elements.actionReloadEditor?.addEventListener("click", () => {
     void reloadWorkspace(false, state.selectedProjectId);
   });
+  elements.findPrev?.addEventListener("click", (event) => {
+    event.preventDefault();
+    requestFindInPage({ findNext: true, forward: false });
+  });
+  elements.findNext?.addEventListener("click", (event) => {
+    event.preventDefault();
+    requestFindInPage({ findNext: true, forward: true });
+  });
+  elements.findClose?.addEventListener("click", (event) => {
+    event.preventDefault();
+    closeFindOverlay();
+  });
+  elements.findOverlay?.addEventListener("click", (event) => {
+    if (event.target === elements.findOverlay) {
+      closeFindOverlay();
+    }
+  });
+  if (elements.findInput instanceof HTMLInputElement) {
+    elements.findInput.addEventListener("input", () => {
+      state.findUi.query = elements.findInput.value;
+      requestFindInPage({ findNext: false, forward: true });
+    });
+    elements.findInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        requestFindInPage({ findNext: true, forward: !event.shiftKey });
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeFindOverlay();
+      }
+    });
+  }
   document.body?.addEventListener("click", (event) => {
     handleNavigationClick(event);
   });
   window.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && state.uiFlags.wizardMode) {
-      event.preventDefault();
-      dismissWizardMode();
+    if (event.key === "Escape") {
+      if (state.uiFlags.wizardMode) {
+        event.preventDefault();
+        dismissWizardMode();
+        return;
+      }
+      if (state.findUi.open) {
+        event.preventDefault();
+        closeFindOverlay();
+      }
     }
   });
   if (elements.wizardOverlay) {
@@ -10284,19 +10442,20 @@ function bindActions() {
   }
   document.addEventListener("keydown", (event) => {
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "f") {
-      const activeTag = document.activeElement?.tagName?.toLowerCase();
-      if (activeTag === "input" || activeTag === "textarea") {
+      event.preventDefault();
+      if (event.shiftKey) {
+        setWorkflowPanel("project");
+        if (elements.panelProjectBrowser) {
+          elements.panelProjectBrowser.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+        if (elements.projectSearchInput instanceof HTMLInputElement) {
+          setTimeout(() => elements.projectSearchInput?.focus(), 150);
+        }
+        setPreviewStatus("Find Project is active. Type to filter the Project Browser list.");
         return;
       }
-      event.preventDefault();
-      setWorkflowPanel("project");
-      if (elements.panelProjectBrowser) {
-        elements.panelProjectBrowser.scrollIntoView({ behavior: "smooth", block: "start" });
-      }
-      if (elements.projectSearchInput instanceof HTMLInputElement) {
-        setTimeout(() => elements.projectSearchInput?.focus(), 150);
-      }
-      setPreviewStatus("Find Project is active. Type to filter the Project Browser list.");
+      openFindOverlay();
+      setPreviewStatus("Find in page is active. Type to search within this window.");
     }
   });
   document.addEventListener("keydown", (event) => {
@@ -15320,10 +15479,18 @@ function handleNavigationClick(event) {
   }
 
   const actionButton = target.closest("[data-action]");
-  if (actionButton instanceof HTMLElement && actionButton.dataset.action === "save") {
-    event.preventDefault();
-    void handleSaveEditor();
-    return true;
+  if (actionButton instanceof HTMLElement && actionButton.dataset.action) {
+    if (actionButton.dataset.action === "save") {
+      event.preventDefault();
+      void handleSaveEditor();
+      return true;
+    }
+    if (actionButton.dataset.action === "find-in-page") {
+      event.preventDefault();
+      openFindOverlay();
+      setPreviewStatus("Find in page is active. Type to search within this window.");
+      return true;
+    }
   }
 
   const workflowPanelButton = target.closest("[data-workflow-panel]");

@@ -105,6 +105,13 @@ function buildPropertyPanelViewModel(input: PropertyPanelInput): PropertyPanelVi
 
 ipcRenderer.send("myide:preload-ready");
 
+let findInPageListener: ((payload: unknown) => void) | null = null;
+ipcRenderer.on("myide:find-in-page-result", (_event, payload) => {
+  if (findInPageListener) {
+    findInPageListener(payload);
+  }
+});
+
 contextBridge.exposeInMainWorld("myideApi", {
   ping: (): Promise<{ ok: true; stamp: string; preloadPath: string }> => ipcRenderer.invoke("myide:ping"),
   bridgeHealth: (): Promise<BridgeHealthSnapshot> => ipcRenderer.invoke("myide:bridge-health"),
@@ -161,6 +168,13 @@ contextBridge.exposeInMainWorld("myideApi", {
     ipcRenderer.send("myide:live-undo-redo-smoke-result", payload);
   },
   getLaunchFlags: (): Promise<{ wizardMode: boolean }> => ipcRenderer.invoke("myide:get-launch-flags"),
+  findInPage: (query: string, options?: { forward?: boolean; findNext?: boolean; matchCase?: boolean }): Promise<unknown> =>
+    ipcRenderer.invoke("myide:find-in-page", query, options ?? null),
+  stopFindInPage: (action?: "clearSelection" | "keepSelection"): Promise<unknown> =>
+    ipcRenderer.invoke("myide:stop-find-in-page", action ?? "clearSelection"),
+  onFindInPageResult: (listener: (payload: unknown) => void): void => {
+    findInPageListener = listener;
+  },
   getFileEvidence: (entries: Array<{ label: string; path: string }>): Promise<unknown> => ipcRenderer.invoke("myide:get-file-evidence", entries),
   deleteProject: (projectId: string): Promise<unknown> => ipcRenderer.invoke("myide:delete-project", projectId),
   updateProjectLaunchUrl: (projectId: string, launchUrl: string): Promise<unknown> =>

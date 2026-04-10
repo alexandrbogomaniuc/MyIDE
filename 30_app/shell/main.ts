@@ -265,6 +265,7 @@ let runtimeLocalMirrorServer: Server | null = null;
 let runtimeRequestStage = "launch";
 const recentRuntimeObservationFingerprints = new Map<string, number>();
 let activeRuntimeDebugWindow: BrowserWindow | null = null;
+let mainWindow: BrowserWindow | null = null;
 let activeRuntimeDebugProjectId: string | null = null;
 let activeRuntimeRequestProjectId: string | null = null;
 let lastRuntimeDebugResult: RuntimeDebugHostResult | null = null;
@@ -3290,6 +3291,12 @@ function createWindow(): void {
       webviewTag: true
     }
   });
+  mainWindow = window;
+  window.on("closed", () => {
+    if (mainWindow === window) {
+      mainWindow = null;
+    }
+  });
 
   const rendererPath = path.resolve(__dirname, "../../../30_app/shell/renderer/index.html");
   attachBridgeSmokeHandlers(window);
@@ -3333,6 +3340,9 @@ function createWindow(): void {
       webPreferences.sandbox = true;
     }
   );
+  window.webContents.on("found-in-page", (_event, result) => {
+    window.webContents.send("myide:find-in-page-result", result);
+  });
   const query = {
     ...(isBridgeSmokeMode ? { bridgeSmoke: "1" } : {}),
     ...(isLivePersistSmokeMode ? { livePersistSmoke: "1" } : {}),
@@ -3361,6 +3371,14 @@ function createWindow(): void {
     ...(shouldKeepLiveUndoRedoWindowOpen ? { liveUndoRedoKeepOpen: "1" } : {})
   };
   void window.loadFile(rendererPath, query ? { query } : undefined);
+}
+
+function resolveMainWindow(): BrowserWindow | null {
+  if (mainWindow) {
+    return mainWindow;
+  }
+  const windows = BrowserWindow.getAllWindows();
+  return windows.length > 0 ? windows[0] : null;
 }
 
 if (shouldDisableHardwareAcceleration) {
@@ -3438,6 +3456,30 @@ ipcMain.handle("myide:renderer-ready", async () => {
 ipcMain.handle("myide:get-launch-flags", async () => ({
   wizardMode: isWizardMode
 }));
+ipcMain.handle("myide:find-in-page", async (_event, query: string, options?: { forward?: boolean; findNext?: boolean; matchCase?: boolean }) => {
+  const window = resolveMainWindow();
+  if (!window) {
+    return { ok: false, error: "No active window to search." };
+  }
+  const text = typeof query === "string" ? query.trim() : "";
+  if (!text) {
+    return { ok: false, error: "Empty search query." };
+  }
+  const requestId = window.webContents.findInPage(text, {
+    forward: options?.forward !== false,
+    findNext: options?.findNext === true,
+    matchCase: options?.matchCase === true
+  });
+  return { ok: true, requestId };
+});
+ipcMain.handle("myide:stop-find-in-page", async (_event, action?: "clearSelection" | "keepSelection") => {
+  const window = resolveMainWindow();
+  if (!window) {
+    return { ok: false, error: "No active window to stop." };
+  }
+  window.webContents.stopFindInPage(action ?? "clearSelection");
+  return { ok: true };
+});
 
 ipcMain.handle("myide:get-file-evidence", async (_event, entries: FileEvidenceRequest[]) => {
   return buildFileEvidence(entries);

@@ -1199,6 +1199,49 @@ button:disabled {
   color: var(--accent);
 }
 
+.find-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 20px;
+  background: rgba(4, 8, 12, 0.35);
+  backdrop-filter: blur(6px);
+  z-index: 999;
+}
+
+.find-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(179, 209, 186, 0.2);
+  background: rgba(12, 18, 25, 0.95);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+}
+
+.find-label {
+  font-weight: 600;
+}
+
+#find-input {
+  min-width: 260px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(179, 209, 186, 0.2);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+}
+
+.find-count {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  min-width: 50px;
+  text-align: center;
+}
+
 .toolbar-menu-secondary > summary {
   border-style: dashed;
   opacity: 0.88;

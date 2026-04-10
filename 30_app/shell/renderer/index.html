@@ -17,7 +17,8 @@
         <div class="topbar-actions">
           <button type="button" class="primary-cta has-tooltip" data-tooltip="Opens the New Project form. Wizard guidance now lives inside the app, so one launcher is enough." data-workflow-panel="project" data-scroll-target="panel-new-project">New Project</button>
           <button type="button" class="secondary-cta" data-workflow-panel="investigation" data-scroll-target="panel-investigation">Start Investigation</button>
-          <button type="button" class="secondary-cta" data-workflow-panel="project" data-scroll-target="panel-project-browser" data-focus-target="project-search-input">Find Project (Cmd/Ctrl+F)</button>
+          <button type="button" class="secondary-cta" data-action="find-in-page">Find in Page (Cmd/Ctrl+F)</button>
+          <button type="button" class="secondary-cta" data-workflow-panel="project" data-scroll-target="panel-project-browser" data-focus-target="project-search-input">Find Project (Cmd/Ctrl+Shift+F)</button>
           <button type="button" class="ghost-button" data-action="save">Save (Cmd/Ctrl+S)</button>
           <div class="chips" aria-label="Project constraints">
             <span>MULTI PROJECT</span>
@@ -345,6 +346,16 @@
         <span>Canvas Preview</span>
         <span>Property Save Loop</span>
       </footer>
+    </div>
+    <div id="find-overlay" class="find-overlay" hidden>
+      <div class="find-bar" role="dialog" aria-label="Find in page">
+        <span class="find-label">Find</span>
+        <input id="find-input" type="search" placeholder="Type to search" />
+        <span id="find-count" class="find-count">0/0</span>
+        <button id="find-prev" type="button" class="ghost-button">Prev</button>
+        <button id="find-next" type="button" class="ghost-button">Next</button>
+        <button id="find-close" type="button" class="ghost-button">Close</button>
+      </div>
     </div>
     <script src="./editorState.js"></script>
     <script src="./app.js"></script>
