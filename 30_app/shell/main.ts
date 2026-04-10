@@ -180,6 +180,7 @@ interface RuntimeDebugSmokePayload {
 
 interface RuntimeDebugHostOptions {
   projectId?: string | null;
+  launchUrl?: string | null;
   showWindow?: boolean;
   smokeMode?: boolean;
   closeWhenDone?: boolean;
@@ -1048,8 +1049,19 @@ async function runRuntimeDebugHost(options: RuntimeDebugHostOptions = {}): Promi
 
     const bundle = await loadProjectSlice(projectId);
     const runtimeLaunch = bundle.runtimeLaunch;
-    if (!runtimeLaunch?.entryUrl) {
-      throw new Error(runtimeLaunch?.blocker ?? `No grounded runtime launch URL is available for ${projectId}.`);
+    const candidateLaunchUrl = typeof options.launchUrl === "string" ? options.launchUrl.trim() : "";
+    const resolvedEntryUrl = runtimeLaunch?.entryUrl ?? (candidateLaunchUrl.length > 0 ? candidateLaunchUrl : null);
+    if (!resolvedEntryUrl) {
+      throw new Error(runtimeLaunch?.blocker ?? `No grounded runtime launch URL is available for ${projectId}. Save a donor launch URL to open Debug Host.`);
+    }
+    const runtimeSourceLabel = runtimeLaunch?.runtimeSourceLabel ?? (candidateLaunchUrl.length > 0 ? "Donor launch URL" : "runtime source unknown");
+    let resolvedRuntimeHost = runtimeLaunch?.resolvedRuntimeHost ?? null;
+    if (!resolvedRuntimeHost && candidateLaunchUrl.length > 0) {
+      try {
+        resolvedRuntimeHost = new URL(candidateLaunchUrl).host;
+      } catch {
+        resolvedRuntimeHost = null;
+      }
     }
 
     recentRuntimeObservationFingerprints.clear();
@@ -1157,7 +1169,7 @@ async function runRuntimeDebugHost(options: RuntimeDebugHostOptions = {}): Promi
     };
     debugWindow.webContents.once("render-process-gone", failIfGone);
 
-    await debugWindow.loadURL(runtimeLaunch.entryUrl);
+    await debugWindow.loadURL(resolvedEntryUrl);
     await delay(3000);
 
     const initialStatus = await safeExecuteDebugScript<RuntimeDebugBridgeStatus>(debugWindow, buildRuntimeDebugStatusScript());
@@ -1173,8 +1185,8 @@ async function runRuntimeDebugHost(options: RuntimeDebugHostOptions = {}): Promi
         error: null,
         pathDecision: "interactive-debug-host",
         projectId,
-        runtimeSourceLabel: runtimeLaunch.runtimeSourceLabel,
-        entryUrl: runtimeLaunch.entryUrl,
+        runtimeSourceLabel,
+        entryUrl: resolvedEntryUrl,
         bridgeSource: initialStatus?.bridgeSource ?? null,
         bridgeVersion: initialStatus?.bridgeVersion ?? null,
         engineKind: initialStatus?.engineKind ?? null,
@@ -1323,8 +1335,8 @@ async function runRuntimeDebugHost(options: RuntimeDebugHostOptions = {}): Promi
       error: debugProofPassed ? null : overrideBlocked,
       pathDecision: "embedded-no-go-debug-host",
       projectId,
-      runtimeSourceLabel: runtimeLaunch.runtimeSourceLabel,
-      entryUrl: runtimeLaunch.entryUrl,
+      runtimeSourceLabel,
+      entryUrl: resolvedEntryUrl,
       bridgeSource: finalStatus?.bridgeSource ?? initialStatus?.bridgeSource ?? null,
       bridgeVersion: finalStatus?.bridgeVersion ?? initialStatus?.bridgeVersion ?? null,
       engineKind: finalStatus?.engineKind ?? initialStatus?.engineKind ?? null,

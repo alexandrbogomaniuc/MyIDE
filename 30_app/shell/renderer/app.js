@@ -3579,6 +3579,10 @@ async function openRuntimeDebugHostWindow(options = {}) {
     ? options.statusPrefix.trim()
     : null;
   const api = window.myideApi;
+  const selectedProject = getSelectedProject();
+  const donorLaunchUrl = typeof selectedProject?.donor?.launchUrl === "string"
+    ? selectedProject.donor.launchUrl.trim()
+    : "";
   if (!api || typeof api.openRuntimeDebugHost !== "function") {
     setPreviewStatus("Runtime Debug Host is not available in this renderer session.");
     return null;
@@ -3589,10 +3593,16 @@ async function openRuntimeDebugHostWindow(options = {}) {
     return null;
   }
 
+  setPreviewStatus(
+    donorLaunchUrl
+      ? "Opening Runtime Debug Host with the saved donor launch URL..."
+      : "Opening Runtime Debug Host..."
+  );
   const result = await api.openRuntimeDebugHost(
     proofMode || profileId || candidateHintTokens.length > 0 || state.selectedProjectId
       ? {
           projectId: state.selectedProjectId ?? null,
+          launchUrl: donorLaunchUrl || null,
           proofMode,
           profileId,
           candidateHintTokens,
@@ -22887,21 +22897,28 @@ function renderRuntimeWorkbench() {
     activeWorkbenchSurfaceKind,
     activeWorkbenchSurfaceTitle
   } = getActiveRuntimeWorkbenchSurface();
+  const selectedProject = getSelectedProject();
+  const donorLaunchUrl = typeof selectedProject?.donor?.launchUrl === "string" ? selectedProject.donor.launchUrl : "";
+  const hasDonorLaunchUrl = Boolean(donorLaunchUrl);
   const debugHostResult = state.runtimeUi.debugHost;
   const debugHostDonorSourceKind = getRuntimeDebugHostOverrideDonorSourceKind(debugHostResult);
   const debugHostAvailable = canUseRuntimeDebugHostForSelectedProject();
   const debugHostOfficial = debugHostAvailable && isOfficialRuntimeDebugHostProject();
   const harvestAvailable = canHarvestSelectedProjectRuntimeRequestEvidence();
   const hasGroundedMirrorSources = (runtimeMirrorStatus?.entries ?? []).some((entry) => entry?.fileExists !== false);
+  const debugHostUsesDonorLaunch = debugHostAvailable && !runtimeLaunch?.entryUrl && hasDonorLaunchUrl;
+  const debugHostEntryReady = Boolean(runtimeLaunch?.entryUrl) || debugHostUsesDonorLaunch;
   const runtimeCalloutHeading = debugHostOfficial ? "Official Runtime Workbench" : "Selected-project runtime surface";
   const runtimeCalloutMessage = debugHostAvailable
     ? (debugHostResult?.status === "pass"
         ? (debugHostOfficial
             ? `Runtime Debug Host is now the practical runtime workflow for project_001. The latest run proved ${debugHostResult.candidateRuntimeRelativePath ?? debugHostResult.candidateRuntimeSourceUrl ?? "the current request-backed image"} with ${debugHostResult.overrideHitCountAfterReload ?? 0} override hit${Number(debugHostResult.overrideHitCountAfterReload ?? 0) === 1 ? "" : "s"} after reload${debugHostDonorSourceKind ? ` using ${debugHostDonorSourceKind}` : ""}.`
             : `Open Debug Host when this selected project needs the stronger grounded runtime proof path. The latest run proved ${debugHostResult.candidateRuntimeRelativePath ?? debugHostResult.candidateRuntimeSourceUrl ?? "the current request-backed image"}${Number(debugHostResult.overrideHitCountAfterReload ?? 0) > 0 ? ` with ${debugHostResult.overrideHitCountAfterReload ?? 0} override hit${Number(debugHostResult.overrideHitCountAfterReload ?? 0) === 1 ? "" : "s"} after reload${debugHostDonorSourceKind ? ` using ${debugHostDonorSourceKind}` : ""}` : ` and kept the live candidate grounded${debugHostDonorSourceKind ? ` after trying ${debugHostDonorSourceKind}` : ""} even though bounded override proof remained blocked`}.`)
-        : (debugHostOfficial
-            ? "Open Debug Host to run the official runtime trace and override-proof cycle. The integrated embedded runtime remains available, but it is secondary until it exposes stronger asset truth."
-            : "Open Debug Host to run the stronger grounded runtime trace for this selected project. The integrated embedded runtime remains available, but it is secondary until it exposes stronger asset truth."))
+        : debugHostUsesDonorLaunch
+          ? "Saved donor launch URL is ready. Open Debug Host to capture grounded runtime proof; embedded runtime stays blocked until a local mirror is captured."
+          : (debugHostOfficial
+              ? "Open Debug Host to run the official runtime trace and override-proof cycle. The integrated embedded runtime remains available, but it is secondary until it exposes stronger asset truth."
+              : "Open Debug Host to run the stronger grounded runtime trace for this selected project. The integrated embedded runtime remains available, but it is secondary until it exposes stronger asset truth."))
     : runtimeLaunch?.entryUrl
       ? "The runtime workbench is the truthful selected-project surface here. Embedded launch is indexed, but the dedicated Runtime Debug Host still needs a grounded launch URL before it can reopen this project."
       : harvestAvailable
@@ -22916,7 +22933,9 @@ function renderRuntimeWorkbench() {
     ? (debugHostResult
         ? debugHostResult.error
           ?? `${debugHostResult.candidateRuntimeRelativePath ?? debugHostResult.candidateRuntimeSourceUrl ?? "No request-backed candidate"} · ${debugHostResult.candidateRequestSource ?? "request source unknown"}${debugHostDonorSourceKind ? ` · ${debugHostDonorSourceKind}` : ""}`
-        : "The dedicated Runtime Debug Host uses the same local mirror, but it is the path that currently proves request-backed static image work.")
+        : debugHostUsesDonorLaunch
+          ? "Debug Host will launch using the saved donor URL even though the embedded runtime is still blocked."
+          : "The dedicated Runtime Debug Host uses the same local mirror, but it is the path that currently proves request-backed static image work.")
     : getRuntimeDebugHostUnavailableMessage();
   const launchButtonMarkup = `<button type="button" class="copy-button" data-runtime-action="launch" ${runtimeLaunch.entryUrl ? "" : "disabled"}>Launch Embedded Runtime</button>`;
 
@@ -22995,10 +23014,10 @@ function renderRuntimeWorkbench() {
           : "No local donor runtime mirror is captured, so runtime work still falls back to the recorded donor entry."}</span>
       <div class="chip-row">
         <span>${escapeHtml(runtimeLaunch.captureSessionId ?? "runtime session unknown")}</span>
-        <span>${escapeHtml(debugHostAvailable ? (runtimeLaunch.runtimeSourceLabel ?? "Blocked") : activeWorkbenchSurfaceKind)}</span>
+        <span>${escapeHtml(debugHostAvailable ? (debugHostUsesDonorLaunch ? "Donor launch URL" : runtimeLaunch.runtimeSourceLabel ?? "Blocked") : activeWorkbenchSurfaceKind)}</span>
         <span>${debugHostResult?.status === "pass" ? "debug host proved" : "debug host pending"}</span>
         ${debugHostDonorSourceKind ? `<span>${escapeHtml(debugHostDonorSourceKind)}</span>` : ""}
-        <span>${runtimeLaunch.entryUrl ? "runtime entry ready" : "launch blocked"}</span>
+        <span>${debugHostEntryReady ? (runtimeLaunch.entryUrl ? "runtime entry ready" : "debug host ready") : "launch blocked"}</span>
         <span>${state.runtimeUi.inspectEnabled ? "embedded pick armed" : "embedded pick idle"}</span>
         <span>${state.runtimeUi.diagnostics?.pixiVersion ? `Pixi ${escapeHtml(state.runtimeUi.diagnostics.pixiVersion)}` : runtimeLaunch.pixiVersion ? `Pixi ${escapeHtml(runtimeLaunch.pixiVersion)}` : "Pixi version unknown"}</span>
       </div>
@@ -23021,9 +23040,13 @@ function renderRuntimeWorkbench() {
       </div>
       <div class="detail-card">
         <span>${escapeHtml(debugHostAvailable ? "Runtime Entry" : "Selected-project Surface")}</span>
-        <strong>${escapeHtml(debugHostAvailable ? (runtimeLaunch.runtimeSourceLabel ?? "Blocked") : activeWorkbenchSurfaceTitle)}</strong>
+        <strong>${escapeHtml(debugHostAvailable ? (debugHostUsesDonorLaunch ? "Donor launch URL" : runtimeLaunch.runtimeSourceLabel ?? "Blocked") : activeWorkbenchSurfaceTitle)}</strong>
         <small>${debugHostAvailable
-          ? (runtimeLaunch.entryUrl ? `<code>${escapeHtml(runtimeLaunch.entryUrl)}</code>` : "No grounded launch URL is recorded.")
+          ? (runtimeLaunch.entryUrl
+              ? `<code>${escapeHtml(runtimeLaunch.entryUrl)}</code>`
+              : debugHostUsesDonorLaunch
+                ? `<code>${escapeHtml(donorLaunchUrl)}</code>`
+                : "No grounded launch URL is recorded.")
           : escapeHtml(activeWorkbenchEntry?.relativePath ?? activeWorkbenchEntry?.sourceUrl ?? "No grounded runtime workbench item is selected for this project yet.")}</small>
       </div>
       <div class="detail-card">
