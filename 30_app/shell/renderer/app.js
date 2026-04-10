@@ -10378,6 +10378,28 @@ function bindActions() {
     closeFindOverlay();
   });
   elements.findOverlay?.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) {
+      return;
+    }
+    const findAction = target.closest("[data-find-action]");
+    if (!(findAction instanceof HTMLElement)) {
+      return;
+    }
+    event.preventDefault();
+    if (findAction.dataset.findAction === "prev") {
+      requestFindInPage({ findNext: true, forward: false });
+      return;
+    }
+    if (findAction.dataset.findAction === "next") {
+      requestFindInPage({ findNext: true, forward: true });
+      return;
+    }
+    if (findAction.dataset.findAction === "close") {
+      closeFindOverlay();
+    }
+  });
+  elements.findOverlay?.addEventListener("click", (event) => {
     if (event.target === elements.findOverlay) {
       closeFindOverlay();
     }
