@@ -1211,6 +1211,10 @@ button:disabled {
   z-index: 999;
 }
 
+.find-overlay[hidden] {
+  display: none;
+}
+
 .find-bar {
   display: flex;
   align-items: center;
