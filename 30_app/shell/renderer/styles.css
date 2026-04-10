@@ -930,6 +930,10 @@ button:disabled {
   gap: 14px;
 }
 
+.investigation-grid[data-focus-mode="compact"] .investigation-advanced {
+  display: none;
+}
+
 .priority-steps {
   display: grid;
   gap: 10px;

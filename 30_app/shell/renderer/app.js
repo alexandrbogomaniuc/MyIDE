@@ -15467,6 +15467,15 @@ function handleNavigationClick(event) {
       setInvestigationStatus("Investigation history cleared.", { tone: "default", log: false });
       return true;
     }
+    if (investigationActionButton.dataset.investigationAction === "toggle-focus") {
+      const currentFocus = state.investigationUi?.focusMode !== false;
+      state.investigationUi = {
+        ...state.investigationUi,
+        focusMode: !currentFocus
+      };
+      renderAll();
+      return true;
+    }
   }
 
   const donorScanActionButton = target.closest("[data-donor-scan-action]");
@@ -19351,6 +19360,7 @@ function renderInvestigationPanel() {
     : "default";
   const investigationRunning = Boolean(investigationUi.running);
   const investigationHistory = Array.isArray(investigationUi.history) ? investigationUi.history : [];
+  const focusMode = investigationUi.focusMode !== false;
   const investigationHistoryMarkup = investigationHistory.length > 0
     ? `
       <div class="investigation-history">
@@ -19549,8 +19559,15 @@ function renderInvestigationPanel() {
       `;
 
   elements.investigationBrowser.innerHTML = `
-    <div class="investigation-grid">
+    <div class="investigation-grid" data-focus-mode="${focusMode ? "compact" : "full"}">
       ${investigationStatusMarkup}
+      <div class="tree-row">
+        <strong>Focus Mode</strong>
+        <span>${focusMode ? "Showing only the next three actions." : "Showing full investigation detail."}</span>
+        <div class="evidence-actions">
+          <button type="button" class="copy-button" data-investigation-action="toggle-focus">${focusMode ? "Show Details" : "Hide Details"}</button>
+        </div>
+      </div>
       <div class="tree-row">
         <strong>Do This Now</strong>
         <span>Only three actions matter here. Everything else can wait.</span>
@@ -19578,7 +19595,7 @@ function renderInvestigationPanel() {
           </div>
         </div>
       </div>
-      <div class="tree-row">
+      <div class="tree-row investigation-advanced">
         <strong>Runtime Evidence</strong>
         <span>${escapeHtml(String(runtimeEntryCount))} runtime request entr${runtimeEntryCount === 1 ? "y" : "ies"} · ${escapeHtml(String(runtimeProofCount))} runtime page proof${runtimeProofCount === 1 ? "" : "s"}</span>
         <small>${runtimeHarvestCandidates > 0
@@ -19589,7 +19606,7 @@ function renderInvestigationPanel() {
           <button type="button" class="copy-button" data-runtime-action="harvest-request-evidence" ${harvestAvailable ? "" : "disabled"}>Harvest Request-backed Sources</button>
         </div>
       </div>
-      <div class="tree-row">
+      <div class="tree-row investigation-advanced">
         <strong>Run Investigation Steps</strong>
         <span>Start here inside the IDE: Coverage → Scenario → Promote → Prepare Modification.</span>
         <small>${investigationRunning
@@ -19611,12 +19628,12 @@ function renderInvestigationPanel() {
           <button type="button" class="copy-button" data-project-modification-action="prepare-handoff" ${investigationRunning ? "disabled" : ""}>Prepare Modification Board</button>
         </div>
       </div>
-      <div class="tree-row">
+      <div class="tree-row investigation-advanced">
         <strong>Progress Evidence</strong>
         <span>These files prove each investigation step produced output.</span>
         ${evidenceMarkup}
       </div>
-      <div class="detail-grid">
+      <div class="detail-grid investigation-advanced">
         <div class="detail-card">
           <span>Current Stage</span>
           <strong>${escapeHtml(labelizeStage(investigation.currentStage))}</strong>
@@ -19649,7 +19666,7 @@ function renderInvestigationPanel() {
         </div>
       </div>
 
-      <div class="tree-row">
+      <div class="tree-row investigation-advanced">
         <strong>Coverage Board</strong>
         <span>Bounded scenario coverage now separates what the IDE can promote into Modification from what must stay in Investigation.</span>
         <div class="chip-row">
@@ -19671,7 +19688,7 @@ function renderInvestigationPanel() {
         </div>
       </div>
 
-      <div class="tree-row">
+      <div class="tree-row investigation-advanced">
         <strong>IDE Self-Investigation</strong>
         <span>${escapeHtml(investigation.selfInvestigation?.rationale ?? "No bounded self-investigation recommendation is available yet.")}</span>
         <div class="evidence-actions">
@@ -19699,7 +19716,7 @@ function renderInvestigationPanel() {
           : "No bounded profile has been recorded yet."}</small>
       </div>
 
-      <div class="tree-row">
+      <div class="tree-row investigation-advanced">
         <strong>Operator Assist</strong>
         <span>${escapeHtml(investigation.operatorAssist?.nextOperatorAction ?? investigation.nextOperatorAction)}</span>
         <div class="evidence-actions">
