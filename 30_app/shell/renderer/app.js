@@ -154,6 +154,20 @@ const investigationProfiles = [
     runtimeActions: ["launch", "enter"]
   },
   {
+    profileId: "bonus-buy-wheel",
+    label: "Bonus Buy (Wheel)",
+    minutes: 6,
+    executionMode: "operator-assisted",
+    runtimeActions: ["launch", "enter"]
+  },
+  {
+    profileId: "bonus-buy-mini",
+    label: "Bonus Buy (Mini-game)",
+    minutes: 8,
+    executionMode: "operator-assisted",
+    runtimeActions: ["launch", "enter"]
+  },
+  {
     profileId: "manual-operator",
     label: "Manual Operator",
     minutes: 10,
@@ -10214,6 +10228,7 @@ function renderFindOverlay() {
     return;
   }
   elements.findOverlay.hidden = !state.findUi.open;
+  elements.findOverlay.classList.toggle("is-open", state.findUi.open);
   if (elements.findInput instanceof HTMLInputElement) {
     elements.findInput.value = state.findUi.query;
   }
@@ -19846,6 +19861,22 @@ function renderInvestigationPanel() {
               ${investigationRunning ? "disabled" : ""}
             >Run Scenario (${escapeHtml(primaryProfile.label)})</button>
           ` : ""}
+          <button
+            type="button"
+            class="copy-button"
+            data-donor-scan-action="run-scenario-profile"
+            data-donor-scan-profile="bonus-buy-wheel"
+            data-donor-scan-minutes="6"
+            ${investigationRunning ? "disabled" : ""}
+          >Run Bonus Buy (Wheel)</button>
+          <button
+            type="button"
+            class="copy-button"
+            data-donor-scan-action="run-scenario-profile"
+            data-donor-scan-profile="bonus-buy-mini"
+            data-donor-scan-minutes="8"
+            ${investigationRunning ? "disabled" : ""}
+          >Run Bonus Buy (Mini-game)</button>
           <button type="button" class="copy-button" data-donor-scan-action="run-promotion-queue" ${investigationRunning ? "disabled" : ""}>Promote Ready Families</button>
           <button type="button" class="copy-button" data-project-modification-action="prepare-handoff" ${investigationRunning ? "disabled" : ""}>Prepare Modification Board</button>
         </div>

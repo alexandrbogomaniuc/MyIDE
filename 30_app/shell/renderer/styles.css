@@ -1202,7 +1202,7 @@ button:disabled {
 .find-overlay {
   position: fixed;
   inset: 0;
-  display: flex;
+  display: none;
   justify-content: center;
   align-items: flex-start;
   padding: 20px;
@@ -1211,8 +1211,8 @@ button:disabled {
   z-index: 999;
 }
 
-.find-overlay[hidden] {
-  display: none;
+.find-overlay.is-open {
+  display: flex;
 }
 
 .find-bar {
