@@ -10459,6 +10459,13 @@ function bindActions() {
 
     const projectId = button.dataset.projectId;
     if (projectId) {
+      if (state.selectedProjectId !== projectId) {
+        state.selectedProjectId = projectId;
+        state.projectBrowserUi.launchUrlDraft = "";
+        state.projectBrowserUi.launchUrlStatus = null;
+        renderAll();
+        setPreviewStatus(`Loading ${projectId}...`);
+      }
       void reloadWorkspace(false, projectId);
     }
   });
