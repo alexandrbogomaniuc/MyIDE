@@ -3351,6 +3351,7 @@ async function harvestRuntimeRequestEvidenceForCurrentProject() {
     const harvestedEntryCount = Number(result?.harvestedEntryCount ?? 0);
     const attemptedSourceCount = Number(result?.attemptedSourceCount ?? 0);
     const overrideEntryCount = Number(result?.overrideEntryCount ?? 0);
+    const priorHarvestCount = Number(state.runtimeUi.lastSelectedProjectHarvestResult?.harvestedEntryCount ?? 0);
     const topSourceUrl = typeof result?.topSourceUrl === "string" ? result.topSourceUrl : null;
     const nextWorkbenchSourceUrl = previousWorkbenchSourceUrl
       && getRuntimeWorkbenchEntries().some((entry) => entry.sourceUrl === previousWorkbenchSourceUrl)
@@ -3361,9 +3362,22 @@ async function harvestRuntimeRequestEvidenceForCurrentProject() {
     }
 
     renderAll();
+    if (harvestedEntryCount > 0) {
+      state.investigationUi = {
+        ...state.investigationUi,
+        coverageNeedsRefresh: true
+      };
+    }
+
     setPreviewStatus(harvestedEntryCount > 0
       ? `Harvested ${harvestedEntryCount} request-backed runtime source${harvestedEntryCount === 1 ? "" : "s"} from ${attemptedSourceCount} grounded runtime candidate${attemptedSourceCount === 1 ? "" : "s"} for ${projectId}${overrideEntryCount > 0 ? `, including ${overrideEntryCount} override-backed hit${overrideEntryCount === 1 ? "" : "s"}` : ""}.${getRuntimeLaunchInfo()?.entryUrl ? " Embedded launch is indexed, but the runtime workbench stays the truthful source/override surface while those harvested traces refresh." : " Embedded launch stays blocked while the runtime workbench refreshes on those harvested traces."}`
-      : String(result?.blocker ?? "The bounded selected-project runtime harvest did not record any grounded requests."));
+      : attemptedSourceCount > 0 || priorHarvestCount > 0
+        ? "No new runtime requests were found since the last harvest. You do not need to click Harvest again unless you play more in Debug Host."
+        : String(result?.blocker ?? "The bounded selected-project runtime harvest did not record any grounded requests."));
+
+    if (harvestedEntryCount > 0 && !state.investigationUi?.running) {
+      await runDonorScanCoverage({ auto: true });
+    }
     return result ?? null;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -3716,19 +3730,20 @@ async function runDonorScanCapture(limit = 5, family = null, mode = "ranked-targ
   }
 }
 
-async function runDonorScanCoverage() {
+async function runDonorScanCoverage(options = {}) {
   const api = window.myideApi;
   const selectedProject = getSelectedProject();
   const donorId = typeof selectedProject?.donor?.donorId === "string" ? selectedProject.donor.donorId : "";
   const donorName = typeof selectedProject?.donor?.donorName === "string" ? selectedProject.donor.donorName : "";
   const launchUrl = typeof selectedProject?.donor?.launchUrl === "string" ? selectedProject.donor.launchUrl : "";
+  const autoRun = options?.auto === true;
   if (!api || typeof api.runDonorScanCoverage !== "function" || !donorId) {
     setInvestigationStatus("Coverage scan is not available in this renderer session.", { tone: "warning" });
     return;
   }
 
-  pushLog(`Coverage scan started for ${donorId}.`);
-  setInvestigationStatus(`Running donor-scan:coverage for ${donorId}...`, { tone: "default", running: true });
+  pushLog(`${autoRun ? "Auto " : ""}Coverage scan started for ${donorId}.`);
+  setInvestigationStatus(`${autoRun ? "Auto " : ""}Running donor-scan:coverage for ${donorId}...`, { tone: "default", running: true });
   try {
     const result = await api.runDonorScanCoverage(donorId, donorName, launchUrl);
     await reloadWorkspace(false, state.selectedProjectId);
@@ -3743,6 +3758,10 @@ async function runDonorScanCoverage() {
     const harvestHint = needsHarvest
       ? " Open Debug Host, then click Harvest Request-backed Sources to ground the runtime entry, and run Coverage again."
       : "";
+    state.investigationUi = {
+      ...state.investigationUi,
+      coverageNeedsRefresh: false
+    };
     setInvestigationStatus(
       `Coverage scan ${scanState}. Runtime candidates: ${runtimeCandidates}. Atlas manifests: ${atlasCount}. ${nextOperatorAction}${harvestHint}`,
       { tone: scanState === "complete" ? "success" : "default", running: false }
@@ -19464,9 +19483,23 @@ function renderInvestigationPanel() {
   const blockedRawFamilies = Array.isArray(donorScan?.rawPayloadBlockedFamilyNames) ? donorScan.rawPayloadBlockedFamilyNames : [];
   const primaryProfile = recommendedProfile ?? getInvestigationProfileDefinition("default-bet");
   const harvestAvailable = canHarvestSelectedProjectRuntimeRequestEvidence();
+  const lastHarvestCount = Number(state.runtimeUi.lastSelectedProjectHarvestResult?.harvestedEntryCount ?? 0);
   const debugHostStepStatus = runtimeEntryCount > 0 || runtimeProofCount > 0 ? "done" : "todo";
-  const harvestStepStatus = harvestAvailable ? "ready" : runtimeHarvestCandidates > 0 ? "ready" : "blocked";
-  const coverageStepStatus = investigation.staticScanState === "scanned" ? "done" : "todo";
+  const harvestStepStatus = lastHarvestCount > 0
+    ? "done"
+    : harvestAvailable
+      ? "ready"
+      : runtimeHarvestCandidates > 0
+        ? "ready"
+        : "blocked";
+  const scanState = typeof donorScan?.scanState === "string" ? donorScan.scanState.toLowerCase() : "unknown";
+  const coverageStepStatus = scanState === "complete"
+    ? "done"
+    : scanState === "blocked"
+      ? "blocked"
+      : harvestAvailable || lastHarvestCount > 0 || Boolean(state.investigationUi?.coverageNeedsRefresh)
+        ? "ready"
+        : "todo";
   const priorityStatusLabel = (status) => {
     if (status === "done") {
       return "done";
@@ -19582,14 +19615,14 @@ function renderInvestigationPanel() {
           <div class="priority-step" data-status="${priorityStatusLabel(harvestStepStatus)}">
             <div>
               <strong>2. Harvest Request-backed Sources</strong>
-              <small class="has-tooltip" data-tooltip="This attaches the runtime requests to the donor scan so Coverage can use them.">${harvestAvailable ? "Ready to harvest." : runtimeHarvestCandidates > 0 ? "Ready after Debug Host." : "No harvest candidates yet."}</small>
+              <small class="has-tooltip" data-tooltip="This attaches the runtime requests to the donor scan so Coverage can use them.">${lastHarvestCount > 0 ? `Harvested ${escapeHtml(String(lastHarvestCount))} source${lastHarvestCount === 1 ? "" : "s"} in this session.` : harvestAvailable ? "Ready to harvest." : runtimeHarvestCandidates > 0 ? "Ready after Debug Host." : "No harvest candidates yet."}</small>
             </div>
             <button type="button" class="copy-button" data-runtime-action="harvest-request-evidence" ${harvestAvailable ? "" : "disabled"}>Harvest</button>
           </div>
           <div class="priority-step" data-status="${priorityStatusLabel(coverageStepStatus)}">
             <div>
               <strong>3. Run Coverage Scan</strong>
-              <small class="has-tooltip" data-tooltip="This computes coverage and updates the board once harvest is done.">${coverageStepStatus === "done" ? "Coverage already scanned." : "Run after harvest."}</small>
+              <small class="has-tooltip" data-tooltip="This computes coverage and updates the board once harvest is done.">${coverageStepStatus === "done" ? "Coverage already scanned." : coverageStepStatus === "blocked" ? "Coverage is blocked until runtime evidence is harvested." : "Run after harvest."}</small>
             </div>
             <button type="button" class="copy-button" data-donor-scan-action="run-coverage-scan" ${investigationRunning ? "disabled" : ""}>Run Coverage</button>
           </div>
