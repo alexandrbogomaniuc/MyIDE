@@ -3579,7 +3579,12 @@ async function openRuntimeDebugHostWindow(options = {}) {
     ? options.statusPrefix.trim()
     : null;
   const api = window.myideApi;
-  const selectedProject = getSelectedProject();
+  const selectedProject = getWorkspaceProjects().find((entry) => entry.projectId === state.selectedProjectId) ?? null;
+  if (!selectedProject) {
+    setPreviewStatus("Project selection is still loading. Please click the project again.");
+    pushLog("Debug Host blocked: project selection not ready yet.");
+    return null;
+  }
   const donorLaunchUrl = typeof selectedProject?.donor?.launchUrl === "string"
     ? selectedProject.donor.launchUrl.trim()
     : "";
@@ -3633,6 +3638,10 @@ async function openRuntimeDebugHostWindow(options = {}) {
   }
   renderAll();
   pushLog(`Debug Host opened for ${projectLabel}.`);
+  const entryUrl = typeof result?.entryUrl === "string" ? result.entryUrl : donorLaunchUrl;
+  if (entryUrl) {
+    pushLog(`Debug Host target URL: ${entryUrl}`);
+  }
 
   const runtimeSourceLabel = typeof result?.runtimeSourceLabel === "string" ? result.runtimeSourceLabel : "runtime source unknown";
   const candidatePath = result?.candidateRuntimeRelativePath ?? result?.candidateRuntimeSourceUrl ?? "no request-backed static image candidate";
