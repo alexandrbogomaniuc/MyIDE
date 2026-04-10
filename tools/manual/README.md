@@ -2,7 +2,7 @@
 
 Manual QA helpers are for local testing against the current tracked `project_001` baseline.
 New donor onboarding for this slice is: run `npm run manual:status`, then `npm run manual:prepare:project_001`, then `Open Debug Host` for runtime proof, then `Open Compose` for donor-backed edits.
-For brand-new donor guest URLs, follow `00_control/NEW_DONOR_QUICK_START.md` before using the project_001-only manual path.
+For brand-new donor guest URLs, follow `00_control/NEW_DONOR_URL_STEP_BY_STEP.md` and the checkbox list in `00_control/USER_ACCEPTANCE_CHECKLIST.md` before using the project_001-only manual path.
 Return to the manual tools after you have promoted ready families and prepared a modification board; these scripts assume the `project_001` baseline is still the active test target.
 The product backbone is now explicit: `Investigation -> Modification / Compose / Runtime -> Math / Config -> GS Export`.
 For this build, testers should treat the `Investigation` panel as the truth surface for static scan state, bounded runtime capture state, scenario coverage, blocked families, next profile guidance, operator-assist guidance, and promotion readiness before diving into compose/runtime edits.

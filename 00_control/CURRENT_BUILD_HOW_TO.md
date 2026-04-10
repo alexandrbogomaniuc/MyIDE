@@ -10,16 +10,14 @@ Use this when you want to test the current MyIDE build exactly as it works today
 
 For the current build, Investigation is the important new truth surface. Use it to review donor scan state, runtime scan state, scenario coverage, blocked families, next profile, operator-assist guidance, and promotion readiness before switching into compose/runtime work.
 
-## New Donor URL Quick Start
-Use this when you have a brand-new donor guest-mode URL. The full walkthrough is in `00_control/NEW_DONOR_QUICK_START.md`.
+## New Donor URL Step-by-Step
+Use `00_control/NEW_DONOR_URL_STEP_BY_STEP.md` for the full onboarding guide and `00_control/USER_ACCEPTANCE_CHECKLIST.md` for the checkbox pass.
 
-1. Launch the IDE and use the top-bar **New Project** or Workflow Hub **Start New Project** CTA to open the **Project** panel.
-2. In **New Project**, fill **New Game Name**, **New Game ID**, optional **RTP** / **Default Bet**, and paste the guest-mode URL into **Donor Launch URL**.
-3. Click **Create Project**, then switch to **Investigation**.
-4. If you created the project without a launch URL, run `npm run donor:intake:url -- --donor-id donor_XXX --donor-name "Donor Name" --url "<guest url>"` before running coverage.
-5. Follow the **Next Profile** + **Next Operator Action** guidance and run `npm run donor-scan:coverage -- --donor-id donor_XXX`.
-6. Run `npm run donor-scan:scenario -- --donor-id donor_XXX --profile default-bet --minutes 5`.
-7. Promote ready families and prepare the modification board before switching to Compose / Runtime work.
+Short version:
+1. Open **New Project (Start Here)** from the top bar or Workflow Hub.
+2. Fill the required fields, paste the guest URL into **Donor Launch URL**, and click **Create Project**.
+3. Open **Investigation** and run coverage plus one bounded scenario.
+4. Promote ready families, prepare the modification board, then start a task in Compose or Runtime.
 
 ## Investigation Quick Path
 1. Run `npm run donor-scan:url -- --donor-id donor_001_mystery_garden --donor-name "Mystery Garden"` if the donor harvest needs a refresh.
@@ -74,103 +72,12 @@ Recommended rule:
 3. If the list looks stale, click **Rescan Workspace**.
 
 ## 2A. Start A New Project From A Donor URL
-1. In **New Project**, fill in:
-   - **Display Name**
-   - **Slug**
-   - **Donor Reference / ID**
-   - **Donor Launch URL** if you already have one
-   - **Target / Resulting Game**
-2. Click **Create Project**.
-3. MyIDE now does two things:
-   - scaffolds the project under `40_projects/<slug>/`
-   - scaffolds the shared donor pack under `10_donors/<donorId>/`
-4. If a launch URL was supplied, MyIDE also captures:
-   - `raw/bootstrap/launch.html`
-   - `raw/bootstrap/launch-request.json`
-   - `raw/discovered/discovered-urls.json`
-   - `reports/DONOR_INTAKE_REPORT.md`
-   - `evidence/local_only/harvest/asset-manifest.json`
-   - `evidence/local_only/harvest/entry-points.json`
-   - `evidence/local_only/harvest/url-inventory.json`
-   - `evidence/local_only/harvest/package-manifest.json`
-   - `evidence/local_only/harvest/package-graph.json`
-   - `evidence/local_only/harvest/runtime-candidates.json`
-   - `evidence/local_only/harvest/bundle-asset-map.json`
-   - `evidence/local_only/harvest/atlas-manifests.json`
-   - `evidence/local_only/harvest/next-capture-targets.json`
-   - `evidence/local_only/harvest/next-capture-run.json` after guided capture is used
-   - `evidence/local_only/harvest/blocker-summary.md`
-   - `evidence/local_only/harvest/scan-summary.json`
-   - downloaded bounded recursive static assets under `evidence/local_only/harvest/files/`
-5. The donor panel now surfaces the donor scan summary too, so you can see scan state, runtime candidate count, atlas metadata count, bundle-map status, bundle image-variant status/counts, grounded bundle-image URL rule status/counts, grounded translation-payload status/counts, mirror status, top next capture targets, grounded alternate hint counts, last guided capture result, blocker summary, and the next operator action without opening raw JSON first.
-6. If a donor has grounded runtime request evidence, donor scan now also writes `evidence/local_only/harvest/request-backed-static-hints.json` and shows the request-backed alternate count in the shell before you run guided capture.
-7. Use **Run Guided Capture** when you want MyIDE to attempt the top ranked missing donor/runtime files automatically and then refresh donor scan. The capture runner now also rewrites grounded placeholder-style paths such as `_resourcesPath_...`, uses any request-backed static alternates already discovered, reuses grounded optimized variant URLs when bundle metadata plus loader rules prove them, prefers those stronger grounded alternates before the raw atlas-page URL when they exist, and records every alternate URL it tried before a target stays blocked.
-8. After a guided capture run, donor scan now feeds the latest failed attempt evidence back into the ranked target list. If a target shows as recently blocked, the current grounded URLs were already tried and the next step is deeper source discovery rather than repeating the same capture blindly. If donor scan later discovers new grounded alternate URLs for that same target, it now reopens the target automatically instead of leaving it stuck as blocked forever.
-9. If donor scan also marks a target or family as **raw-payload blocked**, the latest guided capture already exhausted only raw/direct grounded URLs for that blocker class and donor scan still has no stronger grounded alternate. Treat that as a source-discovery blocker, not as a signal to rerun the same capture again.
-10. Use **Capture `<family>` sources** or `npm run donor-scan:capture-family-sources -- --donor-id donor_XXX --family big_win --limit 10` when one family dossier already has grounded bundle/variant/atlas evidence but the flat ranked queue is not the best next operator view. This path captures family-specific source-material candidates directly and then refreshes donor scan.
-11. Use **Prepare `<family>` workset** from the donor-scan family action queue, or run `npm run donor-scan:run-family-action -- --donor-id donor_XXX --family big_win --limit 10`, when a family already has grounded local sources or strong bundle evidence. Capture-style family actions reuse donor-scan capture automatically; evidence/reconstruction family actions write a prepared workset under `evidence/local_only/harvest/family-action-worksets/`, and `use-local-sources` families now also write a normalized reconstruction bundle under `evidence/local_only/harvest/family-reconstruction-bundles/`.
-12. After a `use-local-sources` family action, donor scan now also writes `evidence/local_only/harvest/family-reconstruction-profiles.json`. Use that file or the shell donor-scan summary when you want to know whether a prepared family is already ready for Spine+atlas reconstruction, atlas/frame import, or image-level reconstruction from grounded local sources.
-13. Donor scan now also writes `evidence/local_only/harvest/family-reconstruction-maps.json` for reconstruction-ready families. Use that when you want the next deeper truth: grounded mapped-vs-unmapped attachment coverage against local atlas regions/pages, not just a high-level readiness label.
-14. Donor scan now also writes `evidence/local_only/harvest/family-reconstruction-sections.json` for reconstruction-ready families. Use that when you want the next reusable unit after family-wide attachment coverage: grounded section keys such as Spine skin groupings, with per-section mapped coverage and atlas page counts.
-15. Donor scan now also writes `evidence/local_only/harvest/family-reconstruction-section-bundles.json` for reconstruction-ready families. Use that when you want a section-level reconstruction input that already carries exact local source counts, attachment lists, atlas page ownership, and the shared family reconstruction bundle path.
-16. Use **Prepare Section** from the donor-scan reconstruction-section rows, or run `npm run donor-scan:run-section-action -- --donor-id donor_XXX --section big_win/BW`, when one grounded reconstruction section is already ready to leave the family-level queue. This writes `evidence/local_only/harvest/section-action-run.json` plus a normalized section workset under `evidence/local_only/harvest/section-reconstruction-worksets/`.
-17. That same section action now also writes `evidence/local_only/harvest/section-reconstruction-bundles/<family>--<section>.json` plus `evidence/local_only/harvest/section-reconstruction-profiles.json`. Use those when you want page-grouped and slot-grouped section reconstruction inputs instead of the flatter workset view.
-18. That same section action now also writes `evidence/local_only/harvest/section-skin-blueprints/<family>--<section>.json` plus `evidence/local_only/harvest/section-skin-blueprint-profiles.json`. Use those when you want ordered slot/page skin reconstruction inputs instead of stopping at the broader section reconstruction bundle.
-19. When that section also has a grounded local `.atlas`, the same section action now writes `evidence/local_only/harvest/section-skin-render-plans/<family>--<section>.json` plus `evidence/local_only/harvest/section-skin-render-plan-profiles.json`. Use those when you need ordered section render layers with real atlas bounds/rotation instead of only slot/page names.
-20. That same section action now also writes `evidence/local_only/harvest/section-skin-material-plans/<family>--<section>.json` plus `evidence/local_only/harvest/section-skin-material-plan-profiles.json`. Use those when you need the honest page-image blocker state for a section: exact atlas page images present locally vs only ranked related image candidates per missing page vs still missing source material.
-21. The next layer now also writes `evidence/local_only/harvest/section-skin-material-review-bundles/<family>--<section>.json` plus `evidence/local_only/harvest/section-skin-material-review-bundle-profiles.json`. Use those when you want each missing atlas page broken into a first-class review row with one recommended local image candidate, its score, and its grounded reasons before deeper texture reconstruction.
-22. The next layer now also writes `evidence/local_only/harvest/section-skin-page-match-bundles/<family>--<section>.json` plus `evidence/local_only/harvest/section-skin-page-match-bundle-profiles.json`. Use those when you want donor scan to turn each reviewed page into one proposed atlas page-image match that can be locked before deeper section/skin reconstruction.
-23. The next layer now also writes `evidence/local_only/harvest/section-skin-page-lock-bundles/<family>--<section>.json` plus `evidence/local_only/harvest/section-skin-page-lock-bundle-profiles.json`. Use those when you want one explicit per-page lock/review bundle before final texture reconstruction. If the state is `ready-for-page-lock-review`, the page-image assignments are still proposed and need confirmation.
-24. The next layer now also writes `evidence/local_only/harvest/section-skin-page-lock-audit-bundles/<family>--<section>.json` plus `evidence/local_only/harvest/section-skin-page-lock-audit-bundle-profiles.json`. Use those when you want donor scan to detect duplicate page-image reuse before final texture reconstruction. If the state is `has-page-lock-conflicts`, multiple atlas pages still point at the same local source and need review.
-25. The next layer now also writes `evidence/local_only/harvest/section-skin-page-lock-resolution-bundles/<family>--<section>.json` plus `evidence/local_only/harvest/section-skin-page-lock-resolution-bundle-profiles.json`. Use those when you want donor scan to turn duplicate-source audit rows into a deterministic unique page-image proposal using the grounded ranked candidates already captured for that section. If the state is `ready-with-unique-proposed-page-locks`, donor scan found one unique local image proposal per atlas page, but an operator still needs to review and lock it.
-26. The next layer now also writes `evidence/local_only/harvest/section-skin-page-lock-decision-bundles/<family>--<section>.json` plus `evidence/local_only/harvest/section-skin-page-lock-decision-bundle-profiles.json`. Use those when you want one operator-ready decision pack per section with the selected local path, candidate score, and grounded reasons for each atlas page. If the state is `ready-for-lock-review`, the next step is page-lock review, not more conflict resolution or source hunting.
-27. The next layer now also writes `evidence/local_only/harvest/section-skin-page-lock-review-bundles/<family>--<section>.json` plus `evidence/local_only/harvest/section-skin-page-lock-review-bundle-profiles.json`. Use those when you want the selected page-image assignments joined to the affected slots, attachments, and atlas regions before final page-lock approval.
-28. The next layer now also writes `evidence/local_only/harvest/section-skin-page-lock-approval-bundles/<family>--<section>.json` plus `evidence/local_only/harvest/section-skin-page-lock-approval-bundle-profiles.json`. Use those when you want one explicit approval unit per section after the impact-aware review. If the state is `ready-for-page-lock-approval`, the next step is approval, not more source hunting.
-29. The next layer now also writes `evidence/local_only/harvest/section-skin-page-lock-apply-bundles/<family>--<section>.json` plus `evidence/local_only/harvest/section-skin-page-lock-apply-bundle-profiles.json`. Use those when you want one explicit downstream lock surface per section after approval. If the state is `ready-with-applied-page-locks`, the next blocker is downstream texture reconstruction rather than source hunting.
-30. The next layer now also writes `evidence/local_only/harvest/section-skin-texture-input-bundles/<family>--<section>.json` plus `evidence/local_only/harvest/section-skin-texture-input-bundle-profiles.json`. Use those when you want one lock-aware downstream texture input per section. If the state is `ready-with-proposed-page-locks`, the section is usable for downstream prep but the page-image locks are still provisional.
-31. The next layer now also writes `evidence/local_only/harvest/section-skin-texture-source-plans/<family>--<section>.json` plus `evidence/local_only/harvest/section-skin-texture-source-plan-profiles.json`. Use those when you want one structured downstream texture-source input per section. If the state is `ready-with-proposed-page-sources`, treat it as provisional until the atlas page-image matches are locked.
-32. The next layer now also writes `evidence/local_only/harvest/section-skin-texture-reconstruction-bundles/<family>--<section>.json` plus `evidence/local_only/harvest/section-skin-texture-reconstruction-bundle-profiles.json`. Use those when you want per-layer reconstruction-ready geometry plus source-path assignments. If the state is `ready-with-proposed-page-sources`, treat the bundle as provisional until the atlas page-image matches are locked.
-33. The next layer now also writes `evidence/local_only/harvest/section-skin-texture-lock-bundles/<family>--<section>.json` plus `evidence/local_only/harvest/section-skin-texture-lock-bundle-profiles.json`. Use those when you want one final texture-ready bundle that applies the approved page-lock set back onto the section's texture layers. If the state is `ready-with-applied-page-locks`, the section is ready for final texture reconstruction rather than more page-image review or source hunting.
-34. The next layer now also writes `evidence/local_only/harvest/section-skin-texture-assembly-bundles/<family>--<section>.json` plus `evidence/local_only/harvest/section-skin-texture-assembly-bundle-profiles.json`. Use those when you want one explicit per-page final texture assembly handoff after the page-lock set has already been applied. If the state is `ready-for-applied-texture-assembly`, the section is ready for final texture reconstruction rather than more page-image review or source hunting.
-35. The next layer now also writes `evidence/local_only/harvest/section-skin-texture-render-bundles/<family>--<section>.json` plus `evidence/local_only/harvest/section-skin-texture-render-bundle-profiles.json`. Use those when you want one explicit page-size-aware render bundle for final texture reconstruction. If the state is `ready-for-applied-page-texture-render`, the section already has one locked local source per atlas page plus atlas page dimensions and render-ready page rows.
-36. The next layer now also writes `evidence/local_only/harvest/section-skin-texture-canvas-bundles/<family>--<section>.json` plus `evidence/local_only/harvest/section-skin-texture-canvas-bundle-profiles.json`. Use those when you want one explicit per-page canvas-operation bundle for final texture reconstruction. If the state is `ready-for-applied-page-canvas-reconstruction`, the section already has one locked local source per atlas page, atlas page dimensions, and ordered draw operations.
-37. The next layer now also writes `evidence/local_only/harvest/section-skin-texture-source-fit-bundles/<family>--<section>.json` plus `evidence/local_only/harvest/section-skin-texture-source-fit-bundle-profiles.json`. Use those when you need donor scan to prove whether the locked local page sources actually fit the atlas page dimensions cleanly. If the state is `ready-with-non-uniform-page-source-fits`, the section is no longer blocked on source discovery, but it still needs explicit fit review before final texture reconstruction.
-38. For those non-uniform sections, donor scan now also writes `evidence/local_only/harvest/section-skin-texture-fit-review-bundles/<family>--<section>.json` plus `evidence/local_only/harvest/section-skin-texture-fit-review-bundle-profiles.json`. Use those to review concrete contain/cover/stretch transform options and their scale deltas before final texture reconstruction.
-39. Donor scan now also writes `evidence/local_only/harvest/section-skin-texture-fit-decision-bundles/<family>--<section>.json` plus `evidence/local_only/harvest/section-skin-texture-fit-decision-bundle-profiles.json`. Use those to review the single proposed grounded fit decision per atlas page before final texture reconstruction.
-40. Donor scan now also writes `evidence/local_only/harvest/section-skin-texture-fit-approval-bundles/<family>--<section>.json` plus `evidence/local_only/harvest/section-skin-texture-fit-approval-bundle-profiles.json`. Use those to review the selected transform per atlas page together with affected-layer context before final texture reconstruction.
-41. Donor scan now also writes `evidence/local_only/harvest/section-skin-texture-fit-apply-bundles/<family>--<section>.json` plus `evidence/local_only/harvest/section-skin-texture-fit-apply-bundle-profiles.json`. Use those once the selected fit transforms are accepted and you want one explicit applied-transform handoff for final texture reconstruction.
-19. Donor scan now also writes `evidence/local_only/harvest/capture-blocker-families.json`, which groups those blocker-class targets into reusable families such as `coin`, `big_win`, or `bird`. Use that file or the donor panel summary when you want to review blocked source families instead of reading one long flat URL list.
-17. Donor scan now also writes `evidence/local_only/harvest/capture-target-families.json`, which groups the active next-capture queue by family too. Use that when you want to focus source discovery on the next untried family block, not just on individual URLs.
-18. If you already know which family you want to attack, run family-focused guided capture instead of the flat queue:
-   - in the shell, use one of the new donor-scan family buttons such as `big_win`, `bird`, or `coin`
-   - or run `npm run donor-scan:capture-family -- --donor-id donor_XXX --family big_win --limit 10`
-19. Family-focused capture still uses the same grounded alternate rules and blocker feedback as the flat guided-capture runner. It does not invent new sources; it just lets you work family-by-family.
-20. In the current `project_001` proof donor, that reopened-atlas logic let guided capture pull four missing atlas-adjacent payloads (`h1`, `h2`, `stick`, and `wild`) from optimized bundle-backed sibling image families, reducing the missing atlas page count from `31` to `27`.
-21. The next generic guided-capture pass on the same donor then pulled seven more atlas-adjacent payloads (`h3`, `key`, `m1`, `m2`, `m3`, `m4`, and `scatter`) once stronger grounded optimized URLs were tried before the raw atlas-page URL, reducing the missing atlas page count again from `27` to `20`.
-22. The refreshed ranked list now also demotes those recently blocked dead ends, so the next untried grounded targets become the top guided-capture candidates automatically.
-23. Atlas-page targets now also preserve atlas page order in that ranked list, so the base page is attempted before later suffixed atlas pages when the captured metadata already proves that order.
-6. Downloaded package-graph images now join the donor asset palette automatically, grouped by harvested runtime/package scene kit, so you can drag one image at a time or use **Import Scene Kit To Compose** for a whole captured family of editable donor-backed objects instead of keeping them stuck in read-only capture files.
-7. Imported scene sections now show their strongest grounded runtime link too. Use **Open Runtime Group** from the Scene Sections banner or the selected-object inspector when you want one grouped Compose section to jump back into the Runtime workbench.
-8. When a scene section has a grounded runtime-backed static candidate, the same grouped section now shows **Create Override** / **Clear Override** actions so you can keep the override flow attached to that higher-level imported game part instead of hunting in the flat runtime asset list first.
-9. Scene sections now also expose reconstruction-kit provenance. In the Scene Sections banner, selected-object inspector, and Runtime workbench you can now read donor asset counts, evidence-ref counts, source categories, capture sessions, and copy a grouped provenance summary for the current imported game-part section.
-10. Scene sections now also expose section-level working controls. Use **Frame Section** to center one imported game-part section in Compose and **Show Section Evidence** to jump the whole grouped section back into donor evidence instead of chasing one asset at a time.
-11. Scene sections now also expose a stronger game-part summary and **Show Section Assets**, so a grouped section can jump back to its donor asset kit and carry a clearer readiness label such as donor-backed, evidence-backed, runtime-linked, or override-ready.
-12. Scene sections now also expose **Duplicate Section** and **Delete Section**, so one imported grouped game-part kit can be copied or removed as a bounded section-level edit instead of forcing one object at a time.
-13. Scene sections now also expose **Center Section** and **Restore Suggested Layer**, so one imported grouped game-part kit can be repositioned in the viewport or moved back to its inferred scene-kit layer without breaking the grouped section structure.
-14. Scene sections now also expose **Reset Section Layout**, so one imported grouped game-part kit can be repacked into its inferred scene-kit layout around the current section anchor instead of manually re-spacing each child object.
-15. Scene sections now also expose grouped **Hide/Show Section** and **Lock/Unlock Section**, so one imported grouped game-part kit can be hidden, revealed, frozen, or reopened for editing without toggling each child object separately.
-16. Scene sections now also expose grouped **Scale Section Up** and **Scale Section Down**, so one imported grouped game-part kit can be resized around its current section center as a bounded edit instead of scaling each child object manually.
-17. Scene sections now also expose **Restore Section Defaults**, so one imported grouped game-part kit can return to a clean baseline in one action: visible, unlocked, reset to its inferred scene-kit layout, back to 100% scale, and restored to its suggested layer when available.
-18. Scene sections now also expose a session-only **Solo Section** view, so one imported grouped game-part kit can temporarily take over the viewport and scene explorer without changing saved visibility or layer rules.
-19. Scene sections now also expose **Send Section Backward** and **Bring Section Forward**, so one imported grouped game-part kit can move through the layer stack as a bounded grouped section instead of reordering child objects one by one.
-20. This is still only a bounded donor-package slice. It does not yet recurse through the full runtime package or expose full game logic as editable objects.
-21. Deep donor-scan result for `project_001`:
-   - strong partial local runtime package: yes
-   - full standalone local donor runtime package: no
-   - atlas/frame metadata present locally: yes
-   - atlas/frame import from current local files: no
-   - current atlas/frame blocker: referenced page images and deeper runtime payloads are still missing locally
-   - next best source-discovery path: chase the bundle-discovered runtime metadata family `img/spines/*.json`, `img/coins/coin.json`, `img/ui/logo.png`, and translation roots into the local donor/runtime boundary
+Use `00_control/NEW_DONOR_URL_STEP_BY_STEP.md` for the exact field labels and step-by-step path.
+Summary:
+1. Open **New Project (Start Here)**.
+2. Fill **New Game Name**, **New Game ID**, **Game Family**, **Donor ID**, **Donor Launch URL**, and **Target Game Name**.
+3. Click **Create Project**, then open **Investigation** and run coverage + one bounded scenario.
+4. Promote ready families and prepare the modification board before starting Compose or Runtime tasks.
 
 ## 3. Runtime Mode Is The Primary Workflow
 1. `project_001` now opens into **Runtime** mode when the grounded donor runtime entry is available.

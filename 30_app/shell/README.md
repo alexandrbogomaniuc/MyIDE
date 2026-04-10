@@ -12,8 +12,8 @@ The shell now carries the explicit project backbone:
 4. GS Export
 
 ## New Donor URL Starting Point
-For a brand-new donor guest URL, use the top-bar **New Project** or Workflow Hub **Start New Project** CTA to open the **New Project** form in the shell `Project` panel. The step-by-step guide lives in `00_control/NEW_DONOR_QUICK_START.md`.
-The form accepts **New Game Name**, **New Game ID**, and optional **RTP** / **Default Bet** (stored as notes), plus the **Donor Launch URL**.
+For a brand-new donor guest URL, use the top-bar **New Project** or Workflow Hub **Start New Project** CTA to open the **New Project (Start Here)** form. The step-by-step guide lives in `00_control/NEW_DONOR_URL_STEP_BY_STEP.md`.
+The form accepts **New Game Name**, **New Game ID**, **Game Family**, **Donor ID**, **Donor Launch URL**, **Target Game Name**, plus optional **RTP** and **Default Bet**.
 
 The new `Investigation` panel surfaces:
 - static donor scan state

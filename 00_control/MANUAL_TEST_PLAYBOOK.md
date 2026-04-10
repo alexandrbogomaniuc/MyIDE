@@ -27,7 +27,9 @@ For this build, Investigation should expose static scan state, runtime scan stat
 8. New donor onboarding for this slice is: run `npm run manual:status`, then `npm run manual:prepare:project_001`, then `Open Debug Host` for runtime proof, then `Open Compose` for donor-backed edits.
 
 ## New Donor URL Onboarding
-For a brand-new donor guest URL, follow `00_control/NEW_DONOR_QUICK_START.md` through **Create Project** and **Investigation** before running the rest of this playbook. Return here after ready families are promoted and a modification board exists. The first-time expectation is that the shell makes the donor URL the explicit starting point and points the operator directly at Investigation and the scan commands.
+Use `00_control/USER_ACCEPTANCE_CHECKLIST.md` for the checkbox acceptance pass.
+
+For a brand-new donor guest URL, follow `00_control/NEW_DONOR_URL_STEP_BY_STEP.md` and the checkbox list in `00_control/USER_ACCEPTANCE_CHECKLIST.md` before running the rest of this playbook. Return here after ready families are promoted and a modification board exists. The first-time expectation is that the shell makes the donor URL the explicit starting point and points the operator directly at Investigation and the scan commands.
 
 ## Core Checklist
 1. App launch

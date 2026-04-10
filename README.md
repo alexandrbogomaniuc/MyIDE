@@ -19,13 +19,13 @@ The operational rule is now:
 
 The IDE now tries bounded self-investigation first, then tells the operator what to do next, and only then promotes ready families/sections into Modification.
 
-## New Donor URL Quick Start
-If you have a brand-new donor guest-mode URL, follow the explicit onboarding steps in `00_control/NEW_DONOR_QUICK_START.md`. The short version:
-1. Launch the IDE and use the top-bar **New Project** or the Workflow Hub **Start New Project** CTA to open the **Project** panel at the form.
-2. In **New Project**, fill **New Game Name**, **New Game ID**, optional **RTP** / **Default Bet**, then paste the guest-mode donor URL into **Donor Launch URL** and click **Create Project**.
-3. If you created the project without a launch URL, run `npm run donor:intake:url -- --donor-id donor_XXX --donor-name "Donor Name" --url "<guest url>"` before Investigation.
-4. Switch to **Investigation** and follow the **Next Profile** + **Next Operator Action** guidance before running `donor-scan:coverage` plus one bounded `donor-scan:scenario`.
-5. Promote ready families, prepare the modification board, then move into Compose / Runtime work.
+## New Donor URL Step-by-Step
+Use `00_control/NEW_DONOR_URL_STEP_BY_STEP.md` for the full step-by-step onboarding guide and `00_control/USER_ACCEPTANCE_CHECKLIST.md` for the checkbox acceptance pass.
+Short version:
+1. Open **New Project (Start Here)** from the top bar or Workflow Hub.
+2. Fill the required fields, paste the guest URL into **Donor Launch URL**, and click **Create Project**.
+3. Open **Investigation** and run coverage + one bounded scenario.
+4. Promote ready families, prepare the modification board, then start a task in Compose or Runtime.
 
 Once a project modification board exists, the next step is no longer another donor-only report: operators can start a prepared task and let the shell move into Compose or Runtime with the strongest grounded task context it can match.
 
