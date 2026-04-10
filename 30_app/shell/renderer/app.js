@@ -19454,6 +19454,21 @@ function renderInvestigationPanel() {
   const blockedRawFamilies = Array.isArray(donorScan?.rawPayloadBlockedFamilyNames) ? donorScan.rawPayloadBlockedFamilyNames : [];
   const primaryProfile = recommendedProfile ?? getInvestigationProfileDefinition("default-bet");
   const harvestAvailable = canHarvestSelectedProjectRuntimeRequestEvidence();
+  const debugHostStepStatus = runtimeEntryCount > 0 || runtimeProofCount > 0 ? "done" : "todo";
+  const harvestStepStatus = harvestAvailable ? "ready" : runtimeHarvestCandidates > 0 ? "ready" : "blocked";
+  const coverageStepStatus = investigation.staticScanState === "scanned" ? "done" : "todo";
+  const priorityStatusLabel = (status) => {
+    if (status === "done") {
+      return "done";
+    }
+    if (status === "ready") {
+      return "ready";
+    }
+    if (status === "blocked") {
+      return "blocked";
+    }
+    return "todo";
+  };
   const investigationSummaryPayload = {
     projectId: selectedProject.projectId,
     donorId: investigation.donorId,
@@ -19536,6 +19551,33 @@ function renderInvestigationPanel() {
   elements.investigationBrowser.innerHTML = `
     <div class="investigation-grid">
       ${investigationStatusMarkup}
+      <div class="tree-row">
+        <strong>Do This Now</strong>
+        <span>Only three actions matter here. Everything else can wait.</span>
+        <div class="priority-steps">
+          <div class="priority-step" data-status="${priorityStatusLabel(debugHostStepStatus)}">
+            <div>
+              <strong>1. Open Debug Host</strong>
+              <small class="has-tooltip" data-tooltip="This captures the grounded launch HTML and runtime bundles while you play.">${debugHostStepStatus === "done" ? "Captured in this session." : "Required to collect runtime evidence."}</small>
+            </div>
+            <button type="button" class="copy-button" data-runtime-action="open-debug-host">Open Debug Host</button>
+          </div>
+          <div class="priority-step" data-status="${priorityStatusLabel(harvestStepStatus)}">
+            <div>
+              <strong>2. Harvest Request-backed Sources</strong>
+              <small class="has-tooltip" data-tooltip="This attaches the runtime requests to the donor scan so Coverage can use them.">${harvestAvailable ? "Ready to harvest." : runtimeHarvestCandidates > 0 ? "Ready after Debug Host." : "No harvest candidates yet."}</small>
+            </div>
+            <button type="button" class="copy-button" data-runtime-action="harvest-request-evidence" ${harvestAvailable ? "" : "disabled"}>Harvest</button>
+          </div>
+          <div class="priority-step" data-status="${priorityStatusLabel(coverageStepStatus)}">
+            <div>
+              <strong>3. Run Coverage Scan</strong>
+              <small class="has-tooltip" data-tooltip="This computes coverage and updates the board once harvest is done.">${coverageStepStatus === "done" ? "Coverage already scanned." : "Run after harvest."}</small>
+            </div>
+            <button type="button" class="copy-button" data-donor-scan-action="run-coverage-scan" ${investigationRunning ? "disabled" : ""}>Run Coverage</button>
+          </div>
+        </div>
+      </div>
       <div class="tree-row">
         <strong>Runtime Evidence</strong>
         <span>${escapeHtml(String(runtimeEntryCount))} runtime request entr${runtimeEntryCount === 1 ? "y" : "ies"} · ${escapeHtml(String(runtimeProofCount))} runtime page proof${runtimeProofCount === 1 ? "" : "s"}</span>

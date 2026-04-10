@@ -930,6 +930,46 @@ button:disabled {
   gap: 14px;
 }
 
+.priority-steps {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.priority-step {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(179, 209, 186, 0.16);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.priority-step small {
+  color: var(--text-muted);
+}
+
+.priority-step[data-status="done"] {
+  border-color: rgba(120, 200, 160, 0.45);
+  background: rgba(32, 56, 44, 0.55);
+}
+
+.priority-step[data-status="ready"] {
+  border-color: rgba(120, 170, 220, 0.45);
+  background: rgba(30, 45, 58, 0.55);
+}
+
+.priority-step[data-status="blocked"] {
+  border-color: rgba(220, 120, 120, 0.45);
+  background: rgba(60, 24, 24, 0.55);
+}
+
+.priority-step[data-status="todo"] {
+  border-color: rgba(230, 191, 100, 0.35);
+  background: rgba(60, 48, 20, 0.45);
+}
+
 .investigation-list {
   display: grid;
   gap: 10px;
